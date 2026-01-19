@@ -14,7 +14,7 @@
 export const VERSION = "0.0.1";
 
 // Config exports (PRD 1)
-// export * from './config';
+export * from "./config/index.js";
 
 // State exports (PRD 2)
 // export * from './state';
