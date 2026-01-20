@@ -1949,9 +1949,9 @@ describe("FleetManager Coverage Tests", () => {
       const handler = vi.fn();
       manager.on("agent:started", handler);
 
+      const agent = manager.getAgents().find(a => a.name === "emit-start-agent")!;
       manager.emitAgentStarted({
-        agentName: "emit-start-agent",
-        scheduleCount: 0,
+        agent,
         timestamp: new Date().toISOString(),
       });
 
@@ -2015,7 +2015,7 @@ describe("FleetManager Coverage Tests", () => {
       manager.emitScheduleSkipped({
         agentName: "emit-skip-agent",
         scheduleName: "test",
-        reason: "at_capacity",
+        reason: "max_concurrent",
         timestamp: new Date().toISOString(),
       });
 
@@ -2055,7 +2055,6 @@ describe("FleetManager Coverage Tests", () => {
           forked_from: null,
         },
         agentName: "emit-job-create-agent",
-        scheduleName: null,
         timestamp: new Date().toISOString(),
       });
 
@@ -2087,6 +2086,7 @@ describe("FleetManager Coverage Tests", () => {
         jobId: "test-job-id",
         agentName: "emit-output-agent",
         output: "test output",
+        outputType: "stdout",
         timestamp: new Date().toISOString(),
       });
 
@@ -2126,6 +2126,7 @@ describe("FleetManager Coverage Tests", () => {
           forked_from: null,
         },
         agentName: "emit-complete-agent",
+        exitReason: "success",
         durationSeconds: 10,
         timestamp: new Date().toISOString(),
       });
@@ -2166,7 +2167,8 @@ describe("FleetManager Coverage Tests", () => {
           forked_from: null,
         },
         agentName: "emit-fail-agent",
-        error: "Test error",
+        error: new Error("Test error"),
+        exitReason: "error",
         timestamp: new Date().toISOString(),
       });
 

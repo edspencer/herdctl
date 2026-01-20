@@ -123,9 +123,14 @@ describe("FleetManager Event Emission Helpers", () => {
       manager.on("agent:started", handler);
 
       const payload: AgentStartedPayload = {
-        agentName: "my-agent",
-        scheduleCount: 2,
-        scheduleNames: ["hourly", "daily"],
+        agent: {
+          name: "my-agent",
+          configPath: "/path/to/agent.yaml",
+          schedules: {
+            hourly: { type: "interval", interval: "1h" },
+            daily: { type: "cron", expression: "0 0 * * *" },
+          },
+        },
         timestamp: new Date().toISOString(),
       };
 
@@ -227,6 +232,7 @@ describe("FleetManager Event Emission Helpers", () => {
         jobId: "job-2024-01-15-abc123",
         agentName: "my-agent",
         output: "Hello, world!",
+        outputType: "stdout",
         timestamp: new Date().toISOString(),
       };
 
@@ -260,7 +266,6 @@ describe("FleetManager Event Emission Helpers", () => {
       const payload: JobCompletedPayload = {
         job: mockJob,
         agentName: "my-agent",
-        scheduleName: null,
         exitReason: "success",
         durationSeconds: 60,
         timestamp: new Date().toISOString(),
@@ -292,14 +297,13 @@ describe("FleetManager Event Emission Helpers", () => {
         started_at: new Date(Date.now() - 30000).toISOString(),
         finished_at: new Date().toISOString(),
         exit_reason: "error",
-        error_message: "Process failed with exit code 1",
       };
 
       const payload: JobFailedPayload = {
         job: mockJob,
         agentName: "my-agent",
-        scheduleName: "hourly",
-        errorMessage: "Process failed with exit code 1",
+        error: new Error("Process failed with exit code 1"),
+        exitReason: "error",
         durationSeconds: 30,
         timestamp: new Date().toISOString(),
       };
@@ -406,6 +410,7 @@ describe("FleetManager Event Emission Helpers", () => {
         jobId: "job-123",
         agentName: "agent",
         output: "test",
+        outputType: "stdout",
         timestamp: new Date().toISOString(),
       };
 
@@ -434,7 +439,6 @@ describe("FleetManager Event Emission Helpers", () => {
       manager.emitJobCreated({
         job: mockJob,
         agentName: "agent",
-        scheduleName: null,
         timestamp: new Date().toISOString(),
       });
 
