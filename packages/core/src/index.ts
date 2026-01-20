@@ -27,3 +27,6 @@ export * from "./work-sources/index.js";
 
 // Scheduler exports (PRD 6)
 export * from "./scheduler/index.js";
+
+// Fleet Manager exports (PRD 7)
+export * from "./fleet-manager/index.js";
