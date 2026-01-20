@@ -3,8 +3,26 @@
 > This document outlines the full implementation plan for herdctl, including bootstrapping and PRD-driven development via ralph-tui.
 
 **Spec Document**: [herdctl.md](./herdctl.md)
-**npm Package**: `herdctl` (claimed, v0.0.1 placeholder)
 **Primary Domain**: herdctl.dev
+
+---
+
+## npm Package Strategy
+
+We use both scoped and unscoped packages:
+
+| Package | Name | Install Command | Purpose |
+|---------|------|-----------------|---------|
+| CLI | `herdctl` | `pnpm add -g herdctl` | Command-line tool |
+| Core Library | `@herdctl/core` | `pnpm add @herdctl/core` | Programmatic API |
+| Web Dashboard | `@herdctl/web` | `pnpm add @herdctl/web` | Dashboard + HTTP API |
+| Discord | `@herdctl/discord` | `pnpm add @herdctl/discord` | Discord connector |
+
+**Rationale**: This follows the pattern used by TypeScript, Turborepo, ESLint, and other major projects:
+- Unscoped `herdctl` for the primary CLI (what most users install)
+- Scoped `@herdctl/*` for library packages (for developers integrating programmatically)
+
+**npm Organization**: `@herdctl` (claimed and secured)
 
 ---
 
@@ -191,9 +209,11 @@ Each phase is a separate ralph-tui session with its own PRD.
 
 ---
 
-### PRD 2: herdctl-core-state (In Progress)
+### PRD 2: herdctl-core-state ✓
 
 **Scope**: State management via .herdctl/ directory
+
+**Status**: Complete
 
 **User Stories**:
 1. Create .herdctl/ directory structure
@@ -309,9 +329,11 @@ This PRD establishes the documentation site early so all subsequent work can upd
 
 ---
 
-### PRD 7: herdctl-fleet-manager
+### PRD 7: herdctl-fleet-manager ✓
 
 **Scope**: FleetManager orchestration layer in @herdctl/core
+
+**Status**: Complete (implementation done, test coverage needs improvement - see CI notes)
 
 **User Stories**:
 1. Create FleetManager class that wires together config, scheduler, state, runner, and work-sources
@@ -330,6 +352,21 @@ This PRD establishes the documentation site early so all subsequent work can upd
 - Documentation updated and builds successfully
 
 **Dependencies**: All core modules (config, state, runner, work-sources, scheduler), herdctl-docs
+
+---
+
+### Library Documentation ✓
+
+**Scope**: Comprehensive documentation for using @herdctl/core as a standalone library
+
+**Status**: Complete
+
+Added after PRD 7 to document the FleetManager API for library consumers. Includes:
+- `docs/src/content/docs/library-reference/` - FleetManager, Events, Errors, JobManager API docs
+- `docs/src/content/docs/guides/recipes.mdx` - Common patterns and examples
+- `examples/quickstart/` - Minimal working example
+- `examples/library-usage/` - Comprehensive API usage examples
+- `examples/recipes/` - Production patterns (daemon, CI, Express/Fastify integration)
 
 ---
 
@@ -462,13 +499,16 @@ This PRD establishes the documentation site early so all subsequent work can upd
 | 0 | Bootstrap (manual) | Repo scaffold, turborepo, packages | - | ✓ |
 | 1 | herdctl-core-config | Config parsing | - | ✓ |
 | 2 | herdctl-core-state | .herdctl/ state files | - | ✓ |
-| **3** | **herdctl-docs** | **Documentation site** | **Initial content from SPEC + PRDs 1-2** | ✓ |
+| 3 | herdctl-docs | Documentation site | Initial content from SPEC + PRDs 1-2 | ✓ |
 | 4 | herdctl-core-runner | Claude SDK wrapper | + Runner docs | ✓ |
 | 5 | herdctl-core-github | GitHub Issues work source | + Work Sources docs | ✓ |
 | 6 | herdctl-core-scheduler | Interval scheduler | + Scheduling docs | ✓ |
-| **7** | **herdctl-fleet-manager** | **FleetManager orchestration** | **+ Library usage docs** | **Next** |
-| 8 | herdctl-cli | CLI commands | + CLI Reference, Getting Started | |
+| 7 | herdctl-fleet-manager | FleetManager orchestration | + Library usage docs | ✓ |
+| - | Library Documentation | API docs, examples, recipes | Comprehensive library docs | ✓ |
+| **8** | **herdctl-cli** | **CLI commands** | **+ CLI Reference, Getting Started** | **Next** |
 | 9 | herdctl-docs-deploy | Deploy to herdctl.dev | Final review + deploy | |
+
+**Note**: PRD 7 (FleetManager) is functionally complete but has test coverage gaps that are causing CI failures. The global coverage threshold (90%) is not met due to undertested error handling paths in fleet-manager.ts and errors.ts. This should be addressed before or during the CLI work.
 
 After PRD 8, we have a working MVP that can:
 - Parse config files
