@@ -59,7 +59,7 @@ function createMockLogger(): SchedulerLogger & {
 // Helper to create a test agent
 function createTestAgent(
   name: string,
-  schedules?: Record<string, { type: string; interval?: string; prompt?: string }>
+  schedules?: Record<string, { type: string; interval?: string; expression?: string; prompt?: string }>
 ): ResolvedAgent {
   return {
     name,
@@ -372,7 +372,7 @@ describe("Scheduler", () => {
       await startPromise;
     });
 
-    it("skips non-interval schedule types", async () => {
+    it("skips unsupported schedule types (webhook, chat)", async () => {
       const scheduler = new Scheduler({
         stateDir: tempDir,
         checkInterval: 50,
@@ -380,9 +380,6 @@ describe("Scheduler", () => {
       });
 
       const agents = [
-        createTestAgent("cron-agent", {
-          hourly: { type: "cron", interval: "0 * * * *" },
-        }),
         createTestAgent("webhook-agent", {
           webhook: { type: "webhook" },
         }),
@@ -397,6 +394,185 @@ describe("Scheduler", () => {
       // Should not trigger any schedules
       const state = scheduler.getState();
       expect(state.triggerCount).toBe(0);
+
+      await scheduler.stop();
+      await startPromise;
+    });
+
+    it("triggers cron schedules when time is within trigger window", async () => {
+      // Test that cron schedules trigger when the current time is shortly after a cron occurrence
+      // This test uses a minute-granularity cron to minimize timing sensitivity
+      const triggers: TriggerInfo[] = [];
+
+      const scheduler = new Scheduler({
+        stateDir: tempDir,
+        checkInterval: 50,
+        logger: mockLogger,
+        onTrigger: async (info) => {
+          triggers.push(info);
+        },
+      });
+
+      // Use a cron that runs every minute - this way we're always within a trigger window
+      // (within 1 second of some :00 mark)
+      const agents = [
+        createTestAgent("cron-agent", {
+          everyMinute: { type: "cron", expression: "* * * * *", prompt: "cron test" },
+        }),
+      ];
+
+      const startPromise = scheduler.start(agents);
+      await wait(150);
+
+      // Should have triggered since we're within the trigger window of the previous minute
+      expect(triggers.length).toBeGreaterThan(0);
+      expect(triggers[0].agent.name).toBe("cron-agent");
+      expect(triggers[0].scheduleName).toBe("everyMinute");
+
+      await scheduler.stop();
+      await startPromise;
+    });
+
+    it("skips cron schedules missing expression value", async () => {
+      const scheduler = new Scheduler({
+        stateDir: tempDir,
+        checkInterval: 50,
+        logger: mockLogger,
+      });
+
+      const agents = [
+        createTestAgent("test-agent", {
+          broken: { type: "cron" }, // Missing expression value
+        }),
+      ];
+
+      const startPromise = scheduler.start(agents);
+      await wait(100);
+
+      expect(
+        mockLogger.warnings.some((m) => m.includes("missing expression value"))
+      ).toBe(true);
+      expect(scheduler.getState().triggerCount).toBe(0);
+
+      await scheduler.stop();
+      await startPromise;
+    });
+
+    it("skips cron schedules with invalid expression", async () => {
+      const scheduler = new Scheduler({
+        stateDir: tempDir,
+        checkInterval: 50,
+        logger: mockLogger,
+      });
+
+      const agents = [
+        createTestAgent("test-agent", {
+          broken: { type: "cron", expression: "invalid cron" },
+        }),
+      ];
+
+      const startPromise = scheduler.start(agents);
+      await wait(100);
+
+      expect(
+        mockLogger.warnings.some((m) => m.includes("invalid cron expression"))
+      ).toBe(true);
+      expect(scheduler.getState().triggerCount).toBe(0);
+
+      await scheduler.stop();
+      await startPromise;
+    });
+
+    it("calculates next trigger time for cron schedule after completion", async () => {
+      const scheduler = new Scheduler({
+        stateDir: tempDir,
+        checkInterval: 50,
+        logger: mockLogger,
+        onTrigger: async () => {
+          // Simulate work
+          await wait(10);
+        },
+      });
+
+      // Use every-minute cron to ensure we're always within the trigger window
+      const agents = [
+        createTestAgent("test-agent", {
+          everyMinute: { type: "cron", expression: "* * * * *" },
+        }),
+      ];
+
+      const startPromise = scheduler.start(agents);
+      await wait(150);
+
+      // Check state was updated with next_run_at for cron
+      const stateFile = join(tempDir, "state.yaml");
+      const fleetState = await readFleetState(stateFile);
+      const scheduleState = fleetState.agents["test-agent"]?.schedules?.everyMinute;
+
+      expect(scheduleState).toBeDefined();
+      expect(scheduleState?.last_run_at).not.toBeNull();
+      expect(scheduleState?.next_run_at).not.toBeNull();
+      expect(scheduleState?.status).toBe("idle");
+
+      // The next run should be in the future (next minute)
+      const nextRunAt = new Date(scheduleState!.next_run_at!);
+      expect(nextRunAt.getTime()).toBeGreaterThan(Date.now());
+
+      await scheduler.stop();
+      await startPromise;
+    });
+
+    it("does not catch up missed cron triggers", async () => {
+      // When system was down during a cron trigger time, it should skip to next occurrence
+      // We simulate this by setting last_run_at to more than 1 day ago with @hourly
+      // This means the scheduler "missed" multiple hourly triggers but should only run at the next hour
+      const now = new Date();
+      // Set last run to 2 hours ago (missed at least one hourly trigger)
+      const lastRunAt = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+
+      const stateFile = join(tempDir, "state.yaml");
+      const initialState: FleetState = {
+        fleet: {},
+        agents: {
+          "test-agent": {
+            status: "idle",
+            schedules: {
+              hourly: {
+                last_run_at: lastRunAt.toISOString(),
+                next_run_at: null,
+                status: "idle",
+                last_error: null,
+              },
+            },
+          },
+        },
+      };
+      await writeFleetState(stateFile, initialState);
+
+      const triggers: TriggerInfo[] = [];
+
+      const scheduler = new Scheduler({
+        stateDir: tempDir,
+        checkInterval: 50,
+        logger: mockLogger,
+        onTrigger: async (info) => {
+          triggers.push(info);
+        },
+      });
+
+      const agents = [
+        createTestAgent("test-agent", {
+          hourly: { type: "cron", expression: "@hourly" }, // Runs at :00 of each hour
+        }),
+      ];
+
+      const startPromise = scheduler.start(agents);
+      await wait(150);
+
+      // The schedule should NOT trigger even though we're 2 hours past the last run
+      // because the "missed" triggers are skipped - we wait for the next future occurrence
+      // (Next hourly trigger is at the next :00 mark, which is in the future)
+      expect(triggers.length).toBe(0);
 
       await scheduler.stop();
       await startPromise;

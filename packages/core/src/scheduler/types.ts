@@ -119,7 +119,7 @@ export interface SchedulerState {
  */
 export type ScheduleSkipReason =
   | "disabled" // Schedule status is 'disabled'
-  | "not_interval" // Schedule type is not 'interval'
+  | "unsupported_type" // Schedule type is not 'interval' or 'cron' (e.g., webhook, chat)
   | "not_due" // Schedule is not due yet
   | "at_capacity" // Agent is at max_concurrent capacity
   | "already_running"; // Schedule is already running

@@ -15,6 +15,16 @@ export {
   isScheduleDue,
 } from "./interval.js";
 
+// Cron expression parsing
+export {
+  parseCronExpression,
+  getNextCronTrigger,
+  calculateNextCronTrigger,
+  isValidCronExpression,
+  type ParsedCronExpression,
+  type CronParseOptions,
+} from "./cron.js";
+
 // Schedule state management
 export {
   getScheduleState,

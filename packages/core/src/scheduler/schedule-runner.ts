@@ -23,6 +23,7 @@ import {
   type ScheduleStateLogger,
 } from "./schedule-state.js";
 import { calculateNextTrigger } from "./interval.js";
+import { calculateNextCronTrigger } from "./cron.js";
 
 // =============================================================================
 // Types
@@ -42,8 +43,8 @@ export interface ScheduleRunnerLogger {
  * Trigger metadata passed to the JobExecutor
  */
 export interface TriggerMetadata {
-  /** The type of trigger */
-  triggerType: "interval";
+  /** The type of trigger (interval or cron) */
+  triggerType: "interval" | "cron";
   /** The name of the schedule that triggered */
   schedule: string;
   /** Work item ID if this run is processing a work item */
@@ -309,7 +310,7 @@ export async function runSchedule(
 
     // Step 4: Build trigger metadata
     const triggerMetadata: TriggerMetadata = {
-      triggerType: "interval",
+      triggerType: schedule.type === "cron" ? "cron" : "interval",
       schedule: scheduleName,
     };
 
@@ -348,10 +349,8 @@ export async function runSchedule(
       }
     }
 
-    // Step 7: Calculate next trigger time
-    const nextTrigger = schedule.interval
-      ? calculateNextTrigger(new Date(), schedule.interval)
-      : null;
+    // Step 7: Calculate next trigger time based on schedule type
+    const nextTrigger = calculateNextScheduleTrigger(schedule);
 
     // Step 8: Update schedule state with success
     await updateScheduleState(
@@ -400,9 +399,7 @@ export async function runSchedule(
     }
 
     // Calculate next trigger time even on error
-    const nextTrigger = schedule.interval
-      ? calculateNextTrigger(new Date(), schedule.interval)
-      : null;
+    const nextTrigger = calculateNextScheduleTrigger(schedule);
 
     // Update schedule state with error
     await updateScheduleState(
@@ -425,6 +422,21 @@ export async function runSchedule(
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+/**
+ * Calculate the next trigger time for a schedule based on its type
+ *
+ * @param schedule - The schedule configuration
+ * @returns The next trigger time as a Date, or null if the schedule type is unsupported
+ */
+function calculateNextScheduleTrigger(schedule: Schedule): Date | null {
+  if (schedule.type === "interval" && schedule.interval) {
+    return calculateNextTrigger(new Date(), schedule.interval);
+  } else if (schedule.type === "cron" && schedule.expression) {
+    return calculateNextCronTrigger(schedule.expression);
+  }
+  return null;
+}
 
 /**
  * Build a WorkResult from a RunnerResult for reporting to work sources

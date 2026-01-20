@@ -1400,6 +1400,87 @@ Agents will still work, but:
 
 ## Future Considerations
 
+### Cross-Channel Memory
+
+**Problem**: When an agent is available across multiple channels (Discord channels, Slack workspaces, DMs), each channel has an isolated session. If a user tells the agent something in Channel A, the agent won't remember it when talking in Channel B - unlike a human colleague who maintains context across conversations.
+
+**Solution**: Give agents a tool to explicitly search their conversation history across channels.
+
+```typescript
+// Tool available to agent
+interface SearchConversationsInput {
+  query: string;
+  channels?: string[];  // Limit scope (privacy control)
+  timeRange?: { from: Date; to: Date };
+}
+
+// Agent uses it when context seems missing
+"Let me check if we discussed this in another channel..."
+[calls search_conversations({ query: "OAuth PKCE flow" })]
+"Ah yes, in #api-design you mentioned you're using OAuth2 with PKCE..."
+```
+
+**Architecture**:
+```
+┌─────────────────────────────────────────────────────┐
+│                 Conversation Memory                  │
+│                                                      │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │
+│  │  Channel A  │  │  Channel B  │  │  Channel C  │ │
+│  │  History    │  │  History    │  │  History    │ │
+│  └─────────────┘  └─────────────┘  └─────────────┘ │
+│                                                      │
+│  ┌─────────────────────────────────────────────────┐│
+│  │              Index / Embeddings                 ││
+│  │         (searchable across channels)            ││
+│  └─────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────┐
+│                      Agent                           │
+│                                                      │
+│  Tools:                                              │
+│  - search_conversations(query, scope?)              │
+│  - get_channel_summary(channelId)                   │
+│  - list_active_conversations()                      │
+│                                                      │
+└─────────────────────────────────────────────────────┘
+```
+
+**Why tool-based (not automatic injection)**:
+- **Explicit**: Agent decides when to look things up
+- **Auditable**: You can see when cross-channel context was used
+- **Privacy-controllable**: Configure which channels can see which
+- **Mirrors human behavior**: "Let me check what we discussed elsewhere"
+
+**Implementation approaches** (future):
+1. **Simple**: LLM-as-retrieval (ask Claude to search recent messages)
+2. **Sophisticated**: Vector embeddings for large history (OpenAI embeddings, local model)
+
+**Privacy model**:
+```yaml
+# Agent config
+memory:
+  cross_channel_search: true
+  access_rules:
+    - channels: ["support-*"]      # Support channels can see each other
+      can_search: ["support-*"]
+    - channels: ["sales-*"]        # Sales channels isolated
+      can_search: ["sales-*"]
+    - channels: ["exec-*"]         # Exec channels see everything
+      can_search: ["*"]
+```
+
+Or per-user scope (user's conversations across channels are searchable, but not other users').
+
+**When to build**:
+1. Ship Discord/Slack MVP with isolated sessions (current plan)
+2. Add simple LLM-as-retrieval version post-MVP
+3. Vector embeddings if history grows large
+
+---
+
 ### Multiple Runtime Backends
 
 While we're starting with Claude Code only, the architecture doesn't preclude other backends:

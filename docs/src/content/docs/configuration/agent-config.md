@@ -225,6 +225,76 @@ schedules:
 | `webhook` | Triggered by HTTP webhook | — |
 | `chat` | Triggered by chat messages | — |
 
+#### Cron Schedules
+
+Use cron expressions for precise time-based scheduling. Cron format: `minute hour day month weekday`
+
+**Common cron expressions:**
+
+| Expression | Description |
+|------------|-------------|
+| `0 9 * * *` | Daily at 9:00 AM |
+| `30 9 * * 1-5` | Weekdays at 9:30 AM |
+| `0 */2 * * *` | Every 2 hours |
+| `0 0 1 * *` | First day of each month at midnight |
+| `0 9 * * 1` | Every Monday at 9:00 AM |
+| `0 0 * * 0` | Weekly on Sunday at midnight |
+
+**Supported shorthands:**
+
+| Shorthand | Equivalent | Description |
+|-----------|------------|-------------|
+| `@hourly` | `0 * * * *` | Every hour at minute 0 |
+| `@daily` | `0 0 * * *` | Every day at midnight |
+| `@weekly` | `0 0 * * 0` | Every Sunday at midnight |
+| `@monthly` | `0 0 1 * *` | First of each month at midnight |
+| `@yearly` | `0 0 1 1 *` | January 1st at midnight |
+
+**Example using shorthands:**
+
+```yaml
+schedules:
+  daily-report:
+    type: cron
+    expression: "@daily"
+    prompt: "Generate daily status report."
+
+  weekly-review:
+    type: cron
+    expression: "@weekly"
+    prompt: "Conduct weekly code review summary."
+```
+
+#### When to Use Cron vs Interval
+
+- **Use cron** when specific times matter:
+  - Daily reports at 9 AM (`0 9 * * *`)
+  - Business hours processing (`0 9-17 * * 1-5`)
+  - End-of-week summaries (`0 17 * * 5`)
+  - Monthly maintenance (`0 2 1 * *`)
+
+- **Use interval** when regular frequency matters:
+  - Health checks every 5 minutes (`5m`)
+  - Polling for new work (`10m`)
+  - Continuous monitoring (`1m`)
+  - Cache refresh (`1h`)
+
+```yaml
+# Cron: Reports need to arrive at specific times
+schedules:
+  morning-report:
+    type: cron
+    expression: "0 9 * * 1-5"
+    prompt: "Generate morning status report for the team."
+
+# Interval: Just need regular checks, timing doesn't matter
+schedules:
+  issue-check:
+    type: interval
+    interval: 5m
+    prompt: "Check for new issues to process."
+```
+
 #### Schedule Fields
 
 | Field | Type | Description |

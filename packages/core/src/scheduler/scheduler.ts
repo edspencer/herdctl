@@ -1,12 +1,13 @@
 /**
  * Scheduler class for managing agent schedule execution
  *
- * The Scheduler continuously checks all agents' interval schedules and triggers
- * due agents according to their configured intervals.
+ * The Scheduler continuously checks all agents' interval and cron schedules and triggers
+ * due agents according to their configured schedules.
  */
 
 import type { ResolvedAgent } from "../config/index.js";
 import { calculateNextTrigger, isScheduleDue } from "./interval.js";
+import { calculateNextCronTrigger, calculatePreviousCronTrigger, isValidCronExpression } from "./cron.js";
 import {
   getScheduleState,
   updateScheduleState,
@@ -63,8 +64,8 @@ function createDefaultLogger(): SchedulerLogger {
  * Scheduler for managing agent schedule execution
  *
  * The Scheduler runs a polling loop that:
- * 1. Checks all agents' interval schedules on each iteration
- * 2. Skips non-interval schedule types (cron, webhook, chat)
+ * 1. Checks all agents' interval and cron schedules on each iteration
+ * 2. Skips unsupported schedule types (webhook, chat)
  * 3. Skips disabled schedules
  * 4. Skips agents at max_concurrent capacity
  * 5. Triggers due schedules via the onTrigger callback
@@ -315,19 +316,19 @@ export class Scheduler {
   private async checkSchedule(
     agent: ResolvedAgent,
     scheduleName: string,
-    schedule: { type: string; interval?: string }
+    schedule: { type: string; interval?: string; expression?: string }
   ): Promise<ScheduleCheckResult> {
     const baseResult = {
       agentName: agent.name,
       scheduleName,
     };
 
-    // Skip non-interval schedule types (cron, webhook, chat reserved for future)
-    if (schedule.type !== "interval") {
+    // Skip unsupported schedule types (webhook, chat)
+    if (schedule.type !== "interval" && schedule.type !== "cron") {
       return {
         ...baseResult,
         shouldTrigger: false,
-        skipReason: "not_interval" as ScheduleSkipReason,
+        skipReason: "unsupported_type" as ScheduleSkipReason,
       };
     }
 
@@ -382,23 +383,92 @@ export class Scheduler {
       };
     }
 
-    // Calculate next trigger time
+    // Calculate next trigger time based on schedule type
     const lastRunAt = scheduleState.last_run_at
       ? new Date(scheduleState.last_run_at)
       : null;
 
-    if (!schedule.interval) {
-      this.logger.warn(
-        `Skipping ${agent.name}/${scheduleName}: interval schedule missing interval value`
-      );
-      return {
-        ...baseResult,
-        shouldTrigger: false,
-        skipReason: "not_interval" as ScheduleSkipReason,
-      };
-    }
+    let nextTrigger: Date;
 
-    const nextTrigger = calculateNextTrigger(lastRunAt, schedule.interval);
+    if (schedule.type === "interval") {
+      if (!schedule.interval) {
+        this.logger.warn(
+          `Skipping ${agent.name}/${scheduleName}: interval schedule missing interval value`
+        );
+        return {
+          ...baseResult,
+          shouldTrigger: false,
+          skipReason: "unsupported_type" as ScheduleSkipReason,
+        };
+      }
+      nextTrigger = calculateNextTrigger(lastRunAt, schedule.interval);
+    } else {
+      // schedule.type === "cron"
+      if (!schedule.expression) {
+        this.logger.warn(
+          `Skipping ${agent.name}/${scheduleName}: cron schedule missing expression value`
+        );
+        return {
+          ...baseResult,
+          shouldTrigger: false,
+          skipReason: "unsupported_type" as ScheduleSkipReason,
+        };
+      }
+
+      // Validate cron expression (defense in depth - should be validated at config load time)
+      if (!isValidCronExpression(schedule.expression)) {
+        this.logger.warn(
+          `Skipping ${agent.name}/${scheduleName}: invalid cron expression "${schedule.expression}"`
+        );
+        return {
+          ...baseResult,
+          shouldTrigger: false,
+          skipReason: "unsupported_type" as ScheduleSkipReason,
+        };
+      }
+
+      const now = new Date();
+
+      if (lastRunAt) {
+        // Calculate next cron occurrence after the last run
+        const nextAfterLastRun = calculateNextCronTrigger(schedule.expression, lastRunAt);
+
+        if (nextAfterLastRun <= now) {
+          // The next scheduled time after lastRunAt is in the past (we missed it)
+          // Skip catch-up: get the next FUTURE occurrence instead
+          nextTrigger = calculateNextCronTrigger(schedule.expression, now);
+        } else {
+          // The next scheduled time is in the future, but may be due soon
+          nextTrigger = nextAfterLastRun;
+        }
+      } else {
+        // For NEW cron schedules (no lastRunAt), determine if we're in a "trigger window"
+        // We use the previous cron time as a reference point and compare with current time
+        const previousTrigger = calculatePreviousCronTrigger(schedule.expression);
+        const nextFutureTrigger = calculateNextCronTrigger(schedule.expression);
+
+        // Calculate the cron interval (time between previous and next)
+        const intervalMs = nextFutureTrigger.getTime() - previousTrigger.getTime();
+
+        // Allow triggering if we're within the first portion of the interval after a cron time
+        // For very fast crons (<= 1 minute), use half the interval
+        // For slower crons, use 1/60th of the interval (capped at 5 minutes)
+        const triggerWindowMs = intervalMs <= 60000
+          ? Math.floor(intervalMs / 2) // Half interval for fast crons (up to 30s for 1-minute cron)
+          : Math.min(Math.floor(intervalMs / 60), 5 * 60 * 1000); // Max 5 minutes
+
+        const timeSincePrevious = now.getTime() - previousTrigger.getTime();
+
+        if (timeSincePrevious <= triggerWindowMs) {
+          // We're within the trigger window after the previous cron time
+          // Use previousTrigger as nextTrigger so we're "due"
+          nextTrigger = previousTrigger;
+        } else {
+          // We're past the trigger window, wait for the next scheduled time
+          nextTrigger = nextFutureTrigger;
+        }
+      }
+    }
 
     // Check if schedule is due
     if (!isScheduleDue(nextTrigger)) {
@@ -455,7 +525,7 @@ export class Scheduler {
   private async triggerSchedule(
     agent: ResolvedAgent,
     scheduleName: string,
-    schedule: { type: string; interval?: string; prompt?: string }
+    schedule: { type: string; interval?: string; expression?: string; prompt?: string }
   ): Promise<void> {
     this.logger.info(`Triggering ${agent.name}/${scheduleName}`);
     this.triggerCount++;
@@ -501,7 +571,7 @@ export class Scheduler {
   private async executeJob(
     agent: ResolvedAgent,
     scheduleName: string,
-    schedule: { type: string; interval?: string; prompt?: string }
+    schedule: { type: string; interval?: string; expression?: string; prompt?: string }
   ): Promise<void> {
     const stateLogger: ScheduleStateLogger = { warn: this.logger.warn };
 
@@ -526,10 +596,13 @@ export class Scheduler {
         await this.onTrigger(triggerInfo);
       }
 
-      // Calculate next trigger time
-      const nextTrigger = schedule.interval
-        ? calculateNextTrigger(new Date(), schedule.interval)
-        : null;
+      // Calculate next trigger time based on schedule type
+      let nextTrigger: Date | null = null;
+      if (schedule.type === "interval" && schedule.interval) {
+        nextTrigger = calculateNextTrigger(new Date(), schedule.interval);
+      } else if (schedule.type === "cron" && schedule.expression) {
+        nextTrigger = calculateNextCronTrigger(schedule.expression);
+      }
 
       // Update schedule state to idle with next run time
       await updateScheduleState(
