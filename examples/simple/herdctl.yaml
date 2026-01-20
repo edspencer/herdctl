@@ -3,6 +3,8 @@
 # This file defines a simple fleet with one agent.
 # Place this in the root of your project and run `herdctl start`.
 
+version: 1
+
 fleet:
   name: example-fleet
   description: A simple example herdctl fleet
@@ -13,5 +15,4 @@ defaults:
   permission_mode: default
 
 agents:
-  example-agent:
-    path: ./agents/example-agent.yaml
+  - path: ./agents/example-agent.yaml

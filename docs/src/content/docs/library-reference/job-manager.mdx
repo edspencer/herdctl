@@ -1,0 +1,933 @@
+---
+title: JobManager API Reference
+description: Complete API documentation for the JobManager class with job queries, real-time streaming, and retention management
+---
+
+import { Badge, Tabs, TabItem, Aside, Code } from '@astrojs/starlight/components';
+
+The `JobManager` class provides dedicated job history queries, real-time output streaming, and retention management. Use it when you need granular control over job data, or when building job monitoring and log viewing features.
+
+## When to Use JobManager vs FleetManager
+
+| Use Case | Recommended Approach |
+|----------|---------------------|
+| **Running agents and schedules** | [FleetManager](/library-reference/fleet-manager) |
+| **Triggering jobs, cancelling, forking** | [FleetManager](/library-reference/fleet-manager) |
+| **Querying job history with filters** | JobManager |
+| **Streaming output from specific jobs** | JobManager |
+| **Building log viewers and dashboards** | JobManager |
+| **Managing job retention policies** | JobManager |
+
+<Aside type="tip">
+FleetManager is the high-level orchestrator for running fleets. JobManager is a focused utility for job data access. You can use both together—FleetManager for orchestration, JobManager for detailed queries.
+</Aside>
+
+---
+
+## Installation
+
+```bash
+npm install @herdctl/core
+# or
+pnpm add @herdctl/core
+```
+
+---
+
+## Quick Start
+
+```typescript
+import { JobManager, JobNotFoundError } from '@herdctl/core';
+
+const jobManager = new JobManager({
+  jobsDir: './.herdctl/jobs',
+});
+
+// Query recent jobs
+const { jobs, total } = await jobManager.getJobs({
+  status: 'completed',
+  limit: 10,
+});
+
+console.log(`Found ${total} completed jobs`);
+for (const job of jobs) {
+  console.log(`  ${job.id}: ${job.agent} (${job.status})`);
+}
+
+// Stream output from a specific job
+const stream = await jobManager.streamJobOutput('job-2024-01-15-abc123');
+stream.on('message', (msg) => {
+  if (msg.type === 'assistant') {
+    process.stdout.write(msg.content ?? '');
+  }
+});
+stream.on('end', () => console.log('\nJob output complete'));
+```
+
+---
+
+## Constructor
+
+### `new JobManager(options)`
+
+Creates a new JobManager instance for querying jobs and streaming output.
+
+```typescript
+const jobManager = new JobManager(options: JobManagerOptions);
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `options.jobsDir` | `string` | **Yes** | — | Path to the jobs directory (e.g., `.herdctl/jobs`). |
+| `options.logger` | `JobManagerLogger` | No | Console logger | Custom logger with `debug?`, `info?`, `warn`, `error?` methods. |
+| `options.retention` | `JobRetentionConfig` | No | `{ maxJobsPerAgent: 100 }` | Retention policy configuration. |
+
+#### JobRetentionConfig
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `maxJobsPerAgent` | `number` | `100` | Maximum jobs to keep per agent. Oldest jobs are deleted when exceeded. |
+| `maxTotalJobs` | `number` | `0` (unlimited) | Fleet-wide maximum jobs cap. Set to 0 to disable. |
+
+#### Example
+
+```typescript
+import { JobManager } from '@herdctl/core';
+
+// Basic instantiation
+const jobManager = new JobManager({
+  jobsDir: './.herdctl/jobs',
+});
+
+// Full configuration with custom logger and retention
+const jobManager = new JobManager({
+  jobsDir: './.herdctl/jobs',
+  logger: {
+    debug: (msg) => console.debug(`[JobManager] ${msg}`),
+    info: (msg) => console.info(`[JobManager] ${msg}`),
+    warn: (msg) => console.warn(`[JobManager] ${msg}`),
+    error: (msg) => console.error(`[JobManager] ${msg}`),
+  },
+  retention: {
+    maxJobsPerAgent: 50,
+    maxTotalJobs: 500,
+  },
+});
+```
+
+### Instantiation via FleetManager
+
+If you're already using FleetManager, the jobs directory is typically `.herdctl/jobs` within your state directory:
+
+```typescript
+import { FleetManager, JobManager } from '@herdctl/core';
+
+const fleetManager = new FleetManager({
+  stateDir: './.herdctl',
+  configPath: './herdctl.yaml',
+});
+
+await fleetManager.initialize();
+
+// Create JobManager pointing to the same jobs directory
+const jobManager = new JobManager({
+  jobsDir: './.herdctl/jobs',
+});
+```
+
+---
+
+## Query Methods
+
+### `getJobs(filter?)`
+
+Lists jobs with optional filtering, sorted by `started_at` descending (most recent first).
+
+```typescript
+await jobManager.getJobs(filter?: JobFilter): Promise<JobListResult>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `filter.agent` | `string` | No | Filter by agent name |
+| `filter.status` | `JobStatus` | No | Filter by status: `'pending'`, `'running'`, `'completed'`, `'failed'`, `'cancelled'` |
+| `filter.startedAfter` | `string \| Date` | No | Include jobs started on or after this date |
+| `filter.startedBefore` | `string \| Date` | No | Include jobs started on or before this date |
+| `filter.limit` | `number` | No | Maximum results to return |
+| `filter.offset` | `number` | No | Skip this many results (for pagination) |
+
+#### Returns
+
+```typescript
+interface JobListResult {
+  jobs: Job[];      // Array of matching jobs
+  total: number;    // Total count before pagination
+  errors: number;   // Number of jobs that failed to parse
+}
+```
+
+#### Example
+
+```typescript
+// Get all jobs
+const { jobs, total } = await jobManager.getJobs();
+console.log(`Total jobs: ${total}`);
+
+// Filter by agent
+const { jobs } = await jobManager.getJobs({
+  agent: 'code-reviewer',
+});
+
+// Filter by status with pagination
+const { jobs, total } = await jobManager.getJobs({
+  status: 'failed',
+  limit: 10,
+  offset: 0,
+});
+console.log(`Showing 10 of ${total} failed jobs`);
+
+// Filter by date range
+const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+const { jobs } = await jobManager.getJobs({
+  startedAfter: yesterday,
+});
+
+// Combine multiple filters
+const { jobs } = await jobManager.getJobs({
+  agent: 'code-reviewer',
+  status: 'completed',
+  startedAfter: '2024-01-01T00:00:00Z',
+  limit: 20,
+});
+```
+
+---
+
+### `getJob(jobId, options?)`
+
+Retrieves a specific job by ID with optional output inclusion.
+
+```typescript
+await jobManager.getJob(jobId: string, options?: GetJobOptions): Promise<Job>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `jobId` | `string` | **Yes** | — | The unique job identifier |
+| `options.includeOutput` | `boolean` | No | `false` | Include full output messages in response |
+
+#### Returns
+
+```typescript
+interface Job extends JobMetadata {
+  output?: JobOutputMessage[];  // Only populated if includeOutput is true
+}
+
+interface JobMetadata {
+  id: string;                   // Unique job identifier
+  agent: string;                // Agent name
+  status: JobStatus;            // 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+  started_at: string;           // ISO timestamp
+  finished_at: string | null;   // ISO timestamp or null if still running
+  prompt: string | null;        // Input prompt
+  trigger_type: 'manual' | 'schedule' | 'fork';
+  schedule: string | null;      // Schedule name if triggered by schedule
+  forked_from: string | null;   // Parent job ID if forked
+  exit_reason: string | null;   // 'success', 'error', 'cancelled', etc.
+}
+```
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `JobNotFoundError` | Job doesn't exist |
+
+#### Example
+
+```typescript
+import { JobNotFoundError, isJobNotFoundError } from '@herdctl/core';
+
+// Get job metadata only (fast)
+try {
+  const job = await jobManager.getJob('job-2024-01-15-abc123');
+  console.log(`Job status: ${job.status}`);
+  console.log(`Agent: ${job.agent}`);
+  console.log(`Started: ${job.started_at}`);
+} catch (error) {
+  if (isJobNotFoundError(error)) {
+    console.log(`Job "${error.jobId}" not found`);
+  }
+}
+
+// Get job with full output (slower for large jobs)
+const job = await jobManager.getJob('job-2024-01-15-abc123', {
+  includeOutput: true,
+});
+
+if (job.output) {
+  console.log(`Output messages: ${job.output.length}`);
+  for (const msg of job.output) {
+    if (msg.type === 'assistant') {
+      console.log(msg.content);
+    }
+  }
+}
+```
+
+---
+
+## Output Streaming
+
+### `streamJobOutput(jobId)`
+
+Streams real-time output from a job as an event emitter. For completed jobs, replays all existing output and emits `'end'`. For running jobs, continues streaming new output until the job completes or `stop()` is called.
+
+```typescript
+await jobManager.streamJobOutput(jobId: string): Promise<JobOutputStream>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `jobId` | `string` | **Yes** | The job ID to stream output from |
+
+#### Returns
+
+```typescript
+interface JobOutputStream {
+  /** Stop watching for new output */
+  stop(): void;
+
+  /** Subscribe to output events */
+  on<K extends keyof JobOutputStreamEvents>(
+    event: K,
+    listener: (...args: JobOutputStreamEvents[K]) => void
+  ): this;
+
+  /** Unsubscribe from output events */
+  off<K extends keyof JobOutputStreamEvents>(
+    event: K,
+    listener: (...args: JobOutputStreamEvents[K]) => void
+  ): this;
+}
+
+interface JobOutputStreamEvents {
+  /** Emitted for each output message */
+  message: [message: JobOutputMessage];
+  /** Emitted when the job completes */
+  end: [];
+  /** Emitted when an error occurs */
+  error: [error: Error];
+}
+```
+
+#### JobOutputMessage
+
+```typescript
+interface JobOutputMessage {
+  type: string;        // 'assistant' | 'tool' | 'system' | 'error' | etc.
+  content?: string;    // The output content
+  timestamp?: string;  // ISO timestamp
+  // Additional fields depend on message type
+}
+```
+
+<Aside type="tip">
+The `type` field indicates the source of output:
+- `assistant`: Claude's text responses
+- `tool`: Tool invocation results
+- `system`: System messages (job start, stop, etc.)
+- `error`: Error messages
+</Aside>
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `JobNotFoundError` | Job doesn't exist |
+
+#### Example
+
+```typescript
+import { isJobNotFoundError } from '@herdctl/core';
+
+try {
+  const stream = await jobManager.streamJobOutput('job-2024-01-15-abc123');
+
+  stream.on('message', (msg) => {
+    if (msg.type === 'assistant') {
+      // Claude's response text
+      process.stdout.write(msg.content ?? '');
+    } else if (msg.type === 'tool') {
+      // Tool execution output
+      console.log(`[Tool] ${msg.content}`);
+    } else if (msg.type === 'system') {
+      // System messages
+      console.log(`[System] ${msg.content}`);
+    }
+  });
+
+  stream.on('end', () => {
+    console.log('\n--- Job completed ---');
+  });
+
+  stream.on('error', (err) => {
+    console.error('Stream error:', err.message);
+  });
+
+  // Later, stop streaming (e.g., on user interrupt)
+  process.on('SIGINT', () => {
+    stream.stop();
+    process.exit(0);
+  });
+} catch (error) {
+  if (isJobNotFoundError(error)) {
+    console.error(`Job "${error.jobId}" not found`);
+  }
+}
+```
+
+---
+
+## Retention Management
+
+### `applyRetention()`
+
+Applies the configured retention policy to remove old jobs. Call this periodically (e.g., after job completion) to maintain job history size.
+
+```typescript
+await jobManager.applyRetention(): Promise<number>
+```
+
+#### Returns
+
+Number of jobs deleted.
+
+#### Description
+
+The retention policy is applied in two phases:
+1. **Per-agent limit**: Removes oldest jobs for each agent exceeding `maxJobsPerAgent`
+2. **Fleet-wide limit**: If `maxTotalJobs` is set, removes oldest jobs fleet-wide
+
+Both metadata and output files are deleted for each removed job.
+
+#### Example
+
+```typescript
+// Apply retention after job completion
+const deleted = await jobManager.applyRetention();
+if (deleted > 0) {
+  console.log(`Cleaned up ${deleted} old jobs`);
+}
+
+// Scheduled retention (e.g., hourly)
+setInterval(async () => {
+  const deleted = await jobManager.applyRetention();
+  if (deleted > 0) {
+    console.log(`Retention: deleted ${deleted} jobs`);
+  }
+}, 60 * 60 * 1000);
+```
+
+---
+
+### `getRetentionConfig()`
+
+Returns a copy of the current retention configuration.
+
+```typescript
+jobManager.getRetentionConfig(): Required<JobRetentionConfig>
+```
+
+#### Returns
+
+```typescript
+interface JobRetentionConfig {
+  maxJobsPerAgent: number;  // Default: 100
+  maxTotalJobs: number;     // Default: 0 (unlimited)
+}
+```
+
+#### Example
+
+```typescript
+const config = jobManager.getRetentionConfig();
+console.log(`Max jobs per agent: ${config.maxJobsPerAgent}`);
+console.log(`Max total jobs: ${config.maxTotalJobs || 'unlimited'}`);
+```
+
+---
+
+## Type Definitions
+
+### JobStatus
+
+```typescript
+type JobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+```
+
+### JobFilter
+
+```typescript
+interface JobFilter {
+  agent?: string;
+  status?: JobStatus;
+  startedAfter?: string | Date;
+  startedBefore?: string | Date;
+  limit?: number;
+  offset?: number;
+}
+```
+
+### JobListResult
+
+```typescript
+interface JobListResult {
+  jobs: Job[];
+  total: number;
+  errors: number;
+}
+```
+
+### Job
+
+```typescript
+interface Job extends JobMetadata {
+  output?: JobOutputMessage[];
+}
+```
+
+### GetJobOptions
+
+```typescript
+interface GetJobOptions {
+  includeOutput?: boolean;
+}
+```
+
+---
+
+## Error Handling
+
+### JobNotFoundError
+
+Thrown when a job doesn't exist.
+
+```typescript
+import { JobNotFoundError, isJobNotFoundError } from '@herdctl/core';
+
+try {
+  const job = await jobManager.getJob('invalid-job-id');
+} catch (error) {
+  if (isJobNotFoundError(error)) {
+    console.log(`Job not found: ${error.jobId}`);
+    // error.jobId contains the requested job ID
+  }
+}
+```
+
+See the [Error Handling Guide](/library-reference/error-handling) for comprehensive error handling patterns.
+
+---
+
+## Example: Building a Job History Viewer
+
+A complete example showing how to build a job history viewer:
+
+```typescript
+import { JobManager, isJobNotFoundError } from '@herdctl/core';
+
+interface JobHistoryViewerOptions {
+  jobsDir: string;
+  pageSize?: number;
+}
+
+class JobHistoryViewer {
+  private jobManager: JobManager;
+  private pageSize: number;
+
+  constructor(options: JobHistoryViewerOptions) {
+    this.jobManager = new JobManager({
+      jobsDir: options.jobsDir,
+    });
+    this.pageSize = options.pageSize ?? 20;
+  }
+
+  /**
+   * List jobs with pagination
+   */
+  async listJobs(page: number = 0, filter?: {
+    agent?: string;
+    status?: string;
+    since?: Date;
+  }): Promise<{
+    jobs: Array<{
+      id: string;
+      agent: string;
+      status: string;
+      startedAt: string;
+      duration: string | null;
+    }>;
+    page: number;
+    totalPages: number;
+    total: number;
+  }> {
+    const { jobs, total } = await this.jobManager.getJobs({
+      agent: filter?.agent,
+      status: filter?.status as any,
+      startedAfter: filter?.since,
+      limit: this.pageSize,
+      offset: page * this.pageSize,
+    });
+
+    return {
+      jobs: jobs.map((job) => ({
+        id: job.id,
+        agent: job.agent,
+        status: job.status,
+        startedAt: job.started_at,
+        duration: this.formatDuration(job.started_at, job.finished_at),
+      })),
+      page,
+      totalPages: Math.ceil(total / this.pageSize),
+      total,
+    };
+  }
+
+  /**
+   * Get detailed job information
+   */
+  async getJobDetails(jobId: string): Promise<{
+    metadata: Record<string, any>;
+    outputPreview: string;
+    outputLineCount: number;
+  } | null> {
+    try {
+      const job = await this.jobManager.getJob(jobId, {
+        includeOutput: true,
+      });
+
+      const assistantOutput = (job.output ?? [])
+        .filter((msg) => msg.type === 'assistant')
+        .map((msg) => msg.content ?? '')
+        .join('');
+
+      return {
+        metadata: {
+          id: job.id,
+          agent: job.agent,
+          status: job.status,
+          startedAt: job.started_at,
+          finishedAt: job.finished_at,
+          triggerType: job.trigger_type,
+          schedule: job.schedule,
+          exitReason: job.exit_reason,
+          prompt: job.prompt,
+        },
+        outputPreview: assistantOutput.slice(0, 500) +
+          (assistantOutput.length > 500 ? '...' : ''),
+        outputLineCount: (job.output ?? []).length,
+      };
+    } catch (error) {
+      if (isJobNotFoundError(error)) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Get job statistics
+   */
+  async getStatistics(since?: Date): Promise<{
+    total: number;
+    byStatus: Record<string, number>;
+    byAgent: Record<string, number>;
+  }> {
+    const { jobs } = await this.jobManager.getJobs({
+      startedAfter: since,
+    });
+
+    const byStatus: Record<string, number> = {};
+    const byAgent: Record<string, number> = {};
+
+    for (const job of jobs) {
+      byStatus[job.status] = (byStatus[job.status] ?? 0) + 1;
+      byAgent[job.agent] = (byAgent[job.agent] ?? 0) + 1;
+    }
+
+    return {
+      total: jobs.length,
+      byStatus,
+      byAgent,
+    };
+  }
+
+  private formatDuration(
+    startedAt: string,
+    finishedAt: string | null
+  ): string | null {
+    if (!finishedAt) return null;
+
+    const start = new Date(startedAt).getTime();
+    const end = new Date(finishedAt).getTime();
+    const seconds = Math.floor((end - start) / 1000);
+
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}m ${remainingSeconds}s`;
+  }
+}
+
+// Usage
+async function main() {
+  const viewer = new JobHistoryViewer({
+    jobsDir: './.herdctl/jobs',
+    pageSize: 10,
+  });
+
+  // List recent jobs
+  const result = await viewer.listJobs(0);
+  console.log(`Showing page ${result.page + 1} of ${result.totalPages}`);
+  console.log(`Total jobs: ${result.total}\n`);
+
+  for (const job of result.jobs) {
+    const duration = job.duration ?? 'running';
+    console.log(`${job.id}`);
+    console.log(`  Agent: ${job.agent}`);
+    console.log(`  Status: ${job.status}`);
+    console.log(`  Duration: ${duration}`);
+    console.log('');
+  }
+
+  // Get statistics
+  const stats = await viewer.getStatistics();
+  console.log('Statistics:');
+  console.log(`  Total: ${stats.total}`);
+  console.log(`  By status:`, stats.byStatus);
+  console.log(`  By agent:`, stats.byAgent);
+}
+
+main().catch(console.error);
+```
+
+---
+
+## Example: Tailing Job Output in Real-Time
+
+A complete example showing how to tail job output similar to `tail -f`:
+
+```typescript
+import { JobManager, isJobNotFoundError } from '@herdctl/core';
+
+interface TailOptions {
+  jobId: string;
+  jobsDir: string;
+  follow?: boolean;
+  colorize?: boolean;
+}
+
+// ANSI color codes
+const colors = {
+  reset: '\x1b[0m',
+  dim: '\x1b[2m',
+  red: '\x1b[31m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  blue: '\x1b[34m',
+  magenta: '\x1b[35m',
+  cyan: '\x1b[36m',
+};
+
+function colorize(text: string, color: keyof typeof colors): string {
+  return `${colors[color]}${text}${colors.reset}`;
+}
+
+async function tailJobOutput(options: TailOptions): Promise<void> {
+  const { jobId, jobsDir, follow = true, colorize: useColors = true } = options;
+
+  const jobManager = new JobManager({ jobsDir });
+
+  // First, get job info
+  let job;
+  try {
+    job = await jobManager.getJob(jobId);
+  } catch (error) {
+    if (isJobNotFoundError(error)) {
+      console.error(`Job "${error.jobId}" not found`);
+      process.exit(1);
+    }
+    throw error;
+  }
+
+  // Print header
+  console.log(colorize('='.repeat(60), 'dim'));
+  console.log(`Job: ${colorize(job.id, 'cyan')}`);
+  console.log(`Agent: ${colorize(job.agent, 'green')}`);
+  console.log(`Status: ${colorize(job.status, 'yellow')}`);
+  console.log(`Started: ${job.started_at}`);
+  if (job.prompt) {
+    console.log(`Prompt: ${job.prompt.slice(0, 80)}${job.prompt.length > 80 ? '...' : ''}`);
+  }
+  console.log(colorize('='.repeat(60), 'dim'));
+  console.log('');
+
+  // Stream output
+  const stream = await jobManager.streamJobOutput(jobId);
+
+  stream.on('message', (msg) => {
+    const timestamp = msg.timestamp
+      ? new Date(msg.timestamp).toLocaleTimeString()
+      : '';
+
+    let prefix = '';
+    let content = msg.content ?? '';
+
+    if (useColors) {
+      switch (msg.type) {
+        case 'assistant':
+          prefix = colorize(`[${timestamp}] `, 'dim');
+          content = colorize(content, 'green');
+          break;
+        case 'tool':
+          prefix = colorize(`[${timestamp}] [tool] `, 'yellow');
+          break;
+        case 'system':
+          prefix = colorize(`[${timestamp}] [system] `, 'magenta');
+          content = colorize(content, 'magenta');
+          break;
+        case 'error':
+          prefix = colorize(`[${timestamp}] [error] `, 'red');
+          content = colorize(content, 'red');
+          break;
+        default:
+          prefix = colorize(`[${timestamp}] [${msg.type}] `, 'dim');
+      }
+    } else {
+      prefix = `[${timestamp}] [${msg.type}] `;
+    }
+
+    // Handle multi-line output
+    const lines = content.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      if (i === 0) {
+        process.stdout.write(prefix + lines[i]);
+      } else {
+        process.stdout.write('\n' + ' '.repeat(prefix.length - colors.dim.length - colors.reset.length) + lines[i]);
+      }
+    }
+  });
+
+  stream.on('end', () => {
+    console.log('\n');
+    console.log(colorize('--- End of output ---', 'dim'));
+
+    if (!follow) {
+      process.exit(0);
+    }
+  });
+
+  stream.on('error', (err) => {
+    console.error(colorize(`\nStream error: ${err.message}`, 'red'));
+    process.exit(1);
+  });
+
+  // Handle Ctrl+C
+  process.on('SIGINT', () => {
+    stream.stop();
+    console.log(colorize('\n\nStreaming stopped.', 'dim'));
+    process.exit(0);
+  });
+}
+
+// CLI usage
+async function main() {
+  const args = process.argv.slice(2);
+
+  if (args.length === 0) {
+    console.log('Usage: npx tsx tail-job.ts <job-id> [--no-follow] [--no-color]');
+    console.log('');
+    console.log('Options:');
+    console.log('  --no-follow  Exit after replaying existing output');
+    console.log('  --no-color   Disable colored output');
+    process.exit(1);
+  }
+
+  const jobId = args[0];
+  const follow = !args.includes('--no-follow');
+  const colorize = !args.includes('--no-color');
+
+  await tailJobOutput({
+    jobId,
+    jobsDir: './.herdctl/jobs',
+    follow,
+    colorize,
+  });
+}
+
+main().catch((error) => {
+  console.error('Error:', error.message);
+  process.exit(1);
+});
+```
+
+### Running the Example
+
+```bash
+# Tail a specific job (follows output like tail -f)
+npx tsx examples/library-usage/tail-job.ts job-2024-01-15-abc123
+
+# Replay output without following
+npx tsx examples/library-usage/tail-job.ts job-2024-01-15-abc123 --no-follow
+
+# Without colors (for piping to files)
+npx tsx examples/library-usage/tail-job.ts job-2024-01-15-abc123 --no-color
+```
+
+---
+
+## TypeScript Support
+
+The `@herdctl/core` package provides full TypeScript definitions. All types are exported:
+
+```typescript
+import type {
+  // JobManager types
+  JobManagerOptions,
+  JobManagerLogger,
+  JobRetentionConfig,
+
+  // Job types
+  Job,
+  JobMetadata,
+  JobStatus,
+  JobFilter,
+  JobListResult,
+  GetJobOptions,
+
+  // Output streaming types
+  JobOutputStream,
+  JobOutputStreamEvents,
+  JobOutputMessage,
+
+  // Error types
+  JobNotFoundError,
+} from '@herdctl/core';
+```
+
+---
+
+## Related Documentation
+
+- [FleetManager API Reference](/library-reference/fleet-manager) - High-level fleet orchestration
+- [Event Handling Guide](/library-reference/events) - Real-time event subscription
+- [Error Handling Guide](/library-reference/error-handling) - Error types and recovery patterns

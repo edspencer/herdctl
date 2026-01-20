@@ -1,0 +1,1188 @@
+---
+title: Common Recipes & Patterns
+description: Copy-paste code examples for common herdctl use cases
+---
+
+import { Tabs, TabItem, Aside, Code } from '@astrojs/starlight/components';
+
+This guide provides ready-to-use code examples for common scenarios when using `@herdctl/core` as a library. Each recipe is self-contained and can be adapted for your specific needs.
+
+## Simple One-Shot Agent Execution
+
+Run a single agent job and exit when complete. Perfect for scripts and one-time tasks.
+
+```typescript title="one-shot.ts"
+import { FleetManager } from "@herdctl/core";
+
+async function runOnce(agentName: string, prompt?: string) {
+  const manager = new FleetManager({
+    configPath: "./herdctl.yaml",
+    stateDir: "./.herdctl",
+  });
+
+  try {
+    await manager.initialize();
+    await manager.start();
+
+    // Trigger the agent and wait for completion
+    const result = await manager.trigger(agentName, undefined, { prompt });
+    console.log(`Started job: ${result.jobId}`);
+
+    // Wait for job to complete
+    await new Promise<void>((resolve, reject) => {
+      manager.on("job:completed", (payload) => {
+        if (payload.job.id === result.jobId) {
+          console.log(`Job completed in ${payload.durationSeconds}s`);
+          resolve();
+        }
+      });
+      manager.on("job:failed", (payload) => {
+        if (payload.job.id === result.jobId) {
+          reject(new Error(payload.error.message));
+        }
+      });
+    });
+  } finally {
+    await manager.stop();
+  }
+}
+
+// Usage
+runOnce("my-agent", "Process the latest data").catch(console.error);
+```
+
+<Aside type="tip">
+For CI/CD pipelines, combine this with proper exit codes. See the [CI/CD recipe](#running-in-cicd-pipeline-github-actions) below.
+</Aside>
+
+## Long-Running Daemon with Graceful Shutdown
+
+Run herdctl as a background service with proper signal handling for SIGINT and SIGTERM.
+
+```typescript title="daemon.ts"
+import { FleetManager } from "@herdctl/core";
+
+async function startDaemon() {
+  const manager = new FleetManager({
+    configPath: "./herdctl.yaml",
+    stateDir: "./.herdctl",
+    checkInterval: 5000,
+  });
+
+  // Track shutdown state
+  let isShuttingDown = false;
+
+  // Graceful shutdown handler
+  async function shutdown(signal: string) {
+    if (isShuttingDown) {
+      console.log("Shutdown already in progress...");
+      return;
+    }
+    isShuttingDown = true;
+    console.log(`\nReceived ${signal}, shutting down gracefully...`);
+
+    try {
+      await manager.stop({
+        timeout: 30000,        // Wait 30s for jobs to complete
+        cancelOnTimeout: true, // Cancel remaining jobs after timeout
+        cancelTimeout: 10000,  // Give jobs 10s to respond to SIGTERM
+      });
+      console.log("Shutdown complete");
+      process.exit(0);
+    } catch (error) {
+      console.error("Shutdown failed:", error);
+      process.exit(1);
+    }
+  }
+
+  // Register signal handlers
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+
+  // Set up event logging
+  manager.on("job:created", (p) => console.log(`Job started: ${p.job.id}`));
+  manager.on("job:completed", (p) => console.log(`Job completed: ${p.job.id}`));
+  manager.on("job:failed", (p) => console.error(`Job failed: ${p.job.id}`, p.error.message));
+  manager.on("error", (error) => console.error("Fleet error:", error.message));
+
+  // Start the fleet
+  await manager.initialize();
+  await manager.start();
+
+  console.log(`Fleet running with ${manager.state.agentCount} agents`);
+  console.log("Press Ctrl+C to stop");
+}
+
+startDaemon().catch((error) => {
+  console.error("Failed to start daemon:", error);
+  process.exit(1);
+});
+```
+
+## Building a Simple CLI Wrapper
+
+Create a custom CLI tool that wraps herdctl functionality.
+
+```typescript title="my-cli.ts"
+import { Command } from "commander";
+import { FleetManager, isAgentNotFoundError, isConcurrencyLimitError } from "@herdctl/core";
+
+const program = new Command();
+
+program
+  .name("my-fleet")
+  .description("Custom fleet management CLI")
+  .version("1.0.0");
+
+// Shared manager factory
+async function createManager() {
+  const manager = new FleetManager({
+    configPath: process.env.HERDCTL_CONFIG || "./herdctl.yaml",
+    stateDir: process.env.HERDCTL_STATE || "./.herdctl",
+  });
+  await manager.initialize();
+  return manager;
+}
+
+// Status command
+program
+  .command("status")
+  .description("Show fleet status")
+  .action(async () => {
+    const manager = await createManager();
+    const status = await manager.getFleetStatus();
+
+    console.log(`Fleet: ${status.state}`);
+    console.log(`Agents: ${status.counts.totalAgents}`);
+    console.log(`Running Jobs: ${status.counts.runningJobs}`);
+
+    if (status.uptimeSeconds !== null) {
+      const hours = Math.floor(status.uptimeSeconds / 3600);
+      const mins = Math.floor((status.uptimeSeconds % 3600) / 60);
+      console.log(`Uptime: ${hours}h ${mins}m`);
+    }
+  });
+
+// Trigger command
+program
+  .command("trigger <agent>")
+  .description("Trigger an agent")
+  .option("-s, --schedule <name>", "Use specific schedule")
+  .option("-p, --prompt <text>", "Custom prompt")
+  .option("-f, --force", "Bypass concurrency limit")
+  .action(async (agent, options) => {
+    const manager = await createManager();
+    await manager.start();
+
+    try {
+      const result = await manager.trigger(agent, options.schedule, {
+        prompt: options.prompt,
+        bypassConcurrencyLimit: options.force,
+      });
+      console.log(`Triggered job: ${result.jobId}`);
+    } catch (error) {
+      if (isAgentNotFoundError(error)) {
+        console.error(`Agent not found: ${error.agentName}`);
+        console.error(`Available: ${error.availableAgents?.join(", ")}`);
+        process.exit(1);
+      }
+      if (isConcurrencyLimitError(error)) {
+        console.error(`Agent at capacity (${error.currentJobs}/${error.limit})`);
+        console.error("Use --force to bypass");
+        process.exit(1);
+      }
+      throw error;
+    } finally {
+      await manager.stop();
+    }
+  });
+
+// List agents command
+program
+  .command("agents")
+  .description("List all agents")
+  .action(async () => {
+    const manager = await createManager();
+    const agents = await manager.getAgentInfo();
+
+    for (const agent of agents) {
+      const statusIcon = agent.status === "running" ? "🟢" : agent.status === "error" ? "🔴" : "⚪";
+      console.log(`${statusIcon} ${agent.name} (${agent.runningCount}/${agent.maxConcurrent})`);
+      for (const schedule of agent.schedules) {
+        console.log(`   └─ ${schedule.name}: ${schedule.status}`);
+      }
+    }
+  });
+
+program.parse();
+```
+
+<Aside>
+Install commander with `npm install commander` or `pnpm add commander`.
+</Aside>
+
+## Building a Simple Web Dashboard (Express)
+
+Create a REST API and simple dashboard for monitoring your fleet.
+
+```typescript title="express-dashboard.ts"
+import express from "express";
+import { FleetManager, isAgentNotFoundError } from "@herdctl/core";
+
+const app = express();
+app.use(express.json());
+
+// Create and initialize FleetManager
+const manager = new FleetManager({
+  configPath: "./herdctl.yaml",
+  stateDir: "./.herdctl",
+});
+
+// In-memory event store for recent activity
+const recentEvents: Array<{ time: string; type: string; data: unknown }> = [];
+const MAX_EVENTS = 100;
+
+function recordEvent(type: string, data: unknown) {
+  recentEvents.unshift({ time: new Date().toISOString(), type, data });
+  if (recentEvents.length > MAX_EVENTS) recentEvents.pop();
+}
+
+// Subscribe to events
+manager.on("job:created", (p) => recordEvent("job:created", { jobId: p.job.id, agent: p.agentName }));
+manager.on("job:completed", (p) => recordEvent("job:completed", { jobId: p.job.id, duration: p.durationSeconds }));
+manager.on("job:failed", (p) => recordEvent("job:failed", { jobId: p.job.id, error: p.error.message }));
+
+// API Routes
+app.get("/api/status", async (req, res) => {
+  try {
+    const status = await manager.getFleetStatus();
+    res.json(status);
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+app.get("/api/agents", async (req, res) => {
+  try {
+    const agents = await manager.getAgentInfo();
+    res.json(agents);
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+app.get("/api/agents/:name", async (req, res) => {
+  try {
+    const agent = await manager.getAgentInfoByName(req.params.name);
+    res.json(agent);
+  } catch (error) {
+    if (isAgentNotFoundError(error)) {
+      res.status(404).json({ error: `Agent not found: ${error.agentName}` });
+    } else {
+      res.status(500).json({ error: String(error) });
+    }
+  }
+});
+
+app.post("/api/trigger/:agent", async (req, res) => {
+  try {
+    const { schedule, prompt } = req.body;
+    const result = await manager.trigger(req.params.agent, schedule, { prompt });
+    res.json(result);
+  } catch (error) {
+    if (isAgentNotFoundError(error)) {
+      res.status(404).json({ error: `Agent not found: ${error.agentName}` });
+    } else {
+      res.status(500).json({ error: String(error) });
+    }
+  }
+});
+
+app.get("/api/events", (req, res) => {
+  res.json(recentEvents);
+});
+
+// Simple HTML dashboard
+app.get("/", (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Fleet Dashboard</title>
+      <style>
+        body { font-family: system-ui; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+        .card { border: 1px solid #ddd; padding: 1rem; margin: 1rem 0; border-radius: 8px; }
+        .status { display: flex; gap: 2rem; }
+        .stat { text-align: center; }
+        .stat-value { font-size: 2rem; font-weight: bold; }
+        .agent { display: flex; justify-content: space-between; align-items: center; }
+        button { padding: 0.5rem 1rem; cursor: pointer; }
+        .running { color: green; }
+        .idle { color: gray; }
+        .error { color: red; }
+      </style>
+    </head>
+    <body>
+      <h1>Fleet Dashboard</h1>
+      <div id="status" class="card">Loading...</div>
+      <h2>Agents</h2>
+      <div id="agents">Loading...</div>
+      <script>
+        async function refresh() {
+          const status = await fetch('/api/status').then(r => r.json());
+          document.getElementById('status').innerHTML = \`
+            <div class="status">
+              <div class="stat"><div class="stat-value">\${status.state}</div><div>State</div></div>
+              <div class="stat"><div class="stat-value">\${status.counts.totalAgents}</div><div>Agents</div></div>
+              <div class="stat"><div class="stat-value">\${status.counts.runningJobs}</div><div>Running Jobs</div></div>
+            </div>
+          \`;
+
+          const agents = await fetch('/api/agents').then(r => r.json());
+          document.getElementById('agents').innerHTML = agents.map(a => \`
+            <div class="card agent">
+              <div>
+                <strong>\${a.name}</strong>
+                <span class="\${a.status}">\${a.status}</span>
+                <small>(\${a.runningCount}/\${a.maxConcurrent})</small>
+              </div>
+              <button onclick="trigger('\${a.name}')">Trigger</button>
+            </div>
+          \`).join('');
+        }
+
+        async function trigger(agent) {
+          await fetch('/api/trigger/' + agent, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+          refresh();
+        }
+
+        refresh();
+        setInterval(refresh, 5000);
+      </script>
+    </body>
+    </html>
+  `);
+});
+
+// Start server
+async function start() {
+  await manager.initialize();
+  await manager.start();
+
+  const port = process.env.PORT || 3000;
+  app.listen(port, () => {
+    console.log(`Dashboard running at http://localhost:${port}`);
+  });
+
+  // Graceful shutdown
+  process.on("SIGTERM", async () => {
+    await manager.stop();
+    process.exit(0);
+  });
+}
+
+start().catch(console.error);
+```
+
+## Integrating with Existing Fastify Server
+
+Add herdctl endpoints to an existing Fastify application.
+
+```typescript title="fastify-plugin.ts"
+import Fastify, { FastifyInstance } from "fastify";
+import { FleetManager, isAgentNotFoundError, isJobNotFoundError } from "@herdctl/core";
+
+// Fastify plugin for herdctl
+async function herdctlPlugin(fastify: FastifyInstance, options: { configPath?: string; stateDir?: string }) {
+  const manager = new FleetManager({
+    configPath: options.configPath || "./herdctl.yaml",
+    stateDir: options.stateDir || "./.herdctl",
+  });
+
+  await manager.initialize();
+  await manager.start();
+
+  // Decorate fastify with the manager
+  fastify.decorate("fleet", manager);
+
+  // Register routes
+  fastify.get("/fleet/status", async () => {
+    return manager.getFleetStatus();
+  });
+
+  fastify.get("/fleet/agents", async () => {
+    return manager.getAgentInfo();
+  });
+
+  fastify.get<{ Params: { name: string } }>("/fleet/agents/:name", async (request, reply) => {
+    try {
+      return await manager.getAgentInfoByName(request.params.name);
+    } catch (error) {
+      if (isAgentNotFoundError(error)) {
+        return reply.status(404).send({ error: `Agent not found: ${error.agentName}` });
+      }
+      throw error;
+    }
+  });
+
+  fastify.post<{
+    Params: { agent: string };
+    Body: { schedule?: string; prompt?: string };
+  }>("/fleet/trigger/:agent", async (request, reply) => {
+    try {
+      const { schedule, prompt } = request.body || {};
+      return await manager.trigger(request.params.agent, schedule, { prompt });
+    } catch (error) {
+      if (isAgentNotFoundError(error)) {
+        return reply.status(404).send({ error: `Agent not found: ${error.agentName}` });
+      }
+      throw error;
+    }
+  });
+
+  fastify.delete<{ Params: { jobId: string } }>("/fleet/jobs/:jobId", async (request, reply) => {
+    try {
+      return await manager.cancelJob(request.params.jobId);
+    } catch (error) {
+      if (isJobNotFoundError(error)) {
+        return reply.status(404).send({ error: `Job not found: ${error.jobId}` });
+      }
+      throw error;
+    }
+  });
+
+  // Cleanup on server close
+  fastify.addHook("onClose", async () => {
+    await manager.stop();
+  });
+}
+
+// Usage with existing Fastify app
+const fastify = Fastify({ logger: true });
+
+// Register your existing plugins and routes...
+// fastify.register(someOtherPlugin);
+
+// Register herdctl plugin
+fastify.register(herdctlPlugin, {
+  configPath: "./herdctl.yaml",
+  stateDir: "./.herdctl",
+});
+
+// Start server
+fastify.listen({ port: 3000 }, (err) => {
+  if (err) {
+    fastify.log.error(err);
+    process.exit(1);
+  }
+});
+```
+
+<Aside type="tip">
+For TypeScript, add type declarations for the decorated `fleet` property:
+
+```typescript
+declare module "fastify" {
+  interface FastifyInstance {
+    fleet: FleetManager;
+  }
+}
+```
+</Aside>
+
+## Running in CI/CD Pipeline (GitHub Actions)
+
+Run herdctl as part of your CI/CD pipeline with proper exit codes.
+
+```yaml title=".github/workflows/agent-task.yml"
+name: Run Agent Task
+
+on:
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: 'Agent to trigger'
+        required: true
+        type: string
+      prompt:
+        description: 'Task prompt'
+        required: false
+        type: string
+  schedule:
+    # Run daily at midnight UTC
+    - cron: '0 0 * * *'
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run agent task
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx tsx scripts/ci-runner.ts
+        timeout-minutes: 25
+```
+
+```typescript title="scripts/ci-runner.ts"
+import { FleetManager, isAgentNotFoundError } from "@herdctl/core";
+
+async function main() {
+  // Get inputs from environment (set by GitHub Actions)
+  const agentName = process.env.INPUT_AGENT || process.env.DEFAULT_AGENT || "ci-agent";
+  const prompt = process.env.INPUT_PROMPT;
+  const timeout = parseInt(process.env.JOB_TIMEOUT || "1200000"); // 20 min default
+
+  console.log(`Running agent: ${agentName}`);
+  if (prompt) console.log(`Prompt: ${prompt}`);
+
+  const manager = new FleetManager({
+    configPath: "./herdctl.yaml",
+    stateDir: "./.herdctl",
+  });
+
+  let exitCode = 0;
+
+  try {
+    await manager.initialize();
+    await manager.start();
+
+    const result = await manager.trigger(agentName, undefined, { prompt });
+    console.log(`Job started: ${result.jobId}`);
+
+    // Stream output to CI logs
+    manager.on("job:output", (p) => {
+      if (p.job.id === result.jobId) {
+        process.stdout.write(p.output);
+      }
+    });
+
+    // Wait for completion with timeout
+    const completed = await Promise.race([
+      new Promise<boolean>((resolve) => {
+        manager.on("job:completed", (p) => {
+          if (p.job.id === result.jobId) {
+            console.log(`\n✓ Job completed in ${p.durationSeconds}s`);
+            resolve(true);
+          }
+        });
+        manager.on("job:failed", (p) => {
+          if (p.job.id === result.jobId) {
+            console.error(`\n✗ Job failed: ${p.error.message}`);
+            resolve(false);
+          }
+        });
+      }),
+      new Promise<boolean>((resolve) => {
+        setTimeout(() => {
+          console.error(`\n✗ Job timed out after ${timeout / 1000}s`);
+          resolve(false);
+        }, timeout);
+      }),
+    ]);
+
+    exitCode = completed ? 0 : 1;
+  } catch (error) {
+    if (isAgentNotFoundError(error)) {
+      console.error(`Agent not found: ${error.agentName}`);
+      console.error(`Available agents: ${error.availableAgents?.join(", ")}`);
+    } else {
+      console.error("Error:", error);
+    }
+    exitCode = 1;
+  } finally {
+    await manager.stop({ timeout: 10000, cancelOnTimeout: true });
+  }
+
+  process.exit(exitCode);
+}
+
+main();
+```
+
+<Aside type="caution">
+Always set `timeout-minutes` in your GitHub Actions workflow to prevent runaway jobs.
+</Aside>
+
+## Hot-Reloading Configuration Changes
+
+Watch for configuration changes and reload without restarting.
+
+```typescript title="hot-reload.ts"
+import { watch } from "fs";
+import { FleetManager } from "@herdctl/core";
+import { debounce } from "./utils"; // See helper below
+
+async function startWithHotReload() {
+  const configPath = "./herdctl.yaml";
+  const agentsDir = "./agents";
+
+  const manager = new FleetManager({
+    configPath,
+    stateDir: "./.herdctl",
+  });
+
+  // Handle reload events
+  manager.on("config:reloaded", (payload) => {
+    console.log(`Config reloaded: ${payload.agentCount} agents`);
+    for (const change of payload.changes) {
+      console.log(`  ${change.type} ${change.category}: ${change.name}`);
+    }
+  });
+
+  await manager.initialize();
+  await manager.start();
+
+  // Debounced reload function
+  const reload = debounce(async () => {
+    console.log("Configuration changed, reloading...");
+    try {
+      await manager.reload();
+    } catch (error) {
+      console.error("Reload failed:", error);
+    }
+  }, 500);
+
+  // Watch main config file
+  watch(configPath, (eventType) => {
+    if (eventType === "change") reload();
+  });
+
+  // Watch agents directory
+  watch(agentsDir, { recursive: true }, (eventType, filename) => {
+    if (filename?.endsWith(".yaml") || filename?.endsWith(".yml")) {
+      reload();
+    }
+  });
+
+  console.log("Watching for config changes...");
+  console.log(`  ${configPath}`);
+  console.log(`  ${agentsDir}/**/*.yaml`);
+
+  // Graceful shutdown
+  process.on("SIGINT", async () => {
+    await manager.stop();
+    process.exit(0);
+  });
+}
+
+startWithHotReload().catch(console.error);
+```
+
+```typescript title="utils.ts"
+// Simple debounce helper
+export function debounce<T extends (...args: unknown[]) => unknown>(
+  fn: T,
+  delay: number
+): (...args: Parameters<T>) => void {
+  let timeoutId: NodeJS.Timeout;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn(...args), delay);
+  };
+}
+```
+
+<Aside type="tip">
+For production, consider using [chokidar](https://www.npmjs.com/package/chokidar) for more robust file watching.
+</Aside>
+
+## TypeScript Project Setup from Scratch
+
+Complete setup for a new TypeScript project using herdctl.
+
+### Project Structure
+
+```
+my-fleet/
+├── src/
+│   └── index.ts
+├── agents/
+│   └── example-agent.yaml
+├── herdctl.yaml
+├── package.json
+└── tsconfig.json
+```
+
+### package.json
+
+```json title="package.json"
+{
+  "name": "my-fleet",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@herdctl/core": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}
+```
+
+### tsconfig.json
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
+```
+
+### herdctl.yaml
+
+```yaml title="herdctl.yaml"
+agents:
+  - path: ./agents/example-agent.yaml
+
+defaults:
+  workspace: .
+  max_concurrent: 1
+```
+
+### agents/example-agent.yaml
+
+```yaml title="agents/example-agent.yaml"
+name: example-agent
+description: Example agent for demonstration
+
+schedules:
+  - name: hourly
+    trigger:
+      type: interval
+      interval: 1h
+    prompt: |
+      Check the project status and report any issues.
+```
+
+### src/index.ts
+
+```typescript title="src/index.ts"
+import { FleetManager } from "@herdctl/core";
+
+const manager = new FleetManager({
+  configPath: "./herdctl.yaml",
+  stateDir: "./.herdctl",
+});
+
+manager.on("initialized", () => console.log("Fleet initialized"));
+manager.on("started", () => console.log("Fleet started"));
+manager.on("job:created", (p) => console.log(`Job created: ${p.job.id}`));
+manager.on("job:completed", (p) => console.log(`Job completed: ${p.job.id}`));
+
+async function main() {
+  await manager.initialize();
+  await manager.start();
+
+  process.on("SIGINT", async () => {
+    await manager.stop();
+    process.exit(0);
+  });
+}
+
+main().catch(console.error);
+```
+
+### Getting Started
+
+```bash
+# Install dependencies
+pnpm install
+
+# Run in development mode (with hot reload)
+pnpm dev
+
+# Build for production
+pnpm build
+
+# Run production build
+pnpm start
+```
+
+## Monorepo Integration Patterns
+
+Integrate herdctl into a monorepo managed by pnpm, npm workspaces, or Turborepo.
+
+### Project Structure
+
+```
+my-monorepo/
+├── apps/
+│   ├── web/
+│   └── fleet-service/        # herdctl service
+│       ├── src/
+│       │   └── index.ts
+│       ├── agents/
+│       ├── herdctl.yaml
+│       └── package.json
+├── packages/
+│   ├── shared/               # Shared utilities
+│   └── agent-prompts/        # Shared prompts
+├── package.json
+├── pnpm-workspace.yaml
+└── turbo.json
+```
+
+### pnpm-workspace.yaml
+
+```yaml title="pnpm-workspace.yaml"
+packages:
+  - 'apps/*'
+  - 'packages/*'
+```
+
+### Root package.json
+
+```json title="package.json"
+{
+  "name": "my-monorepo",
+  "private": true,
+  "scripts": {
+    "dev:fleet": "pnpm --filter fleet-service dev",
+    "build": "turbo build",
+    "typecheck": "turbo typecheck"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0"
+  }
+}
+```
+
+### Fleet service package.json
+
+```json title="apps/fleet-service/package.json"
+{
+  "name": "fleet-service",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@herdctl/core": "^0.1.0",
+    "@repo/shared": "workspace:*",
+    "@repo/agent-prompts": "workspace:*"
+  }
+}
+```
+
+### Using shared packages in prompts
+
+```typescript title="apps/fleet-service/src/index.ts"
+import { FleetManager } from "@herdctl/core";
+import { formatPrompt } from "@repo/agent-prompts";
+import { logger } from "@repo/shared";
+
+const manager = new FleetManager({
+  configPath: "./herdctl.yaml",
+  stateDir: "./.herdctl",
+  logger,
+});
+
+// Use shared prompt templates
+manager.on("schedule:triggered", async (payload) => {
+  const enhancedPrompt = formatPrompt(payload.scheduleName, {
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+  });
+  // Prompts are defined in the YAML config, but you can log enhanced versions
+  logger.info(`Triggered with context: ${enhancedPrompt}`);
+});
+
+// ... rest of setup
+```
+
+### Turborepo configuration
+
+```json title="turbo.json"
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"]
+    }
+  }
+}
+```
+
+## Testing Patterns (Unit Testing with Mocks)
+
+Test your herdctl integration with mocked FleetManager.
+
+```typescript title="src/__tests__/fleet.test.ts"
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { FleetManager } from "@herdctl/core";
+import type { FleetStatus, AgentInfo, TriggerResult } from "@herdctl/core";
+
+// Mock the FleetManager
+vi.mock("@herdctl/core", () => {
+  const mockManager = {
+    initialize: vi.fn(),
+    start: vi.fn(),
+    stop: vi.fn(),
+    getFleetStatus: vi.fn(),
+    getAgentInfo: vi.fn(),
+    trigger: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
+    state: { status: "initialized", agentCount: 2 },
+  };
+
+  return {
+    FleetManager: vi.fn(() => mockManager),
+    isAgentNotFoundError: (e: unknown) => e instanceof Error && e.message.includes("not found"),
+  };
+});
+
+// Your application code that uses FleetManager
+class FleetService {
+  private manager: FleetManager;
+
+  constructor(configPath: string) {
+    this.manager = new FleetManager({ configPath, stateDir: "./.herdctl" });
+  }
+
+  async start() {
+    await this.manager.initialize();
+    await this.manager.start();
+  }
+
+  async stop() {
+    await this.manager.stop();
+  }
+
+  async getStatus(): Promise<FleetStatus> {
+    return this.manager.getFleetStatus();
+  }
+
+  async runAgent(name: string, prompt?: string): Promise<TriggerResult> {
+    return this.manager.trigger(name, undefined, { prompt });
+  }
+}
+
+describe("FleetService", () => {
+  let service: FleetService;
+  let mockManager: ReturnType<typeof vi.fn> & {
+    initialize: ReturnType<typeof vi.fn>;
+    start: ReturnType<typeof vi.fn>;
+    stop: ReturnType<typeof vi.fn>;
+    getFleetStatus: ReturnType<typeof vi.fn>;
+    trigger: ReturnType<typeof vi.fn>;
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new FleetService("./herdctl.yaml");
+    // Get the mock instance
+    mockManager = (FleetManager as unknown as ReturnType<typeof vi.fn>).mock.results[0].value;
+  });
+
+  describe("start", () => {
+    it("should initialize and start the manager", async () => {
+      mockManager.initialize.mockResolvedValue(undefined);
+      mockManager.start.mockResolvedValue(undefined);
+
+      await service.start();
+
+      expect(mockManager.initialize).toHaveBeenCalledOnce();
+      expect(mockManager.start).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe("getStatus", () => {
+    it("should return fleet status", async () => {
+      const mockStatus: FleetStatus = {
+        state: "running",
+        uptimeSeconds: 3600,
+        initializedAt: "2024-01-01T00:00:00Z",
+        startedAt: "2024-01-01T00:00:00Z",
+        stoppedAt: null,
+        lastError: null,
+        counts: {
+          totalAgents: 2,
+          idleAgents: 1,
+          runningAgents: 1,
+          errorAgents: 0,
+          totalSchedules: 4,
+          runningSchedules: 1,
+          runningJobs: 1,
+        },
+        scheduler: {
+          status: "running",
+          checkCount: 100,
+          triggerCount: 5,
+          lastCheckAt: "2024-01-01T01:00:00Z",
+          checkIntervalMs: 5000,
+        },
+      };
+
+      mockManager.getFleetStatus.mockResolvedValue(mockStatus);
+
+      const status = await service.getStatus();
+
+      expect(status.state).toBe("running");
+      expect(status.counts.totalAgents).toBe(2);
+    });
+  });
+
+  describe("runAgent", () => {
+    it("should trigger agent with prompt", async () => {
+      const mockResult: TriggerResult = {
+        jobId: "job-123",
+        agentName: "my-agent",
+        scheduleName: null,
+        startedAt: "2024-01-01T00:00:00Z",
+        prompt: "Test prompt",
+      };
+
+      mockManager.trigger.mockResolvedValue(mockResult);
+
+      const result = await service.runAgent("my-agent", "Test prompt");
+
+      expect(mockManager.trigger).toHaveBeenCalledWith("my-agent", undefined, {
+        prompt: "Test prompt",
+      });
+      expect(result.jobId).toBe("job-123");
+    });
+  });
+});
+```
+
+### Integration Test with Real FleetManager
+
+```typescript title="src/__tests__/integration.test.ts"
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { FleetManager } from "@herdctl/core";
+import { mkdtemp, rm, writeFile, mkdir } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
+
+describe("FleetManager Integration", () => {
+  let testDir: string;
+  let manager: FleetManager;
+
+  beforeAll(async () => {
+    // Create temporary test directory
+    testDir = await mkdtemp(join(tmpdir(), "herdctl-test-"));
+
+    // Write test configuration
+    await writeFile(
+      join(testDir, "herdctl.yaml"),
+      `
+agents:
+  - path: ./agents/test-agent.yaml
+
+defaults:
+  workspace: ${testDir}
+  max_concurrent: 1
+`
+    );
+
+    // Create agents directory and test agent
+    await mkdir(join(testDir, "agents"));
+    await writeFile(
+      join(testDir, "agents", "test-agent.yaml"),
+      `
+name: test-agent
+description: Test agent
+
+schedules:
+  - name: manual
+    trigger:
+      type: webhook
+    prompt: Test prompt
+`
+    );
+
+    manager = new FleetManager({
+      configPath: join(testDir, "herdctl.yaml"),
+      stateDir: join(testDir, ".herdctl"),
+    });
+  });
+
+  afterAll(async () => {
+    if (manager.state.status === "running") {
+      await manager.stop();
+    }
+    await rm(testDir, { recursive: true, force: true });
+  });
+
+  it("should initialize with test config", async () => {
+    await manager.initialize();
+    expect(manager.state.status).toBe("initialized");
+    expect(manager.state.agentCount).toBe(1);
+  });
+
+  it("should start and show running status", async () => {
+    await manager.start();
+    const status = await manager.getFleetStatus();
+    expect(status.state).toBe("running");
+  });
+
+  it("should list agents", async () => {
+    const agents = await manager.getAgentInfo();
+    expect(agents).toHaveLength(1);
+    expect(agents[0].name).toBe("test-agent");
+  });
+
+  it("should stop gracefully", async () => {
+    await manager.stop();
+    expect(manager.state.status).toBe("stopped");
+  });
+});
+```
+
+<Aside type="tip">
+For integration tests, always use a temporary directory and clean up after tests to avoid polluting your workspace.
+</Aside>
+
+## Next Steps
+
+- Check out the [FleetManager API Reference](/library-reference/fleet-manager) for complete method documentation
+- Learn about [Error Handling](/library-reference/fleet-manager#error-handling) patterns
+- Explore [Event Types](/library-reference/fleet-manager#events) for real-time monitoring

@@ -116,11 +116,25 @@ export default defineConfig({
 					],
 				},
 				{
+					label: 'Guides',
+					collapsed: true,
+					items: [
+						{ label: 'Recipes & Patterns', slug: 'guides/recipes' },
+					],
+				},
+				{
 					label: 'Internals',
 					collapsed: true,
 					items: [
 						{ label: 'Runner', slug: 'internals/runner' },
 						{ label: 'State Management', slug: 'internals/state-management' },
+					],
+				},
+				{
+					label: 'Library Reference',
+					collapsed: true,
+					items: [
+						{ label: 'FleetManager', slug: 'library-reference/fleet-manager' },
 					],
 				},
 				{

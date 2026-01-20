@@ -1,0 +1,1308 @@
+---
+title: FleetManager API Reference
+description: Complete API documentation for the FleetManager class with type signatures, parameters, and examples
+---
+
+import { Badge, Tabs, TabItem, Aside, Code } from '@astrojs/starlight/components';
+
+The `FleetManager` class is the primary entry point for using herdctl programmatically. It provides a simple, high-level API to initialize and run a fleet of agents with minimal configuration.
+
+## Installation
+
+```bash
+npm install @herdctl/core
+# or
+pnpm add @herdctl/core
+```
+
+## Quick Start
+
+```typescript
+import { FleetManager } from '@herdctl/core';
+
+const manager = new FleetManager({
+  configPath: './herdctl.yaml',
+  stateDir: './.herdctl',
+});
+
+await manager.initialize();
+await manager.start();
+
+// Subscribe to events
+manager.on('job:created', (payload) => {
+  console.log(`Job ${payload.job.id} created for ${payload.agentName}`);
+});
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  await manager.stop();
+  process.exit(0);
+});
+```
+
+---
+
+## Constructor
+
+### `new FleetManager(options)`
+
+Creates a new FleetManager instance.
+
+```typescript
+const manager = new FleetManager(options: FleetManagerOptions);
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `options.stateDir` | `string` | **Yes** | — | Path to the state directory (e.g., `.herdctl`). Created if it doesn't exist. Stores job artifacts, session state, and logs. |
+| `options.configPath` | `string` | No | Auto-discover | Path to `herdctl.yaml`. Can be absolute, relative, or a directory path. If not provided, searches up from cwd. |
+| `options.logger` | `FleetManagerLogger` | No | Console logger | Custom logger with `debug`, `info`, `warn`, `error` methods. |
+| `options.checkInterval` | `number` | No | `1000` | Interval in milliseconds between scheduler checks. |
+
+#### Example
+
+```typescript
+import { FleetManager } from '@herdctl/core';
+
+// Minimal configuration
+const manager = new FleetManager({
+  stateDir: './.herdctl',
+});
+
+// Full configuration
+const manager = new FleetManager({
+  configPath: './config/herdctl.yaml',
+  stateDir: './.herdctl',
+  checkInterval: 5000, // 5 seconds
+  logger: {
+    debug: (msg) => console.debug(`[DEBUG] ${msg}`),
+    info: (msg) => console.info(`[INFO] ${msg}`),
+    warn: (msg) => console.warn(`[WARN] ${msg}`),
+    error: (msg) => console.error(`[ERROR] ${msg}`),
+  },
+});
+```
+
+---
+
+## Lifecycle Methods
+
+### `initialize()`
+
+Initializes the fleet manager by loading configuration and preparing the state directory.
+
+```typescript
+await manager.initialize(): Promise<void>
+```
+
+#### Description
+
+This method:
+1. Loads and validates the configuration file
+2. Initializes the state directory structure
+3. Prepares the scheduler (but does not start it)
+
+After initialization, the fleet manager is ready to start.
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `FleetManagerStateError` | Already initialized or running |
+| `FleetManagerConfigError` | Configuration is invalid or not found |
+| `FleetManagerStateDirError` | State directory cannot be created |
+
+#### Example
+
+```typescript
+const manager = new FleetManager({
+  configPath: './herdctl.yaml',
+  stateDir: './.herdctl',
+});
+
+try {
+  await manager.initialize();
+  console.log(`Loaded ${manager.state.agentCount} agents`);
+} catch (error) {
+  if (error instanceof FleetManagerConfigError) {
+    console.error('Configuration error:', error.message);
+  }
+}
+```
+
+---
+
+### `start()`
+
+Starts the fleet manager scheduler, which begins processing agent schedules.
+
+```typescript
+await manager.start(): Promise<void>
+```
+
+#### Description
+
+This begins the scheduler, which will:
+1. Check agent schedules at the configured interval
+2. Trigger agents when their schedules are due
+3. Track schedule state in the state directory
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `FleetManagerStateError` | Not initialized |
+
+#### Example
+
+```typescript
+await manager.initialize();
+await manager.start();
+
+// The manager is now running and processing schedules
+manager.on('schedule:triggered', (payload) => {
+  console.log(`Triggered ${payload.agentName}/${payload.scheduleName}`);
+});
+```
+
+---
+
+### `stop(options?)`
+
+Gracefully stops the fleet manager.
+
+```typescript
+await manager.stop(options?: FleetManagerStopOptions): Promise<void>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `options.waitForJobs` | `boolean` | No | `true` | Wait for running jobs to complete before stopping |
+| `options.timeout` | `number` | No | `30000` | Maximum time in ms to wait for jobs to complete |
+| `options.cancelOnTimeout` | `boolean` | No | `false` | Cancel jobs that don't complete within timeout |
+| `options.cancelTimeout` | `number` | No | `10000` | Time in ms for each job to respond to SIGTERM before SIGKILL |
+
+#### Description
+
+This will:
+1. Signal the scheduler to stop accepting new triggers
+2. Wait for running jobs to complete (with timeout)
+3. If timeout is reached and `cancelOnTimeout` is true, cancel remaining jobs
+4. Persist all state before shutdown completes
+5. Emit `'stopped'` event when complete
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `FleetManagerShutdownError` | Shutdown times out and `cancelOnTimeout` is false |
+
+#### Example
+
+```typescript
+// Normal shutdown - wait for jobs with default 30s timeout
+await manager.stop();
+
+// Shutdown with custom timeout
+await manager.stop({ timeout: 60000 });
+
+// Shutdown without waiting for jobs (not recommended)
+await manager.stop({ waitForJobs: false });
+
+// Cancel jobs if they don't complete in time
+await manager.stop({
+  timeout: 30000,
+  cancelOnTimeout: true,
+  cancelTimeout: 10000,
+});
+```
+
+---
+
+### `reload()`
+
+Hot-reloads configuration without restarting the fleet.
+
+```typescript
+await manager.reload(): Promise<ConfigReloadedPayload>
+```
+
+#### Returns
+
+```typescript
+interface ConfigReloadedPayload {
+  agentCount: number;      // Number of agents in new config
+  agentNames: string[];    // Names of agents in new config
+  configPath: string;      // Path to reloaded config file
+  changes: ConfigChange[]; // List of detected changes
+  timestamp: string;       // ISO timestamp of reload
+}
+
+interface ConfigChange {
+  type: 'added' | 'removed' | 'modified';
+  category: 'agent' | 'schedule' | 'defaults';
+  name: string;            // Agent name or "agent/schedule"
+  details?: string;        // What changed (for modifications)
+}
+```
+
+#### Description
+
+This method provides hot configuration reload capability:
+1. Loads and validates the new configuration
+2. If validation fails, keeps the old configuration (fails gracefully)
+3. Running jobs continue with their original configuration
+4. New jobs will use the new configuration
+5. Updates the scheduler with new agent definitions
+6. Emits a `'config:reloaded'` event with change details
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager is not initialized |
+| `FleetManagerConfigError` | New configuration is invalid |
+
+#### Example
+
+```typescript
+// Reload configuration
+const result = await manager.reload();
+console.log(`Reloaded with ${result.changes.length} changes`);
+
+for (const change of result.changes) {
+  console.log(`  ${change.type} ${change.category}: ${change.name}`);
+}
+
+// Subscribe to reload events
+manager.on('config:reloaded', (payload) => {
+  console.log(`Config reloaded: ${payload.agentCount} agents`);
+});
+```
+
+---
+
+## Query Methods
+
+### `getFleetStatus()`
+
+Returns a comprehensive snapshot of fleet state.
+
+```typescript
+await manager.getFleetStatus(): Promise<FleetStatus>
+```
+
+#### Returns
+
+```typescript
+interface FleetStatus {
+  state: FleetManagerStatus;        // Current state
+  uptimeSeconds: number | null;     // Time since started
+  initializedAt: string | null;     // ISO timestamp
+  startedAt: string | null;         // ISO timestamp
+  stoppedAt: string | null;         // ISO timestamp
+  counts: FleetCounts;              // Summary counts
+  scheduler: {
+    status: 'stopped' | 'running' | 'stopping';
+    checkCount: number;             // Total checks performed
+    triggerCount: number;           // Total triggers fired
+    lastCheckAt: string | null;     // ISO timestamp
+    checkIntervalMs: number;
+  };
+  lastError: string | null;
+}
+
+interface FleetCounts {
+  totalAgents: number;
+  idleAgents: number;
+  runningAgents: number;
+  errorAgents: number;
+  totalSchedules: number;
+  runningSchedules: number;
+  runningJobs: number;
+}
+```
+
+#### Example
+
+```typescript
+const status = await manager.getFleetStatus();
+console.log(`Fleet: ${status.state}`);
+console.log(`Uptime: ${status.uptimeSeconds}s`);
+console.log(`Agents: ${status.counts.totalAgents} total, ${status.counts.runningAgents} running`);
+console.log(`Jobs: ${status.counts.runningJobs} running`);
+```
+
+---
+
+### `getAgentInfo()`
+
+Returns information about all configured agents.
+
+```typescript
+await manager.getAgentInfo(): Promise<AgentInfo[]>
+```
+
+#### Returns
+
+```typescript
+interface AgentInfo {
+  name: string;                    // Agent name (unique identifier)
+  description?: string;            // From configuration
+  status: 'idle' | 'running' | 'error';
+  currentJobId: string | null;     // Currently running job
+  lastJobId: string | null;        // Last completed job
+  maxConcurrent: number;           // Max concurrent instances
+  runningCount: number;            // Currently running instances
+  errorMessage: string | null;     // Error if status is 'error'
+  scheduleCount: number;           // Number of schedules
+  schedules: ScheduleInfo[];       // Schedule details
+  model?: string;                  // Model from config
+  workspace?: string;              // Workspace path
+}
+```
+
+#### Example
+
+```typescript
+const agents = await manager.getAgentInfo();
+for (const agent of agents) {
+  console.log(`${agent.name}: ${agent.status}`);
+  console.log(`  Running: ${agent.runningCount}/${agent.maxConcurrent}`);
+  console.log(`  Schedules: ${agent.scheduleCount}`);
+}
+```
+
+---
+
+### `getAgentInfoByName(name)`
+
+Returns information about a specific agent.
+
+```typescript
+await manager.getAgentInfoByName(name: string): Promise<AgentInfo>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | `string` | **Yes** | The agent name to look up |
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `AgentNotFoundError` | No agent with that name exists |
+
+#### Example
+
+```typescript
+try {
+  const agent = await manager.getAgentInfoByName('my-agent');
+  console.log(`Status: ${agent.status}`);
+  console.log(`Running: ${agent.runningCount}/${agent.maxConcurrent}`);
+} catch (error) {
+  if (error instanceof AgentNotFoundError) {
+    console.log(`Agent "${error.agentName}" not found`);
+    console.log(`Available: ${error.availableAgents?.join(', ')}`);
+  }
+}
+```
+
+---
+
+### `getSchedules()`
+
+Returns all schedules across all agents.
+
+```typescript
+await manager.getSchedules(): Promise<ScheduleInfo[]>
+```
+
+#### Returns
+
+```typescript
+interface ScheduleInfo {
+  name: string;                    // Schedule name
+  agentName: string;               // Owning agent
+  type: string;                    // 'interval', 'cron', etc.
+  interval?: string;               // e.g., "5m", "1h"
+  expression?: string;             // Cron expression
+  status: 'idle' | 'running' | 'disabled';
+  lastRunAt: string | null;        // ISO timestamp
+  nextRunAt: string | null;        // ISO timestamp
+  lastError: string | null;
+}
+```
+
+#### Example
+
+```typescript
+const schedules = await manager.getSchedules();
+for (const schedule of schedules) {
+  console.log(`${schedule.agentName}/${schedule.name}: ${schedule.status}`);
+  console.log(`  Next run: ${schedule.nextRunAt}`);
+}
+```
+
+---
+
+### `getSchedule(agentName, scheduleName)`
+
+Returns a specific schedule by agent and schedule name.
+
+```typescript
+await manager.getSchedule(agentName: string, scheduleName: string): Promise<ScheduleInfo>
+```
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `AgentNotFoundError` | Agent doesn't exist |
+| `ScheduleNotFoundError` | Schedule doesn't exist for agent |
+
+#### Example
+
+```typescript
+const schedule = await manager.getSchedule('my-agent', 'hourly');
+console.log(`Status: ${schedule.status}`);
+console.log(`Last run: ${schedule.lastRunAt}`);
+console.log(`Next run: ${schedule.nextRunAt}`);
+```
+
+---
+
+### `enableSchedule(agentName, scheduleName)`
+
+Enables a previously disabled schedule.
+
+```typescript
+await manager.enableSchedule(agentName: string, scheduleName: string): Promise<ScheduleInfo>
+```
+
+#### Description
+
+Enables a schedule that was previously disabled, allowing it to trigger again on its configured interval. The enabled state is persisted and survives restarts.
+
+#### Example
+
+```typescript
+const schedule = await manager.enableSchedule('my-agent', 'hourly');
+console.log(`Schedule status: ${schedule.status}`); // 'idle'
+```
+
+---
+
+### `disableSchedule(agentName, scheduleName)`
+
+Disables a schedule temporarily.
+
+```typescript
+await manager.disableSchedule(agentName: string, scheduleName: string): Promise<ScheduleInfo>
+```
+
+#### Description
+
+Disables a schedule, preventing it from triggering on its configured interval. The schedule remains in the configuration but won't run until re-enabled. The disabled state is persisted and survives restarts.
+
+#### Example
+
+```typescript
+// Disable a schedule temporarily
+const schedule = await manager.disableSchedule('my-agent', 'hourly');
+console.log(`Schedule status: ${schedule.status}`); // 'disabled'
+
+// Later, re-enable it
+await manager.enableSchedule('my-agent', 'hourly');
+```
+
+---
+
+## Action Methods
+
+### `trigger(agentName, scheduleName?, options?)`
+
+Manually triggers an agent outside its normal schedule.
+
+```typescript
+await manager.trigger(
+  agentName: string,
+  scheduleName?: string,
+  options?: TriggerOptions
+): Promise<TriggerResult>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `agentName` | `string` | **Yes** | Name of the agent to trigger |
+| `scheduleName` | `string` | No | Schedule to use for configuration (prompt, work source) |
+| `options.prompt` | `string` | No | Override the prompt for this trigger |
+| `options.workItems` | `WorkItem[]` | No | Custom work items instead of fetching from work source |
+| `options.bypassConcurrencyLimit` | `boolean` | No | Force trigger even if agent is at capacity (default: `false`) |
+
+#### Returns
+
+```typescript
+interface TriggerResult {
+  jobId: string;                   // Unique job identifier
+  agentName: string;
+  scheduleName: string | null;
+  startedAt: string;               // ISO timestamp
+  prompt?: string;                 // Prompt used for trigger
+}
+```
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+| `AgentNotFoundError` | Agent doesn't exist |
+| `ScheduleNotFoundError` | Specified schedule doesn't exist |
+| `ConcurrencyLimitError` | Agent at capacity and bypass not enabled |
+
+#### Example
+
+```typescript
+// Trigger with agent defaults
+const job = await manager.trigger('my-agent');
+console.log(`Created job: ${job.jobId}`);
+
+// Trigger a specific schedule
+const job = await manager.trigger('my-agent', 'hourly');
+
+// Trigger with custom prompt
+const job = await manager.trigger('my-agent', undefined, {
+  prompt: 'Review the latest security updates',
+});
+
+// Force trigger even at capacity
+const job = await manager.trigger('my-agent', undefined, {
+  bypassConcurrencyLimit: true,
+});
+```
+
+<Aside type="tip">
+Prompt priority: `options.prompt` > schedule prompt > undefined. If you specify a prompt in options, it overrides the schedule's configured prompt.
+</Aside>
+
+---
+
+### `cancelJob(jobId, options?)`
+
+Cancels a running job gracefully.
+
+```typescript
+await manager.cancelJob(
+  jobId: string,
+  options?: { timeout?: number }
+): Promise<CancelJobResult>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `jobId` | `string` | **Yes** | — | ID of the job to cancel |
+| `options.timeout` | `number` | No | `10000` | Time in ms to wait for graceful shutdown before SIGKILL |
+
+#### Returns
+
+```typescript
+interface CancelJobResult {
+  jobId: string;
+  success: boolean;
+  terminationType: 'graceful' | 'forced' | 'already_stopped';
+  canceledAt: string;              // ISO timestamp
+}
+```
+
+#### Description
+
+Cancels a running job by first sending SIGTERM to allow graceful shutdown. If the job doesn't terminate within the timeout, it will be forcefully killed with SIGKILL.
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+| `JobNotFoundError` | Job doesn't exist |
+
+#### Example
+
+```typescript
+// Cancel with default timeout (10s)
+const result = await manager.cancelJob('job-2024-01-15-abc123');
+console.log(`Cancelled: ${result.terminationType}`);
+
+// Cancel with custom timeout
+const result = await manager.cancelJob('job-2024-01-15-abc123', {
+  timeout: 30000, // 30 seconds
+});
+```
+
+---
+
+### `forkJob(jobId, modifications?)`
+
+Creates a new job based on an existing job's configuration.
+
+```typescript
+await manager.forkJob(
+  jobId: string,
+  modifications?: JobModifications
+): Promise<ForkJobResult>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `jobId` | `string` | **Yes** | ID of the job to fork |
+| `modifications.prompt` | `string` | No | Override the prompt |
+| `modifications.schedule` | `string` | No | Override the schedule name |
+| `modifications.workItems` | `WorkItem[]` | No | Replace work items |
+
+#### Returns
+
+```typescript
+interface ForkJobResult {
+  jobId: string;                   // New job ID
+  forkedFromJobId: string;         // Original job ID
+  agentName: string;
+  startedAt: string;               // ISO timestamp
+  prompt?: string;
+}
+```
+
+#### Description
+
+Creates a new job based on an existing job's configuration. The new job will have the same agent and can optionally have modifications applied. If the original job has a session ID, the new job will fork from that session, preserving conversation context.
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+| `JobNotFoundError` | Original job doesn't exist |
+| `JobForkError` | Job cannot be forked |
+
+#### Example
+
+```typescript
+// Fork with same configuration
+const result = await manager.forkJob('job-2024-01-15-abc123');
+console.log(`Forked to: ${result.jobId}`);
+
+// Fork with modified prompt
+const result = await manager.forkJob('job-2024-01-15-abc123', {
+  prompt: 'Continue the previous task but focus on testing',
+});
+
+// Fork with different schedule
+const result = await manager.forkJob('job-2024-01-15-abc123', {
+  schedule: 'nightly',
+});
+```
+
+---
+
+## Log Streaming Methods
+
+### `streamLogs(options?)`
+
+Streams all fleet logs as an async iterable.
+
+```typescript
+manager.streamLogs(options?: LogStreamOptions): AsyncIterable<LogEntry>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `options.level` | `LogLevel` | No | `'info'` | Minimum log level (`'debug'`, `'info'`, `'warn'`, `'error'`) |
+| `options.agentName` | `string` | No | — | Filter to specific agent |
+| `options.jobId` | `string` | No | — | Filter to specific job |
+| `options.includeHistory` | `boolean` | No | `true` | Replay history before streaming |
+| `options.historyLimit` | `number` | No | `1000` | Max historical entries |
+
+#### Returns
+
+```typescript
+interface LogEntry {
+  timestamp: string;               // ISO timestamp
+  level: 'debug' | 'info' | 'warn' | 'error';
+  source: 'fleet' | 'agent' | 'job' | 'scheduler';
+  agentName?: string;
+  jobId?: string;
+  scheduleName?: string;
+  message: string;
+  data?: Record<string, unknown>;
+}
+```
+
+#### Example
+
+```typescript
+// Stream all info+ logs
+for await (const log of manager.streamLogs()) {
+  console.log(`[${log.level}] ${log.message}`);
+}
+
+// Stream only errors for a specific agent
+for await (const log of manager.streamLogs({
+  level: 'error',
+  agentName: 'my-agent',
+})) {
+  console.error(log.message);
+}
+```
+
+---
+
+### `streamJobOutput(jobId)`
+
+Streams output from a specific job.
+
+```typescript
+manager.streamJobOutput(jobId: string): AsyncIterable<LogEntry>
+```
+
+#### Description
+
+For completed jobs, this will replay the job's history and then complete. For running jobs, it will continue streaming until the job completes.
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `JobNotFoundError` | Job doesn't exist |
+
+#### Example
+
+```typescript
+for await (const log of manager.streamJobOutput('job-2024-01-15-abc123')) {
+  console.log(`[${log.level}] ${log.message}`);
+}
+```
+
+---
+
+### `streamAgentLogs(agentName)`
+
+Streams logs for a specific agent.
+
+```typescript
+manager.streamAgentLogs(agentName: string): AsyncIterable<LogEntry>
+```
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `AgentNotFoundError` | Agent doesn't exist |
+
+#### Example
+
+```typescript
+for await (const log of manager.streamAgentLogs('my-agent')) {
+  console.log(`[${log.jobId}] ${log.message}`);
+}
+```
+
+---
+
+## State Accessors
+
+### `state`
+
+Returns the current fleet manager state (read-only property).
+
+```typescript
+manager.state: FleetManagerState
+```
+
+#### Returns
+
+```typescript
+interface FleetManagerState {
+  status: FleetManagerStatus;
+  initializedAt: string | null;
+  startedAt: string | null;
+  stoppedAt: string | null;
+  agentCount: number;
+  lastError: string | null;
+}
+
+type FleetManagerStatus =
+  | 'uninitialized'  // Initial state
+  | 'initialized'    // After initialize()
+  | 'starting'       // During start()
+  | 'running'        // Scheduler active
+  | 'stopping'       // During stop()
+  | 'stopped'        // After stop()
+  | 'error';         // Error occurred
+```
+
+#### Example
+
+```typescript
+console.log(`Status: ${manager.state.status}`);
+console.log(`Agents: ${manager.state.agentCount}`);
+console.log(`Started at: ${manager.state.startedAt}`);
+```
+
+---
+
+### `getConfig()`
+
+Returns the loaded configuration.
+
+```typescript
+manager.getConfig(): ResolvedConfig | null
+```
+
+Returns `null` if not initialized.
+
+---
+
+### `getAgents()`
+
+Returns the loaded agents array.
+
+```typescript
+manager.getAgents(): ResolvedAgent[]
+```
+
+Returns empty array if not initialized.
+
+---
+
+## Events
+
+The FleetManager extends EventEmitter and provides strongly-typed events.
+
+### Event Types
+
+```typescript
+interface FleetManagerEventMap {
+  // Lifecycle
+  'initialized': [];
+  'started': [];
+  'stopped': [];
+  'error': [error: Error];
+  'config:reloaded': [payload: ConfigReloadedPayload];
+
+  // Agent events
+  'agent:started': [payload: AgentStartedPayload];
+  'agent:stopped': [payload: AgentStoppedPayload];
+
+  // Schedule events
+  'schedule:triggered': [payload: ScheduleTriggeredPayload];
+  'schedule:skipped': [payload: ScheduleSkippedPayload];
+
+  // Job events
+  'job:created': [payload: JobCreatedPayload];
+  'job:output': [payload: JobOutputPayload];
+  'job:completed': [payload: JobCompletedPayload];
+  'job:failed': [payload: JobFailedPayload];
+  'job:cancelled': [payload: JobCancelledPayload];
+  'job:forked': [payload: JobForkedPayload];
+}
+```
+
+### Event Payloads
+
+<Tabs>
+  <TabItem label="Job Events">
+```typescript
+interface JobCreatedPayload {
+  job: JobMetadata;
+  agentName: string;
+  scheduleName?: string;
+  timestamp: string;
+}
+
+interface JobOutputPayload {
+  jobId: string;
+  agentName: string;
+  output: string;
+  outputType: 'stdout' | 'stderr' | 'assistant' | 'tool' | 'system';
+  timestamp: string;
+}
+
+interface JobCompletedPayload {
+  job: JobMetadata;
+  agentName: string;
+  exitReason: ExitReason;
+  durationSeconds: number;
+  timestamp: string;
+}
+
+interface JobFailedPayload {
+  job: JobMetadata;
+  agentName: string;
+  error: Error;
+  exitReason: ExitReason;
+  durationSeconds?: number;
+  timestamp: string;
+}
+
+interface JobCancelledPayload {
+  job: JobMetadata;
+  agentName: string;
+  terminationType: 'graceful' | 'forced' | 'already_stopped';
+  durationSeconds?: number;
+  timestamp: string;
+}
+
+interface JobForkedPayload {
+  job: JobMetadata;
+  originalJob: JobMetadata;
+  agentName: string;
+  timestamp: string;
+}
+```
+  </TabItem>
+  <TabItem label="Schedule Events">
+```typescript
+interface ScheduleTriggeredPayload {
+  agentName: string;
+  scheduleName: string;
+  schedule: Schedule;
+  timestamp: string;
+}
+
+interface ScheduleSkippedPayload {
+  agentName: string;
+  scheduleName: string;
+  reason: 'already_running' | 'disabled' | 'max_concurrent' | 'work_source_empty';
+  timestamp: string;
+}
+```
+  </TabItem>
+  <TabItem label="Config Events">
+```typescript
+interface ConfigReloadedPayload {
+  agentCount: number;
+  agentNames: string[];
+  configPath: string;
+  changes: ConfigChange[];
+  timestamp: string;
+}
+
+interface ConfigChange {
+  type: 'added' | 'removed' | 'modified';
+  category: 'agent' | 'schedule' | 'defaults';
+  name: string;
+  details?: string;
+}
+```
+  </TabItem>
+</Tabs>
+
+### Example: Event Subscription
+
+```typescript
+const manager = new FleetManager({ stateDir: './.herdctl' });
+
+// Lifecycle events
+manager.on('initialized', () => {
+  console.log('Fleet initialized');
+});
+
+manager.on('started', () => {
+  console.log('Fleet started');
+});
+
+manager.on('stopped', () => {
+  console.log('Fleet stopped');
+});
+
+manager.on('error', (error) => {
+  console.error('Fleet error:', error.message);
+});
+
+// Job events
+manager.on('job:created', (payload) => {
+  console.log(`Job ${payload.job.id} created for ${payload.agentName}`);
+});
+
+manager.on('job:output', (payload) => {
+  process.stdout.write(payload.output);
+});
+
+manager.on('job:completed', (payload) => {
+  console.log(`Job completed in ${payload.durationSeconds}s`);
+});
+
+manager.on('job:failed', (payload) => {
+  console.error(`Job failed: ${payload.error.message}`);
+});
+
+// Schedule events
+manager.on('schedule:triggered', (payload) => {
+  console.log(`${payload.agentName}/${payload.scheduleName} triggered`);
+});
+
+manager.on('schedule:skipped', (payload) => {
+  console.log(`${payload.agentName}/${payload.scheduleName} skipped: ${payload.reason}`);
+});
+
+// Config reload
+manager.on('config:reloaded', (payload) => {
+  console.log(`Config reloaded with ${payload.changes.length} changes`);
+});
+```
+
+---
+
+## Error Classes
+
+All errors extend `FleetManagerError` and include error codes for programmatic handling.
+
+### Error Hierarchy
+
+```typescript
+FleetManagerError (base)
+├── ConfigurationError        // Config invalid/not found
+├── AgentNotFoundError        // Agent not in config
+├── JobNotFoundError          // Job doesn't exist
+├── ScheduleNotFoundError     // Schedule not configured
+├── InvalidStateError         // Operation invalid for state
+├── ConcurrencyLimitError     // Agent at max capacity
+├── JobCancelError            // Job cancellation failed
+├── JobForkError              // Job fork failed
+├── FleetManagerConfigError   // Legacy config error
+├── FleetManagerStateError    // Legacy state error
+├── FleetManagerStateDirError // State directory init failed
+└── FleetManagerShutdownError // Shutdown failed
+```
+
+### Error Codes
+
+```typescript
+const FleetManagerErrorCode = {
+  FLEET_MANAGER_ERROR: 'FLEET_MANAGER_ERROR',
+  CONFIGURATION_ERROR: 'CONFIGURATION_ERROR',
+  CONFIG_LOAD_ERROR: 'CONFIG_LOAD_ERROR',
+  AGENT_NOT_FOUND: 'AGENT_NOT_FOUND',
+  JOB_NOT_FOUND: 'JOB_NOT_FOUND',
+  SCHEDULE_NOT_FOUND: 'SCHEDULE_NOT_FOUND',
+  INVALID_STATE: 'INVALID_STATE',
+  STATE_DIR_ERROR: 'STATE_DIR_ERROR',
+  CONCURRENCY_LIMIT: 'CONCURRENCY_LIMIT',
+  SHUTDOWN_ERROR: 'SHUTDOWN_ERROR',
+  JOB_CANCEL_ERROR: 'JOB_CANCEL_ERROR',
+  JOB_FORK_ERROR: 'JOB_FORK_ERROR',
+};
+```
+
+### Type Guards
+
+```typescript
+import {
+  isFleetManagerError,
+  isConfigurationError,
+  isAgentNotFoundError,
+  isJobNotFoundError,
+  isScheduleNotFoundError,
+  isInvalidStateError,
+  isConcurrencyLimitError,
+  isJobCancelError,
+  isJobForkError,
+} from '@herdctl/core';
+
+try {
+  await manager.trigger('unknown-agent');
+} catch (error) {
+  if (isAgentNotFoundError(error)) {
+    console.log(`Agent "${error.agentName}" not found`);
+    console.log(`Available: ${error.availableAgents?.join(', ')}`);
+  } else if (isConcurrencyLimitError(error)) {
+    console.log(`At capacity: ${error.currentJobs}/${error.limit}`);
+  }
+}
+```
+
+### Error Properties
+
+<Tabs>
+  <TabItem label="AgentNotFoundError">
+```typescript
+class AgentNotFoundError extends FleetManagerError {
+  agentName: string;              // The agent that wasn't found
+  availableAgents?: string[];     // List of valid agents
+}
+```
+  </TabItem>
+  <TabItem label="ScheduleNotFoundError">
+```typescript
+class ScheduleNotFoundError extends FleetManagerError {
+  agentName: string;
+  scheduleName: string;           // The schedule that wasn't found
+  availableSchedules?: string[];  // List of valid schedules
+}
+```
+  </TabItem>
+  <TabItem label="ConcurrencyLimitError">
+```typescript
+class ConcurrencyLimitError extends FleetManagerError {
+  agentName: string;
+  currentJobs: number;            // Currently running
+  limit: number;                  // Max allowed
+
+  isAtLimit(): boolean;           // Helper method
+}
+```
+  </TabItem>
+  <TabItem label="InvalidStateError">
+```typescript
+class InvalidStateError extends FleetManagerError {
+  operation: string;              // The attempted operation
+  currentState: string;           // Current fleet state
+  expectedState: string | string[]; // Required state(s)
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Complete Example
+
+Here's a complete example showing typical usage patterns:
+
+```typescript
+import { FleetManager, isAgentNotFoundError } from '@herdctl/core';
+
+async function main() {
+  const manager = new FleetManager({
+    configPath: './herdctl.yaml',
+    stateDir: './.herdctl',
+    checkInterval: 5000,
+  });
+
+  // Set up event handlers
+  manager.on('initialized', () => console.log('Fleet initialized'));
+  manager.on('started', () => console.log('Fleet started'));
+  manager.on('stopped', () => console.log('Fleet stopped'));
+
+  manager.on('job:created', (payload) => {
+    console.log(`Job ${payload.job.id} created for ${payload.agentName}`);
+  });
+
+  manager.on('job:output', (payload) => {
+    process.stdout.write(payload.output);
+  });
+
+  manager.on('job:completed', (payload) => {
+    console.log(`Job ${payload.job.id} completed in ${payload.durationSeconds}s`);
+  });
+
+  manager.on('job:failed', (payload) => {
+    console.error(`Job ${payload.job.id} failed: ${payload.error.message}`);
+  });
+
+  // Initialize and start
+  await manager.initialize();
+  await manager.start();
+
+  // Get fleet status
+  const status = await manager.getFleetStatus();
+  console.log(`Running ${status.counts.totalAgents} agents`);
+
+  // List all agents
+  const agents = await manager.getAgentInfo();
+  for (const agent of agents) {
+    console.log(`${agent.name}: ${agent.status}`);
+  }
+
+  // Manually trigger an agent
+  try {
+    const result = await manager.trigger('my-agent', 'check-issues', {
+      prompt: 'Check for urgent issues only',
+    });
+    console.log(`Triggered job: ${result.jobId}`);
+  } catch (error) {
+    if (isAgentNotFoundError(error)) {
+      console.error(`Agent not found: ${error.agentName}`);
+    }
+  }
+
+  // Handle shutdown
+  process.on('SIGINT', async () => {
+    console.log('Shutting down...');
+    await manager.stop({
+      timeout: 30000,
+      cancelOnTimeout: true,
+    });
+    process.exit(0);
+  });
+}
+
+main().catch(console.error);
+```
+
+---
+
+## TypeScript Support
+
+The `@herdctl/core` package is written in TypeScript and provides full type definitions. All types are exported from the main package:
+
+```typescript
+import type {
+  // Options and configuration
+  FleetManagerOptions,
+  FleetManagerLogger,
+
+  // State types
+  FleetManagerState,
+  FleetManagerStatus,
+
+  // Query result types
+  FleetStatus,
+  FleetCounts,
+  AgentInfo,
+  ScheduleInfo,
+
+  // Action types
+  TriggerOptions,
+  TriggerResult,
+  JobModifications,
+  CancelJobResult,
+  ForkJobResult,
+
+  // Stop options
+  FleetManagerStopOptions,
+
+  // Log streaming types
+  LogLevel,
+  LogSource,
+  LogEntry,
+  LogStreamOptions,
+
+  // Event types
+  FleetManagerEventMap,
+  FleetManagerEventName,
+  ConfigReloadedPayload,
+  ConfigChange,
+  JobCreatedPayload,
+  JobOutputPayload,
+  JobCompletedPayload,
+  JobFailedPayload,
+  JobCancelledPayload,
+  JobForkedPayload,
+  ScheduleTriggeredPayload,
+  ScheduleSkippedPayload,
+} from '@herdctl/core';
+```

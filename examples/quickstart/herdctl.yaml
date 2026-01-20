@@ -1,0 +1,9 @@
+# Quickstart Fleet Configuration
+#
+# Minimal configuration for the quickstart example.
+# This fleet has one agent that triggers every 30 seconds.
+
+version: 1
+
+agents:
+  - path: ./agents/hello-agent.yaml

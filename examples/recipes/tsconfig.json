@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "strict": true,
+    "noImplicitAny": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "paths": {
+      "@herdctl/core": ["../../packages/core/dist/index.d.ts"]
+    },
+    "baseUrl": "."
+  },
+  "include": [
+    "one-shot.ts",
+    "daemon.ts",
+    "hot-reload.ts",
+    "ci-runner.ts"
+  ]
+}

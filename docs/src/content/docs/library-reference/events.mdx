@@ -1,0 +1,916 @@
+---
+title: Event Handling Guide
+description: Real-time event subscription, payload types, and patterns for building UIs and monitoring systems
+---
+
+import { Badge, Tabs, TabItem, Aside, Code } from '@astrojs/starlight/components';
+
+The `FleetManager` emits events for all state changes, enabling real-time monitoring, UI updates, and reactive workflows. This guide covers the complete event system with type-safe patterns.
+
+## Event System Overview
+
+FleetManager extends Node.js `EventEmitter` with strongly-typed events:
+
+```typescript
+import { FleetManager } from '@herdctl/core';
+
+const manager = new FleetManager({ stateDir: './.herdctl' });
+
+// Type-safe event subscription
+manager.on('job:created', (payload) => {
+  // payload is fully typed as JobCreatedPayload
+  console.log(`Job ${payload.job.id} created`);
+});
+```
+
+---
+
+## Complete Event Reference
+
+### Lifecycle Events
+
+Events for fleet manager state transitions.
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `initialized` | — | FleetManager initialization complete |
+| `started` | — | Scheduler started, processing schedules |
+| `stopped` | — | Fleet stopped, all jobs complete |
+| `error` | `Error` | Unhandled error occurred |
+
+```typescript
+manager.on('initialized', () => {
+  console.log('Fleet ready');
+});
+
+manager.on('started', () => {
+  console.log('Scheduler running');
+});
+
+manager.on('stopped', () => {
+  console.log('Fleet shutdown complete');
+});
+
+manager.on('error', (error) => {
+  console.error('Fleet error:', error.message);
+});
+```
+
+---
+
+### Configuration Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `config:reloaded` | `ConfigReloadedPayload` | Hot reload completed |
+
+```typescript
+interface ConfigReloadedPayload {
+  agentCount: number;      // Number of agents in new config
+  agentNames: string[];    // Names of agents
+  configPath: string;      // Path to config file
+  changes: ConfigChange[]; // List of changes detected
+  timestamp: string;       // ISO timestamp
+}
+
+interface ConfigChange {
+  type: 'added' | 'removed' | 'modified';
+  category: 'agent' | 'schedule' | 'defaults';
+  name: string;            // Agent name or "agent/schedule"
+  details?: string;        // What changed (for modifications)
+}
+```
+
+```typescript
+manager.on('config:reloaded', (payload) => {
+  console.log(`Config reloaded: ${payload.agentCount} agents`);
+
+  for (const change of payload.changes) {
+    const icon = change.type === 'added' ? '+'
+               : change.type === 'removed' ? '-'
+               : '~';
+    console.log(`  ${icon} ${change.category}: ${change.name}`);
+    if (change.details) {
+      console.log(`    ${change.details}`);
+    }
+  }
+});
+```
+
+---
+
+### Agent Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `agent:started` | `AgentStartedPayload` | Agent registered with fleet |
+| `agent:stopped` | `AgentStoppedPayload` | Agent unregistered |
+
+```typescript
+interface AgentStartedPayload {
+  agent: ResolvedAgent;    // Full agent configuration
+  timestamp: string;       // ISO timestamp
+}
+
+interface AgentStoppedPayload {
+  agentName: string;       // Agent identifier
+  timestamp: string;       // ISO timestamp
+  reason?: string;         // Why the agent was stopped
+}
+```
+
+```typescript
+manager.on('agent:started', (payload) => {
+  console.log(`Agent ${payload.agent.name} started`);
+  console.log(`  Schedules: ${Object.keys(payload.agent.schedules || {}).length}`);
+});
+
+manager.on('agent:stopped', (payload) => {
+  console.log(`Agent ${payload.agentName} stopped`);
+  if (payload.reason) {
+    console.log(`  Reason: ${payload.reason}`);
+  }
+});
+```
+
+---
+
+### Schedule Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `schedule:triggered` | `ScheduleTriggeredPayload` | Schedule fired, job about to start |
+| `schedule:skipped` | `ScheduleSkippedPayload` | Schedule check skipped |
+
+```typescript
+interface ScheduleTriggeredPayload {
+  agentName: string;       // Agent owning the schedule
+  scheduleName: string;    // Schedule identifier
+  schedule: Schedule;      // Full schedule configuration
+  timestamp: string;       // ISO timestamp
+}
+
+interface ScheduleSkippedPayload {
+  agentName: string;
+  scheduleName: string;
+  reason: 'already_running' | 'disabled' | 'max_concurrent' | 'work_source_empty';
+  timestamp: string;
+}
+```
+
+```typescript
+manager.on('schedule:triggered', (payload) => {
+  console.log(`Triggered: ${payload.agentName}/${payload.scheduleName}`);
+  console.log(`  Type: ${payload.schedule.type}`);
+});
+
+manager.on('schedule:skipped', (payload) => {
+  const reasons = {
+    already_running: 'Agent already running',
+    disabled: 'Schedule disabled',
+    max_concurrent: 'At concurrency limit',
+    work_source_empty: 'No work items available',
+  };
+  console.log(`Skipped: ${payload.agentName}/${payload.scheduleName}`);
+  console.log(`  Reason: ${reasons[payload.reason]}`);
+});
+```
+
+---
+
+### Job Events
+
+The core events for monitoring job execution.
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `job:created` | `JobCreatedPayload` | New job started |
+| `job:output` | `JobOutputPayload` | Job produced output |
+| `job:completed` | `JobCompletedPayload` | Job finished successfully |
+| `job:failed` | `JobFailedPayload` | Job failed with error |
+| `job:cancelled` | `JobCancelledPayload` | Job was cancelled |
+| `job:forked` | `JobForkedPayload` | Job was forked from another |
+
+#### JobCreatedPayload
+
+```typescript
+interface JobCreatedPayload {
+  job: JobMetadata;        // Full job metadata
+  agentName: string;       // Agent executing the job
+  scheduleName?: string;   // Schedule that triggered (if any)
+  timestamp: string;       // ISO timestamp
+}
+
+interface JobMetadata {
+  id: string;              // Unique job identifier
+  agentName: string;
+  status: JobStatus;       // 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+  createdAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  prompt?: string;
+  sessionId?: string;      // For session resume
+  exitReason?: ExitReason;
+  // ... additional fields
+}
+```
+
+#### JobOutputPayload
+
+```typescript
+interface JobOutputPayload {
+  jobId: string;           // Job producing output
+  agentName: string;
+  output: string;          // Output chunk (may contain newlines)
+  outputType: 'stdout' | 'stderr' | 'assistant' | 'tool' | 'system';
+  timestamp: string;
+}
+```
+
+<Aside type="tip">
+The `outputType` field lets you style output differently:
+- `stdout`: Standard output from tools
+- `stderr`: Error output from tools
+- `assistant`: Claude's text responses
+- `tool`: Tool invocation results
+- `system`: System messages (start, stop, etc.)
+</Aside>
+
+#### JobCompletedPayload
+
+```typescript
+interface JobCompletedPayload {
+  job: JobMetadata;        // Final job state
+  agentName: string;
+  exitReason: ExitReason;  // How the job exited
+  durationSeconds: number; // Total execution time
+  timestamp: string;
+}
+
+type ExitReason =
+  | 'end_turn'             // Agent completed naturally
+  | 'stop_sequence'        // Hit a stop sequence
+  | 'max_turns'            // Reached turn limit
+  | 'timeout'              // Execution timeout
+  | 'interrupt'            // User interrupted
+  | 'error';               // Failed with error
+```
+
+#### JobFailedPayload
+
+```typescript
+interface JobFailedPayload {
+  job: JobMetadata;
+  agentName: string;
+  error: Error;            // The error that caused failure
+  exitReason: ExitReason;
+  durationSeconds?: number;
+  timestamp: string;
+}
+```
+
+#### JobCancelledPayload
+
+```typescript
+interface JobCancelledPayload {
+  job: JobMetadata;
+  agentName: string;
+  terminationType: 'graceful' | 'forced' | 'already_stopped';
+  durationSeconds?: number;
+  timestamp: string;
+}
+```
+
+- `graceful`: Job responded to SIGTERM
+- `forced`: Job required SIGKILL after timeout
+- `already_stopped`: Job was already stopped when cancel was requested
+
+#### JobForkedPayload
+
+```typescript
+interface JobForkedPayload {
+  job: JobMetadata;        // New forked job
+  originalJob: JobMetadata; // Job it was forked from
+  agentName: string;
+  timestamp: string;
+}
+```
+
+---
+
+## Example: Subscribing to Multiple Events
+
+Here's a complete example subscribing to all major events:
+
+```typescript
+import { FleetManager } from '@herdctl/core';
+
+const manager = new FleetManager({
+  configPath: './herdctl.yaml',
+  stateDir: './.herdctl',
+});
+
+// Track active jobs
+const activeJobs = new Map<string, { startedAt: Date; agentName: string }>();
+
+// Lifecycle events
+manager.on('initialized', () => console.log('[Fleet] Initialized'));
+manager.on('started', () => console.log('[Fleet] Started'));
+manager.on('stopped', () => console.log('[Fleet] Stopped'));
+manager.on('error', (err) => console.error('[Fleet] Error:', err.message));
+
+// Configuration events
+manager.on('config:reloaded', (payload) => {
+  console.log(`[Config] Reloaded with ${payload.changes.length} changes`);
+});
+
+// Schedule events
+manager.on('schedule:triggered', (payload) => {
+  console.log(`[Schedule] ${payload.agentName}/${payload.scheduleName} triggered`);
+});
+
+manager.on('schedule:skipped', (payload) => {
+  console.log(`[Schedule] ${payload.agentName}/${payload.scheduleName} skipped: ${payload.reason}`);
+});
+
+// Job lifecycle events
+manager.on('job:created', (payload) => {
+  activeJobs.set(payload.job.id, {
+    startedAt: new Date(),
+    agentName: payload.agentName,
+  });
+  console.log(`[Job] Created: ${payload.job.id} (${payload.agentName})`);
+});
+
+manager.on('job:output', (payload) => {
+  // Stream output without extra newlines
+  process.stdout.write(payload.output);
+});
+
+manager.on('job:completed', (payload) => {
+  activeJobs.delete(payload.job.id);
+  console.log(`[Job] Completed: ${payload.job.id} in ${payload.durationSeconds}s`);
+});
+
+manager.on('job:failed', (payload) => {
+  activeJobs.delete(payload.job.id);
+  console.error(`[Job] Failed: ${payload.job.id} - ${payload.error.message}`);
+});
+
+manager.on('job:cancelled', (payload) => {
+  activeJobs.delete(payload.job.id);
+  console.log(`[Job] Cancelled: ${payload.job.id} (${payload.terminationType})`);
+});
+
+manager.on('job:forked', (payload) => {
+  console.log(`[Job] Forked: ${payload.job.id} from ${payload.originalJob.id}`);
+});
+
+// Start the fleet
+await manager.initialize();
+await manager.start();
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  console.log(`\nShutting down... (${activeJobs.size} jobs active)`);
+  await manager.stop({ timeout: 30000, cancelOnTimeout: true });
+});
+```
+
+---
+
+## Example: Console Progress Monitor
+
+A real-time dashboard that displays fleet status:
+
+```typescript
+import { FleetManager } from '@herdctl/core';
+
+interface JobState {
+  id: string;
+  agentName: string;
+  status: string;
+  startedAt: Date;
+  outputLines: number;
+}
+
+const jobs = new Map<string, JobState>();
+let lastRender = 0;
+
+function render() {
+  // Throttle rendering to avoid flicker
+  const now = Date.now();
+  if (now - lastRender < 100) return;
+  lastRender = now;
+
+  console.clear();
+  console.log('=== Fleet Monitor ===\n');
+  console.log(`Active Jobs: ${jobs.size}\n`);
+
+  if (jobs.size === 0) {
+    console.log('No jobs running. Waiting for triggers...');
+    return;
+  }
+
+  for (const [id, job] of jobs) {
+    const elapsed = Math.floor((Date.now() - job.startedAt.getTime()) / 1000);
+    const spinner = ['|', '/', '-', '\\'][Math.floor(Date.now() / 100) % 4];
+
+    console.log(`${spinner} ${job.agentName}`);
+    console.log(`  Job ID: ${id.slice(0, 20)}...`);
+    console.log(`  Status: ${job.status}`);
+    console.log(`  Elapsed: ${elapsed}s`);
+    console.log(`  Output lines: ${job.outputLines}`);
+    console.log('');
+  }
+}
+
+const manager = new FleetManager({
+  configPath: './herdctl.yaml',
+  stateDir: './.herdctl',
+});
+
+manager.on('job:created', (payload) => {
+  jobs.set(payload.job.id, {
+    id: payload.job.id,
+    agentName: payload.agentName,
+    status: 'starting',
+    startedAt: new Date(),
+    outputLines: 0,
+  });
+  render();
+});
+
+manager.on('job:output', (payload) => {
+  const job = jobs.get(payload.jobId);
+  if (job) {
+    job.status = 'running';
+    job.outputLines += payload.output.split('\n').length - 1;
+    render();
+  }
+});
+
+manager.on('job:completed', (payload) => {
+  const job = jobs.get(payload.job.id);
+  if (job) {
+    job.status = `completed (${payload.durationSeconds}s)`;
+    render();
+    // Remove after a brief display
+    setTimeout(() => {
+      jobs.delete(payload.job.id);
+      render();
+    }, 2000);
+  }
+});
+
+manager.on('job:failed', (payload) => {
+  const job = jobs.get(payload.job.id);
+  if (job) {
+    job.status = `FAILED: ${payload.error.message}`;
+    render();
+    setTimeout(() => {
+      jobs.delete(payload.job.id);
+      render();
+    }, 5000);
+  }
+});
+
+manager.on('job:cancelled', (payload) => {
+  jobs.delete(payload.job.id);
+  render();
+});
+
+await manager.initialize();
+await manager.start();
+
+// Initial render
+render();
+
+// Keep rendering spinner
+setInterval(render, 250);
+
+process.on('SIGINT', async () => {
+  console.clear();
+  console.log('Shutting down...');
+  await manager.stop();
+});
+```
+
+---
+
+## Example: Colored Terminal Output
+
+Stream job output with ANSI colors based on output type:
+
+```typescript
+import { FleetManager, JobOutputPayload } from '@herdctl/core';
+
+// ANSI color codes
+const colors = {
+  reset: '\x1b[0m',
+  dim: '\x1b[2m',
+  red: '\x1b[31m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  blue: '\x1b[34m',
+  magenta: '\x1b[35m',
+  cyan: '\x1b[36m',
+};
+
+function colorize(text: string, color: keyof typeof colors): string {
+  return `${colors[color]}${text}${colors.reset}`;
+}
+
+function formatOutput(payload: JobOutputPayload): string {
+  const timestamp = new Date(payload.timestamp).toLocaleTimeString();
+  const prefix = colorize(`[${timestamp}]`, 'dim');
+  const agent = colorize(payload.agentName, 'cyan');
+
+  let output = payload.output;
+  let typeIndicator = '';
+
+  switch (payload.outputType) {
+    case 'stdout':
+      // Default output, no special formatting
+      break;
+    case 'stderr':
+      output = colorize(output, 'red');
+      typeIndicator = colorize(' [stderr]', 'red');
+      break;
+    case 'assistant':
+      output = colorize(output, 'green');
+      typeIndicator = colorize(' [assistant]', 'green');
+      break;
+    case 'tool':
+      output = colorize(output, 'yellow');
+      typeIndicator = colorize(' [tool]', 'yellow');
+      break;
+    case 'system':
+      output = colorize(output, 'magenta');
+      typeIndicator = colorize(' [system]', 'magenta');
+      break;
+  }
+
+  // Only add prefix for first line, indent continuation
+  const lines = output.split('\n');
+  const formatted = lines
+    .map((line, i) => i === 0 ? line : `    ${line}`)
+    .join('\n');
+
+  return `${prefix} ${agent}${typeIndicator}: ${formatted}`;
+}
+
+const manager = new FleetManager({
+  configPath: './herdctl.yaml',
+  stateDir: './.herdctl',
+});
+
+manager.on('job:created', (payload) => {
+  const msg = colorize(`Job started: ${payload.job.id}`, 'blue');
+  console.log(`\n>>> ${msg} (${payload.agentName})\n`);
+});
+
+manager.on('job:output', (payload) => {
+  // Don't add newline - output already contains them
+  process.stdout.write(formatOutput(payload));
+});
+
+manager.on('job:completed', (payload) => {
+  const duration = colorize(`${payload.durationSeconds}s`, 'green');
+  const reason = colorize(payload.exitReason, 'dim');
+  console.log(`\n<<< Job completed in ${duration} (${reason})\n`);
+});
+
+manager.on('job:failed', (payload) => {
+  const error = colorize(payload.error.message, 'red');
+  console.log(`\n!!! Job FAILED: ${error}\n`);
+});
+
+await manager.initialize();
+await manager.start();
+
+console.log(colorize('Fleet running. Press Ctrl+C to stop.', 'dim'));
+
+process.on('SIGINT', async () => {
+  console.log(colorize('\nShutting down...', 'yellow'));
+  await manager.stop();
+});
+```
+
+---
+
+## TypeScript Type-Safe Patterns
+
+### Using Event Type Helpers
+
+The package exports type helpers for fully typed event handling:
+
+```typescript
+import type {
+  FleetManagerEventMap,
+  FleetManagerEventName,
+  FleetManagerEventPayload,
+  FleetManagerEventListener,
+} from '@herdctl/core';
+
+// Get all event names as a union type
+type EventName = FleetManagerEventName;
+// => 'initialized' | 'started' | 'stopped' | 'error' | 'job:created' | ...
+
+// Get payload type for a specific event
+type JobPayload = FleetManagerEventPayload<'job:created'>;
+// => JobCreatedPayload
+
+// Get full listener signature
+type JobListener = FleetManagerEventListener<'job:created'>;
+// => (payload: JobCreatedPayload) => void
+```
+
+### Generic Event Handler Function
+
+Create type-safe handler factories:
+
+```typescript
+import { FleetManager, FleetManagerEventName, FleetManagerEventListener } from '@herdctl/core';
+
+function createHandler<E extends FleetManagerEventName>(
+  event: E,
+  handler: FleetManagerEventListener<E>
+): { event: E; handler: FleetManagerEventListener<E> } {
+  return { event, handler };
+}
+
+// Type-safe handler definition
+const jobHandler = createHandler('job:created', (payload) => {
+  // payload is correctly typed as JobCreatedPayload
+  console.log(payload.job.id);
+});
+
+// Register handlers
+const manager = new FleetManager({ stateDir: './.herdctl' });
+manager.on(jobHandler.event, jobHandler.handler);
+```
+
+### Type-Safe Event Bus
+
+Build a typed event dispatcher:
+
+```typescript
+import {
+  FleetManager,
+  FleetManagerEventMap,
+  FleetManagerEventName,
+} from '@herdctl/core';
+
+type EventHandler<E extends FleetManagerEventName> = (
+  ...args: FleetManagerEventMap[E]
+) => void | Promise<void>;
+
+class TypedEventBus {
+  private handlers = new Map<string, Set<EventHandler<any>>>();
+
+  on<E extends FleetManagerEventName>(
+    event: E,
+    handler: EventHandler<E>
+  ): () => void {
+    if (!this.handlers.has(event)) {
+      this.handlers.set(event, new Set());
+    }
+    this.handlers.get(event)!.add(handler);
+
+    // Return unsubscribe function
+    return () => {
+      this.handlers.get(event)?.delete(handler);
+    };
+  }
+
+  async emit<E extends FleetManagerEventName>(
+    event: E,
+    ...args: FleetManagerEventMap[E]
+  ): Promise<void> {
+    const handlers = this.handlers.get(event);
+    if (!handlers) return;
+
+    await Promise.all(
+      Array.from(handlers).map(handler => handler(...args))
+    );
+  }
+}
+
+// Connect to FleetManager
+const bus = new TypedEventBus();
+const manager = new FleetManager({ stateDir: './.herdctl' });
+
+// Forward events to bus
+manager.on('job:created', (payload) => bus.emit('job:created', payload));
+manager.on('job:completed', (payload) => bus.emit('job:completed', payload));
+
+// Subscribe with full type safety
+const unsubscribe = bus.on('job:created', async (payload) => {
+  console.log(`New job: ${payload.job.id}`);
+});
+
+// Later: unsubscribe
+unsubscribe();
+```
+
+### Discriminated Union for Event Handling
+
+Handle multiple events with a single function:
+
+```typescript
+import type {
+  JobCreatedPayload,
+  JobCompletedPayload,
+  JobFailedPayload,
+  JobCancelledPayload,
+} from '@herdctl/core';
+
+type JobEvent =
+  | { type: 'created'; payload: JobCreatedPayload }
+  | { type: 'completed'; payload: JobCompletedPayload }
+  | { type: 'failed'; payload: JobFailedPayload }
+  | { type: 'cancelled'; payload: JobCancelledPayload };
+
+function handleJobEvent(event: JobEvent): void {
+  switch (event.type) {
+    case 'created':
+      // event.payload is JobCreatedPayload
+      console.log(`Job ${event.payload.job.id} created`);
+      break;
+    case 'completed':
+      // event.payload is JobCompletedPayload
+      console.log(`Job completed in ${event.payload.durationSeconds}s`);
+      break;
+    case 'failed':
+      // event.payload is JobFailedPayload
+      console.error(`Job failed: ${event.payload.error.message}`);
+      break;
+    case 'cancelled':
+      // event.payload is JobCancelledPayload
+      console.log(`Job cancelled: ${event.payload.terminationType}`);
+      break;
+  }
+}
+
+// Wire up to FleetManager
+manager.on('job:created', (p) => handleJobEvent({ type: 'created', payload: p }));
+manager.on('job:completed', (p) => handleJobEvent({ type: 'completed', payload: p }));
+manager.on('job:failed', (p) => handleJobEvent({ type: 'failed', payload: p }));
+manager.on('job:cancelled', (p) => handleJobEvent({ type: 'cancelled', payload: p }));
+```
+
+---
+
+## Events vs Polling: When to Use Each
+
+### Use Events When:
+
+| Scenario | Why Events |
+|----------|-----------|
+| **Real-time UI updates** | Immediate feedback without polling overhead |
+| **Streaming output** | `job:output` delivers chunks as they arrive |
+| **Reactive workflows** | Trigger actions based on state changes |
+| **Resource efficiency** | No wasted API calls checking for changes |
+| **Audit logging** | Capture every state transition |
+
+### Use Polling When:
+
+| Scenario | Why Polling |
+|----------|------------|
+| **Cross-process monitoring** | Events don't cross process boundaries |
+| **Historical state** | Need data from before subscription |
+| **Rate limiting** | Control update frequency precisely |
+| **Reconnection resilience** | Missed events during disconnection |
+| **Simple integrations** | When event wiring is overkill |
+
+### Recommended Patterns
+
+<Tabs>
+  <TabItem label="Events (Preferred)">
+```typescript
+// Real-time updates with events
+const manager = new FleetManager({ stateDir: './.herdctl' });
+
+manager.on('job:output', (payload) => {
+  // Update UI immediately
+  ui.appendOutput(payload.jobId, payload.output);
+});
+
+manager.on('job:completed', (payload) => {
+  // React instantly to completion
+  ui.markComplete(payload.job.id, payload.durationSeconds);
+});
+```
+  </TabItem>
+  <TabItem label="Polling (When Needed)">
+```typescript
+// Periodic status check
+async function pollStatus() {
+  const status = await manager.getFleetStatus();
+  ui.updateDashboard(status);
+}
+
+// Check every 5 seconds
+setInterval(pollStatus, 5000);
+```
+  </TabItem>
+  <TabItem label="Hybrid Approach">
+```typescript
+// Events for real-time, polling for sync
+const manager = new FleetManager({ stateDir: './.herdctl' });
+
+// Real-time job tracking
+manager.on('job:created', (p) => state.addJob(p.job));
+manager.on('job:completed', (p) => state.updateJob(p.job));
+
+// Periodic full sync (in case events missed)
+setInterval(async () => {
+  const status = await manager.getFleetStatus();
+  state.reconcile(status);
+}, 30000);
+```
+  </TabItem>
+</Tabs>
+
+### Decision Flowchart
+
+```
+Need real-time updates?
+  ├─ Yes → Use events
+  │        └─ Also need historical data?
+  │             └─ Yes → Use streamLogs() with includeHistory: true
+  └─ No → What's the update frequency?
+           ├─ Seconds → Use events (more efficient)
+           └─ Minutes+ → Polling is fine
+```
+
+---
+
+## Event Payload Type Exports
+
+All payload types are exported from `@herdctl/core`:
+
+```typescript
+import type {
+  // Event map and helpers
+  FleetManagerEventMap,
+  FleetManagerEventName,
+  FleetManagerEventPayload,
+  FleetManagerEventListener,
+
+  // Config events
+  ConfigReloadedPayload,
+  ConfigChange,
+
+  // Agent events
+  AgentStartedPayload,
+  AgentStoppedPayload,
+
+  // Schedule events
+  ScheduleTriggeredPayload,
+  ScheduleSkippedPayload,
+
+  // Job events
+  JobCreatedPayload,
+  JobOutputPayload,
+  JobCompletedPayload,
+  JobFailedPayload,
+  JobCancelledPayload,
+  JobForkedPayload,
+
+  // Supporting types
+  JobMetadata,
+  JobStatus,
+  ExitReason,
+} from '@herdctl/core';
+```
+
+---
+
+## Legacy Events
+
+For backwards compatibility, the following legacy events are still emitted:
+
+| Legacy Event | Replacement | Notes |
+|--------------|-------------|-------|
+| `schedule:trigger` | `schedule:triggered` | Use new event for typed payload |
+| `schedule:complete` | `job:completed` | Use job event for full metadata |
+| `schedule:error` | `job:failed` | Use job event for error details |
+
+```typescript
+// Legacy (deprecated)
+manager.on('schedule:trigger', (agentName, scheduleName) => {
+  console.log(`${agentName}/${scheduleName} triggered`);
+});
+
+// Preferred
+manager.on('schedule:triggered', (payload) => {
+  console.log(`${payload.agentName}/${payload.scheduleName} triggered`);
+  // Also have access to payload.schedule, payload.timestamp
+});
+```
+
+<Aside type="caution">
+Legacy events will be removed in a future major version. Migrate to the typed events for full payload access.
+</Aside>

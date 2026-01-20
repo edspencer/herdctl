@@ -1,0 +1,1454 @@
+---
+title: Error Handling Guide
+description: Complete reference for error types, type guards, recovery patterns, and graceful degradation strategies
+---
+
+import { Badge, Tabs, TabItem, Aside, Code } from '@astrojs/starlight/components';
+
+Building robust applications requires understanding how errors propagate and how to handle them gracefully. This guide covers the complete error hierarchy, type guards for identification, and patterns for recovery and degradation.
+
+## Error Hierarchy Overview
+
+herdctl provides a comprehensive error hierarchy organized by module. All errors include error codes for programmatic handling and support error chaining via the standard `cause` property.
+
+```
+FleetManagerError (base)
+├── ConfigurationError        // Configuration validation failures
+├── AgentNotFoundError        // Agent lookup failures
+├── JobNotFoundError          // Job lookup failures
+├── ScheduleNotFoundError     // Schedule lookup failures
+├── InvalidStateError         // Invalid operation for current state
+├── ConcurrencyLimitError     // Max concurrent jobs reached
+├── JobCancelError            // Job cancellation failures
+├── JobForkError              // Job forking failures
+├── FleetManagerShutdownError // Shutdown timeout/failures
+└── FleetManagerStateDirError // State directory failures
+
+RunnerError (base)
+├── SDKInitializationError    // SDK setup failures
+├── SDKStreamingError         // Runtime streaming failures
+└── MalformedResponseError    // Invalid SDK responses
+
+SchedulerError (base)
+├── IntervalParseError        // Invalid interval strings
+├── ScheduleTriggerError      // Schedule execution failures
+└── SchedulerShutdownError    // Scheduler shutdown failures
+
+StateError (base)
+├── StateDirectoryCreateError // Directory creation failures
+├── StateDirectoryValidationError // Validation failures
+└── StateFileError            // File read/write failures
+
+WorkSourceError (base)
+├── UnknownWorkSourceError    // Unknown adapter type
+├── DuplicateWorkSourceError  // Duplicate registration
+├── GitHubAPIError            // GitHub API failures
+└── GitHubAuthError           // GitHub authentication failures
+```
+
+---
+
+## FleetManager Errors
+
+The primary errors you'll encounter when using the `FleetManager` class.
+
+### ConfigurationError
+
+Thrown when configuration loading or validation fails.
+
+```typescript
+class ConfigurationError extends FleetManagerError {
+  configPath?: string;           // Path to the config file
+  validationErrors: ValidationError[]; // Detailed validation failures
+
+  hasValidationErrors(): boolean;
+}
+
+interface ValidationError {
+  path: string;    // Field path: "agents[0].schedules[0].interval"
+  message: string; // Human-readable description
+  value?: unknown; // The invalid value
+}
+```
+
+**Common Causes:**
+- Configuration file not found
+- Invalid YAML syntax
+- Schema validation failures (missing required fields, wrong types)
+- Invalid agent or schedule definitions
+
+**Example:**
+
+```typescript
+import {
+  FleetManager,
+  ConfigurationError,
+  isConfigurationError,
+} from '@herdctl/core';
+
+const manager = new FleetManager({
+  configPath: './herdctl.yaml',
+  stateDir: './.herdctl',
+});
+
+try {
+  await manager.initialize();
+} catch (error) {
+  if (isConfigurationError(error)) {
+    console.error(`Configuration error: ${error.message}`);
+
+    if (error.configPath) {
+      console.error(`  File: ${error.configPath}`);
+    }
+
+    if (error.hasValidationErrors()) {
+      console.error('  Validation errors:');
+      for (const ve of error.validationErrors) {
+        console.error(`    - ${ve.path}: ${ve.message}`);
+        if (ve.value !== undefined) {
+          console.error(`      Got: ${JSON.stringify(ve.value)}`);
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+### AgentNotFoundError
+
+Thrown when referencing an agent that doesn't exist.
+
+```typescript
+class AgentNotFoundError extends FleetManagerError {
+  agentName: string;             // The requested agent name
+  availableAgents?: string[];    // List of valid agent names
+}
+```
+
+**Common Causes:**
+- Typo in agent name
+- Agent removed from configuration but still referenced
+- Case sensitivity mismatch
+
+**Example:**
+
+```typescript
+import { isAgentNotFoundError } from '@herdctl/core';
+
+try {
+  await manager.trigger('my-agnet'); // Typo!
+} catch (error) {
+  if (isAgentNotFoundError(error)) {
+    console.error(`Agent "${error.agentName}" not found`);
+
+    if (error.availableAgents?.length) {
+      console.log('Available agents:');
+      for (const name of error.availableAgents) {
+        console.log(`  - ${name}`);
+      }
+
+      // Suggest closest match
+      const suggestion = findClosestMatch(error.agentName, error.availableAgents);
+      if (suggestion) {
+        console.log(`Did you mean "${suggestion}"?`);
+      }
+    }
+  }
+}
+```
+
+---
+
+### JobNotFoundError
+
+Thrown when referencing a job that doesn't exist.
+
+```typescript
+class JobNotFoundError extends FleetManagerError {
+  jobId: string; // The requested job ID
+}
+```
+
+**Common Causes:**
+- Job ID typo or truncation
+- Job has been garbage collected (old jobs are cleaned up)
+- Job never existed (race condition)
+
+**Example:**
+
+```typescript
+import { isJobNotFoundError } from '@herdctl/core';
+
+try {
+  const status = await manager.getJobStatus('job-2024-01-15-abc');
+} catch (error) {
+  if (isJobNotFoundError(error)) {
+    console.error(`Job "${error.jobId}" not found`);
+    console.log('The job may have been cleaned up or never existed.');
+  }
+}
+```
+
+---
+
+### ScheduleNotFoundError
+
+Thrown when referencing a schedule that doesn't exist for an agent.
+
+```typescript
+class ScheduleNotFoundError extends FleetManagerError {
+  agentName: string;
+  scheduleName: string;
+  availableSchedules?: string[];
+}
+```
+
+**Example:**
+
+```typescript
+import { isScheduleNotFoundError } from '@herdctl/core';
+
+try {
+  await manager.trigger('my-agent', 'hourly-check');
+} catch (error) {
+  if (isScheduleNotFoundError(error)) {
+    console.error(
+      `Schedule "${error.scheduleName}" not found for agent "${error.agentName}"`
+    );
+
+    if (error.availableSchedules?.length) {
+      console.log('Available schedules:');
+      for (const name of error.availableSchedules) {
+        console.log(`  - ${name}`);
+      }
+    } else {
+      console.log('This agent has no schedules configured.');
+    }
+  }
+}
+```
+
+---
+
+### InvalidStateError
+
+Thrown when an operation is attempted in an incompatible state.
+
+```typescript
+class InvalidStateError extends FleetManagerError {
+  operation: string;                   // What was attempted
+  currentState: string;                // Current fleet state
+  expectedState: string | string[];    // Required state(s)
+}
+```
+
+**Common Causes:**
+- Calling `start()` before `initialize()`
+- Calling `trigger()` before `start()`
+- Operating on a stopped fleet manager
+
+**Example:**
+
+```typescript
+import { isInvalidStateError } from '@herdctl/core';
+
+try {
+  await manager.start(); // Forgot initialize()!
+} catch (error) {
+  if (isInvalidStateError(error)) {
+    console.error(`Cannot ${error.operation}`);
+    console.error(`  Current state: ${error.currentState}`);
+
+    const expected = Array.isArray(error.expectedState)
+      ? error.expectedState.join(' or ')
+      : error.expectedState;
+    console.error(`  Required state: ${expected}`);
+
+    // Suggest fix
+    if (error.currentState === 'uninitialized') {
+      console.log('Call manager.initialize() first.');
+    }
+  }
+}
+```
+
+---
+
+### ConcurrencyLimitError
+
+Thrown when an agent has reached its maximum concurrent job limit.
+
+```typescript
+class ConcurrencyLimitError extends FleetManagerError {
+  agentName: string;
+  currentJobs: number;  // Currently running
+  limit: number;        // Maximum allowed
+
+  isAtLimit(): boolean; // Helper method
+}
+```
+
+**Example:**
+
+```typescript
+import { isConcurrencyLimitError } from '@herdctl/core';
+
+try {
+  await manager.trigger('my-agent');
+} catch (error) {
+  if (isConcurrencyLimitError(error)) {
+    console.error(
+      `Agent "${error.agentName}" at capacity: ` +
+      `${error.currentJobs}/${error.limit} jobs running`
+    );
+
+    // Option 1: Wait and retry
+    console.log('Waiting for a job to complete...');
+
+    // Option 2: Force trigger (bypass limit)
+    const result = await manager.trigger('my-agent', undefined, {
+      bypassConcurrencyLimit: true,
+    });
+  }
+}
+```
+
+---
+
+### JobCancelError
+
+Thrown when job cancellation fails.
+
+```typescript
+class JobCancelError extends FleetManagerError {
+  jobId: string;
+  reason: 'not_running' | 'process_error' | 'timeout' | 'unknown';
+}
+```
+
+**Example:**
+
+```typescript
+import { isJobCancelError } from '@herdctl/core';
+
+try {
+  await manager.cancelJob('job-2024-01-15-abc123');
+} catch (error) {
+  if (isJobCancelError(error)) {
+    switch (error.reason) {
+      case 'not_running':
+        console.log('Job already completed or never started.');
+        break;
+      case 'process_error':
+        console.error('Failed to terminate the job process.');
+        break;
+      case 'timeout':
+        console.error('Job did not respond to termination signal.');
+        break;
+      default:
+        console.error(`Cancel failed: ${error.message}`);
+    }
+  }
+}
+```
+
+---
+
+### JobForkError
+
+Thrown when job forking fails.
+
+```typescript
+class JobForkError extends FleetManagerError {
+  originalJobId: string;
+  reason: 'no_session' | 'job_not_found' | 'agent_not_found' | 'unknown';
+}
+```
+
+**Example:**
+
+```typescript
+import { isJobForkError } from '@herdctl/core';
+
+try {
+  await manager.forkJob('job-2024-01-15-abc123');
+} catch (error) {
+  if (isJobForkError(error)) {
+    switch (error.reason) {
+      case 'no_session':
+        console.error('Original job has no session to fork from.');
+        console.log('Trigger a new job instead of forking.');
+        break;
+      case 'job_not_found':
+        console.error('Original job no longer exists.');
+        break;
+      case 'agent_not_found':
+        console.error('Agent configuration was removed.');
+        break;
+    }
+  }
+}
+```
+
+---
+
+### FleetManagerShutdownError
+
+Thrown when fleet shutdown fails.
+
+```typescript
+class FleetManagerShutdownError extends FleetManagerError {
+  timedOut: boolean;
+
+  isTimeout(): boolean;
+}
+```
+
+**Example:**
+
+```typescript
+try {
+  await manager.stop({ timeout: 30000 });
+} catch (error) {
+  if (error instanceof FleetManagerShutdownError) {
+    if (error.isTimeout()) {
+      console.error('Shutdown timed out - some jobs may still be running');
+      // Force cancel remaining jobs
+      await manager.stop({
+        timeout: 10000,
+        cancelOnTimeout: true,
+      });
+    }
+  }
+}
+```
+
+---
+
+## Runner Errors
+
+Errors from the job execution runtime.
+
+### SDKInitializationError
+
+Thrown when Claude SDK initialization fails.
+
+```typescript
+class SDKInitializationError extends RunnerError {
+  code?: string;         // Error code (e.g., ECONNREFUSED)
+  jobId?: string;        // Associated job
+  agentName?: string;    // Associated agent
+
+  isMissingApiKey(): boolean;  // Check if API key issue
+  isNetworkError(): boolean;   // Check if network issue
+}
+```
+
+**Common Causes:**
+- Missing `ANTHROPIC_API_KEY` environment variable
+- Invalid or expired API key
+- Network connectivity issues
+- Firewall blocking API access
+
+**Example:**
+
+```typescript
+manager.on('job:failed', (payload) => {
+  if (payload.error instanceof SDKInitializationError) {
+    if (payload.error.isMissingApiKey()) {
+      console.error('API Key Error: Set ANTHROPIC_API_KEY environment variable');
+    } else if (payload.error.isNetworkError()) {
+      console.error('Network Error: Check connectivity to api.anthropic.com');
+      console.error(`  Error code: ${payload.error.code}`);
+    }
+  }
+});
+```
+
+---
+
+### SDKStreamingError
+
+Thrown during SDK message streaming.
+
+```typescript
+class SDKStreamingError extends RunnerError {
+  code?: string;
+  messagesReceived?: number;  // Messages received before error
+
+  isRateLimited(): boolean;   // Hit API rate limit
+  isConnectionError(): boolean;
+  isRecoverable(): boolean;   // Safe to retry
+}
+```
+
+**Common Causes:**
+- API rate limiting
+- Connection dropped mid-stream
+- Request timeout
+- Server errors (5xx)
+
+**Example:**
+
+```typescript
+manager.on('job:failed', (payload) => {
+  if (payload.error instanceof SDKStreamingError) {
+    console.error(`Streaming failed after ${payload.error.messagesReceived} messages`);
+
+    if (payload.error.isRateLimited()) {
+      console.error('Rate limited - wait before retrying');
+    } else if (payload.error.isRecoverable()) {
+      console.log('Error is recoverable - consider auto-retry');
+    }
+  }
+});
+```
+
+---
+
+### MalformedResponseError
+
+Thrown when SDK returns an unexpected response format.
+
+```typescript
+class MalformedResponseError extends RunnerError {
+  rawResponse?: unknown;  // The unexpected response
+  expected?: string;      // What was expected
+}
+```
+
+**Example:**
+
+```typescript
+manager.on('job:failed', (payload) => {
+  if (payload.error instanceof MalformedResponseError) {
+    console.error('SDK returned unexpected response format');
+    if (payload.error.expected) {
+      console.error(`  Expected: ${payload.error.expected}`);
+    }
+    // Log for debugging (careful with sensitive data)
+    console.debug('Raw response:', payload.error.rawResponse);
+  }
+});
+```
+
+---
+
+## Scheduler Errors
+
+Errors from the scheduling system.
+
+### IntervalParseError
+
+Thrown when an interval string cannot be parsed.
+
+```typescript
+class IntervalParseError extends SchedulerError {
+  input: string; // The invalid interval string
+}
+```
+
+**Valid Formats:** `5s`, `30m`, `2h`, `1d`
+
+**Example:**
+
+```typescript
+// This would throw IntervalParseError
+// schedules:
+//   - name: check
+//     interval: "5 minutes"  // Invalid! Should be "5m"
+```
+
+---
+
+### ScheduleTriggerError
+
+Thrown when a schedule trigger fails.
+
+```typescript
+class ScheduleTriggerError extends SchedulerError {
+  agentName: string;
+  scheduleName: string;
+}
+```
+
+---
+
+### SchedulerShutdownError
+
+Thrown when scheduler shutdown fails.
+
+```typescript
+class SchedulerShutdownError extends SchedulerError {
+  timedOut: boolean;
+  runningJobCount: number;  // Jobs still running
+}
+```
+
+---
+
+## Work Source Errors
+
+Errors from work source adapters (like GitHub).
+
+### GitHubAPIError
+
+Thrown when GitHub API requests fail.
+
+```typescript
+class GitHubAPIError extends WorkSourceError {
+  statusCode?: number;
+  endpoint?: string;
+  rateLimitInfo?: RateLimitInfo;
+  isRateLimitError: boolean;
+  rateLimitResetAt?: Date;
+
+  isRetryable(): boolean;       // Safe to retry
+  isNotFound(): boolean;        // 404 error
+  isPermissionDenied(): boolean; // 403 (not rate limit)
+  getTimeUntilReset(): number | undefined; // ms until rate limit resets
+}
+
+interface RateLimitInfo {
+  limit: number;      // Max requests per hour
+  remaining: number;  // Requests remaining
+  reset: number;      // Unix timestamp of reset
+  resource: string;   // API resource type
+}
+```
+
+**Example:**
+
+```typescript
+import { GitHubAPIError } from '@herdctl/core';
+
+try {
+  const work = await adapter.fetchAvailableWork();
+} catch (error) {
+  if (error instanceof GitHubAPIError) {
+    if (error.isRateLimitError) {
+      const waitMs = error.getTimeUntilReset() ?? 60000;
+      console.log(`Rate limited. Retry in ${Math.ceil(waitMs / 1000)}s`);
+      await sleep(waitMs);
+      // Retry...
+    } else if (error.isNotFound()) {
+      console.error('Repository not found. Check owner/repo config.');
+    } else if (error.isPermissionDenied()) {
+      console.error('Permission denied. Check token scopes.');
+    } else if (error.isRetryable()) {
+      console.log('Transient error, will retry...');
+    }
+  }
+}
+```
+
+---
+
+### GitHubAuthError
+
+Thrown when GitHub token validation fails.
+
+```typescript
+class GitHubAuthError extends WorkSourceError {
+  foundScopes: string[];     // Scopes on the token
+  requiredScopes: string[];  // Scopes needed
+  missingScopes: string[];   // Scopes to add
+}
+```
+
+**Example:**
+
+```typescript
+import { GitHubAuthError } from '@herdctl/core';
+
+try {
+  await adapter.validateToken();
+} catch (error) {
+  if (error instanceof GitHubAuthError) {
+    console.error('GitHub token missing required scopes');
+    console.error(`  Found: ${error.foundScopes.join(', ') || 'none'}`);
+    console.error(`  Missing: ${error.missingScopes.join(', ')}`);
+    console.log('Update your token with the required scopes.');
+  }
+}
+```
+
+---
+
+## State Errors
+
+Errors from state management operations.
+
+### StateDirectoryCreateError
+
+Thrown when state directory cannot be created.
+
+```typescript
+class StateDirectoryCreateError extends StateError {
+  path: string;    // Path that failed
+  code?: string;   // System error code
+}
+```
+
+**Common Causes:**
+- Permission denied (`EACCES`)
+- Disk full (`ENOSPC`)
+- Read-only filesystem (`EROFS`)
+- Parent directory doesn't exist (`ENOENT`)
+
+---
+
+### StateDirectoryValidationError
+
+Thrown when state directory validation fails.
+
+```typescript
+class StateDirectoryValidationError extends StateError {
+  missingPaths: string[]; // Paths that should exist
+}
+```
+
+---
+
+### StateFileError
+
+Thrown when state file operations fail.
+
+```typescript
+class StateFileError extends StateError {
+  path: string;
+  operation: 'read' | 'write';
+}
+```
+
+---
+
+## Type Guards Reference
+
+All error types have corresponding type guards for safe error handling.
+
+```typescript
+import {
+  // FleetManager errors
+  isFleetManagerError,
+  isConfigurationError,
+  isAgentNotFoundError,
+  isJobNotFoundError,
+  isScheduleNotFoundError,
+  isInvalidStateError,
+  isConcurrencyLimitError,
+  isJobCancelError,
+  isJobForkError,
+} from '@herdctl/core';
+```
+
+### Pattern: Exhaustive Error Handling
+
+```typescript
+import {
+  isConfigurationError,
+  isAgentNotFoundError,
+  isJobNotFoundError,
+  isScheduleNotFoundError,
+  isInvalidStateError,
+  isConcurrencyLimitError,
+  isFleetManagerError,
+} from '@herdctl/core';
+
+function handleError(error: unknown): void {
+  // Most specific first
+  if (isConfigurationError(error)) {
+    handleConfigError(error);
+  } else if (isAgentNotFoundError(error)) {
+    handleAgentNotFound(error);
+  } else if (isJobNotFoundError(error)) {
+    handleJobNotFound(error);
+  } else if (isScheduleNotFoundError(error)) {
+    handleScheduleNotFound(error);
+  } else if (isInvalidStateError(error)) {
+    handleInvalidState(error);
+  } else if (isConcurrencyLimitError(error)) {
+    handleConcurrencyLimit(error);
+  } else if (isFleetManagerError(error)) {
+    // Catch-all for other FleetManager errors
+    console.error(`Fleet error [${error.code}]: ${error.message}`);
+  } else if (error instanceof Error) {
+    // Generic error
+    console.error('Unexpected error:', error.message);
+  } else {
+    // Non-Error thrown
+    console.error('Unknown error:', error);
+  }
+}
+```
+
+### Pattern: Error Code Switching
+
+Use error codes for programmatic handling:
+
+```typescript
+import {
+  FleetManagerError,
+  FleetManagerErrorCode,
+  isFleetManagerError,
+} from '@herdctl/core';
+
+function handleByCode(error: unknown): void {
+  if (!isFleetManagerError(error)) {
+    throw error; // Re-throw non-FleetManager errors
+  }
+
+  switch (error.code) {
+    case FleetManagerErrorCode.CONFIGURATION_ERROR:
+      console.error('Fix your configuration file.');
+      break;
+
+    case FleetManagerErrorCode.AGENT_NOT_FOUND:
+    case FleetManagerErrorCode.JOB_NOT_FOUND:
+    case FleetManagerErrorCode.SCHEDULE_NOT_FOUND:
+      console.error('Resource not found:', error.message);
+      break;
+
+    case FleetManagerErrorCode.INVALID_STATE:
+      console.error('Invalid operation for current state.');
+      break;
+
+    case FleetManagerErrorCode.CONCURRENCY_LIMIT:
+      console.error('At capacity - wait or bypass limit.');
+      break;
+
+    case FleetManagerErrorCode.SHUTDOWN_ERROR:
+      console.error('Shutdown failed - may need force stop.');
+      break;
+
+    default:
+      console.error('Fleet error:', error.message);
+  }
+}
+```
+
+---
+
+## Error Codes Reference
+
+All FleetManager errors include a `code` property for programmatic handling:
+
+```typescript
+const FleetManagerErrorCode = {
+  // Base
+  FLEET_MANAGER_ERROR: 'FLEET_MANAGER_ERROR',
+
+  // Configuration
+  CONFIGURATION_ERROR: 'CONFIGURATION_ERROR',
+  CONFIG_LOAD_ERROR: 'CONFIG_LOAD_ERROR',
+
+  // Not Found
+  AGENT_NOT_FOUND: 'AGENT_NOT_FOUND',
+  JOB_NOT_FOUND: 'JOB_NOT_FOUND',
+  SCHEDULE_NOT_FOUND: 'SCHEDULE_NOT_FOUND',
+
+  // State
+  INVALID_STATE: 'INVALID_STATE',
+  STATE_DIR_ERROR: 'STATE_DIR_ERROR',
+
+  // Operational
+  CONCURRENCY_LIMIT: 'CONCURRENCY_LIMIT',
+  SHUTDOWN_ERROR: 'SHUTDOWN_ERROR',
+
+  // Job Control
+  JOB_CANCEL_ERROR: 'JOB_CANCEL_ERROR',
+  JOB_FORK_ERROR: 'JOB_FORK_ERROR',
+} as const;
+```
+
+---
+
+## Retry Patterns
+
+### Exponential Backoff with Jitter
+
+The built-in retry logic uses exponential backoff with jitter to prevent thundering herd problems:
+
+```typescript
+interface RetryOptions {
+  maxRetries?: number;      // Default: 3
+  baseDelayMs?: number;     // Default: 1000
+  maxDelayMs?: number;      // Default: 30000
+  jitterFactor?: number;    // Default: 0.1
+}
+
+// Delay calculation:
+// delay = min(baseDelay * 2^attempt, maxDelay) + random_jitter
+```
+
+### Generic Retry Helper
+
+```typescript
+interface RetryConfig {
+  maxAttempts: number;
+  baseDelayMs: number;
+  maxDelayMs: number;
+  jitterFactor: number;
+  shouldRetry: (error: unknown, attempt: number) => boolean;
+}
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  config: RetryConfig
+): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < config.maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+
+      if (!config.shouldRetry(error, attempt)) {
+        throw error;
+      }
+
+      if (attempt < config.maxAttempts - 1) {
+        const delay = calculateDelay(attempt, config);
+        await sleep(delay);
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+function calculateDelay(attempt: number, config: RetryConfig): number {
+  const exponentialDelay = config.baseDelayMs * Math.pow(2, attempt);
+  const cappedDelay = Math.min(exponentialDelay, config.maxDelayMs);
+  const jitter = cappedDelay * config.jitterFactor * Math.random();
+  return Math.floor(cappedDelay + jitter);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+```
+
+### Pattern: Retry Transient Errors
+
+```typescript
+import {
+  FleetManager,
+  SDKStreamingError,
+  GitHubAPIError,
+} from '@herdctl/core';
+
+function isTransientError(error: unknown): boolean {
+  // SDK errors
+  if (error instanceof SDKStreamingError) {
+    return error.isRecoverable();
+  }
+
+  // GitHub API errors
+  if (error instanceof GitHubAPIError) {
+    return error.isRetryable();
+  }
+
+  // Network errors
+  if (error instanceof Error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    return ['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND'].includes(
+      code ?? ''
+    );
+  }
+
+  return false;
+}
+
+// Usage
+const result = await withRetry(
+  () => manager.trigger('my-agent'),
+  {
+    maxAttempts: 3,
+    baseDelayMs: 1000,
+    maxDelayMs: 30000,
+    jitterFactor: 0.1,
+    shouldRetry: isTransientError,
+  }
+);
+```
+
+### Pattern: Rate Limit Aware Retry
+
+```typescript
+import { GitHubAPIError } from '@herdctl/core';
+
+async function withRateLimitRetry<T>(
+  fn: () => Promise<T>,
+  maxAttempts = 3
+): Promise<T> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (error instanceof GitHubAPIError && error.isRateLimitError) {
+        const waitMs = error.getTimeUntilReset() ?? 60000;
+
+        if (attempt < maxAttempts - 1) {
+          console.log(`Rate limited. Waiting ${Math.ceil(waitMs / 1000)}s...`);
+          await sleep(waitMs + 1000); // Add 1s buffer
+          continue;
+        }
+      }
+      throw error;
+    }
+  }
+
+  throw new Error('Max retry attempts exceeded');
+}
+```
+
+---
+
+## Graceful Degradation Patterns
+
+### Pattern: Fallback Values
+
+```typescript
+async function getAgentInfoSafe(
+  manager: FleetManager,
+  agentName: string
+): Promise<AgentInfo | null> {
+  try {
+    return await manager.getAgentInfoByName(agentName);
+  } catch (error) {
+    if (isAgentNotFoundError(error)) {
+      return null; // Graceful fallback
+    }
+    throw error; // Re-throw unexpected errors
+  }
+}
+
+// Usage
+const agent = await getAgentInfoSafe(manager, 'my-agent');
+if (agent) {
+  console.log(`Agent status: ${agent.status}`);
+} else {
+  console.log('Agent not configured');
+}
+```
+
+### Pattern: Circuit Breaker
+
+Prevent cascading failures by stopping requests after repeated errors:
+
+```typescript
+class CircuitBreaker {
+  private failures = 0;
+  private lastFailure = 0;
+  private state: 'closed' | 'open' | 'half-open' = 'closed';
+
+  constructor(
+    private readonly threshold: number = 5,
+    private readonly resetTimeMs: number = 60000
+  ) {}
+
+  async execute<T>(fn: () => Promise<T>): Promise<T> {
+    // Check if circuit should reset
+    if (
+      this.state === 'open' &&
+      Date.now() - this.lastFailure > this.resetTimeMs
+    ) {
+      this.state = 'half-open';
+    }
+
+    // Fail fast if circuit is open
+    if (this.state === 'open') {
+      throw new Error('Circuit breaker is open');
+    }
+
+    try {
+      const result = await fn();
+      this.onSuccess();
+      return result;
+    } catch (error) {
+      this.onFailure();
+      throw error;
+    }
+  }
+
+  private onSuccess(): void {
+    this.failures = 0;
+    this.state = 'closed';
+  }
+
+  private onFailure(): void {
+    this.failures++;
+    this.lastFailure = Date.now();
+
+    if (this.failures >= this.threshold) {
+      this.state = 'open';
+    }
+  }
+}
+
+// Usage
+const breaker = new CircuitBreaker(5, 60000);
+
+manager.on('schedule:triggered', async (payload) => {
+  try {
+    await breaker.execute(async () => {
+      await externalService.notify(payload);
+    });
+  } catch (error) {
+    console.log('External notification skipped (circuit open)');
+  }
+});
+```
+
+### Pattern: Graceful Shutdown
+
+Handle errors during shutdown without losing state:
+
+```typescript
+async function gracefulShutdown(manager: FleetManager): Promise<void> {
+  console.log('Initiating graceful shutdown...');
+
+  try {
+    // Try graceful first
+    await manager.stop({ timeout: 30000 });
+    console.log('Shutdown complete');
+  } catch (error) {
+    if (error instanceof FleetManagerShutdownError && error.isTimeout()) {
+      console.warn('Graceful shutdown timed out, forcing...');
+
+      try {
+        await manager.stop({
+          timeout: 10000,
+          cancelOnTimeout: true,
+          cancelTimeout: 5000,
+        });
+        console.log('Forced shutdown complete');
+      } catch (forceError) {
+        console.error('Forced shutdown failed:', forceError);
+        // Last resort: exit with error code
+        process.exit(1);
+      }
+    } else {
+      throw error;
+    }
+  }
+}
+
+process.on('SIGINT', () => gracefulShutdown(manager));
+process.on('SIGTERM', () => gracefulShutdown(manager));
+```
+
+### Pattern: Degraded Mode Operation
+
+Continue with reduced functionality when external services fail:
+
+```typescript
+import { FleetManager, GitHubAPIError, GitHubAuthError } from '@herdctl/core';
+
+interface AppState {
+  degradedMode: boolean;
+  disabledFeatures: Set<string>;
+}
+
+const state: AppState = {
+  degradedMode: false,
+  disabledFeatures: new Set(),
+};
+
+manager.on('job:failed', (payload) => {
+  // Check if GitHub integration is failing
+  if (
+    payload.error instanceof GitHubAPIError ||
+    payload.error instanceof GitHubAuthError
+  ) {
+    state.degradedMode = true;
+    state.disabledFeatures.add('github-work-source');
+
+    console.warn('GitHub integration disabled due to errors');
+    console.warn('Work sources will use local queue only');
+  }
+});
+
+// Check degraded mode before using features
+async function fetchWork(manager: FleetManager): Promise<WorkItem[]> {
+  if (state.disabledFeatures.has('github-work-source')) {
+    console.log('Using local work queue (GitHub disabled)');
+    return getLocalWorkQueue();
+  }
+
+  try {
+    return await manager.fetchWorkFromSources();
+  } catch (error) {
+    // Degrade gracefully
+    state.degradedMode = true;
+    state.disabledFeatures.add('github-work-source');
+    return getLocalWorkQueue();
+  }
+}
+```
+
+### Pattern: Error Boundaries for Event Handlers
+
+Prevent one handler's error from affecting others:
+
+```typescript
+function safeHandler<T extends (...args: any[]) => any>(
+  handler: T,
+  name: string
+): T {
+  return ((...args: Parameters<T>) => {
+    try {
+      const result = handler(...args);
+      if (result instanceof Promise) {
+        return result.catch((error) => {
+          console.error(`Handler "${name}" failed:`, error);
+        });
+      }
+      return result;
+    } catch (error) {
+      console.error(`Handler "${name}" failed:`, error);
+    }
+  }) as T;
+}
+
+// Usage: wrap handlers to prevent one failure from breaking others
+manager.on(
+  'job:completed',
+  safeHandler((payload) => {
+    notifySlack(payload); // Won't break other handlers if this fails
+  }, 'slack-notifier')
+);
+
+manager.on(
+  'job:completed',
+  safeHandler((payload) => {
+    updateDatabase(payload); // Independent from other handlers
+  }, 'db-updater')
+);
+```
+
+---
+
+## Common Error Scenarios
+
+### Scenario: Configuration Errors at Startup
+
+```typescript
+import {
+  FleetManager,
+  isConfigurationError,
+  isFleetManagerError,
+} from '@herdctl/core';
+
+async function startFleet(): Promise<FleetManager> {
+  const manager = new FleetManager({
+    configPath: './herdctl.yaml',
+    stateDir: './.herdctl',
+  });
+
+  try {
+    await manager.initialize();
+    await manager.start();
+    return manager;
+  } catch (error) {
+    if (isConfigurationError(error)) {
+      console.error('Configuration Error');
+      console.error('==================');
+      console.error(error.message);
+
+      if (error.hasValidationErrors()) {
+        console.error('\nFix these issues in your config file:');
+        for (const ve of error.validationErrors) {
+          console.error(`  ${ve.path}: ${ve.message}`);
+        }
+      }
+
+      process.exit(1);
+    }
+
+    if (isFleetManagerError(error)) {
+      console.error(`Fleet Error [${error.code}]: ${error.message}`);
+      process.exit(1);
+    }
+
+    throw error;
+  }
+}
+```
+
+### Scenario: Handling API Key Issues
+
+```typescript
+import { SDKInitializationError } from '@herdctl/core';
+
+manager.on('job:failed', (payload) => {
+  if (
+    payload.error instanceof SDKInitializationError &&
+    payload.error.isMissingApiKey()
+  ) {
+    console.error('═══════════════════════════════════════════');
+    console.error('  Missing Anthropic API Key');
+    console.error('═══════════════════════════════════════════');
+    console.error('');
+    console.error('  Set the ANTHROPIC_API_KEY environment variable:');
+    console.error('');
+    console.error('    export ANTHROPIC_API_KEY=sk-ant-...');
+    console.error('');
+    console.error('  Or add it to your .env file.');
+    console.error('═══════════════════════════════════════════');
+
+    // Disable affected agent to prevent repeated failures
+    manager.disableSchedule(payload.agentName, '*');
+  }
+});
+```
+
+### Scenario: Network Failures
+
+```typescript
+manager.on('job:failed', (payload) => {
+  const error = payload.error;
+
+  if (error instanceof SDKInitializationError && error.isNetworkError()) {
+    console.error('Network connection failed');
+    console.error(`  Code: ${error.code}`);
+
+    switch (error.code) {
+      case 'ECONNREFUSED':
+        console.error('  The API server refused the connection.');
+        console.error('  Check if a proxy is required.');
+        break;
+      case 'ENOTFOUND':
+        console.error('  DNS lookup failed.');
+        console.error('  Check your internet connection.');
+        break;
+      case 'ETIMEDOUT':
+        console.error('  Connection timed out.');
+        console.error('  The server may be overloaded.');
+        break;
+    }
+  }
+});
+```
+
+### Scenario: Concurrent Operation Limits
+
+```typescript
+import { isConcurrencyLimitError } from '@herdctl/core';
+
+async function triggerWithRetry(
+  manager: FleetManager,
+  agentName: string,
+  maxWaitMs = 60000
+): Promise<TriggerResult> {
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < maxWaitMs) {
+    try {
+      return await manager.trigger(agentName);
+    } catch (error) {
+      if (isConcurrencyLimitError(error)) {
+        console.log(
+          `Agent at capacity (${error.currentJobs}/${error.limit}), ` +
+          `waiting for a job to complete...`
+        );
+
+        // Wait for job completion event
+        await new Promise<void>((resolve) => {
+          const handler = (payload: JobCompletedPayload) => {
+            if (payload.agentName === agentName) {
+              manager.off('job:completed', handler);
+              resolve();
+            }
+          };
+          manager.on('job:completed', handler);
+
+          // Timeout fallback
+          setTimeout(() => {
+            manager.off('job:completed', handler);
+            resolve();
+          }, 5000);
+        });
+
+        continue; // Retry trigger
+      }
+      throw error;
+    }
+  }
+
+  throw new Error(`Timed out waiting for agent "${agentName}" capacity`);
+}
+```
+
+---
+
+## TypeScript Type Exports
+
+All error types and type guards are exported from `@herdctl/core`:
+
+```typescript
+import type {
+  // Base types
+  FleetManagerError,
+  FleetManagerErrorCode,
+
+  // Specific error types
+  ConfigurationError,
+  ValidationError,
+  AgentNotFoundError,
+  JobNotFoundError,
+  ScheduleNotFoundError,
+  InvalidStateError,
+  ConcurrencyLimitError,
+  JobCancelError,
+  JobForkError,
+  FleetManagerShutdownError,
+  FleetManagerStateDirError,
+
+  // Runner errors
+  RunnerError,
+  SDKInitializationError,
+  SDKStreamingError,
+  MalformedResponseError,
+
+  // Scheduler errors
+  SchedulerError,
+  IntervalParseError,
+  ScheduleTriggerError,
+  SchedulerShutdownError,
+
+  // State errors
+  StateError,
+  StateDirectoryCreateError,
+  StateDirectoryValidationError,
+  StateFileError,
+
+  // Work source errors
+  WorkSourceError,
+  UnknownWorkSourceError,
+  DuplicateWorkSourceError,
+  GitHubAPIError,
+  GitHubAuthError,
+  RateLimitInfo,
+} from '@herdctl/core';
+```
+
+---
+
+## Best Practices
+
+<Aside type="tip" title="Error Handling Guidelines">
+
+1. **Use type guards** - They provide type narrowing and handle `unknown` errors safely
+2. **Check error codes** - Use `error.code` for programmatic decisions
+3. **Chain errors** - Use the `cause` option to preserve error chains
+4. **Fail gracefully** - Return fallback values instead of crashing when appropriate
+5. **Retry transient errors** - Network and rate limit errors often resolve on retry
+6. **Log context** - Include `jobId`, `agentName`, and other context in error logs
+7. **Clean up resources** - Use try/finally or error handlers to clean up state
+
+</Aside>

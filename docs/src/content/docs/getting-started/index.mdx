@@ -1,104 +1,361 @@
 ---
 title: Getting Started
-description: Install herdctl and run your first agent fleet
+description: Install herdctl and run your first agent fleet in under 5 minutes
 ---
 
-import { Badge, Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { Badge, Card, CardGrid, LinkCard, Steps, Aside, Tabs, TabItem, Code } from '@astrojs/starlight/components';
 
-<Badge text="Coming Soon" variant="caution" size="large" />
-
-This guide will walk you through installing herdctl and running your first autonomous agent fleet. Full documentation is in progress.
-
-## What You'll Learn
-
-<CardGrid>
-  <Card title="Installation" icon="laptop">
-    How to install herdctl via npm, verify your setup, and configure prerequisites like Claude Code CLI.
-  </Card>
-  <Card title="Creating Your First Agent" icon="add-document">
-    Define an agent in YAML with a name, workspace, schedule, and prompt. Understand the basic structure.
-  </Card>
-  <Card title="Running Your Fleet" icon="rocket">
-    Start the herdctl daemon, watch agents execute on schedule, and manage your fleet from the CLI.
-  </Card>
-  <Card title="Monitoring Output" icon="open-book">
-    View agent logs, track job status, and understand what your agents are doing in real-time.
-  </Card>
-</CardGrid>
+This guide walks you through installing herdctl and running your first autonomous agent fleet. By the end, you'll have a working fleet with visible output confirming success.
 
 ## Prerequisites
 
-Before you begin, you'll need:
+Before you begin, ensure you have:
 
-- **Node.js 18+** - herdctl is built on Node.js
-- **Claude Code CLI** - Agents use Claude Code under the hood
+- **Node.js 20+** - herdctl requires Node.js 20 or later
+- **Claude Code CLI** - Agents use Claude Code under the hood ([install instructions](https://docs.anthropic.com/en/docs/claude-code))
 - **Git** - For workspace management and repo cloning
 
-## Quick Preview
+## Installation
 
-Here's a taste of what running herdctl looks like:
+<Tabs>
+  <TabItem label="pnpm" icon="pnpm">
+    ```bash
+    # Install as a global CLI tool
+    pnpm add -g herdctl
+
+    # Or install the library in your project
+    pnpm add @herdctl/core
+    ```
+  </TabItem>
+  <TabItem label="npm" icon="seti:npm">
+    ```bash
+    # Install as a global CLI tool
+    npm install -g herdctl
+
+    # Or install the library in your project
+    npm install @herdctl/core
+    ```
+  </TabItem>
+</Tabs>
+
+Verify the installation:
 
 ```bash
-# Install herdctl
-npm install -g herdctl
-
-# Initialize a new project
-herdctl init
-
-# Start your fleet
-herdctl start
+herdctl --version
 ```
 
-And a simple agent configuration:
+## Quick Start: Your First Fleet
+
+<Steps>
+1. **Create a project directory**
+
+   ```bash
+   mkdir my-fleet && cd my-fleet
+   ```
+
+2. **Create the fleet configuration** (`herdctl.yaml`)
+
+   ```yaml
+   # herdctl.yaml
+   version: 1
+
+   agents:
+     - path: ./agents/hello-agent.yaml
+   ```
+
+3. **Create an agent configuration** (`agents/hello-agent.yaml`)
+
+   ```bash
+   mkdir -p agents
+   ```
+
+   ```yaml
+   # agents/hello-agent.yaml
+   name: hello-agent
+   description: "A simple agent that says hello"
+
+   schedules:
+     greet:
+       type: interval
+       interval: 30s
+       prompt: "Say hello and report the current time."
+   ```
+
+4. **Start the fleet**
+
+   ```bash
+   herdctl start
+   ```
+
+5. **Verify it's working**
+
+   You should see output like:
+   ```
+   ✓ Fleet initialized with 1 agent
+   ✓ Scheduler started
+   ✓ hello-agent/greet triggered
+   ```
+</Steps>
+
+## Using herdctl as a Library
+
+For programmatic control, use the `@herdctl/core` package directly. Here's a minimal example extracted from the test suite:
+
+```typescript
+// quickstart.ts
+import { FleetManager } from "@herdctl/core";
+
+const manager = new FleetManager({
+  configPath: "./herdctl.yaml",
+  stateDir: "./.herdctl",
+});
+
+await manager.initialize();
+await manager.start();
+
+manager.on("job:created", (payload) => {
+  console.log(`Job created: ${payload.job.id}`);
+});
+
+manager.on("schedule:triggered", (payload) => {
+  console.log(`${payload.agentName}/${payload.scheduleName} triggered`);
+});
+
+// Keep running until interrupted
+process.on("SIGINT", async () => {
+  await manager.stop();
+  process.exit(0);
+});
+```
+
+This example:
+- Creates a `FleetManager` with your config
+- Initializes and starts the fleet
+- Listens for job and schedule events
+- Handles graceful shutdown
+
+<Aside type="tip">
+  The `FleetManager` auto-creates the `.herdctl/` state directory if it doesn't exist.
+</Aside>
+
+## Required Files and Directories
+
+### Configuration Files
+
+| File | Purpose | Required |
+|------|---------|----------|
+| `herdctl.yaml` | Fleet configuration (agents list, defaults) | Yes |
+| `agents/*.yaml` | Individual agent configurations | At least one |
+
+### State Directory (`.herdctl/`)
+
+herdctl automatically creates and manages a `.herdctl/` directory to track fleet state:
+
+```
+.herdctl/
+├── state.yaml        # Fleet state (agent status, schedules)
+├── jobs/             # Job metadata and output
+│   ├── job-*.yaml    # Job metadata (YAML)
+│   └── job-*.jsonl   # Job streaming output (JSONL)
+└── sessions/         # Claude session data for resume capability
+```
+
+<Aside type="note">
+  The `.herdctl/` directory is created automatically. You don't need to create it manually. Add it to your `.gitignore` if you don't want to track state in version control.
+</Aside>
+
+## Configuration Reference
+
+### Minimal Fleet Config
+
+The simplest fleet configuration:
+
+```yaml
+# herdctl.yaml
+version: 1
+
+agents:
+  - path: ./agents/my-agent.yaml
+```
+
+### Minimal Agent Config
+
+The simplest agent configuration:
 
 ```yaml
 # agents/my-agent.yaml
-name: my-first-agent
-description: "My first autonomous agent"
-
-workspace: my-project
-repo: username/my-project
-
-schedules:
-  - name: check-issues
-    trigger:
-      type: interval
-      every: 10m
-    prompt: |
-      Check for open issues and report status.
+name: my-agent
 ```
 
-## Background Reading
+An agent without schedules can still be triggered manually via the CLI or API.
 
-While this guide is being completed, explore these concepts to understand how herdctl works:
+### Typical Agent Config
+
+A more realistic agent that processes work periodically:
+
+```yaml
+# agents/coder.yaml
+name: coder
+description: "Implements features from GitHub issues"
+
+schedules:
+  check-issues:
+    type: interval
+    interval: 5m
+    prompt: |
+      Check for GitHub issues labeled "ready".
+      Implement the oldest one and create a PR.
+
+permissions:
+  mode: acceptEdits
+  allowed_tools:
+    - Read
+    - Write
+    - Edit
+    - Bash
+    - Glob
+    - Grep
+```
+
+## CLI Commands
+
+Once your fleet is configured, use these commands:
+
+```bash
+# Start the fleet (all agents)
+herdctl start
+
+# Start a specific agent
+herdctl start coder
+
+# Check fleet status
+herdctl status
+
+# Manually trigger an agent
+herdctl trigger coder check-issues
+
+# View logs
+herdctl logs coder
+
+# Stop the fleet
+herdctl stop
+```
+
+## Verifying Your Setup
+
+After starting your fleet, you can verify it's working:
+
+### Check Fleet Status
+
+```bash
+herdctl status
+```
+
+Expected output:
+```
+Fleet: running
+Agents: 1 total, 1 idle
+Schedules: 1 active
+
+Agents:
+  hello-agent    idle    greet: next run in 25s
+```
+
+### Check Logs
+
+```bash
+herdctl logs hello-agent
+```
+
+### Inspect State Files
+
+```bash
+# View fleet state
+cat .herdctl/state.yaml
+
+# List jobs
+ls .herdctl/jobs/
+
+# View a job's output
+cat .herdctl/jobs/job-*.jsonl
+```
+
+## Troubleshooting
+
+### Fleet won't start
+
+1. **Check config syntax**: `herdctl config validate`
+2. **Verify agent paths**: Ensure paths in `agents:` are correct relative to `herdctl.yaml`
+3. **Check permissions**: Ensure you have write access to the directory for `.herdctl/`
+
+### Agent not triggering
+
+1. **Check schedule syntax**: Intervals must be valid (e.g., `5m`, `1h`, `30s`)
+2. **View schedule state**: `herdctl status` shows next trigger times
+3. **Check logs**: `herdctl logs <agent-name>` for errors
+
+### Jobs failing
+
+1. **Check Claude Code CLI**: Ensure `claude` is installed and authenticated
+2. **Check permissions**: Verify the agent has necessary tool permissions
+3. **View job output**: `cat .herdctl/jobs/job-*.jsonl` for detailed output
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Fleet Configuration"
+    description="Learn all fleet config options including defaults and workspace settings"
+    href="/configuration/fleet-config/"
+  />
+  <LinkCard
+    title="Agent Configuration"
+    description="Deep dive into agent config: schedules, permissions, work sources"
+    href="/configuration/agent-config/"
+  />
+  <LinkCard
+    title="Schedules"
+    description="Understand interval, cron, webhook, and chat triggers"
+    href="/concepts/schedules/"
+  />
+  <LinkCard
+    title="State Management"
+    description="How herdctl tracks fleet state, jobs, and sessions"
+    href="/internals/state-management/"
+  />
+</CardGrid>
+
+## Core Concepts
+
+Before diving deeper, understand these key concepts:
+
+| Concept | Description |
+|---------|-------------|
+| **Fleet** | Collection of agents defined in `herdctl.yaml` |
+| **Agent** | A configured Claude instance with identity, schedules, and permissions |
+| **Schedule** | Defines when (trigger) and how (prompt) to invoke an agent |
+| **Job** | A single execution of an agent, with unique ID and tracked output |
+| **Workspace** | Isolated directory where an agent operates |
 
 <CardGrid>
   <LinkCard
     title="Agents"
-    description="Understand what agents are and how they operate autonomously"
+    description="What agents are and how they operate"
     href="/concepts/agents/"
   />
   <LinkCard
-    title="Schedules"
-    description="Learn how triggers determine when agents run"
-    href="/concepts/schedules/"
-  />
-  <LinkCard
     title="Jobs"
-    description="Discover how individual agent executions are tracked"
+    description="How job executions are tracked"
     href="/concepts/jobs/"
   />
   <LinkCard
+    title="Triggers"
+    description="All trigger types: interval, cron, webhook, chat"
+    href="/concepts/triggers/"
+  />
+  <LinkCard
     title="Workspaces"
-    description="See how agents manage their working directories"
+    description="Agent working directories and isolation"
     href="/concepts/workspaces/"
   />
 </CardGrid>
-
-## Configuration Reference
-
-For detailed configuration options, see:
-
-- [Fleet Configuration](/configuration/fleet-config/) - Fleet-wide settings
-- [Agent Configuration](/configuration/agent-config/) - Per-agent options
-- [CLI Reference](/cli-reference/) - All available commands
