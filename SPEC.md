@@ -147,6 +147,85 @@ The agent's CWD is set to its workspace clone, giving it:
 
 ---
 
+## Architecture Principles
+
+### Library-First Design
+
+**CRITICAL ARCHITECTURAL DECISION**: herdctl is designed to be consumed as a library (`@herdctl/core`) in the same way as the Claude Agent SDK. All business logic lives in the core package. This enables:
+
+1. **Programmatic integration**: Developers can embed herdctl in their own applications
+2. **Multiple interaction modes**: Same functionality accessible via library, CLI, Web UI, or HTTP API
+3. **Testability**: Core logic can be unit tested without CLI/UI complexity
+4. **Extensibility**: New interfaces can be added without duplicating business logic
+
+### Thin Clients Architecture
+
+The CLI, Web UI, and HTTP API are **thin wrappers** that delegate to `@herdctl/core`. They contain only:
+- Input parsing/validation
+- Output formatting
+- UI rendering
+- Authentication (future)
+
+They do **NOT** contain business logic, state management, or orchestration code.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Interaction Layers (THIN)                  │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐│
+│  │   CLI    │  │  Web UI  │  │ HTTP API │  │ Discord/Slack    ││
+│  │ (herdctl)│  │(@herdctl │  │ (part of │  │  (future)        ││
+│  │          │  │  /web)   │  │   web)   │  │                  ││
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────────┬─────────┘│
+│       └─────────────┴─────────────┴──────────────────┘          │
+│                              │                                   │
+│                              ▼                                   │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │                    @herdctl/core                          │  │
+│  │  ┌─────────────────────────────────────────────────────┐  │  │
+│  │  │                  FleetManager                        │  │  │
+│  │  │  (orchestration layer - wires everything together)   │  │  │
+│  │  └─────────────────────────────────────────────────────┘  │  │
+│  │     ┌─────────┬──────────┬───────────┬─────────┐         │  │
+│  │     ▼         ▼          ▼           ▼         ▼         │  │
+│  │  Config   Scheduler   Runner    WorkSources  State       │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### FleetManager: The Orchestration Layer
+
+FleetManager is the central class that wires together all core modules. It provides:
+
+- **Lifecycle management**: `initialize()`, `start()`, `stop()`, `reload()`
+- **Query methods**: `getStatus()`, `getAgents()`, `getJobs()`, etc.
+- **Action methods**: `trigger()`, `cancelJob()`, `enableSchedule()`, etc.
+- **Event emission**: Real-time updates via EventEmitter
+
+All interaction layers (CLI, Web, API) use FleetManager rather than calling lower-level modules directly.
+
+### Four Interaction Modes
+
+| Mode | Package | Use Case |
+|------|---------|----------|
+| **Library** | `@herdctl/core` | Embed in your own application |
+| **CLI** | `herdctl` | Command-line management |
+| **Web UI** | `@herdctl/web` | Browser-based dashboard |
+| **HTTP API** | Part of `@herdctl/web` | Programmatic remote access |
+
+All four modes have identical capabilities - anything you can do in the CLI, you can do via the Web UI or API.
+
+### Single Process Model
+
+Running `herdctl start` launches a single process that includes:
+- The scheduler (checking all agent schedules)
+- Chat connectors (Discord/Slack bots, if configured)
+- Optional HTTP API server (for remote access)
+- Optional Web UI server (for browser dashboard)
+
+This simplifies deployment and state management compared to running separate services.
+
+---
+
 ## Architecture
 
 ```

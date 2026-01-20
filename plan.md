@@ -285,9 +285,11 @@ This PRD establishes the documentation site early so all subsequent work can upd
 
 ---
 
-### PRD 6: herdctl-core-scheduler
+### PRD 6: herdctl-core-scheduler ✓
 
 **Scope**: Interval-based scheduler
+
+**Status**: Complete
 
 **User Stories**:
 1. Parse interval config (5m, 1h, etc.)
@@ -307,36 +309,64 @@ This PRD establishes the documentation site early so all subsequent work can upd
 
 ---
 
-### PRD 7: herdctl-cli
+### PRD 7: herdctl-fleet-manager
 
-**Scope**: CLI commands for fleet management
+**Scope**: FleetManager orchestration layer in @herdctl/core
 
 **User Stories**:
-1. `herdctl start` - start all agents
-2. `herdctl start <agent>` - start specific agent
-3. `herdctl stop` - stop all agents gracefully
-4. `herdctl stop <agent>` - stop specific agent
-5. `herdctl status` - show fleet status table
-6. `herdctl status <agent>` - show agent details
-7. `herdctl logs` - tail all agent logs
-8. `herdctl logs <agent>` - tail specific agent
-9. `herdctl logs -f` - follow mode
-10. `herdctl trigger <agent>` - manual trigger
-11. **Update documentation**: Complete CLI Reference with all commands, options, examples
-12. **Update documentation**: Finalize Getting Started guide with full walkthrough
+1. Create FleetManager class that wires together config, scheduler, state, runner, and work-sources
+2. Implement lifecycle methods: `initialize()`, `start()`, `stop()`, `reload()`
+3. Implement query methods: `getStatus()`, `getAgents()`, `getAgent()`, `getJobs()`, `getJob()`, `getSchedules()`
+4. Implement action methods: `trigger()`, `cancelJob()`, `resumeJob()`, `forkJob()`, `enableSchedule()`, `disableSchedule()`
+5. Extend EventEmitter for real-time updates (started, stopped, job:created, job:output, job:completed, etc.)
+6. Implement log streaming utilities: `streamLogs()`, `streamJobOutput()`, `streamAgentLogs()`
+7. Define specific error types: `FleetManagerError`, `AgentNotFoundError`, `JobNotFoundError`, etc.
+8. **Update documentation**: Add FleetManager section covering programmatic usage, events, library integration
 
 **Quality Gates**:
 - `pnpm typecheck`
 - `pnpm test`
+- All interaction layers (CLI, Web, API) can use FleetManager without calling lower-level modules
+- Documentation updated and builds successfully
+
+**Dependencies**: All core modules (config, state, runner, work-sources, scheduler), herdctl-docs
+
+---
+
+### PRD 8: herdctl-cli
+
+**Scope**: Thin CLI wrapper on FleetManager
+
+**Architecture Note**: The CLI is a **thin wrapper** that delegates all operations to FleetManager. It contains only input parsing (commander.js), output formatting, and calls to FleetManager methods. No business logic lives in the CLI package.
+
+**User Stories**:
+1. `herdctl start` - calls `FleetManager.start()`
+2. `herdctl start <agent>` - calls `FleetManager.startAgent(name)`
+3. `herdctl stop` - calls `FleetManager.stop()`
+4. `herdctl stop <agent>` - calls `FleetManager.stopAgent(name)`
+5. `herdctl status` - calls `FleetManager.getStatus()` and formats output
+6. `herdctl status <agent>` - calls `FleetManager.getAgent(name)` and formats output
+7. `herdctl logs` - subscribes to `FleetManager.streamLogs()` and formats output
+8. `herdctl logs <agent>` - subscribes to `FleetManager.streamAgentLogs(name)` and formats output
+9. `herdctl logs -f` - follow mode using FleetManager event streams
+10. `herdctl trigger <agent>` - calls `FleetManager.trigger(name)`
+11. `herdctl init` - scaffold new herdctl project
+12. **Update documentation**: Complete CLI Reference with all commands, options, examples
+13. **Update documentation**: Finalize Getting Started guide with full walkthrough
+
+**Quality Gates**:
+- `pnpm typecheck`
+- `pnpm test`
+- CLI contains NO business logic (all delegated to FleetManager)
 - Manual test of each command
 - Documentation updated and builds successfully
 - Getting Started guide is complete and accurate
 
-**Dependencies**: All core PRDs, herdctl-docs
+**Dependencies**: herdctl-fleet-manager, herdctl-docs
 
 ---
 
-### PRD 8: herdctl-docs-deploy
+### PRD 9: herdctl-docs-deploy
 
 **Scope**: Documentation site deployment and polish
 
@@ -359,7 +389,7 @@ This PRD establishes the documentation site early so all subsequent work can upd
 
 ## Future PRDs (Post-MVP)
 
-### PRD 9: herdctl-core-cron
+### PRD 10: herdctl-core-cron
 
 **Scope**: Cron-based scheduling (in addition to interval)
 
@@ -371,7 +401,7 @@ This PRD establishes the documentation site early so all subsequent work can upd
 
 ---
 
-### PRD 10: herdctl-web
+### PRD 11: herdctl-web
 
 **Scope**: Local Next.js dashboard
 
@@ -386,7 +416,7 @@ This PRD establishes the documentation site early so all subsequent work can upd
 
 ---
 
-### PRD 11: herdctl-discord
+### PRD 12: herdctl-discord
 
 **Scope**: Discord bot connector
 
@@ -401,7 +431,7 @@ This PRD establishes the documentation site early so all subsequent work can upd
 
 ---
 
-### PRD 12: herdctl-webhooks
+### PRD 13: herdctl-webhooks
 
 **Scope**: Incoming webhook triggers
 
@@ -413,7 +443,7 @@ This PRD establishes the documentation site early so all subsequent work can upd
 
 ---
 
-### PRD 13: herdctl-slack
+### PRD 14: herdctl-slack
 
 **Scope**: Slack app connector
 
@@ -427,19 +457,20 @@ This PRD establishes the documentation site early so all subsequent work can upd
 
 ## Implementation Order Summary
 
-| Order | PRD | Creates | Docs Impact |
-|-------|-----|---------|-------------|
-| 0 | Bootstrap (manual) | Repo scaffold, turborepo, packages | - |
-| 1 | herdctl-core-config ✓ | Config parsing | - |
-| 2 | herdctl-core-state | .herdctl/ state files | - |
-| **3** | **herdctl-docs** | **Documentation site** | **Initial content from SPEC + PRDs 1-2** |
-| 4 | herdctl-core-runner | Claude SDK wrapper | + Runner docs |
-| 5 | herdctl-core-github | GitHub Issues work source | + Work Sources docs |
-| 6 | herdctl-core-scheduler | Interval scheduler | + Scheduling docs |
-| 7 | herdctl-cli | CLI commands | + CLI Reference, Getting Started |
-| 8 | herdctl-docs-deploy | Deploy to herdctl.dev | Final review + deploy |
+| Order | PRD | Creates | Docs Impact | Status |
+|-------|-----|---------|-------------|--------|
+| 0 | Bootstrap (manual) | Repo scaffold, turborepo, packages | - | ✓ |
+| 1 | herdctl-core-config | Config parsing | - | ✓ |
+| 2 | herdctl-core-state | .herdctl/ state files | - | ✓ |
+| **3** | **herdctl-docs** | **Documentation site** | **Initial content from SPEC + PRDs 1-2** | ✓ |
+| 4 | herdctl-core-runner | Claude SDK wrapper | + Runner docs | ✓ |
+| 5 | herdctl-core-github | GitHub Issues work source | + Work Sources docs | ✓ |
+| 6 | herdctl-core-scheduler | Interval scheduler | + Scheduling docs | ✓ |
+| **7** | **herdctl-fleet-manager** | **FleetManager orchestration** | **+ Library usage docs** | **Next** |
+| 8 | herdctl-cli | CLI commands | + CLI Reference, Getting Started | |
+| 9 | herdctl-docs-deploy | Deploy to herdctl.dev | Final review + deploy | |
 
-After PRD 7, we have a working MVP that can:
+After PRD 8, we have a working MVP that can:
 - Parse config files
 - Track state
 - Run agents via Claude SDK
