@@ -229,16 +229,132 @@ export const McpServerSchema = z.object({
 });
 
 // =============================================================================
+// Agent Chat Discord Schemas (per-agent Discord bot configuration)
+// =============================================================================
+
+/**
+ * Discord bot presence/activity configuration
+ *
+ * @example
+ * ```yaml
+ * presence:
+ *   activity_type: watching
+ *   activity_message: "for support requests"
+ * ```
+ */
+export const DiscordPresenceSchema = z.object({
+  activity_type: z
+    .enum(["playing", "watching", "listening", "competing"])
+    .optional(),
+  activity_message: z.string().optional(),
+});
+
+/**
+ * Discord DM (direct message) configuration for an agent's bot
+ *
+ * @example
+ * ```yaml
+ * dm:
+ *   enabled: true
+ *   mode: auto
+ *   allowlist: ["123456789012345678"]
+ *   blocklist: []
+ * ```
+ */
+export const DiscordDMSchema = z.object({
+  enabled: z.boolean().default(true),
+  mode: z.enum(["mention", "auto"]).default("auto"),
+  allowlist: z.array(z.string()).optional(),
+  blocklist: z.array(z.string()).optional(),
+});
+
+/**
+ * Discord channel configuration for an agent's bot
+ *
+ * @example
+ * ```yaml
+ * channels:
+ *   - id: "987654321098765432"
+ *     name: "#support"
+ *     mode: mention
+ *     context_messages: 10
+ * ```
+ */
+export const DiscordChannelSchema = z.object({
+  id: z.string(),
+  name: z.string().optional(),
+  mode: z.enum(["mention", "auto"]).default("mention"),
+  context_messages: z.number().int().positive().default(10),
+});
+
+/**
+ * Discord guild (server) configuration for an agent's bot
+ *
+ * @example
+ * ```yaml
+ * guilds:
+ *   - id: "123456789012345678"
+ *     channels:
+ *       - id: "987654321098765432"
+ *         name: "#support"
+ *         mode: mention
+ *     dm:
+ *       enabled: true
+ *       mode: auto
+ * ```
+ */
+export const DiscordGuildSchema = z.object({
+  id: z.string(),
+  channels: z.array(DiscordChannelSchema).optional(),
+  dm: DiscordDMSchema.optional(),
+});
+
+/**
+ * Per-agent Discord bot configuration schema
+ *
+ * Each agent can have its own Discord bot with independent identity,
+ * presence, and channel/guild configuration.
+ *
+ * @example
+ * ```yaml
+ * chat:
+ *   discord:
+ *     bot_token_env: SUPPORT_DISCORD_TOKEN
+ *     session_expiry_hours: 24
+ *     log_level: standard
+ *     presence:
+ *       activity_type: watching
+ *       activity_message: "for support requests"
+ *     guilds:
+ *       - id: "123456789012345678"
+ *         channels:
+ *           - id: "987654321098765432"
+ *             name: "#support"
+ *             mode: mention
+ * ```
+ */
+export const AgentChatDiscordSchema = z.object({
+  /** Environment variable name containing the bot token (never store tokens in config) */
+  bot_token_env: z.string(),
+  /** Session expiry in hours (default: 24) */
+  session_expiry_hours: z.number().int().positive().default(24),
+  /** Log level for this agent's Discord connector */
+  log_level: z.enum(["minimal", "standard", "verbose"]).default("standard"),
+  /** Bot presence/activity configuration */
+  presence: DiscordPresenceSchema.optional(),
+  /** Guilds (servers) this bot participates in */
+  guilds: z.array(DiscordGuildSchema),
+  /** Global DM (direct message) configuration - applies to all DMs regardless of guild */
+  dm: DiscordDMSchema.optional(),
+});
+
+// =============================================================================
 // Agent Chat Schema (agent-specific chat config)
 // =============================================================================
 
 export const AgentChatSchema = z.object({
-  discord: z
-    .object({
-      channel_ids: z.array(z.string()).optional(),
-      respond_to_mentions: z.boolean().optional().default(true),
-    })
-    .optional(),
+  discord: AgentChatDiscordSchema.optional(),
+  // slack: AgentChatSlackSchema.optional(), // Future
 });
 
 // =============================================================================
@@ -341,6 +457,12 @@ export type Session = z.infer<typeof SessionSchema>;
 export type ScheduleType = z.infer<typeof ScheduleTypeSchema>;
 export type Schedule = z.infer<typeof ScheduleSchema>;
 export type McpServer = z.infer<typeof McpServerSchema>;
+// Agent Chat Discord types
+export type DiscordPresence = z.infer<typeof DiscordPresenceSchema>;
+export type DiscordDM = z.infer<typeof DiscordDMSchema>;
+export type DiscordChannel = z.infer<typeof DiscordChannelSchema>;
+export type DiscordGuild = z.infer<typeof DiscordGuildSchema>;
+export type AgentChatDiscord = z.infer<typeof AgentChatDiscordSchema>;
 export type AgentChat = z.infer<typeof AgentChatSchema>;
 export type AgentWorkspace = z.infer<typeof AgentWorkspaceSchema>;
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;

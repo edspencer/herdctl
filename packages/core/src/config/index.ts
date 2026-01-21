@@ -34,6 +34,12 @@ export {
   McpServerSchema,
   AgentChatSchema,
   AgentWorkspaceSchema,
+  // Agent Chat Discord schemas
+  DiscordPresenceSchema,
+  DiscordDMSchema,
+  DiscordChannelSchema,
+  DiscordGuildSchema,
+  AgentChatDiscordSchema,
   // Types
   type FleetConfig,
   type Defaults,
@@ -62,6 +68,12 @@ export {
   type McpServer,
   type AgentChat,
   type AgentWorkspace,
+  // Agent Chat Discord types
+  type DiscordPresence,
+  type DiscordDM,
+  type DiscordChannel,
+  type DiscordGuild,
+  type AgentChatDiscord,
 } from "./schema.js";
 
 // Parser exports

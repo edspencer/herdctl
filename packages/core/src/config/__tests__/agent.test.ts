@@ -91,8 +91,13 @@ describe("AgentConfigSchema", () => {
       },
       chat: {
         discord: {
-          channel_ids: ["123456789", "987654321"],
-          respond_to_mentions: true,
+          bot_token_env: "DISCORD_BOT_TOKEN",
+          guilds: [
+            {
+              id: "123456789",
+              channels: [{ id: "987654321", name: "#general", mode: "mention" }],
+            },
+          ],
         },
       },
       model: "claude-sonnet-4-20250514",
@@ -109,7 +114,7 @@ describe("AgentConfigSchema", () => {
       expect(result.data.schedules?.main.type).toBe("interval");
       expect(result.data.schedules?.daily.type).toBe("cron");
       expect(result.data.mcp_servers?.github.command).toBe("npx");
-      expect(result.data.chat?.discord?.channel_ids).toContain("123456789");
+      expect(result.data.chat?.discord?.guilds[0].id).toBe("123456789");
     }
   });
 
@@ -341,28 +346,37 @@ describe("AgentChatSchema", () => {
   it("parses discord chat config", () => {
     const chat = {
       discord: {
-        channel_ids: ["123", "456"],
-        respond_to_mentions: false,
+        bot_token_env: "DISCORD_BOT_TOKEN",
+        guilds: [
+          {
+            id: "123",
+            channels: [
+              { id: "456", mode: "auto" },
+              { id: "789", mode: "mention" },
+            ],
+          },
+        ],
       },
     };
     const result = AgentChatSchema.safeParse(chat);
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.discord?.channel_ids).toHaveLength(2);
-      expect(result.data.discord?.respond_to_mentions).toBe(false);
+      expect(result.data.discord?.guilds).toHaveLength(1);
+      expect(result.data.discord?.guilds[0].channels).toHaveLength(2);
     }
   });
 
-  it("applies default respond_to_mentions", () => {
+  it("applies default session_expiry_hours", () => {
     const chat = {
       discord: {
-        channel_ids: ["123"],
+        bot_token_env: "DISCORD_BOT_TOKEN",
+        guilds: [{ id: "123" }],
       },
     };
     const result = AgentChatSchema.safeParse(chat);
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.discord?.respond_to_mentions).toBe(true);
+      expect(result.data.discord?.session_expiry_hours).toBe(24);
     }
   });
 });
@@ -757,8 +771,12 @@ mcp_servers:
 
 chat:
   discord:
-    channel_ids:
-      - "123456"
+    bot_token_env: DISCORD_BOT_TOKEN
+    guilds:
+      - id: "123456789"
+        channels:
+          - id: "123456"
+            name: "#general"
 
 model: claude-sonnet-4-20250514
 max_turns: 100
@@ -773,7 +791,7 @@ permission_mode: acceptEdits
     expect(config.session?.max_turns).toBe(50);
     expect(config.permissions?.mode).toBe("bypassPermissions");
     expect(config.mcp_servers?.test.command).toBe("node");
-    expect(config.chat?.discord?.channel_ids).toContain("123456");
+    expect(config.chat?.discord?.guilds[0].channels?.[0].id).toBe("123456");
   });
 });
 

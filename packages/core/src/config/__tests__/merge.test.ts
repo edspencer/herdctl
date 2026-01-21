@@ -578,12 +578,19 @@ describe("mergeAgentConfig", () => {
 
     it("preserves agent chat", () => {
       const defaults: ExtendedDefaults = { model: "default-model" };
-      const agent: AgentConfig = {
+      const agent = {
         name: "my-agent",
-        chat: { discord: { channel_ids: ["123"], respond_to_mentions: true } },
-      };
+        chat: {
+          discord: {
+            bot_token_env: "DISCORD_TOKEN",
+            session_expiry_hours: 24,
+            log_level: "standard",
+            guilds: [{ id: "123" }],
+          },
+        },
+      } as AgentConfig;
       const result = mergeAgentConfig(defaults, agent);
-      expect(result.chat?.discord?.channel_ids).toContain("123");
+      expect(result.chat?.discord?.guilds[0].id).toBe("123");
     });
 
     it("preserves agent system_prompt", () => {

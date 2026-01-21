@@ -1,0 +1,656 @@
+---
+title: Discord Integration
+description: Connect your herdctl agents to Discord with per-agent bots
+---
+
+import { Tabs, TabItem, Steps, Aside, Card, CardGrid } from '@astrojs/starlight/components';
+
+Connect your herdctl agents to Discord, allowing users to interact with AI agents through chat messages and slash commands. Each agent appears as a distinct bot with its own identity, presence, and configuration.
+
+## Overview
+
+herdctl uses a **per-agent bot architecture** where each Discord-enabled agent has its own Discord Application and bot token. This design provides several benefits:
+
+<CardGrid>
+  <Card title="Distinct Identities" icon="user">
+    Each agent appears as a separate bot with its own name, avatar, and presence status
+  </Card>
+  <Card title="Independent Configuration" icon="setting">
+    Different agents can monitor different channels with different response modes
+  </Card>
+  <Card title="Scalable Architecture" icon="rocket">
+    Add new agents without affecting existing bot configurations
+  </Card>
+  <Card title="Clear User Experience" icon="comment">
+    Users always know which agent they're talking to by the bot's identity
+  </Card>
+</CardGrid>
+
+### How It Works
+
+```
+Discord Server
+├── #support
+│   └── @SupportBot responds to mentions (support-agent)
+├── #dev-chat
+│   └── @CoderBot responds to all messages (coder-agent)
+└── DMs
+    └── @SupportBot auto-responds (support-agent)
+```
+
+Each agent connects to Discord with its own bot account. When a user messages or mentions the bot, herdctl triggers a Claude session to respond.
+
+### Response Modes
+
+| Mode | Behavior | Best For |
+|------|----------|----------|
+| `mention` | Responds only when @mentioned | Shared channels where multiple bots exist |
+| `auto` | Responds to all messages | Dedicated support channels, DMs |
+
+## Prerequisites
+
+Before setting up Discord integration, ensure you have:
+
+- A [Discord account](https://discord.com/)
+- **Administrator** or **Manage Server** permissions on the target Discord server
+- Access to the [Discord Developer Portal](https://discord.com/developers/applications)
+- herdctl installed and configured
+- Your agent configuration file ready
+
+## Creating a Discord Application
+
+<Steps>
+
+1. **Open the Discord Developer Portal**
+
+   Navigate to [https://discord.com/developers/applications](https://discord.com/developers/applications) and sign in with your Discord account.
+
+2. **Create a New Application**
+
+   Click the **New Application** button in the top-right corner.
+
+   Enter a name for your application. This name appears in OAuth authorization screens but **not** as the bot's display name.
+
+   <Aside type="tip">
+     Use a descriptive name like "My Project - Support Agent" to identify the app in the developer portal.
+   </Aside>
+
+3. **Navigate to the Bot Section**
+
+   In the left sidebar, click **Bot**.
+
+4. **Configure the Bot Username**
+
+   Click **Edit** next to the bot's username. This is the name users will see in Discord.
+
+   Example names:
+   - `Support Bot` for a customer support agent
+   - `Code Assistant` for a development agent
+   - `Marketing Bot` for a content agent
+
+5. **Set the Bot Avatar (Optional)**
+
+   Click on the bot's avatar to upload a custom image. This helps users identify the bot.
+
+6. **Copy the Bot Token**
+
+   Click **Reset Token** to generate a new token (or **Copy** if one exists).
+
+   <Aside type="danger">
+     **Never share your bot token or commit it to version control!** The token provides full access to your bot. Store it securely in environment variables.
+   </Aside>
+
+7. **Save the Token Securely**
+
+   Add the token to your environment:
+
+   ```bash
+   # Add to your shell profile or .env file
+   export SUPPORT_DISCORD_TOKEN="your-bot-token-here"
+   ```
+
+</Steps>
+
+## Bot Permissions & Intents
+
+### Required Gateway Intents
+
+herdctl requires these **Privileged Gateway Intents** to function properly:
+
+<Steps>
+
+1. In your Discord Application, go to **Bot** settings
+
+2. Scroll down to **Privileged Gateway Intents**
+
+3. Enable the following intents:
+
+   | Intent | Required | Purpose |
+   |--------|----------|---------|
+   | **Message Content Intent** | Yes | Read message text to respond to users |
+   | **Server Members Intent** | No | Not required for basic functionality |
+   | **Presence Intent** | No | Not required for basic functionality |
+
+4. Click **Save Changes**
+
+</Steps>
+
+<Aside type="caution">
+  The **Message Content Intent** is required. Without it, your bot cannot read message content and will not respond to users.
+</Aside>
+
+### OAuth2 Permissions
+
+When inviting the bot, herdctl needs these permissions:
+
+| Permission | Purpose |
+|------------|---------|
+| `Send Messages` | Reply to user messages |
+| `Read Message History` | Build conversation context |
+| `Use Slash Commands` | Handle `/help`, `/reset`, `/status` commands |
+| `View Channels` | See channels the bot has access to |
+
+The combined permission integer is: **2147551232**
+
+## Inviting the Bot
+
+<Steps>
+
+1. In your Discord Application, go to **OAuth2** > **URL Generator**
+
+2. Under **Scopes**, select:
+   - `bot`
+   - `applications.commands`
+
+3. Under **Bot Permissions**, select:
+   - Send Messages
+   - Read Message History
+   - Use Slash Commands
+   - View Channels
+
+   Or use permission integer: `2147551232`
+
+4. Copy the generated URL at the bottom of the page
+
+5. Open the URL in your browser
+
+6. Select the server where you want to add the bot
+
+7. Click **Authorize**
+
+8. Complete the CAPTCHA if prompted
+
+</Steps>
+
+The bot will now appear in your server's member list (offline until you start herdctl).
+
+## Agent Configuration
+
+Configure Discord in your agent's YAML file under the `chat.discord` section:
+
+### Basic Configuration
+
+```yaml
+name: support-agent
+description: "Customer support agent"
+
+chat:
+  discord:
+    bot_token_env: SUPPORT_DISCORD_TOKEN
+    guilds:
+      - id: "123456789012345678"
+        channels:
+          - id: "987654321098765432"
+            name: "#support"
+            mode: mention
+```
+
+### Complete Configuration Reference
+
+```yaml
+chat:
+  discord:
+    # Environment variable containing the bot token (required)
+    bot_token_env: SUPPORT_DISCORD_TOKEN
+
+    # Session expiry in hours (default: 24)
+    session_expiry_hours: 24
+
+    # Log level: minimal, standard, verbose (default: standard)
+    log_level: standard
+
+    # Bot presence/activity (optional)
+    presence:
+      activity_type: watching  # playing, watching, listening, competing
+      activity_message: "for support requests"
+
+    # Guild (server) configurations
+    guilds:
+      - id: "123456789012345678"  # Discord server ID
+        channels:
+          - id: "987654321098765432"  # Channel ID
+            name: "#support"           # For documentation (optional)
+            mode: mention              # mention or auto
+            context_messages: 10       # Messages to include as context
+
+          - id: "111222333444555666"
+            name: "#general"
+            mode: auto
+            context_messages: 5
+
+        # DM settings for this guild's members (optional)
+        dm:
+          enabled: true
+          mode: auto
+          allowlist: ["user-id-1", "user-id-2"]  # Only these users (optional)
+          blocklist: ["spam-user-id"]             # Block specific users (optional)
+
+    # Global DM settings (applies to all DMs)
+    dm:
+      enabled: true
+      mode: auto
+```
+
+### Configuration Options
+
+#### Top-Level Discord Settings
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `bot_token_env` | string | — | **Required.** Environment variable name containing the bot token |
+| `session_expiry_hours` | number | `24` | Hours before a conversation session expires |
+| `log_level` | string | `standard` | Logging verbosity: `minimal`, `standard`, `verbose` |
+| `presence` | object | — | Bot presence/activity configuration |
+| `guilds` | array | — | List of Discord servers to operate in |
+| `dm` | object | — | Global DM configuration |
+
+#### Presence Settings
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `activity_type` | string | Activity type: `playing`, `watching`, `listening`, `competing` |
+| `activity_message` | string | Activity text shown in the bot's status |
+
+#### Guild Settings
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | **Required.** Discord server (guild) ID |
+| `channels` | array | Channels to monitor in this guild |
+| `dm` | object | DM settings for members of this guild |
+
+#### Channel Settings
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `id` | string | — | **Required.** Discord channel ID |
+| `name` | string | — | Human-readable name (for documentation) |
+| `mode` | string | `mention` | Response mode: `mention` or `auto` |
+| `context_messages` | number | `10` | Number of recent messages to include as context |
+
+#### DM Settings
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | boolean | `true` | Allow direct messages |
+| `mode` | string | `auto` | Response mode for DMs |
+| `allowlist` | string[] | — | Only allow DMs from these user IDs |
+| `blocklist` | string[] | — | Block DMs from these user IDs |
+
+## Environment Variables
+
+herdctl uses environment variables for Discord tokens to keep secrets out of configuration files.
+
+### Token Naming Convention
+
+Use a consistent naming pattern for your bot tokens:
+
+```bash
+# Pattern: {AGENT_NAME}_DISCORD_TOKEN
+export SUPPORT_DISCORD_TOKEN="your-support-bot-token"
+export CODER_DISCORD_TOKEN="your-coder-bot-token"
+export MARKETING_DISCORD_TOKEN="your-marketing-bot-token"
+```
+
+### Setting Up Environment Variables
+
+<Tabs>
+<TabItem label="Shell Profile">
+Add to `~/.bashrc`, `~/.zshrc`, or equivalent:
+
+```bash
+export SUPPORT_DISCORD_TOKEN="your-token-here"
+```
+
+Then reload:
+```bash
+source ~/.bashrc  # or ~/.zshrc
+```
+</TabItem>
+
+<TabItem label=".env File">
+Create a `.env` file in your project root:
+
+```bash
+# .env
+SUPPORT_DISCORD_TOKEN=your-token-here
+CODER_DISCORD_TOKEN=another-token-here
+```
+
+Load with dotenv or similar tooling.
+
+<Aside type="caution">
+  Add `.env` to your `.gitignore` to prevent committing tokens!
+</Aside>
+</TabItem>
+
+<TabItem label="System Environment">
+On macOS/Linux:
+```bash
+export SUPPORT_DISCORD_TOKEN="your-token-here"
+```
+
+On Windows (PowerShell):
+```powershell
+$env:SUPPORT_DISCORD_TOKEN="your-token-here"
+```
+</TabItem>
+</Tabs>
+
+### Referencing in Configuration
+
+In your agent YAML, reference the environment variable name (not the value):
+
+```yaml
+chat:
+  discord:
+    bot_token_env: SUPPORT_DISCORD_TOKEN  # The variable NAME
+```
+
+herdctl reads the token from `process.env.SUPPORT_DISCORD_TOKEN` at runtime.
+
+## Getting Discord IDs
+
+Discord IDs are unique 17-19 digit numbers. You'll need IDs for servers (guilds), channels, and users.
+
+### Enable Developer Mode
+
+<Steps>
+
+1. Open Discord (desktop or web app)
+
+2. Go to **User Settings** (gear icon near your username)
+
+3. Navigate to **App Settings** > **Advanced**
+
+4. Enable **Developer Mode**
+
+</Steps>
+
+### Copy IDs
+
+With Developer Mode enabled, right-click on any server, channel, or user to see a **Copy ID** option:
+
+| Item | How to Copy |
+|------|-------------|
+| **Server ID** | Right-click the server icon in the sidebar > Copy Server ID |
+| **Channel ID** | Right-click the channel name > Copy Channel ID |
+| **User ID** | Right-click a user's name > Copy User ID |
+| **Message ID** | Right-click a message > Copy Message ID |
+
+### Example IDs
+
+```yaml
+guilds:
+  - id: "1234567890123456789"  # Server ID (18 digits)
+    channels:
+      - id: "9876543210987654321"  # Channel ID (19 digits)
+```
+
+<Aside type="note">
+  IDs must be quoted as strings in YAML because they exceed JavaScript's safe integer range.
+</Aside>
+
+## Testing the Integration
+
+### 1. Start the Fleet
+
+```bash
+herdctl start
+```
+
+Look for connection messages in the logs:
+
+```
+[support-agent] Connecting to Discord...
+[support-agent] Connected to Discord: SupportBot#1234
+[support-agent] Slash commands registered successfully
+```
+
+### 2. Verify Bot Status
+
+The bot should appear online in your Discord server with the configured presence:
+
+```
+SupportBot - Watching for support requests
+```
+
+### 3. Test Mention Mode
+
+In a channel configured with `mode: mention`:
+
+```
+You: @SupportBot How do I reset my password?
+SupportBot: To reset your password, follow these steps...
+```
+
+### 4. Test Auto Mode
+
+In a channel configured with `mode: auto`:
+
+```
+You: How do I reset my password?
+SupportBot: To reset your password, follow these steps...
+```
+
+### 5. Test Slash Commands
+
+herdctl registers these slash commands:
+
+| Command | Description |
+|---------|-------------|
+| `/help` | Show available commands and usage |
+| `/status` | Show bot connection status and session info |
+| `/reset` | Clear conversation context and start fresh |
+
+Try them in any channel where the bot is active:
+
+```
+/status
+```
+
+### 6. Test DMs
+
+If DMs are enabled, send a direct message to the bot:
+
+```
+You (DM): Hello!
+SupportBot: Hello! How can I help you today?
+```
+
+## Multiple Agents in Same Server
+
+You can have multiple agents (each with their own bot) in the same Discord server. This is useful for specialized agents:
+
+### Example Setup
+
+```yaml
+# agents/support-agent.yaml
+name: support-agent
+chat:
+  discord:
+    bot_token_env: SUPPORT_DISCORD_TOKEN
+    guilds:
+      - id: "123456789012345678"
+        channels:
+          - id: "support-channel-id"
+            name: "#support"
+            mode: mention
+
+# agents/coder-agent.yaml
+name: coder-agent
+chat:
+  discord:
+    bot_token_env: CODER_DISCORD_TOKEN
+    guilds:
+      - id: "123456789012345678"  # Same server
+        channels:
+          - id: "dev-channel-id"
+            name: "#dev-chat"
+            mode: auto
+```
+
+### Best Practices for Multiple Bots
+
+1. **Use distinct bot names and avatars** - Help users identify which bot they're addressing
+
+2. **Use mention mode in shared channels** - Prevents bots from responding to each other or creating confusion
+
+3. **Dedicate channels when possible** - Assign specific channels to specific bots with auto mode
+
+4. **Document bot purposes** - Add channel topics explaining which bot handles what
+
+### Avoiding Bot Conflicts
+
+<Aside type="caution">
+  Never configure two bots with `mode: auto` in the same channel. They may respond to each other indefinitely.
+</Aside>
+
+| Scenario | Recommendation |
+|----------|----------------|
+| Two bots in same channel | Use `mode: mention` for both |
+| Bot in dedicated channel | Use `mode: auto` |
+| Support + Dev bots | Separate channels or mention mode |
+
+## Troubleshooting
+
+### Common Errors
+
+#### "Bot token cannot be empty"
+
+**Cause**: The environment variable specified in `bot_token_env` is not set or is empty.
+
+**Solution**:
+```bash
+# Check if the variable is set
+echo $SUPPORT_DISCORD_TOKEN
+
+# Set it if missing
+export SUPPORT_DISCORD_TOKEN="your-token-here"
+```
+
+#### "Used disallowed intents"
+
+**Cause**: Message Content Intent is not enabled in the Discord Developer Portal.
+
+**Solution**:
+1. Go to Discord Developer Portal
+2. Select your application
+3. Go to **Bot** > **Privileged Gateway Intents**
+4. Enable **Message Content Intent**
+5. Save changes
+
+#### "Missing Access" or "Missing Permissions"
+
+**Cause**: The bot lacks required permissions in the channel.
+
+**Solution**:
+1. Check that the bot role has Send Messages, Read Message History permissions
+2. Check channel-specific permission overrides
+3. Re-invite the bot with correct permissions
+
+#### Bot shows offline
+
+**Cause**: herdctl isn't running or connection failed.
+
+**Solution**:
+1. Start herdctl: `herdctl start`
+2. Check logs for connection errors
+3. Verify token is valid (not expired or reset)
+
+#### Bot doesn't respond to messages
+
+**Cause**: Various configuration issues.
+
+**Checklist**:
+- Is the channel ID correct in the config?
+- Is the mode appropriate? (`mention` requires @mention)
+- Is Message Content Intent enabled?
+- Check logs for "messageIgnored" events
+
+#### "Invalid token"
+
+**Cause**: The bot token is incorrect or has been reset.
+
+**Solution**:
+1. Go to Discord Developer Portal
+2. Navigate to your application's **Bot** section
+3. Click **Reset Token**
+4. Update your environment variable with the new token
+
+### Debug Logging
+
+Enable verbose logging to troubleshoot issues:
+
+```yaml
+chat:
+  discord:
+    bot_token_env: SUPPORT_DISCORD_TOKEN
+    log_level: verbose  # Shows detailed debug information
+```
+
+Verbose logs include:
+- All received messages and whether they were processed
+- Connection state changes
+- Rate limit events
+- Channel configuration resolution
+
+### Checking Bot State
+
+Use the `/status` command or check programmatically:
+
+```typescript
+import { FleetManager } from '@herdctl/core';
+
+const manager = new FleetManager({ /* config */ });
+const connector = manager.getDiscordConnector('support-agent');
+
+console.log(connector.getState());
+// {
+//   status: 'connected',
+//   connectedAt: '2024-01-15T10:30:00Z',
+//   botUser: { id: '...', username: 'SupportBot', discriminator: '1234' },
+//   messageStats: { received: 42, sent: 38, ignored: 4 },
+//   rateLimits: { totalCount: 0, isRateLimited: false }
+// }
+```
+
+### Rate Limits
+
+Discord rate limits are handled automatically by the connector. If you see frequent rate limit warnings:
+
+1. Reduce message frequency
+2. Avoid rapid-fire responses
+3. Consider using shorter context windows (`context_messages`)
+
+Rate limit events are logged at the standard level:
+
+```
+[support-agent] Rate limited by Discord API: { route: '/channels/123/messages', timeToReset: 5000 }
+```
+
+## Related Pages
+
+- [Agent Configuration](/configuration/agent-config/) - Complete agent config reference
+- [Schedules](/concepts/schedules/) - Trigger types including chat schedules
+- [Sessions](/concepts/sessions/) - How conversation context works

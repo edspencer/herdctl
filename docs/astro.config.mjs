@@ -116,6 +116,13 @@ export default defineConfig({
 					],
 				},
 				{
+					label: 'Integrations',
+					collapsed: true,
+					items: [
+						{ label: 'Discord', slug: 'integrations/discord' },
+					],
+				},
+				{
 					label: 'Guides',
 					collapsed: true,
 					items: [

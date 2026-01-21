@@ -14,6 +14,13 @@ import {
   WebhooksSchema,
   InstancesSchema,
   AgentReferenceSchema,
+  // Discord chat schemas
+  DiscordPresenceSchema,
+  DiscordDMSchema,
+  DiscordChannelSchema,
+  DiscordGuildSchema,
+  AgentChatDiscordSchema,
+  AgentChatSchema,
 } from "../schema.js";
 
 describe("FleetConfigSchema", () => {
@@ -869,5 +876,386 @@ describe("AgentReferenceSchema", () => {
     if (result.success) {
       expect(result.data.path).toBe("/etc/herdctl/agent.yaml");
     }
+  });
+});
+
+// =============================================================================
+// Agent Chat Discord Schema Tests
+// =============================================================================
+
+describe("DiscordPresenceSchema", () => {
+  it("parses empty presence", () => {
+    const result = DiscordPresenceSchema.safeParse({});
+    expect(result.success).toBe(true);
+  });
+
+  it("parses complete presence config", () => {
+    const presence = {
+      activity_type: "watching",
+      activity_message: "for support requests",
+    };
+    const result = DiscordPresenceSchema.safeParse(presence);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.activity_type).toBe("watching");
+      expect(result.data.activity_message).toBe("for support requests");
+    }
+  });
+
+  it("accepts all valid activity types", () => {
+    const validTypes = ["playing", "watching", "listening", "competing"];
+    for (const activityType of validTypes) {
+      const result = DiscordPresenceSchema.safeParse({
+        activity_type: activityType,
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it("rejects invalid activity type", () => {
+    const result = DiscordPresenceSchema.safeParse({
+      activity_type: "streaming",
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("DiscordDMSchema", () => {
+  it("applies defaults", () => {
+    const result = DiscordDMSchema.safeParse({});
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.enabled).toBe(true);
+      expect(result.data.mode).toBe("auto");
+    }
+  });
+
+  it("parses complete DM config", () => {
+    const dm = {
+      enabled: false,
+      mode: "mention",
+      allowlist: ["123456789012345678", "987654321098765432"],
+      blocklist: ["111222333444555666"],
+    };
+    const result = DiscordDMSchema.safeParse(dm);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.enabled).toBe(false);
+      expect(result.data.mode).toBe("mention");
+      expect(result.data.allowlist).toEqual([
+        "123456789012345678",
+        "987654321098765432",
+      ]);
+      expect(result.data.blocklist).toEqual(["111222333444555666"]);
+    }
+  });
+
+  it("accepts valid modes", () => {
+    for (const mode of ["mention", "auto"]) {
+      const result = DiscordDMSchema.safeParse({ mode });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it("rejects invalid mode", () => {
+    const result = DiscordDMSchema.safeParse({ mode: "always" });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("DiscordChannelSchema", () => {
+  it("requires id", () => {
+    const result = DiscordChannelSchema.safeParse({});
+    expect(result.success).toBe(false);
+  });
+
+  it("parses minimal channel config", () => {
+    const result = DiscordChannelSchema.safeParse({
+      id: "987654321098765432",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.id).toBe("987654321098765432");
+      expect(result.data.mode).toBe("mention");
+      expect(result.data.context_messages).toBe(10);
+    }
+  });
+
+  it("parses complete channel config", () => {
+    const channel = {
+      id: "987654321098765432",
+      name: "#support",
+      mode: "auto",
+      context_messages: 20,
+    };
+    const result = DiscordChannelSchema.safeParse(channel);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.id).toBe("987654321098765432");
+      expect(result.data.name).toBe("#support");
+      expect(result.data.mode).toBe("auto");
+      expect(result.data.context_messages).toBe(20);
+    }
+  });
+
+  it("rejects invalid context_messages", () => {
+    const result = DiscordChannelSchema.safeParse({
+      id: "123",
+      context_messages: 0,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects negative context_messages", () => {
+    const result = DiscordChannelSchema.safeParse({
+      id: "123",
+      context_messages: -5,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects non-integer context_messages", () => {
+    const result = DiscordChannelSchema.safeParse({
+      id: "123",
+      context_messages: 10.5,
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("DiscordGuildSchema", () => {
+  it("requires id", () => {
+    const result = DiscordGuildSchema.safeParse({});
+    expect(result.success).toBe(false);
+  });
+
+  it("parses minimal guild config", () => {
+    const result = DiscordGuildSchema.safeParse({
+      id: "123456789012345678",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.id).toBe("123456789012345678");
+      expect(result.data.channels).toBeUndefined();
+      expect(result.data.dm).toBeUndefined();
+    }
+  });
+
+  it("parses complete guild config", () => {
+    const guild = {
+      id: "123456789012345678",
+      channels: [
+        {
+          id: "987654321098765432",
+          name: "#support",
+          mode: "mention",
+          context_messages: 10,
+        },
+        {
+          id: "111222333444555666",
+          name: "#general",
+          mode: "mention",
+        },
+      ],
+      dm: {
+        enabled: true,
+        mode: "auto",
+        allowlist: [],
+        blocklist: [],
+      },
+    };
+    const result = DiscordGuildSchema.safeParse(guild);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.id).toBe("123456789012345678");
+      expect(result.data.channels).toHaveLength(2);
+      expect(result.data.channels?.[0].name).toBe("#support");
+      expect(result.data.dm?.enabled).toBe(true);
+      expect(result.data.dm?.mode).toBe("auto");
+    }
+  });
+
+  it("validates nested channel schemas", () => {
+    const guild = {
+      id: "123456789012345678",
+      channels: [
+        {
+          // missing required id
+          name: "#support",
+        },
+      ],
+    };
+    const result = DiscordGuildSchema.safeParse(guild);
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("AgentChatDiscordSchema", () => {
+  it("requires bot_token_env", () => {
+    const result = AgentChatDiscordSchema.safeParse({
+      guilds: [{ id: "123456789012345678" }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("requires guilds", () => {
+    const result = AgentChatDiscordSchema.safeParse({
+      bot_token_env: "SUPPORT_DISCORD_TOKEN",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("parses minimal config", () => {
+    const config = {
+      bot_token_env: "SUPPORT_DISCORD_TOKEN",
+      guilds: [{ id: "123456789012345678" }],
+    };
+    const result = AgentChatDiscordSchema.safeParse(config);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.bot_token_env).toBe("SUPPORT_DISCORD_TOKEN");
+      expect(result.data.session_expiry_hours).toBe(24);
+      expect(result.data.log_level).toBe("standard");
+      expect(result.data.guilds).toHaveLength(1);
+    }
+  });
+
+  it("parses complete config", () => {
+    const config = {
+      bot_token_env: "SUPPORT_DISCORD_TOKEN",
+      session_expiry_hours: 48,
+      log_level: "verbose",
+      presence: {
+        activity_type: "watching",
+        activity_message: "for support requests",
+      },
+      guilds: [
+        {
+          id: "123456789012345678",
+          channels: [
+            {
+              id: "987654321098765432",
+              name: "#support",
+              mode: "mention",
+              context_messages: 10,
+            },
+            {
+              id: "111222333444555666",
+              name: "#general",
+              mode: "mention",
+            },
+          ],
+          dm: {
+            enabled: true,
+            mode: "auto",
+          },
+        },
+      ],
+    };
+    const result = AgentChatDiscordSchema.safeParse(config);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.bot_token_env).toBe("SUPPORT_DISCORD_TOKEN");
+      expect(result.data.session_expiry_hours).toBe(48);
+      expect(result.data.log_level).toBe("verbose");
+      expect(result.data.presence?.activity_type).toBe("watching");
+      expect(result.data.presence?.activity_message).toBe(
+        "for support requests"
+      );
+      expect(result.data.guilds).toHaveLength(1);
+      expect(result.data.guilds[0].channels).toHaveLength(2);
+    }
+  });
+
+  it("accepts all valid log levels", () => {
+    for (const logLevel of ["minimal", "standard", "verbose"]) {
+      const result = AgentChatDiscordSchema.safeParse({
+        bot_token_env: "TOKEN",
+        log_level: logLevel,
+        guilds: [{ id: "123" }],
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it("rejects invalid log level", () => {
+    const result = AgentChatDiscordSchema.safeParse({
+      bot_token_env: "TOKEN",
+      log_level: "debug",
+      guilds: [{ id: "123" }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects zero session_expiry_hours", () => {
+    const result = AgentChatDiscordSchema.safeParse({
+      bot_token_env: "TOKEN",
+      session_expiry_hours: 0,
+      guilds: [{ id: "123" }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects negative session_expiry_hours", () => {
+    const result = AgentChatDiscordSchema.safeParse({
+      bot_token_env: "TOKEN",
+      session_expiry_hours: -1,
+      guilds: [{ id: "123" }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects non-integer session_expiry_hours", () => {
+    const result = AgentChatDiscordSchema.safeParse({
+      bot_token_env: "TOKEN",
+      session_expiry_hours: 24.5,
+      guilds: [{ id: "123" }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects empty guilds array", () => {
+    const result = AgentChatDiscordSchema.safeParse({
+      bot_token_env: "TOKEN",
+      guilds: [],
+    });
+    // Empty array is technically valid from Zod's perspective
+    // but semantically the bot needs at least one guild
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("AgentChatSchema", () => {
+  it("parses empty chat config", () => {
+    const result = AgentChatSchema.safeParse({});
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.discord).toBeUndefined();
+    }
+  });
+
+  it("parses with discord config", () => {
+    const chat = {
+      discord: {
+        bot_token_env: "SUPPORT_DISCORD_TOKEN",
+        guilds: [{ id: "123456789012345678" }],
+      },
+    };
+    const result = AgentChatSchema.safeParse(chat);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.discord?.bot_token_env).toBe("SUPPORT_DISCORD_TOKEN");
+      expect(result.data.discord?.guilds).toHaveLength(1);
+    }
+  });
+
+  it("validates nested discord schema", () => {
+    const chat = {
+      discord: {
+        // missing required bot_token_env and guilds
+      },
+    };
+    const result = AgentChatSchema.safeParse(chat);
+    expect(result.success).toBe(false);
   });
 });

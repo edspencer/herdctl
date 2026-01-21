@@ -1,0 +1,50 @@
+{
+  "name": "@herdctl/discord",
+  "version": "0.0.1",
+  "description": "Discord connector for herdctl fleet management",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@discordjs/rest": "^2.6.0",
+    "@herdctl/core": "workspace:*",
+    "discord.js": "^14.16.0",
+    "yaml": "^2.3.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.0.17",
+    "typescript": "^5",
+    "vitest": "^4.0.17"
+  },
+  "homepage": "https://herdctl.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/edspencer/herdctl"
+  },
+  "keywords": [
+    "claude",
+    "agent",
+    "fleet",
+    "orchestration",
+    "anthropic",
+    "discord"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}
