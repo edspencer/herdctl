@@ -8,11 +8,19 @@
  * - Edge cases: start when running, stop when stopped, etc.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from "vitest";
 import { mkdtemp, rm, mkdir, writeFile, readFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { FleetManager } from "../fleet-manager.js";
+
+// Mock the Claude SDK - this must be before any imports that use it
+vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
+  query: vi.fn(),
+}));
+
+// Import the mocked query function for test configuration
+import { query as mockQueryFn } from "@anthropic-ai/claude-agent-sdk";
 import {
   InvalidStateError,
   AgentNotFoundError,
@@ -343,7 +351,7 @@ describe("FleetManager Integration Tests (US-13)", () => {
       expect(scheduleTriggers[0].scheduleName).toBe("frequent");
     });
 
-    it("scheduler executes jobs via JobExecutor when sdkQuery is provided", async () => {
+    it("scheduler executes jobs via JobExecutor", async () => {
       await createAgentConfig("executor-agent", {
         name: "executor-agent",
         schedules: {
@@ -364,8 +372,8 @@ describe("FleetManager Integration Tests (US-13)", () => {
       const jobCreatedEvents: JobCreatedPayload[] = [];
       const jobCompletedEvents: JobCompletedPayload[] = [];
 
-      // Mock SDK query function
-      const mockSdkQuery = async function* () {
+      // Configure the mock SDK query function
+      (mockQueryFn as Mock).mockImplementation(async function* () {
         yield {
           type: "system" as const,
           subtype: "init",
@@ -375,14 +383,13 @@ describe("FleetManager Integration Tests (US-13)", () => {
           type: "assistant" as const,
           content: "Test response from mock SDK",
         };
-      };
+      });
 
       const manager = new FleetManager({
         configPath,
         stateDir,
         checkInterval: 50,
         logger: createSilentLogger(),
-        sdkQuery: mockSdkQuery,
       });
 
       manager.on("job:created", (payload) => {
@@ -433,21 +440,20 @@ describe("FleetManager Integration Tests (US-13)", () => {
       // Track events
       const jobFailedEvents: { agentName: string; error: Error }[] = [];
 
-      // Mock SDK query function that throws
-      const mockSdkQuery = async function* () {
+      // Configure the mock SDK query function to emit an error
+      (mockQueryFn as Mock).mockImplementation(async function* () {
         yield {
           type: "error" as const,
           message: "Simulated SDK error",
           code: "SDK_ERROR",
         };
-      };
+      });
 
       const manager = new FleetManager({
         configPath,
         stateDir,
         checkInterval: 50,
         logger: createSilentLogger(),
-        sdkQuery: mockSdkQuery,
       });
 
       manager.on("job:failed", (payload) => {

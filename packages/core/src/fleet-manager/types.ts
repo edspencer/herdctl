@@ -9,7 +9,6 @@ import type { SchedulerLogger, SchedulerState } from "../scheduler/types.js";
 import type { Schedule } from "../config/index.js";
 import type { AgentState, ScheduleState } from "../state/schemas/fleet-state.js";
 import type { WorkItem } from "../work-sources/types.js";
-import type { SDKQueryFunction } from "../runner/index.js";
 
 // Re-export event types from dedicated event-types module
 export type {
@@ -92,28 +91,6 @@ export interface FleetManagerOptions {
    * Default: 1000 (1 second)
    */
   checkInterval?: number;
-
-  /**
-   * SDK query function for agent execution
-   *
-   * When provided, the JobExecutor will use this function instead of
-   * the real Claude SDK. This enables testing FleetManager without
-   * making real API calls.
-   *
-   * @example
-   * ```typescript
-   * // Create a mock SDK query for testing
-   * const mockQuery: SDKQueryFunction = async function* () {
-   *   yield { type: 'assistant', content: 'Test response' };
-   * };
-   *
-   * const manager = new FleetManager({
-   *   stateDir: './.herdctl',
-   *   sdkQuery: mockQuery,
-   * });
-   * ```
-   */
-  sdkQuery?: SDKQueryFunction;
 }
 
 // =============================================================================

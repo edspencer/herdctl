@@ -12,10 +12,15 @@
  */
 
 import { join } from "node:path";
+import { query as claudeSdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type { TriggerInfo } from "../scheduler/index.js";
-import { JobExecutor, type SDKQueryFunction, type SDKMessage } from "../runner/index.js";
+import { JobExecutor, type SDKMessage, type SDKQueryFunction } from "../runner/index.js";
 import { getJob } from "../state/index.js";
 import type { FleetManagerContext } from "./context.js";
+
+// Cast the SDK query function to our internal type
+// The SDK types are slightly different but runtime-compatible
+const sdkQuery = claudeSdkQuery as unknown as SDKQueryFunction;
 import type {
   JobCreatedPayload,
   JobOutputPayload,
@@ -36,10 +41,7 @@ import {
  * providing a cleaner separation of concerns.
  */
 export class ScheduleExecutor {
-  constructor(
-    private ctx: FleetManagerContext,
-    private sdkQuery: SDKQueryFunction | undefined
-  ) {}
+  constructor(private ctx: FleetManagerContext) {}
 
   /**
    * Execute a scheduled trigger
@@ -74,18 +76,6 @@ export class ScheduleExecutor {
       timestamp,
     });
 
-    // Check if we have an SDK query function
-    if (!this.sdkQuery) {
-      logger.warn(
-        `No SDK query function available for ${agent.name}/${scheduleName}. ` +
-          "Schedule triggered but job cannot be executed. " +
-          "Provide sdkQuery option to FleetManager constructor to enable job execution."
-      );
-      // Emit legacy completion event for backwards compatibility (no-op execution)
-      emitter.emit("schedule:complete", agent.name, scheduleName);
-      return;
-    }
-
     try {
       // Determine the prompt to use (schedule.prompt is the primary source,
       // agent.system_prompt provides agent context but isn't the task prompt)
@@ -96,8 +86,8 @@ export class ScheduleExecutor {
           `(type: ${schedule.type}, prompt: ${prompt.slice(0, 50)}...)`
       );
 
-      // Create the JobExecutor
-      const executor = new JobExecutor(this.sdkQuery, {
+      // Create the JobExecutor with the Claude SDK query function
+      const executor = new JobExecutor(sdkQuery, {
         logger,
       });
 

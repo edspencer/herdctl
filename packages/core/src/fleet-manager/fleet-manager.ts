@@ -23,7 +23,6 @@ import {
 } from "../config/index.js";
 import { initStateDirectory, type StateDirectory } from "../state/index.js";
 import { Scheduler, type TriggerInfo } from "../scheduler/index.js";
-import type { SDKQueryFunction } from "../runner/index.js";
 
 import type { FleetManagerContext } from "./context.js";
 import type {
@@ -104,7 +103,6 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   private readonly stateDir: string;
   private readonly logger: FleetManagerLogger;
   private readonly checkInterval: number;
-  private readonly sdkQuery?: SDKQueryFunction;
 
   // Internal state
   private status: FleetManagerStatus = "uninitialized";
@@ -132,7 +130,6 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     this.stateDir = resolve(options.stateDir);
     this.logger = options.logger ?? createDefaultLogger();
     this.checkInterval = options.checkInterval ?? DEFAULT_CHECK_INTERVAL;
-    this.sdkQuery = options.sdkQuery;
 
     // Initialize modules in constructor so they work before initialize() is called
     this.initializeModules();
@@ -171,7 +168,6 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   }
 
   getAgents(): ResolvedAgent[] { return this.config?.agents ?? []; }
-  getSdkQuery(): SDKQueryFunction | undefined { return this.sdkQuery; }
 
   // ===========================================================================
   // Lifecycle Methods
@@ -334,7 +330,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     this.configReloadModule = new ConfigReload(this, () => this.loadConfiguration(), (config) => { this.config = config; });
     this.jobControl = new JobControl(this, () => this.statusQueries.getAgentInfo());
     this.logStreaming = new LogStreaming(this);
-    this.scheduleExecutor = new ScheduleExecutor(this, this.sdkQuery);
+    this.scheduleExecutor = new ScheduleExecutor(this);
   }
 
   private async loadConfiguration(): Promise<ResolvedConfig> {
