@@ -8,50 +8,12 @@
  */
 
 import type { ResolvedAgent, ResolvedConfig } from "../config/index.js";
-import type { Scheduler } from "../scheduler/index.js";
 import type {
-  FleetManagerLogger,
-  FleetManagerStatus,
   ConfigChange,
   ConfigReloadedPayload,
 } from "./types.js";
 import type { FleetManagerContext } from "./context.js";
-import { InvalidStateError, FleetManagerConfigError } from "./errors.js";
-
-// =============================================================================
-// Dependencies Interface (Kept for backwards compatibility)
-// =============================================================================
-
-/**
- * Dependencies required by config reload functions.
- *
- * This interface allows FleetManager to inject its internal state
- * for config reload operations without exposing implementation details.
- *
- * @deprecated Use ConfigReload class with FleetManagerContext instead
- */
-export interface ConfigReloadDependencies {
-  /** Current fleet manager status */
-  status: FleetManagerStatus;
-
-  /** Current loaded configuration (null if not initialized) */
-  config: ResolvedConfig | null;
-
-  /** Scheduler instance (null if not initialized) */
-  scheduler: Scheduler | null;
-
-  /** Logger for operations */
-  logger: FleetManagerLogger;
-
-  /** Function to load configuration from disk */
-  loadConfiguration: () => Promise<ResolvedConfig>;
-
-  /** Function to update the stored configuration */
-  setConfig: (config: ResolvedConfig) => void;
-
-  /** Function to emit config:reloaded event */
-  emitConfigReloaded: (payload: ConfigReloadedPayload) => void;
-}
+import { InvalidStateError } from "./errors.js";
 
 // =============================================================================
 // Schedule Type for Comparison
@@ -165,84 +127,6 @@ export class ConfigReload {
 
     return payload;
   }
-}
-
-// =============================================================================
-// Legacy Function Wrapper (for backwards compatibility)
-// =============================================================================
-
-/**
- * Reload configuration without restarting the fleet
- *
- * @deprecated Use ConfigReload class instead
- * @param deps - Config reload dependencies
- * @returns The reload result with change details
- * @throws {InvalidStateError} If the fleet manager is not initialized
- * @throws {FleetManagerConfigError} If the new configuration is invalid
- */
-export async function reload(
-  deps: ConfigReloadDependencies
-): Promise<ConfigReloadedPayload> {
-  // Validate state - must be at least initialized
-  if (deps.status === "uninitialized") {
-    throw new InvalidStateError(
-      "reload",
-      deps.status,
-      ["initialized", "starting", "running", "stopping", "stopped"]
-    );
-  }
-
-  deps.logger.info("Reloading configuration...");
-
-  // Store old config for comparison
-  const oldConfig = deps.config;
-
-  // Try to load new configuration
-  let newConfig: ResolvedConfig;
-  try {
-    newConfig = await deps.loadConfiguration();
-  } catch (error) {
-    // Log the error but don't update config - fail gracefully
-    deps.logger.error(
-      `Failed to reload configuration: ${error instanceof Error ? error.message : String(error)}`
-    );
-    deps.logger.info("Keeping existing configuration");
-
-    // Re-throw so caller knows reload failed
-    throw error;
-  }
-
-  // Compute changes between old and new config
-  const changes = computeConfigChanges(oldConfig, newConfig);
-
-  // Update the stored configuration
-  deps.setConfig(newConfig);
-
-  // Update the scheduler with new agents (if scheduler exists and is running)
-  if (deps.scheduler) {
-    deps.scheduler.setAgents(newConfig.agents);
-    deps.logger.debug(`Updated scheduler with ${newConfig.agents.length} agents`);
-  }
-
-  const timestamp = new Date().toISOString();
-
-  // Build the reload payload
-  const payload: ConfigReloadedPayload = {
-    agentCount: newConfig.agents.length,
-    agentNames: newConfig.agents.map((a) => a.name),
-    configPath: newConfig.configPath,
-    changes,
-    timestamp,
-  };
-
-  // Emit the config:reloaded event
-  deps.emitConfigReloaded(payload);
-
-  deps.logger.info(
-    `Configuration reloaded: ${newConfig.agents.length} agents, ${changes.length} changes`
-  );
-
-  return payload;
 }
 
 // =============================================================================

@@ -34,38 +34,16 @@ export {
   type FleetManagerEventEmitter,
 } from "./event-emitters.js";
 
-// Status queries (US-3: Extract Status Queries Module)
+// Status queries helper functions (still exported for utility use)
 export {
-  getFleetStatus,
-  getAgentInfo,
-  getAgentInfoByName,
-  readFleetStateSnapshot,
   buildAgentInfo,
   buildScheduleInfoList,
   computeFleetCounts,
-  type StatusQueryDependencies,
   type FleetStateSnapshot,
 } from "./status-queries.js";
 
-// Schedule management (US-5: Extract Schedule Management Module)
+// Config reload helper functions (still exported for utility use)
 export {
-  getSchedules,
-  getSchedule,
-  enableSchedule,
-  disableSchedule,
-  validateAgent,
-  validateSchedule,
-  getScheduleNames,
-  isScheduleEnabled,
-  getEnabledSchedules,
-  getDisabledSchedules,
-  getAgentSchedules,
-  type ScheduleManagementDependencies,
-} from "./schedule-management.js";
-
-// Config reload (US-6: Extract Config Reload Module)
-export {
-  reload,
   computeConfigChanges,
   computeScheduleChanges,
   getAgentModifications,
@@ -80,27 +58,10 @@ export {
   getAddedAgentNames,
   getRemovedAgentNames,
   getModifiedAgentNames,
-  type ConfigReloadDependencies,
 } from "./config-reload.js";
 
-// Job control (US-7: Extract Job Control Module)
+// Log streaming helper functions (still exported for utility use)
 export {
-  trigger,
-  cancelJob,
-  forkJob,
-  cancelRunningJobs,
-  getJobById,
-  jobExists,
-  isJobRunning,
-  canCancelJob,
-  type JobControlDependencies,
-} from "./job-control.js";
-
-// Log streaming (US-8: Extract Log Streaming Module)
-export {
-  streamLogs,
-  streamJobOutput,
-  streamAgentLogs,
   jobOutputToLogEntry,
   shouldYieldLog,
   getLogLevelOrder,
@@ -112,7 +73,6 @@ export {
   combineLogFilters,
   createLogEntry,
   formatLogEntry,
-  type LogStreamingDependencies,
 } from "./log-streaming.js";
 
 // Job Manager (US-4)

@@ -7,14 +7,11 @@
  * @module status-queries
  */
 
-import type { ResolvedAgent, ResolvedConfig } from "../config/index.js";
+import type { ResolvedAgent } from "../config/index.js";
 import type { AgentState, FleetState } from "../state/schemas/fleet-state.js";
 import { readFleetState } from "../state/fleet-state.js";
-import type { StateDirectory } from "../state/index.js";
 import type { Scheduler } from "../scheduler/index.js";
 import type {
-  FleetManagerStatus,
-  FleetManagerLogger,
   FleetStatus,
   AgentInfo,
   ScheduleInfo,
@@ -34,47 +31,6 @@ import { AgentNotFoundError } from "./errors.js";
  * (since we always ensure it's populated even if empty).
  */
 export type FleetStateSnapshot = FleetState;
-
-// =============================================================================
-// Dependencies Interface (Kept for backwards compatibility)
-// =============================================================================
-
-/**
- * Dependencies required by status query functions.
- *
- * This interface allows FleetManager to inject its internal state
- * for status queries without exposing implementation details.
- *
- * @deprecated Use StatusQueries class with FleetManagerContext instead
- */
-export interface StatusQueryDependencies {
-  /** Path to the state directory */
-  stateDir: string;
-
-  /** State directory info (null if not initialized) */
-  stateDirInfo: StateDirectory | null;
-
-  /** Current fleet manager status */
-  status: FleetManagerStatus;
-
-  /** Loaded configuration (null if not initialized) */
-  config: ResolvedConfig | null;
-
-  /** Scheduler instance (null if not initialized) */
-  scheduler: Scheduler | null;
-
-  /** Timing info */
-  initializedAt: string | null;
-  startedAt: string | null;
-  stoppedAt: string | null;
-  lastError: string | null;
-
-  /** Check interval in milliseconds */
-  checkInterval: number;
-
-  /** Logger for operations */
-  logger: FleetManagerLogger;
-}
 
 // =============================================================================
 // StatusQueries Class
@@ -219,126 +175,7 @@ export class StatusQueries {
 }
 
 // =============================================================================
-// Legacy Function Wrappers (for backwards compatibility)
-// =============================================================================
-
-/**
- * Read fleet state from disk for status queries
- *
- * @deprecated Use StatusQueries class instead
- * @param deps - Status query dependencies
- * @returns Fleet state snapshot with agents and fleet-level state
- */
-export async function readFleetStateSnapshot(
-  deps: StatusQueryDependencies
-): Promise<FleetStateSnapshot> {
-  if (!deps.stateDirInfo) {
-    // Not initialized yet, return empty state
-    return { fleet: {}, agents: {} };
-  }
-
-  return await readFleetState(deps.stateDirInfo.stateFile, {
-    logger: { warn: deps.logger.warn },
-  });
-}
-
-/**
- * Get overall fleet status
- *
- * @deprecated Use StatusQueries class instead
- * @param deps - Status query dependencies
- * @returns A consistent FleetStatus snapshot
- */
-export async function getFleetStatus(
-  deps: StatusQueryDependencies
-): Promise<FleetStatus> {
-  // Get agent info to compute counts
-  const agentInfoList = await getAgentInfo(deps);
-
-  // Compute counts from agent info
-  const counts = computeFleetCounts(agentInfoList);
-
-  // Compute uptime
-  let uptimeSeconds: number | null = null;
-  if (deps.startedAt) {
-    const startTime = new Date(deps.startedAt).getTime();
-    const endTime = deps.stoppedAt
-      ? new Date(deps.stoppedAt).getTime()
-      : Date.now();
-    uptimeSeconds = Math.floor((endTime - startTime) / 1000);
-  }
-
-  // Get scheduler state
-  const schedulerState = deps.scheduler?.getState();
-
-  return {
-    state: deps.status,
-    uptimeSeconds,
-    initializedAt: deps.initializedAt,
-    startedAt: deps.startedAt,
-    stoppedAt: deps.stoppedAt,
-    counts,
-    scheduler: {
-      status: schedulerState?.status ?? "stopped",
-      checkCount: schedulerState?.checkCount ?? 0,
-      triggerCount: schedulerState?.triggerCount ?? 0,
-      lastCheckAt: schedulerState?.lastCheckAt ?? null,
-      checkIntervalMs: deps.checkInterval,
-    },
-    lastError: deps.lastError,
-  };
-}
-
-/**
- * Get information about all configured agents
- *
- * @deprecated Use StatusQueries class instead
- * @param deps - Status query dependencies
- * @returns Array of AgentInfo objects with current state
- */
-export async function getAgentInfo(
-  deps: StatusQueryDependencies
-): Promise<AgentInfo[]> {
-  const agents = deps.config?.agents ?? [];
-
-  // Read fleet state for runtime information
-  const fleetState = await readFleetStateSnapshot(deps);
-
-  return agents.map((agent) => {
-    const agentState = fleetState.agents[agent.name];
-    return buildAgentInfo(agent, agentState, deps.scheduler);
-  });
-}
-
-/**
- * Get information about a specific agent by name
- *
- * @deprecated Use StatusQueries class instead
- * @param deps - Status query dependencies
- * @param name - The agent name to look up
- * @returns AgentInfo for the specified agent
- * @throws {AgentNotFoundError} If no agent with that name exists
- */
-export async function getAgentInfoByName(
-  deps: StatusQueryDependencies,
-  name: string
-): Promise<AgentInfo> {
-  const agents = deps.config?.agents ?? [];
-  const agent = agents.find((a) => a.name === name);
-
-  if (!agent) {
-    throw new AgentNotFoundError(name);
-  }
-
-  // Read fleet state for runtime information
-  const fleetState = await readFleetStateSnapshot(deps);
-  const agentState = fleetState.agents[name];
-
-  return buildAgentInfo(agent, agentState, deps.scheduler);
-}
-
-// =============================================================================
-// Helper Functions (shared by both class and legacy functions)
+// Helper Functions
 // =============================================================================
 
 /**

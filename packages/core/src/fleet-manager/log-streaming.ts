@@ -12,9 +12,7 @@
  */
 
 import { join } from "node:path";
-import type { EventEmitter } from "node:events";
 import type { JobMetadata } from "../state/schemas/job-metadata.js";
-import type { ResolvedConfig } from "../config/index.js";
 import type {
   FleetManagerLogger,
   LogLevel,
@@ -24,41 +22,6 @@ import type {
 } from "./types.js";
 import type { FleetManagerContext } from "./context.js";
 import { AgentNotFoundError, JobNotFoundError } from "./errors.js";
-
-// =============================================================================
-// Dependencies Interface (Kept for backwards compatibility)
-// =============================================================================
-
-/**
- * Dependencies required for log streaming operations
- *
- * This interface defines the minimal set of dependencies needed to perform
- * log streaming, allowing the functions to be easily tested and used
- * independently of the full FleetManager instance.
- *
- * @deprecated Use LogStreaming class with FleetManagerContext instead
- */
-export interface LogStreamingDependencies {
-  /**
-   * Path to the state directory
-   */
-  stateDir: string;
-
-  /**
-   * Current configuration (for agent validation)
-   */
-  config: ResolvedConfig | null;
-
-  /**
-   * Logger for debug output
-   */
-  logger: FleetManagerLogger;
-
-  /**
-   * Event emitter for subscribing to job:output events
-   */
-  emitter: EventEmitter;
-}
 
 // =============================================================================
 // Constants
@@ -79,6 +42,16 @@ const LOG_LEVEL_ORDER: Record<LogLevel, number> = {
 // =============================================================================
 
 /**
+ * Internal dependencies type for log streaming functions
+ */
+interface LogStreamingDeps {
+  stateDir: string;
+  config: import("../config/index.js").ResolvedConfig | null;
+  logger: FleetManagerLogger;
+  emitter: import("node:events").EventEmitter;
+}
+
+/**
  * LogStreaming provides log streaming operations for the FleetManager.
  *
  * This class encapsulates the logic for streaming logs from agents, jobs,
@@ -86,6 +59,15 @@ const LOG_LEVEL_ORDER: Record<LogLevel, number> = {
  */
 export class LogStreaming {
   constructor(private ctx: FleetManagerContext) {}
+
+  private getDeps(): LogStreamingDeps {
+    return {
+      stateDir: this.ctx.getStateDir(),
+      config: this.ctx.getConfig(),
+      logger: this.ctx.getLogger(),
+      emitter: this.ctx.getEmitter(),
+    };
+  }
 
   /**
    * Stream all fleet logs as an async iterable
@@ -98,15 +80,7 @@ export class LogStreaming {
    * @returns An async iterable of LogEntry objects
    */
   async *streamLogs(options?: LogStreamOptions): AsyncIterable<LogEntry> {
-    yield* streamLogs(
-      {
-        stateDir: this.ctx.getStateDir(),
-        config: this.ctx.getConfig(),
-        logger: this.ctx.getLogger(),
-        emitter: this.ctx.getEmitter(),
-      },
-      options
-    );
+    yield* streamLogsImpl(this.getDeps(), options);
   }
 
   /**
@@ -117,15 +91,7 @@ export class LogStreaming {
    * @throws {JobNotFoundError} If the job doesn't exist
    */
   async *streamJobOutput(jobId: string): AsyncIterable<LogEntry> {
-    yield* streamJobOutput(
-      {
-        stateDir: this.ctx.getStateDir(),
-        config: this.ctx.getConfig(),
-        logger: this.ctx.getLogger(),
-        emitter: this.ctx.getEmitter(),
-      },
-      jobId
-    );
+    yield* streamJobOutputImpl(this.getDeps(), jobId);
   }
 
   /**
@@ -136,15 +102,7 @@ export class LogStreaming {
    * @throws {AgentNotFoundError} If the agent doesn't exist in the configuration
    */
   async *streamAgentLogs(agentName: string): AsyncIterable<LogEntry> {
-    yield* streamAgentLogs(
-      {
-        stateDir: this.ctx.getStateDir(),
-        config: this.ctx.getConfig(),
-        logger: this.ctx.getLogger(),
-        emitter: this.ctx.getEmitter(),
-      },
-      agentName
-    );
+    yield* streamAgentLogsImpl(this.getDeps(), agentName);
   }
 }
 
@@ -257,41 +215,14 @@ export function meetsLogLevel(level: LogLevel, minLevel: LogLevel): boolean {
 }
 
 // =============================================================================
-// Main Streaming Functions
+// Internal Streaming Implementation Functions
 // =============================================================================
 
 /**
- * Stream all fleet logs as an async iterable
- *
- * Provides a unified stream of logs from all sources in the fleet including
- * agents, jobs, and the scheduler. Logs can be filtered by level and optionally
- * by agent or job.
- *
- * For completed jobs, this will replay their history (if includeHistory is true)
- * before streaming new logs from running jobs.
- *
- * @param deps - Dependencies for log streaming
- * @param options - Options for filtering and configuring the stream
- * @returns An async iterable of LogEntry objects
- *
- * @example
- * ```typescript
- * // Stream all info+ logs
- * for await (const log of streamLogs(deps)) {
- *   console.log(`[${log.level}] ${log.message}`);
- * }
- *
- * // Stream only errors for a specific agent
- * for await (const log of streamLogs(deps, {
- *   level: 'error',
- *   agentName: 'my-agent',
- * })) {
- *   console.error(log.message);
- * }
- * ```
+ * Internal implementation for streaming fleet logs
  */
-export async function* streamLogs(
-  deps: LogStreamingDependencies,
+async function* streamLogsImpl(
+  deps: LogStreamingDeps,
   options?: LogStreamOptions
 ): AsyncIterable<LogEntry> {
   const level = options?.level ?? "info";
@@ -397,27 +328,10 @@ export async function* streamLogs(
 }
 
 /**
- * Stream output from a specific job as an async iterable
- *
- * Provides a stream of log entries for a specific job. For completed jobs,
- * this will replay the job's history and then complete. For running jobs,
- * it will continue streaming until the job completes.
- *
- * @param deps - Dependencies for log streaming
- * @param jobId - The ID of the job to stream output from
- * @returns An async iterable of LogEntry objects
- * @throws {JobNotFoundError} If the job doesn't exist
- *
- * @example
- * ```typescript
- * // Stream job output
- * for await (const log of streamJobOutput(deps, 'job-2024-01-15-abc123')) {
- *   console.log(`[${log.level}] ${log.message}`);
- * }
- * ```
+ * Internal implementation for streaming job output
  */
-export async function* streamJobOutput(
-  deps: LogStreamingDependencies,
+async function* streamJobOutputImpl(
+  deps: LogStreamingDeps,
   jobId: string
 ): AsyncIterable<LogEntry> {
   const jobsDir = join(deps.stateDir, "jobs");
@@ -559,27 +473,10 @@ export async function* streamJobOutput(
 }
 
 /**
- * Stream logs for a specific agent as an async iterable
- *
- * Provides a stream of log entries for all jobs belonging to a specific agent.
- * For completed jobs, this will replay their history. For running jobs, it
- * will continue streaming until the iterator is stopped.
- *
- * @param deps - Dependencies for log streaming
- * @param agentName - The name of the agent to stream logs for
- * @returns An async iterable of LogEntry objects
- * @throws {AgentNotFoundError} If the agent doesn't exist in the configuration
- *
- * @example
- * ```typescript
- * // Stream all logs for an agent
- * for await (const log of streamAgentLogs(deps, 'my-agent')) {
- *   console.log(`[${log.jobId}] ${log.message}`);
- * }
- * ```
+ * Internal implementation for streaming agent logs
  */
-export async function* streamAgentLogs(
-  deps: LogStreamingDependencies,
+async function* streamAgentLogsImpl(
+  deps: LogStreamingDeps,
   agentName: string
 ): AsyncIterable<LogEntry> {
   // Verify agent exists
@@ -592,8 +489,8 @@ export async function* streamAgentLogs(
     });
   }
 
-  // Delegate to streamLogs with agent filter
-  yield* streamLogs(deps, {
+  // Delegate to streamLogsImpl with agent filter
+  yield* streamLogsImpl(deps, {
     agentName,
     includeHistory: true,
   });
