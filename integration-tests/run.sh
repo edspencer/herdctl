@@ -18,10 +18,42 @@ echo -e "${BLUE}========================================"
 echo "herdctl Integration Test Runner"
 echo -e "========================================${NC}"
 
+# Load .env file if it exists (check multiple locations)
+load_env() {
+    local env_file=""
+
+    # Check integration-tests/.env first
+    if [[ -f "$SCRIPT_DIR/.env" ]]; then
+        env_file="$SCRIPT_DIR/.env"
+    # Then check repo root .env
+    elif [[ -f "$REPO_ROOT/.env" ]]; then
+        env_file="$REPO_ROOT/.env"
+    fi
+
+    if [[ -n "$env_file" ]]; then
+        echo -e "${BLUE}Loading environment from $env_file${NC}"
+        # Export variables from .env file (skip comments and empty lines)
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            # Skip comments and empty lines
+            [[ "$line" =~ ^#.*$ ]] && continue
+            [[ -z "$line" ]] && continue
+            # Export the variable
+            export "$line"
+        done < "$env_file"
+    fi
+}
+
+load_env
+
 # Check prerequisites
 if [[ -z "$ANTHROPIC_API_KEY" ]]; then
     echo -e "${RED}ERROR: ANTHROPIC_API_KEY is not set${NC}"
-    echo "Set your API key: export ANTHROPIC_API_KEY=your-key-here"
+    echo ""
+    echo "Options:"
+    echo "  1. Create integration-tests/.env with: ANTHROPIC_API_KEY=sk-ant-..."
+    echo "  2. Or export it: export ANTHROPIC_API_KEY=your-key-here"
+    echo ""
+    echo "Get an API key from: https://console.anthropic.com/dashboard"
     exit 1
 fi
 

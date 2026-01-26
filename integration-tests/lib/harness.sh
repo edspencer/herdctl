@@ -16,6 +16,28 @@ HARNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "$HARNESS_DIR/.." && pwd)"
 HERDCTL="$REPO_ROOT/packages/cli/bin/herdctl.js"
 
+# Load .env file if not already loaded by run.sh
+load_env_if_needed() {
+    if [[ -z "$ANTHROPIC_API_KEY" ]]; then
+        local env_file=""
+        if [[ -f "$HARNESS_DIR/.env" ]]; then
+            env_file="$HARNESS_DIR/.env"
+        elif [[ -f "$REPO_ROOT/.env" ]]; then
+            env_file="$REPO_ROOT/.env"
+        fi
+
+        if [[ -n "$env_file" ]]; then
+            while IFS= read -r line || [[ -n "$line" ]]; do
+                [[ "$line" =~ ^#.*$ ]] && continue
+                [[ -z "$line" ]] && continue
+                export "$line"
+            done < "$env_file"
+        fi
+    fi
+}
+
+load_env_if_needed
+
 # Test state
 TEST_DIR=""
 SCENARIO_NAME=""

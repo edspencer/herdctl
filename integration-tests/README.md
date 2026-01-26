@@ -14,8 +14,25 @@ These integration tests run against the **real SDK** to verify the system works.
 
 ## Prerequisites
 
-1. `ANTHROPIC_API_KEY` environment variable must be set
+1. **API Key**: Get one from [Anthropic Console](https://console.anthropic.com/dashboard)
 2. Run `pnpm build` first to ensure CLI is up to date
+
+### Setting Up Your API Key
+
+**Option 1: .env file (recommended for local development)**
+
+```bash
+cp integration-tests/.env.example integration-tests/.env
+# Edit .env and add your key
+```
+
+**Option 2: Environment variable**
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-your-key-here
+```
+
+The `.env` file is gitignored, so your key stays local.
 
 ## Running Tests
 
