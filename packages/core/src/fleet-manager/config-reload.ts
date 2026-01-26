@@ -59,7 +59,7 @@ export class ConfigReload {
    *
    * @returns The reload result with change details
    * @throws {InvalidStateError} If the fleet manager is not initialized
-   * @throws {FleetManagerConfigError} If the new configuration is invalid
+   * @throws {ConfigurationError} If the new configuration is invalid
    */
   async reload(): Promise<ConfigReloadedPayload> {
     const logger = this.ctx.getLogger();

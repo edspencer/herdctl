@@ -556,7 +556,7 @@ describe("mergeAgentConfig", () => {
       const agent: AgentConfig = {
         name: "my-agent",
         schedules: {
-          main: { type: "interval", interval: "5m" },
+          main: { type: "interval", interval: "5m", enabled: true },
         },
       };
       const result = mergeAgentConfig(defaults, agent);
