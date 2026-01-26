@@ -148,6 +148,8 @@ export interface SDKQueryOptions {
   mcpServers?: Record<string, SDKMcpServerConfig>;
   resume?: string;
   forkSession?: boolean;
+  /** Maximum number of agentic turns before stopping */
+  maxTurns?: number;
 }
 
 // =============================================================================

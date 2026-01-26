@@ -27,7 +27,14 @@ export interface TriggerOptions {
   json?: boolean;
   state?: string;
   config?: string;
+  /** Suppress the default output display */
+  quiet?: boolean;
 }
+
+/**
+ * Maximum characters to display for agent output
+ */
+const MAX_OUTPUT_CHARS = 20000;
 
 /**
  * Default state directory
@@ -277,11 +284,28 @@ export async function triggerCommand(
       console.log("");
     }
 
+    // Display final output by default (unless --quiet or --json)
+    if (!isJsonOutput && options.quiet !== true) {
+      const finalOutput = await manager.getJobFinalOutput(result.jobId);
+      if (finalOutput) {
+        console.log(colorize("─".repeat(60), "dim"));
+        if (finalOutput.length > MAX_OUTPUT_CHARS) {
+          const remaining = finalOutput.length - MAX_OUTPUT_CHARS;
+          console.log(finalOutput.substring(0, MAX_OUTPUT_CHARS));
+          console.log("");
+          console.log(colorize(`... [truncated: ${remaining.toLocaleString()} more characters]`, "yellow"));
+        } else {
+          console.log(finalOutput);
+        }
+        console.log(colorize("─".repeat(60), "dim"));
+        console.log("");
+      }
+    }
+
     // If not wait mode, we're done
     if (!isWaitMode) {
       if (!isJsonOutput) {
-        console.log(`Run 'herdctl logs --job ${result.jobId}' to view output.`);
-        console.log(`Run 'herdctl trigger ${agentName} --wait' to wait for completion.`);
+        console.log(`Run 'herdctl logs --job ${result.jobId}' to view detailed logs.`);
       }
       return;
     }

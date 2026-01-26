@@ -1,0 +1,8 @@
+version: 1
+
+fleet:
+  name: hello-world-example
+  description: A minimal example showing the simplest herdctl agent
+
+agents:
+  - path: agents/hello-world.yaml

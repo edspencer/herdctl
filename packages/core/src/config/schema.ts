@@ -454,6 +454,8 @@ export const AgentConfigSchema = z
     repo: z.string().optional(),
     identity: IdentitySchema.optional(),
     system_prompt: z.string().optional(),
+    /** Default prompt used when triggering without --prompt */
+    default_prompt: z.string().optional(),
     work_source: WorkSourceSchema.optional(),
     schedules: z.record(z.string(), ScheduleSchema).optional(),
     session: SessionSchema.optional(),

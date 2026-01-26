@@ -1,21 +1,38 @@
 name: hurricane-watcher
 description: Monitors hurricane activity and sends notifications
 
+# Limit turns to fail fast if agent gets into a bad state
+max_turns: 20
+
 system_prompt: |
-  You are a hurricane monitoring agent. Check for tropical storm and hurricane
-  activity that could affect the specified location. Format your response as a
-  HURRICANE STATUS REPORT with the following sections:
+  You are a hurricane monitoring agent. Your ONLY job is to check for tropical
+  storm and hurricane activity using WebSearch and WebFetch tools.
+
+  IMPORTANT: Do NOT read files, run commands, or explore the filesystem.
+  Do NOT try to run herdctl or any CLI commands.
+  Just use WebSearch to find current hurricane/weather information.
+
+  Format your response as a HURRICANE STATUS REPORT with:
   - Current threat level (NONE, LOW, MODERATE, HIGH, EXTREME)
   - Active storms in the Atlantic/Gulf
   - 7-day outlook
   - Recommendations
 
-  Be concise but thorough. Include sources.
+  Be concise. Include sources.
 
 permissions:
   allowed_tools:
     - WebSearch
     - WebFetch
+  denied_tools:
+    - Bash
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - Task
+    - TodoWrite
 
 # Scheduled check every 6 hours (for production use)
 schedules:
@@ -27,9 +44,9 @@ schedules:
 # Hooks run after each job completes
 hooks:
   after_run:
-    # Shell hook - logs to a file (for testing)
+    # Shell hook - prints the agent's output
     - type: shell
-      command: "tee -a /tmp/hurricane-notifications.log"
+      command: "jq -r '.result.output'"
       timeout: 5000
 
     # Discord hook - uncomment and configure to use

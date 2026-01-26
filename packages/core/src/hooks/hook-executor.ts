@@ -209,6 +209,10 @@ export class HookExecutor {
 
       if (result.success) {
         successfulHooks++;
+        // Log hook output if present (for shell hooks)
+        if (result.output) {
+          this.logger.info(`Hook output:\n${result.output}`);
+        }
       } else {
         failedHooks++;
         this.logger.warn(

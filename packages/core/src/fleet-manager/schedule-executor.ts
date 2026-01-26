@@ -85,9 +85,8 @@ export class ScheduleExecutor {
     });
 
     try {
-      // Determine the prompt to use (schedule.prompt is the primary source,
-      // agent.system_prompt provides agent context but isn't the task prompt)
-      const prompt = schedule.prompt ?? "Execute your configured task";
+      // Determine the prompt to use (priority: schedule > agent default > fallback)
+      const prompt = schedule.prompt ?? agent.default_prompt ?? "Execute your configured task";
 
       logger.debug(
         `Schedule ${scheduleName} triggered for agent ${agent.name} ` +

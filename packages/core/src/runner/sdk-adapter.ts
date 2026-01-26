@@ -23,8 +23,10 @@ const DEFAULT_PERMISSION_MODE = "acceptEdits" as const;
 
 /**
  * Default setting sources for SDK initialization
+ * Empty by default - autonomous agents should NOT load project/local settings
+ * (like CLAUDE.md) which are meant for interactive Claude Code usage
  */
-const DEFAULT_SETTING_SOURCES = ["project", "local"] as const;
+const DEFAULT_SETTING_SOURCES: string[] = [];
 
 /**
  * Default preset when no system prompt is specified
@@ -177,6 +179,12 @@ export function toSDKOptions(
 
   // MCP servers (always include, even if empty)
   result.mcpServers = transformMcpServers(agent.mcp_servers);
+
+  // Max turns limit (agent-level or session-level)
+  const maxTurns = agent.max_turns ?? agent.session?.max_turns;
+  if (maxTurns !== undefined) {
+    result.maxTurns = maxTurns;
+  }
 
   // Session resume/fork
   if (options.resume) {

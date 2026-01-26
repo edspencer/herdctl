@@ -278,6 +278,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   async trigger(agentName: string, scheduleName?: string, options?: TriggerOptions): Promise<TriggerResult> { return this.jobControl.trigger(agentName, scheduleName, options); }
   async cancelJob(jobId: string, options?: { timeout?: number }): Promise<CancelJobResult> { return this.jobControl.cancelJob(jobId, options); }
   async forkJob(jobId: string, modifications?: JobModifications): Promise<ForkJobResult> { return this.jobControl.forkJob(jobId, modifications); }
+  async getJobFinalOutput(jobId: string): Promise<string> { return this.jobControl.getJobFinalOutput(jobId); }
 
   // Log Streaming
   async *streamLogs(options?: LogStreamOptions): AsyncIterable<LogEntry> { yield* this.logStreaming.streamLogs(options); }

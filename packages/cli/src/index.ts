@@ -144,7 +144,8 @@ program
   .description("Manually trigger an agent")
   .option("-S, --schedule <name>", "Trigger specific schedule")
   .option("-p, --prompt <prompt>", "Custom prompt")
-  .option("-w, --wait", "Wait for job to complete")
+  .option("-w, --wait", "Wait for job to complete and stream logs")
+  .option("-q, --quiet", "Suppress output display (just show job info)")
   .option("--json", "Output as JSON for scripting")
   .option("-c, --config <path>", "Path to config file or directory")
   .option("-s, --state <path>", "Path to state directory (default: .herdctl)")
@@ -154,6 +155,7 @@ program
         schedule: options.schedule,
         prompt: options.prompt,
         wait: options.wait,
+        quiet: options.quiet,
         json: options.json,
         config: options.config,
         state: options.state,

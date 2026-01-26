@@ -10,7 +10,7 @@
 import { join } from "node:path";
 
 import { query as claudeSdkQuery } from "@anthropic-ai/claude-agent-sdk";
-import { createJob, getJob, updateJob } from "../state/index.js";
+import { createJob, getJob, updateJob, readJobOutputAll } from "../state/index.js";
 import { JobExecutor, type SDKQueryFunction } from "../runner/index.js";
 import { HookExecutor, type HookContext } from "../hooks/index.js";
 import type { ResolvedAgent, HookEvent } from "../config/index.js";
@@ -123,8 +123,8 @@ export class JobControl {
       }
     }
 
-    // Determine the prompt to use
-    const prompt = options?.prompt ?? schedule?.prompt ?? "Execute your configured task";
+    // Determine the prompt to use (priority: options > schedule > agent default > fallback)
+    const prompt = options?.prompt ?? schedule?.prompt ?? agent.default_prompt ?? "Execute your configured task";
 
     const timestamp = new Date().toISOString();
 
@@ -409,6 +409,21 @@ export class JobControl {
   }
 
   /**
+   * Get the final output from a completed job
+   *
+   * Reads the job's JSONL file and extracts the last meaningful content:
+   * either a tool_result with result, or an assistant message with content.
+   *
+   * @param jobId - ID of the job to get output from
+   * @returns The final output string, or empty string if not found
+   */
+  async getJobFinalOutput(jobId: string): Promise<string> {
+    const stateDir = this.ctx.getStateDir();
+    const jobsDir = join(stateDir, "jobs");
+    return this.extractJobOutput(jobsDir, jobId);
+  }
+
+  /**
    * Cancel all running jobs during shutdown
    *
    * @param cancelTimeout - Timeout for each job cancellation
@@ -472,8 +487,10 @@ export class JobControl {
       return;
     }
 
-    // Build hook context from job metadata
-    const context = this.buildHookContext(agent, jobMetadata, event, scheduleName, errorMessage);
+    // Build hook context from job metadata (reads actual output from JSONL)
+    const stateDir = this.ctx.getStateDir();
+    const jobsDir = join(stateDir, "jobs");
+    const context = await this.buildHookContext(agent, jobMetadata, jobsDir, event, scheduleName, errorMessage);
 
     // Resolve agent workspace for hook execution
     const agentWorkspace = this.resolveAgentWorkspace(agent);
@@ -511,18 +528,23 @@ export class JobControl {
 
   /**
    * Build HookContext from job metadata and agent info
+   * Reads the actual job output from the JSONL file
    */
-  private buildHookContext(
+  private async buildHookContext(
     agent: ResolvedAgent,
     jobMetadata: JobMetadata,
+    jobsDir: string,
     event: HookEvent,
     scheduleName?: string,
     errorMessage?: string
-  ): HookContext {
+  ): Promise<HookContext> {
     const completedAt = jobMetadata.finished_at ?? new Date().toISOString();
     const startedAt = new Date(jobMetadata.started_at);
     const completedAtDate = new Date(completedAt);
     const durationMs = completedAtDate.getTime() - startedAt.getTime();
+
+    // Read the actual job output from JSONL file
+    const output = await this.extractJobOutput(jobsDir, jobMetadata.id);
 
     return {
       event,
@@ -536,7 +558,7 @@ export class JobControl {
       },
       result: {
         success: event === "completed",
-        output: jobMetadata.summary ?? "",
+        output,
         error: errorMessage,
       },
       agent: {
@@ -544,6 +566,40 @@ export class JobControl {
         name: agent.identity?.name ?? agent.name,
       },
     };
+  }
+
+  /**
+   * Extract the final output from a job's JSONL file
+   * Looks for the last meaningful content: tool_result with result, or assistant message with content
+   */
+  private async extractJobOutput(jobsDir: string, jobId: string): Promise<string> {
+    const logger = this.ctx.getLogger();
+
+    try {
+      const messages = await readJobOutputAll(jobsDir, jobId, { logger });
+
+      // Work backwards through messages to find the last meaningful output
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const msg = messages[i];
+
+        // Check for tool_result with a result field
+        if (msg.type === "tool_result" && "result" in msg && msg.result !== undefined) {
+          const result = msg.result;
+          return typeof result === "string" ? result : JSON.stringify(result, null, 2);
+        }
+
+        // Check for assistant message with content
+        if (msg.type === "assistant" && "content" in msg && msg.content) {
+          return msg.content;
+        }
+      }
+
+      // Fallback to summary if no output found in messages
+      return "";
+    } catch (error) {
+      logger.warn(`Failed to read job output for ${jobId}: ${(error as Error).message}`);
+      return "";
+    }
   }
 
   /**
