@@ -9,6 +9,7 @@ let mockFleetManagerInstance: {
   initialize: Mock;
   trigger: Mock;
   streamJobOutput: Mock;
+  getJobFinalOutput: Mock;
 };
 
 // Mock TriggerResult data
@@ -57,6 +58,7 @@ vi.mock("@herdctl/core", async () => {
     initialize: Mock;
     trigger: Mock;
     streamJobOutput: Mock;
+    getJobFinalOutput: Mock;
 
     constructor() {
       this.initialize = vi.fn().mockResolvedValue(undefined);
@@ -66,6 +68,7 @@ vi.mock("@herdctl/core", async () => {
           yield entry;
         }
       });
+      this.getJobFinalOutput = vi.fn().mockResolvedValue("");
 
       // Store reference for test access
       mockFleetManagerInstance = this;
@@ -163,11 +166,11 @@ describe("triggerCommand", () => {
       expect(consoleLogs.some((log) => log.includes("code-reviewer"))).toBe(true);
     });
 
-    it("displays usage hints without --wait", async () => {
+    it("displays usage hints", async () => {
       await triggerCommand("code-reviewer", {});
 
+      // Now shows hint to view detailed logs (output is displayed by default)
       expect(consoleLogs.some((log) => log.includes("herdctl logs --job"))).toBe(true);
-      expect(consoleLogs.some((log) => log.includes("--wait"))).toBe(true);
     });
   });
 

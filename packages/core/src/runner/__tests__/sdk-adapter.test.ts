@@ -190,10 +190,11 @@ describe("toSDKOptions", () => {
   });
 
   describe("setting sources", () => {
-    it("sets settingSources to project and local", () => {
+    it("sets settingSources to empty by default (autonomous agents should not load project settings)", () => {
       const agent = createTestAgent();
       const result = toSDKOptions(agent);
-      expect(result.settingSources).toEqual(["project", "local"]);
+      // Empty by default - autonomous agents should NOT load CLAUDE.md or local settings
+      expect(result.settingSources).toEqual([]);
     });
   });
 
@@ -292,7 +293,7 @@ describe("toSDKOptions", () => {
           type: "custom",
           content: "You are a specialized test agent.",
         },
-        settingSources: ["project", "local"],
+        settingSources: [], // Empty - autonomous agents don't load project settings
         mcpServers: {
           posthog: {
             type: "http",
