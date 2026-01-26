@@ -1,0 +1,43 @@
+name: Integration Tests
+
+on:
+  # Manual trigger from GitHub UI
+  workflow_dispatch:
+  # Run after merges to main (and feature branch for testing)
+  push:
+    branches: [main, feature/integration-tests-ci]
+    paths:
+      - 'packages/**'
+      - 'integration-tests/**'
+      - '.github/workflows/integration-tests.yml'
+
+concurrency:
+  group: integration-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+    # Don't run on forks (they won't have the secret)
+    if: github.repository == 'edspencer/herdctl' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Run integration tests
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: ./integration-tests/run.sh
