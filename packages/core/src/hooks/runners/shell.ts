@@ -173,12 +173,12 @@ export class ShellHookRunner {
         killed = true;
         proc.kill("SIGTERM");
 
-        // Force kill after 5 seconds if SIGTERM doesn't work
+        // Force kill after 1 second if SIGTERM doesn't work
         setTimeout(() => {
           if (!proc.killed) {
             proc.kill("SIGKILL");
           }
-        }, 5000);
+        }, 1000);
       }, timeout);
 
       // Capture stdout
@@ -220,7 +220,14 @@ export class ShellHookRunner {
       });
 
       // Write context to stdin and close it
+      // Handle EPIPE errors that occur if process exits before we finish writing
       if (proc.stdin) {
+        proc.stdin.on("error", (err: NodeJS.ErrnoException) => {
+          // EPIPE is expected if process exits early - ignore it
+          if (err.code !== "EPIPE") {
+            this.logger.warn(`stdin error: ${err.message}`);
+          }
+        });
         proc.stdin.write(contextJson);
         proc.stdin.end();
       }
