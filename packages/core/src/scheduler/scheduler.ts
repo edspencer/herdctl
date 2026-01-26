@@ -316,12 +316,24 @@ export class Scheduler {
   private async checkSchedule(
     agent: ResolvedAgent,
     scheduleName: string,
-    schedule: { type: string; interval?: string; expression?: string }
+    schedule: { type: string; interval?: string; expression?: string; enabled?: boolean }
   ): Promise<ScheduleCheckResult> {
     const baseResult = {
       agentName: agent.name,
       scheduleName,
     };
+
+    // Skip disabled schedules (config-level check)
+    if (schedule.enabled === false) {
+      this.logger.debug(
+        `Skipping ${agent.name}/${scheduleName}: schedule is disabled in config`
+      );
+      return {
+        ...baseResult,
+        shouldTrigger: false,
+        skipReason: "disabled" as ScheduleSkipReason,
+      };
+    }
 
     // Skip unsupported schedule types (webhook, chat)
     if (schedule.type !== "interval" && schedule.type !== "cron") {

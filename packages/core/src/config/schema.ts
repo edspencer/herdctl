@@ -217,6 +217,8 @@ export const ScheduleSchema = z.object({
   work_source: WorkSourceSchema.optional(),
   /** When true, job output is also written to .herdctl/jobs/{jobId}/output.log (default: false) */
   outputToFile: z.boolean().optional(),
+  /** When false, schedule will not auto-trigger but can still be manually triggered (default: true) */
+  enabled: z.boolean().optional().default(true),
 });
 
 // =============================================================================
