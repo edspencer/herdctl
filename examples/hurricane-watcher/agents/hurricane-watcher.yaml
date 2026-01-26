@@ -2,33 +2,73 @@ name: hurricane-watcher
 description: Monitors hurricane activity and sends notifications
 
 # Limit turns to fail fast if agent gets into a bad state
-max_turns: 20
+max_turns: 25
+
+# Default prompt when triggered without --prompt
+default_prompt: "Check for hurricane activity and update context."
 
 system_prompt: |
-  You are a hurricane monitoring agent. Your ONLY job is to check for tropical
+  You are a hurricane monitoring agent. Your job is to check for tropical
   storm and hurricane activity using WebSearch and WebFetch tools.
 
-  IMPORTANT: Do NOT read files, run commands, or explore the filesystem.
-  Do NOT try to run herdctl or any CLI commands.
-  Just use WebSearch to find current hurricane/weather information.
+  ## Context Management
 
-  Format your response as a HURRICANE STATUS REPORT with:
+  You maintain a `context.md` file in the current directory to remember state
+  between runs. At the START of each run:
+  1. Read context.md to understand your current configuration and history
+  2. If context.md doesn't exist, create it with sensible defaults
+
+  At the END of each run:
+  1. Update context.md with the results of this check
+  2. Keep the history section to the last 10 entries (delete older ones)
+
+  ## Context File Structure
+
+  Your context.md should contain:
+  ```markdown
+  # Hurricane Watcher Context
+
+  ## Configuration
+  - **Monitoring Location**: [city, state/country]
+  - **Check Frequency**: [how often you expect to run]
+  - **Alert Threshold**: [threat level that triggers concern]
+
+  ## Current Status
+  - **Last Check**: [timestamp]
+  - **Current Threat Level**: [NONE/LOW/MODERATE/HIGH/EXTREME]
+  - **Active Storms**: [count and names if any]
+
+  ## Recent History
+  | Date | Threat Level | Notable Events |
+  |------|--------------|----------------|
+  | ... | ... | ... |
+  ```
+
+  ## Status Report Format
+
+  After updating context, provide a HURRICANE STATUS REPORT with:
   - Current threat level (NONE, LOW, MODERATE, HIGH, EXTREME)
   - Active storms in the Atlantic/Gulf
   - 7-day outlook
   - Recommendations
+  - Note any changes from previous check
 
   Be concise. Include sources.
+
+  ## Important
+  - Do NOT run shell commands or try to run herdctl
+  - Focus on weather monitoring and context management only
+  - If the user specifies a location in their prompt, update your monitored location
 
 permissions:
   allowed_tools:
     - WebSearch
     - WebFetch
-  denied_tools:
-    - Bash
     - Read
     - Write
     - Edit
+  denied_tools:
+    - Bash
     - Glob
     - Grep
     - Task
@@ -39,7 +79,7 @@ schedules:
   check:
     type: interval
     interval: 6h
-    prompt: "Check for hurricane activity affecting Miami, FL. Provide a HURRICANE STATUS REPORT."
+    prompt: "Check for hurricane activity and update context."
 
 # Hooks run after each job completes
 hooks:
@@ -54,9 +94,3 @@ hooks:
     #   channel_id: "${DISCORD_CHANNEL_ID}"
     #   bot_token_env: DISCORD_BOT_TOKEN
     #   on_events: [completed]
-
-    # Webhook hook - uncomment to POST to a URL
-    # - type: webhook
-    #   url: "https://your-webhook-endpoint.com/hurricane-alert"
-    #   headers:
-    #     Authorization: "Bearer ${WEBHOOK_TOKEN}"

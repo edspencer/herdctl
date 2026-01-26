@@ -1,9 +1,10 @@
 # Hurricane Watcher Example
 
-This example demonstrates a scheduled agent that monitors hurricane activity and sends notifications via hooks.
+This example demonstrates a **stateful agent** that monitors hurricane activity, maintains context across runs, and sends notifications via hooks.
 
 ## Features
 
+- **Persistent memory** via `context.md` - agent remembers location and history
 - Scheduled checks every 6 hours
 - Uses WebSearch and WebFetch to get real-time hurricane data
 - Configurable notification hooks (shell, Discord, webhook)
@@ -13,14 +14,9 @@ This example demonstrates a scheduled agent that monitors hurricane activity and
 ### 1. Clone and Build
 
 ```bash
-# Clone the repo
 git clone https://github.com/edspencer/herdctl.git
 cd herdctl
-
-# Install dependencies
 pnpm install
-
-# Build
 pnpm build
 ```
 
@@ -35,30 +31,64 @@ export ANTHROPIC_API_KEY="sk-ant-your-key-here"
 ```bash
 cd examples/hurricane-watcher
 
-# Trigger the agent (using local build)
+# First run - set your location
 ../../packages/cli/bin/herdctl.js trigger hurricane-watcher \
-  --prompt "Check for hurricane activity affecting Miami, FL"
+  --prompt "Monitor Tampa, FL for hurricane activity"
+
+# Subsequent runs - agent remembers the location
+../../packages/cli/bin/herdctl.js trigger hurricane-watcher
 ```
 
-### 4. Check the Shell Hook Output
+### 4. Check the Context File
 
-The shell hook logs the job result to a file:
+After running, the agent creates `context.md` with its memory:
 
 ```bash
-cat /tmp/hurricane-notifications.log
+cat context.md
 ```
 
-You should see JSON output like:
-```json
-{"event":"completed","job":{"id":"job-xxx","agentId":"hurricane-watcher",...},"result":{"success":true},...}
+You'll see the agent's configuration, current status, and history of checks.
+
+## Agent Memory (context.md)
+
+This example demonstrates how agents can maintain state across multiple runs. The hurricane-watcher:
+
+1. **Reads** `context.md` at the start of each run
+2. **Remembers** its configured location and check history
+3. **Updates** the context file with new data after each check
+4. **Manages history** by keeping only the last 10 entries
+
+Example context file:
+```markdown
+# Hurricane Watcher Context
+
+## Configuration
+- **Monitoring Location**: Tampa, FL
+- **Check Frequency**: Every 6 hours (scheduled)
+- **Alert Threshold**: MODERATE or higher
+
+## Current Status
+- **Last Check**: 2026-01-26
+- **Current Threat Level**: NONE
+- **Active Storms**: 0
+
+## Recent History
+| Date | Threat Level | Notable Events |
+|------|--------------|----------------|
+| 2026-01-26 | NONE | Follow-up check. Off-season. |
+| 2026-01-26 | NONE | Initial setup for Tampa, FL. |
 ```
 
-## How It Works
+### Changing Locations
 
-1. **Agent runs** - Claude checks for hurricane activity using WebSearch/WebFetch
-2. **Job completes** - herdctl captures the result
-3. **Hooks execute** - The shell hook receives the job context as JSON on stdin
-4. **Output logged** - `tee` writes the JSON to `/tmp/hurricane-notifications.log`
+To change the monitored location, just mention it in your prompt:
+
+```bash
+../../packages/cli/bin/herdctl.js trigger hurricane-watcher \
+  --prompt "Switch to monitoring Key West, FL"
+```
+
+The agent will update its context file with the new location.
 
 ## Notification Hooks
 
@@ -66,27 +96,13 @@ The agent is configured with hooks that run after each job. Edit `agents/hurrica
 
 ### Shell Hook (enabled by default)
 
-Logs notifications to `/tmp/hurricane-notifications.log`:
+Prints the agent's output:
 
 ```yaml
 hooks:
   after_run:
     - type: shell
-      command: "tee -a /tmp/hurricane-notifications.log"
-```
-
-You can replace this with any shell command. The HookContext JSON is piped to stdin:
-
-```yaml
-hooks:
-  after_run:
-    # Send to a custom script
-    - type: shell
-      command: "./my-notification-script.sh"
-
-    # Or use jq to extract fields
-    - type: shell
-      command: "jq -r '.result.output' >> /tmp/hurricane-output.txt"
+      command: "jq -r '.result.output'"
 ```
 
 ### Discord Hook
@@ -101,14 +117,7 @@ To enable Discord notifications:
    export DISCORD_BOT_TOKEN="your-bot-token"
    export DISCORD_CHANNEL_ID="your-channel-id"
    ```
-5. Update `agents/hurricane-watcher.yaml`:
-   ```yaml
-   hooks:
-     after_run:
-       - type: discord
-         channel_id: "${DISCORD_CHANNEL_ID}"
-         bot_token_env: DISCORD_BOT_TOKEN
-   ```
+5. Uncomment the Discord hook in `agents/hurricane-watcher.yaml`
 
 ### Webhook Hook
 
@@ -128,7 +137,6 @@ hooks:
 To run the agent every 6 hours automatically:
 
 ```bash
-# Start the fleet (runs in foreground)
 ../../packages/cli/bin/herdctl.js start
 ```
 
@@ -139,7 +147,7 @@ schedules:
   check:
     type: interval
     interval: 6h
-    prompt: "Check for hurricane activity affecting Miami, FL"
+    prompt: "Check for hurricane activity and update context."
 ```
 
 ## Environment Variables
