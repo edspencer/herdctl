@@ -1,0 +1,8 @@
+version: 1
+
+fleet:
+  name: price-checker-example
+  description: Example fleet for price monitoring
+
+agents:
+  - path: agents/price-checker.yaml
