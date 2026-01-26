@@ -5,6 +5,12 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+
+// Mock the Claude SDK to prevent real API calls during tests
+vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
+  query: vi.fn(),
+}));
+
 import { mkdtemp, rm, mkdir, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -107,7 +113,7 @@ describe("Fleet Status Query Methods", () => {
       expect(status.scheduler.status).toBe("stopped");
     });
 
-    it("returns status after start", { timeout: 15000 }, async () => {
+    it("returns status after start", async () => {
       // Use disabled schedule to prevent auto-triggering during test
       await createAgentConfig("test-agent", {
         name: "test-agent",
