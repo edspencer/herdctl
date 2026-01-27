@@ -142,6 +142,18 @@ export interface ISessionManager {
   getSession(channelId: string): Promise<ChannelSession | null>;
 
   /**
+   * Store or update the session ID for a channel
+   *
+   * Called after a job completes to store the SDK-provided session ID.
+   * This enables conversation continuity by allowing subsequent requests
+   * to resume from this session.
+   *
+   * @param channelId - Discord channel or DM ID
+   * @param sessionId - The Claude Agent SDK session ID
+   */
+  setSession(channelId: string, sessionId: string): Promise<void>;
+
+  /**
    * Clear a specific session
    *
    * @param channelId - Discord channel or DM ID

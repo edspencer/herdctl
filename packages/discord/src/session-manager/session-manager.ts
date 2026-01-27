@@ -203,6 +203,34 @@ export class SessionManager implements ISessionManager {
   }
 
   /**
+   * Store or update the session ID for a channel
+   *
+   * Called after a job completes to store the SDK-provided session ID.
+   */
+  async setSession(channelId: string, sessionId: string): Promise<void> {
+    const state = await this.loadState();
+    const now = new Date().toISOString();
+    const existingSession = state.channels[channelId];
+
+    state.channels[channelId] = {
+      sessionId,
+      lastMessageAt: now,
+    };
+
+    await this.saveState(state);
+
+    if (existingSession) {
+      this.logger.info("Updated session", {
+        channelId,
+        oldSessionId: existingSession.sessionId,
+        newSessionId: sessionId,
+      });
+    } else {
+      this.logger.info("Stored new session", { channelId, sessionId });
+    }
+  }
+
+  /**
    * Clear a specific session
    */
   async clearSession(channelId: string): Promise<boolean> {

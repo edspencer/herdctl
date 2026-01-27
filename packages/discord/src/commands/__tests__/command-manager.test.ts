@@ -51,6 +51,7 @@ function createMockSessionManager(): ISessionManager {
     getOrCreateSession: vi.fn(),
     touchSession: vi.fn(),
     getSession: vi.fn(),
+    setSession: vi.fn(),
     clearSession: vi.fn(),
     cleanupExpiredSessions: vi.fn(),
     getActiveSessionCount: vi.fn(),

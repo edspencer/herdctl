@@ -156,6 +156,7 @@ function createMockSessionManager(): ISessionManager {
     getOrCreateSession: vi.fn().mockResolvedValue({ sessionId: "test-session", isNew: true }),
     touchSession: vi.fn().mockResolvedValue(undefined),
     getSession: vi.fn().mockResolvedValue(null),
+    setSession: vi.fn().mockResolvedValue(undefined),
     clearSession: vi.fn().mockResolvedValue(true),
     cleanupExpiredSessions: vi.fn().mockResolvedValue(0),
     getActiveSessionCount: vi.fn().mockResolvedValue(0),

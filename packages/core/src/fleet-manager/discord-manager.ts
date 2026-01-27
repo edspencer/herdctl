@@ -140,6 +140,8 @@ interface DiscordLogger {
 interface ISessionManager {
   readonly agentName: string;
   getOrCreateSession(channelId: string): Promise<{ sessionId: string; isNew: boolean }>;
+  getSession(channelId: string): Promise<{ sessionId: string; lastMessageAt: string } | null>;
+  setSession(channelId: string, sessionId: string): Promise<void>;
   touchSession(channelId: string): Promise<void>;
   clearSession(channelId: string): Promise<boolean>;
   cleanupExpiredSessions(): Promise<number>;
@@ -476,15 +478,21 @@ export class DiscordManager {
       return;
     }
 
-    // Get or create session for this channel (persists to disk automatically)
+    // Get existing session for this channel (for conversation continuity)
     const connector = this.connectors.get(agentName);
+    let existingSessionId: string | undefined;
     if (connector) {
       try {
-        const sessionResult = await connector.sessionManager.getOrCreateSession(event.metadata.channelId);
-        logger.debug(`Session for channel ${event.metadata.channelId}: ${sessionResult.sessionId} (${sessionResult.isNew ? "new" : "existing"})`);
+        const existingSession = await connector.sessionManager.getSession(event.metadata.channelId);
+        if (existingSession) {
+          existingSessionId = existingSession.sessionId;
+          logger.debug(`Resuming session for channel ${event.metadata.channelId}: ${existingSessionId}`);
+        } else {
+          logger.debug(`No existing session for channel ${event.metadata.channelId}, starting new conversation`);
+        }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.warn(`Failed to get/create session: ${errorMessage}`);
+        logger.warn(`Failed to get session: ${errorMessage}`);
         // Continue processing - session failure shouldn't block message handling
       }
     }
@@ -504,15 +512,18 @@ export class DiscordManager {
           scheduleName?: string,
           options?: {
             prompt?: string;
+            resume?: string;
             onMessage?: (message: { type: string; content?: string; message?: { content?: unknown } }) => void | Promise<void>;
           }
-        ) => Promise<{ jobId: string }>;
+        ) => Promise<{ jobId: string; success: boolean; sessionId?: string }>;
       };
 
       // Execute job via FleetManager.trigger()
+      // Pass resume option for conversation continuity
       // The onMessage callback collects streaming output
       const result = await fleetManager.trigger(agentName, undefined, {
         prompt: event.prompt,
+        resume: existingSessionId,
         onMessage: (message) => {
           // Extract text content from assistant messages
           if (message.type === "assistant") {
@@ -524,7 +535,7 @@ export class DiscordManager {
         },
       });
 
-      logger.info(`Discord job completed: ${result.jobId} for agent '${agentName}'`);
+      logger.info(`Discord job completed: ${result.jobId} for agent '${agentName}'${result.sessionId ? ` (session: ${result.sessionId})` : ""}`);
 
       // Combine all response chunks
       const fullResponse = responseChunks.join("");
@@ -536,15 +547,19 @@ export class DiscordManager {
         await event.reply("I've completed the task, but I don't have a specific response to share.");
       }
 
-      // Update session timestamp after successful response
-      if (connector) {
+      // Store the SDK session ID for future conversation continuity
+      // Only store if the job succeeded - failed jobs may return invalid session IDs
+      if (connector && result.sessionId && result.success) {
         try {
-          await connector.sessionManager.touchSession(event.metadata.channelId);
-        } catch (touchError) {
-          const errorMessage = touchError instanceof Error ? touchError.message : String(touchError);
-          logger.warn(`Failed to touch session: ${errorMessage}`);
-          // Don't fail the message handling for session touch failure
+          await connector.sessionManager.setSession(event.metadata.channelId, result.sessionId);
+          logger.debug(`Stored session ${result.sessionId} for channel ${event.metadata.channelId}`);
+        } catch (sessionError) {
+          const errorMessage = sessionError instanceof Error ? sessionError.message : String(sessionError);
+          logger.warn(`Failed to store session: ${errorMessage}`);
+          // Don't fail the message handling for session storage failure
         }
+      } else if (connector && result.sessionId && !result.success) {
+        logger.debug(`Not storing session ${result.sessionId} for channel ${event.metadata.channelId} - job failed`);
       }
 
       // Emit event for tracking

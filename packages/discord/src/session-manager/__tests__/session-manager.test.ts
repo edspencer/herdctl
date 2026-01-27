@@ -384,6 +384,82 @@ describe("SessionManager", () => {
   });
 
   // ===========================================================================
+  // setSession Tests
+  // ===========================================================================
+
+  describe("setSession", () => {
+    it("stores a new session for a channel", async () => {
+      const manager = new SessionManager({
+        agentName: "test-agent",
+        stateDir: testDir,
+        logger: mockLogger,
+      });
+
+      await manager.setSession("channel-123", "sdk-session-456");
+
+      // Verify session was stored
+      const session = await manager.getSession("channel-123");
+      expect(session).toBeDefined();
+      expect(session?.sessionId).toBe("sdk-session-456");
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        "Stored new session",
+        expect.objectContaining({
+          channelId: "channel-123",
+          sessionId: "sdk-session-456",
+        })
+      );
+    });
+
+    it("updates an existing session with a new session ID", async () => {
+      const manager = new SessionManager({
+        agentName: "test-agent",
+        stateDir: testDir,
+        logger: mockLogger,
+      });
+
+      // Store initial session
+      await manager.setSession("channel-123", "old-session-id");
+
+      // Update with new session ID
+      await manager.setSession("channel-123", "new-session-id");
+
+      // Verify session was updated
+      const session = await manager.getSession("channel-123");
+      expect(session).toBeDefined();
+      expect(session?.sessionId).toBe("new-session-id");
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        "Updated session",
+        expect.objectContaining({
+          channelId: "channel-123",
+          oldSessionId: "old-session-id",
+          newSessionId: "new-session-id",
+        })
+      );
+    });
+
+    it("updates the lastMessageAt timestamp", async () => {
+      const manager = new SessionManager({
+        agentName: "test-agent",
+        stateDir: testDir,
+        logger: mockLogger,
+      });
+
+      const beforeSet = new Date();
+      await manager.setSession("channel-123", "sdk-session-456");
+      const afterSet = new Date();
+
+      const session = await manager.getSession("channel-123");
+      expect(session).toBeDefined();
+
+      const lastMessageAt = new Date(session!.lastMessageAt);
+      expect(lastMessageAt.getTime()).toBeGreaterThanOrEqual(beforeSet.getTime());
+      expect(lastMessageAt.getTime()).toBeLessThanOrEqual(afterSet.getTime());
+    });
+  });
+
+  // ===========================================================================
   // clearSession Tests
   // ===========================================================================
 

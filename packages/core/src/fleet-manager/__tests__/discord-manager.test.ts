@@ -891,6 +891,8 @@ describe("DiscordManager message handling", () => {
         agentName: string;
         sessionManager: {
           getOrCreateSession: ReturnType<typeof vi.fn>;
+          getSession: ReturnType<typeof vi.fn>;
+          setSession: ReturnType<typeof vi.fn>;
           touchSession: ReturnType<typeof vi.fn>;
           getActiveSessionCount: ReturnType<typeof vi.fn>;
         };
@@ -911,6 +913,8 @@ describe("DiscordManager message handling", () => {
       mockConnector.agentName = "streaming-agent";
       mockConnector.sessionManager = {
         getOrCreateSession: vi.fn().mockResolvedValue({ sessionId: "s1", isNew: false }),
+        getSession: vi.fn().mockResolvedValue({ sessionId: "s1", lastMessageAt: new Date().toISOString() }),
+        setSession: vi.fn().mockResolvedValue(undefined),
         touchSession: vi.fn().mockResolvedValue(undefined),
         getActiveSessionCount: vi.fn().mockResolvedValue(0),
       };
@@ -1009,6 +1013,8 @@ describe("DiscordManager message handling", () => {
         agentName: string;
         sessionManager: {
           getOrCreateSession: ReturnType<typeof vi.fn>;
+          getSession: ReturnType<typeof vi.fn>;
+          setSession: ReturnType<typeof vi.fn>;
           touchSession: ReturnType<typeof vi.fn>;
           getActiveSessionCount: ReturnType<typeof vi.fn>;
         };
@@ -1029,6 +1035,8 @@ describe("DiscordManager message handling", () => {
       mockConnector.agentName = "long-agent";
       mockConnector.sessionManager = {
         getOrCreateSession: vi.fn().mockResolvedValue({ sessionId: "s1", isNew: false }),
+        getSession: vi.fn().mockResolvedValue({ sessionId: "s1", lastMessageAt: new Date().toISOString() }),
+        setSession: vi.fn().mockResolvedValue(undefined),
         touchSession: vi.fn().mockResolvedValue(undefined),
         getActiveSessionCount: vi.fn().mockResolvedValue(0),
       };
@@ -1573,6 +1581,8 @@ describe("DiscordManager session integration", () => {
   let mockSessionManager: {
     agentName: string;
     getOrCreateSession: ReturnType<typeof vi.fn>;
+    getSession: ReturnType<typeof vi.fn>;
+    setSession: ReturnType<typeof vi.fn>;
     touchSession: ReturnType<typeof vi.fn>;
     clearSession: ReturnType<typeof vi.fn>;
     cleanupExpiredSessions: ReturnType<typeof vi.fn>;
@@ -1586,6 +1596,8 @@ describe("DiscordManager session integration", () => {
     mockSessionManager = {
       agentName: "test-agent",
       getOrCreateSession: vi.fn().mockResolvedValue({ sessionId: "session-123", isNew: false }),
+      getSession: vi.fn().mockResolvedValue({ sessionId: "session-123", lastMessageAt: new Date().toISOString() }),
+      setSession: vi.fn().mockResolvedValue(undefined),
       touchSession: vi.fn().mockResolvedValue(undefined),
       clearSession: vi.fn().mockResolvedValue(true),
       cleanupExpiredSessions: vi.fn().mockResolvedValue(0),
@@ -1593,7 +1605,7 @@ describe("DiscordManager session integration", () => {
     };
 
     // Create a mock FleetManager (emitter) with trigger method
-    triggerMock = vi.fn().mockResolvedValue({ jobId: "job-123" });
+    triggerMock = vi.fn().mockResolvedValue({ jobId: "job-123", success: true, sessionId: "sdk-session-456" });
     emitterWithTrigger = Object.assign(new EventEmitter(), {
       trigger: triggerMock,
     });
@@ -1631,7 +1643,7 @@ describe("DiscordManager session integration", () => {
     manager = new DiscordManager(mockContext);
   });
 
-  it("calls getOrCreateSession on message", async () => {
+  it("calls getSession on message to check for existing session", async () => {
     // Create a mock connector with session manager
     const mockConnector = new EventEmitter() as EventEmitter & {
       connect: ReturnType<typeof vi.fn>;
@@ -1693,11 +1705,11 @@ describe("DiscordManager session integration", () => {
     // Wait for async processing
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    // Should have called getOrCreateSession
-    expect(mockSessionManager.getOrCreateSession).toHaveBeenCalledWith("channel1");
+    // Should have called getSession to check for existing session
+    expect(mockSessionManager.getSession).toHaveBeenCalledWith("channel1");
   });
 
-  it("calls touchSession after successful response", async () => {
+  it("calls setSession after successful response with SDK session ID", async () => {
     // Create a mock connector with session manager
     const mockConnector = new EventEmitter() as EventEmitter & {
       connect: ReturnType<typeof vi.fn>;
@@ -1759,13 +1771,13 @@ describe("DiscordManager session integration", () => {
     // Wait for async processing
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    // Should have called touchSession
-    expect(mockSessionManager.touchSession).toHaveBeenCalledWith("channel1");
+    // Should have called setSession with the SDK session ID from trigger result
+    expect(mockSessionManager.setSession).toHaveBeenCalledWith("channel1", "sdk-session-456");
   });
 
-  it("handles session manager errors gracefully", async () => {
-    // Create a mock connector with session manager that fails
-    mockSessionManager.getOrCreateSession.mockRejectedValue(new Error("Session error"));
+  it("handles getSession errors gracefully", async () => {
+    // Create a mock connector with session manager where getSession fails
+    mockSessionManager.getSession.mockRejectedValue(new Error("Session error"));
 
     const mockConnector = new EventEmitter() as EventEmitter & {
       connect: ReturnType<typeof vi.fn>;
@@ -1829,15 +1841,15 @@ describe("DiscordManager session integration", () => {
 
     // Should have logged a warning but continued processing
     expect(mockLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("Failed to get/create session")
+      expect.stringContaining("Failed to get session")
     );
     // Should still have called trigger
     expect(triggerMock).toHaveBeenCalled();
   });
 
-  it("handles touchSession errors gracefully", async () => {
-    // Create a mock connector with session manager where touchSession fails
-    mockSessionManager.touchSession.mockRejectedValue(new Error("Touch error"));
+  it("handles setSession errors gracefully", async () => {
+    // Create a mock connector with session manager where setSession fails
+    mockSessionManager.setSession.mockRejectedValue(new Error("Session storage error"));
 
     const mockConnector = new EventEmitter() as EventEmitter & {
       connect: ReturnType<typeof vi.fn>;
@@ -1901,7 +1913,7 @@ describe("DiscordManager session integration", () => {
 
     // Should have logged a warning but continued
     expect(mockLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("Failed to touch session")
+      expect.stringContaining("Failed to store session")
     );
     // Reply should still have been sent
     expect(replyMock).toHaveBeenCalled();

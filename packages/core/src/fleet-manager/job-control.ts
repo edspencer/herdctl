@@ -147,6 +147,7 @@ export class JobControl {
       schedule: scheduleName,
       outputToFile: schedule?.outputToFile ?? false,
       onMessage: options?.onMessage,
+      resume: options?.resume,
     });
 
     // Emit job:created event
@@ -201,6 +202,8 @@ export class JobControl {
       scheduleName: scheduleName ?? null,
       startedAt: jobMetadata?.started_at ?? timestamp,
       prompt,
+      success: result.success,
+      sessionId: result.sessionId,
     };
   }
 
