@@ -53,6 +53,7 @@ function createMockSessionManager(): ISessionManager {
     getSession: vi.fn(),
     clearSession: vi.fn(),
     cleanupExpiredSessions: vi.fn(),
+    getActiveSessionCount: vi.fn(),
   };
 }
 

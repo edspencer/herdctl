@@ -251,6 +251,25 @@ export class SessionManager implements ISessionManager {
     return cleanedUp;
   }
 
+  /**
+   * Get the count of active (non-expired) sessions
+   *
+   * Useful for logging during shutdown to confirm sessions are preserved.
+   */
+  async getActiveSessionCount(): Promise<number> {
+    const state = await this.loadState();
+    let activeCount = 0;
+
+    for (const channelId of Object.keys(state.channels)) {
+      const session = state.channels[channelId];
+      if (!this.isSessionExpired(session)) {
+        activeCount++;
+      }
+    }
+
+    return activeCount;
+  }
+
   // ===========================================================================
   // Private Helpers
   // ===========================================================================

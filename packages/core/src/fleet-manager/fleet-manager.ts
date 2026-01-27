@@ -58,6 +58,7 @@ import { ConfigReload, computeConfigChanges } from "./config-reload.js";
 import { JobControl } from "./job-control.js";
 import { LogStreaming } from "./log-streaming.js";
 import { ScheduleExecutor } from "./schedule-executor.js";
+import { DiscordManager } from "./discord-manager.js";
 
 const DEFAULT_CHECK_INTERVAL = 1000;
 
@@ -102,6 +103,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   private jobControl!: JobControl;
   private logStreaming!: LogStreaming;
   private scheduleExecutor!: ScheduleExecutor;
+  private discordManager!: DiscordManager;
 
   constructor(options: FleetManagerOptions) {
     super();
@@ -130,6 +132,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   getLastError(): string | null { return this.lastError; }
   getCheckInterval(): number { return this.checkInterval; }
   getEmitter(): EventEmitter { return this; }
+  getDiscordManager(): DiscordManager { return this.discordManager; }
 
   // ===========================================================================
   // Public State Accessors
@@ -173,6 +176,9 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
         onTrigger: (info) => this.handleScheduleTrigger(info),
       });
 
+      // Initialize Discord connectors for agents with Discord configuration
+      await this.discordManager.initialize();
+
       this.status = "initialized";
       this.initializedAt = new Date().toISOString();
       this.lastError = null;
@@ -197,6 +203,10 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
 
     try {
       this.startSchedulerAsync(this.config!.agents);
+
+      // Start Discord connectors
+      await this.discordManager.start();
+
       this.status = "running";
       this.startedAt = new Date().toISOString();
       this.stoppedAt = null;
@@ -223,6 +233,9 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     this.status = "stopping";
 
     try {
+      // Stop Discord connectors first (graceful disconnect)
+      await this.discordManager.stop();
+
       if (this.scheduler) {
         try {
           await this.scheduler.stop({ waitForJobs, timeout });
@@ -296,6 +309,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     this.jobControl = new JobControl(this, () => this.statusQueries.getAgentInfo());
     this.logStreaming = new LogStreaming(this);
     this.scheduleExecutor = new ScheduleExecutor(this);
+    this.discordManager = new DiscordManager(this);
   }
 
   private async loadConfiguration(): Promise<ResolvedConfig> {

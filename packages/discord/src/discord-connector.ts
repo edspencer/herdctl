@@ -347,6 +347,18 @@ export class DiscordConnector
       // Set presence if configured
       this._setPresence();
 
+      // Clean up expired sessions on startup
+      try {
+        const cleanedUp = await this._sessionManager.cleanupExpiredSessions();
+        if (cleanedUp > 0) {
+          this._logger.info("Cleaned up expired sessions on startup", { count: cleanedUp });
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this._logger.warn("Failed to clean up expired sessions", { error: errorMessage });
+        // Don't throw - session cleanup failure shouldn't prevent connection
+      }
+
       // Initialize and register slash commands
       await this._initializeCommands();
 

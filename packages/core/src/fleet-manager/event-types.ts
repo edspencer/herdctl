@@ -195,6 +195,46 @@ export interface JobForkedPayload {
 }
 
 // =============================================================================
+// Discord Connector Events
+// =============================================================================
+
+/**
+ * Payload for discord:connector:connected event
+ */
+export interface DiscordConnectorConnectedPayload {
+  /** Name of the agent whose Discord connector connected */
+  agentName: string;
+  /** Bot username */
+  botUsername: string;
+  /** ISO timestamp when the connector connected */
+  timestamp: string;
+}
+
+/**
+ * Payload for discord:connector:disconnected event
+ */
+export interface DiscordConnectorDisconnectedPayload {
+  /** Name of the agent whose Discord connector disconnected */
+  agentName: string;
+  /** Reason for disconnection (if available) */
+  reason?: string;
+  /** ISO timestamp when the connector disconnected */
+  timestamp: string;
+}
+
+/**
+ * Payload for discord:connector:error event
+ */
+export interface DiscordConnectorErrorPayload {
+  /** Name of the agent whose Discord connector had an error */
+  agentName: string;
+  /** Error message */
+  error: string;
+  /** ISO timestamp when the error occurred */
+  timestamp: string;
+}
+
+// =============================================================================
 // Fleet Manager Event Map
 // =============================================================================
 
@@ -321,6 +361,25 @@ export interface FleetManagerEventMap {
    * A new job is created based on an existing job's configuration.
    */
   "job:forked": [payload: JobForkedPayload];
+
+  // ===========================================================================
+  // Discord Events
+  // ===========================================================================
+
+  /**
+   * Emitted when a Discord connector successfully connects.
+   */
+  "discord:connector:connected": [payload: DiscordConnectorConnectedPayload];
+
+  /**
+   * Emitted when a Discord connector disconnects.
+   */
+  "discord:connector:disconnected": [payload: DiscordConnectorDisconnectedPayload];
+
+  /**
+   * Emitted when a Discord connector encounters an error.
+   */
+  "discord:connector:error": [payload: DiscordConnectorErrorPayload];
 
   // ===========================================================================
   // Error Events

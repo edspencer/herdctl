@@ -29,6 +29,10 @@ export type {
   // Job control events (US-6)
   JobCancelledPayload,
   JobForkedPayload,
+  // Discord connector events
+  DiscordConnectorConnectedPayload,
+  DiscordConnectorDisconnectedPayload,
+  DiscordConnectorErrorPayload,
 } from "./event-types.js";
 
 // =============================================================================
@@ -213,6 +217,31 @@ export interface ScheduleInfo {
  * console.log(`Schedules: ${agent.scheduleCount}`);
  * ```
  */
+/**
+ * Discord connector status within AgentInfo
+ */
+export interface AgentDiscordStatus {
+  /**
+   * Whether this agent has Discord configured
+   */
+  configured: boolean;
+
+  /**
+   * Connection status (only present if configured)
+   */
+  connectionStatus?: "disconnected" | "connecting" | "connected" | "reconnecting" | "disconnecting" | "error";
+
+  /**
+   * Bot username (only present if connected)
+   */
+  botUsername?: string;
+
+  /**
+   * Last error message (only present if status is 'error')
+   */
+  lastError?: string;
+}
+
 export interface AgentInfo {
   /**
    * Agent name (unique identifier)
@@ -273,6 +302,11 @@ export interface AgentInfo {
    * Workspace path for this agent
    */
   workspace?: string;
+
+  /**
+   * Discord connector status (if Discord is configured for this agent)
+   */
+  discord?: AgentDiscordStatus;
 }
 
 /**
