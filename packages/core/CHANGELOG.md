@@ -1,5 +1,54 @@
 # @herdctl/core
 
+## 1.1.0
+
+### Minor Changes
+
+- [#14](https://github.com/edspencer/herdctl/pull/14) [`f24f2b6`](https://github.com/edspencer/herdctl/commit/f24f2b6d6a48be1024d7bda4d3297770d74a172b) Thanks [@edspencer](https://github.com/edspencer)! - Stream Discord messages incrementally instead of batching
+
+  Previously, Discord chat would show "typing" for the entire duration of agent execution, then send all messages at once when complete. This could mean minutes of waiting with no feedback.
+
+  Now messages are streamed incrementally to Discord as the agent generates them:
+
+  - Messages sent at natural paragraph breaks (double newlines)
+  - Rate limiting respected (1 second minimum between sends)
+  - Large content automatically split at Discord's 2000 character limit
+  - Typing indicator continues between message sends
+
+  This provides a much more responsive chat experience, similar to how the CLI streams output.
+
+### Patch Changes
+
+- [#12](https://github.com/edspencer/herdctl/pull/12) [`d763625`](https://github.com/edspencer/herdctl/commit/d7636258d5c7a814fec9a3ad7d419e919df6af9b) Thanks [@edspencer](https://github.com/edspencer)! - Add README files for npm package pages
+
+  Each package now has a README that appears on npmjs.com with:
+
+  - Package overview and purpose
+  - Installation instructions
+  - Quick start examples
+  - Links to full documentation at herdctl.dev
+  - Related packages
+
+- [#14](https://github.com/edspencer/herdctl/pull/14) [`f24f2b6`](https://github.com/edspencer/herdctl/commit/f24f2b6d6a48be1024d7bda4d3297770d74a172b) Thanks [@edspencer](https://github.com/edspencer)! - Fix project-embedded agents to fully inherit workspace configuration
+
+  Three related changes for agents that point at existing Claude Code projects (the "Software Developer Agent" pattern):
+
+  1. **Working directory**: The `workspace` configuration is now correctly passed to the Claude SDK as the `cwd` option, so agents run in their configured workspace directory instead of wherever herdctl was launched.
+
+  2. **Settings discovery**: When `workspace` is configured, `settingSources` is now set to `["project"]` by default, enabling the agent to discover and use CLAUDE.md, skills, commands, and other Claude Code configuration from the workspace.
+
+  3. **Explicit configuration**: Added `setting_sources` option to agent YAML for explicit control over settings discovery:
+     ```yaml
+     setting_sources:
+       - project # Load from .claude/ in workspace
+       - local # Load from user's local Claude config
+     ```
+
+  This enables herdctl agents to operate inside existing codebases with full access to project-specific Claude Code configuration - they behave as if you ran `claude` directly in that directory.
+
+- Updated dependencies [[`d763625`](https://github.com/edspencer/herdctl/commit/d7636258d5c7a814fec9a3ad7d419e919df6af9b)]:
+  - @herdctl/discord@0.1.1
+
 ## 1.0.0
 
 ### Minor Changes

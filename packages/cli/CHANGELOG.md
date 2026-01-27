@@ -1,5 +1,23 @@
 # herdctl
 
+## 0.3.2
+
+### Patch Changes
+
+- [#12](https://github.com/edspencer/herdctl/pull/12) [`d763625`](https://github.com/edspencer/herdctl/commit/d7636258d5c7a814fec9a3ad7d419e919df6af9b) Thanks [@edspencer](https://github.com/edspencer)! - Add README files for npm package pages
+
+  Each package now has a README that appears on npmjs.com with:
+
+  - Package overview and purpose
+  - Installation instructions
+  - Quick start examples
+  - Links to full documentation at herdctl.dev
+  - Related packages
+
+- Updated dependencies [[`d763625`](https://github.com/edspencer/herdctl/commit/d7636258d5c7a814fec9a3ad7d419e919df6af9b), [`f24f2b6`](https://github.com/edspencer/herdctl/commit/f24f2b6d6a48be1024d7bda4d3297770d74a172b), [`f24f2b6`](https://github.com/edspencer/herdctl/commit/f24f2b6d6a48be1024d7bda4d3297770d74a172b)]:
+  - @herdctl/core@1.1.0
+  - @herdctl/discord@0.1.1
+
 ## 0.3.1
 
 ### Patch Changes
