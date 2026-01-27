@@ -1,249 +1,632 @@
-# Herdctl
+<p align="center">
+  <img src="docs/public/herdctl-logo.svg" alt="herdctl" width="120" />
+</p>
 
-> Autonomous Agent Fleet Management for Claude Code
+<h1 align="center">herdctl</h1>
 
-**Website**: [herdctl.dev](https://herdctl.dev)
-**npm**: [`herdctl`](https://www.npmjs.com/package/herdctl)
+<p align="center">
+  <strong>Let Claude Code invoke itself.</strong><br/>
+  Run agents on schedules, chat with them on Discord, and resume any session in your terminal.
+</p>
 
-## Overview
+<p align="center">
+  <a href="https://www.npmjs.com/package/herdctl"><img src="https://img.shields.io/npm/v/herdctl.svg" alt="npm version"></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="https://github.com/edspencer/herdctl/actions"><img src="https://github.com/edspencer/herdctl/workflows/CI/badge.svg" alt="CI Status"></a>
+</p>
 
-Herdctl is an open-source platform for running fleets of autonomous AI agents. Each agent has its own identity, schedules, and work sources. Think of it as "Kubernetes for AI agents" - declarative configuration, pluggable integrations, and continuous operation.
+<p align="center">
+  <a href="https://herdctl.dev">Documentation</a> •
+  <a href="https://herdctl.dev/getting-started/installation/">Getting Started</a> •
+  <a href="https://discord.gg/herdctl">Discord</a> •
+  <a href="https://github.com/edspencer/herdctl/issues">Issues</a>
+</p>
 
-## Features
+---
 
-- **Fleet Management**: Run multiple Claude Code agents with a single command
-- **Declarative Config**: Define agents, schedules, and permissions in YAML
-- **Multiple Triggers**: Interval, cron, webhooks, chat messages
-- **Work Sources**: GitHub Issues (MVP), with Jira/Linear planned
-- **Execution Hooks**: Run shell commands, webhooks, or Discord notifications after jobs
-- **Agent Metadata**: Agents can write JSON metadata for conditional hook execution
-- **Live Monitoring**: Web dashboard with real-time streaming (planned)
-- **Chat Integration**: Discord and Slack connectors (planned)
-- **Library-First**: Use `@herdctl/core` programmatically in your own applications
+## The Vision
+
+Claude Code changed how developers work. But every session ends when you close the terminal. What if Claude Code could invoke itself?
+
+**herdctl** makes Claude Code autonomous. Define agents that wake up on schedules, respond to chat messages, and work continuously in the background. A price-checking agent that monitors deals daily. A PR reviewer that provides feedback every morning. A hurricane tracker that checks hourly during storm season.
+
+The magic goes deeper: every agent job creates a real Claude SDK session. When your price checker finishes job #200, you can `claude --resume` that exact session in your terminal. Or continue the conversation via Discord DM. The agent's context—what it learned, what it decided—persists across time and interfaces.
+
+This is fleet management for AI agents. Not one agent, but dozens. Running in parallel, each with its own identity, schedule, and purpose. Think of it as Kubernetes for Claude Code.
+
+## Key Features
+
+- **Self-Invoking Agents** — Define agents that wake themselves up on schedules or triggers. Coordinate an entire fleet from a single `herdctl start` command.
+
+- **Full Claude Code Power** — If Claude Code can do it, your herdctl agent can do it. Same tools, same MCP servers, same capabilities. herdctl is a thin orchestration layer, not a sandbox.
+
+- **Chat From Anywhere** — Connect agents to Discord (Slack coming soon). Message your agents from your phone, get responses, and they continue working based on your conversation. Your PR reviewer bot becomes a team member you can @ mention.
+
+- **Session Continuity** — Every job creates a real Claude SDK session. When an agent finishes, you can `claude --resume` that exact session in your terminal. Pick up where the agent left off with full context intact.
+
+- **Bidirectional Communication** — Agents write structured data back to herdctl via metadata files. Hooks act on that data. Coming soon: agents that request schedule changes, store persistent context, and evolve their own behavior over time.
+
+## Example Agents
+
+There's an essentially infinite number of Claude Code agents that would benefit from being invoked by means other than a human typing at a keyboard. Any task that's repetitive, time-sensitive, or benefits from continuous monitoring is a candidate. Here are a few examples to spark ideas:
+
+### Competitive Analysis Agent
+Track your competitors automatically. Configure a daily scan to check competitor websites, pricing pages, and feature announcements. When something changes—a new feature launches, pricing shifts, or a major announcement drops—get notified immediately. Add a second schedule for weekly summary reports that get emailed to your team. One agent, multiple schedules, continuous market intelligence.
+
+### Hurricane Tracker
+Monitor NOAA for tropical storm activity. The example agent checks every few hours and sends a Discord notification if conditions warrant attention. *(Coming soon: agents will be able to dynamically adjust their own schedules—this agent could check weekly off-season, daily during hurricane season, and hourly when a storm is approaching your area.)*
+
+**[See the example →](examples/hurricane-watcher/)**
+
+### Price Checker
+Monitor prices across retailers for a specific product. When the target price is hit, notify yourself on Discord. In theory, the agent could go further—drafting purchase emails, negotiating warranty terms, completing the transaction. All while you sleep.
+
+**[See the example →](examples/price-checker/)**
+
+### PR Review Bot
+Every morning at 9am, review all open PRs. Leave thoughtful comments, suggest improvements, flag security issues. The same agent can be triggered via Discord: "Hey, can you take another look at PR #47?"
+
+### Support Assistant
+Answer questions in your Discord server. When a question gets complex, tell users "Let me look into that"—then you resume the exact same session in your terminal to investigate with full context.
+
+### Documentation Agent
+Scan your codebase weekly for undocumented functions. Generate JSDoc comments, update README files, create examples. Review its own output before committing.
+
+### Software Developer Agent
+
+This one deserves special attention. Point a herdctl agent at your existing codebase and it operates exactly as if you ran `claude` in that directory yourself. Your `CLAUDE.md` instructions are honored. Your custom slash commands work. Your MCP servers are available. The agent *is* a Claude Code session for that project.
+
+Now connect that to Discord. Your software developer agent becomes a team member you can message:
+
+```
+You: "Hey, what's the current state of the authentication system?"
+Agent: "Looking at the codebase... Authentication uses JWT tokens stored in
+       HttpOnly cookies. The main logic is in src/auth/. Want me to explain
+       any specific part?"
+
+You: "Can you add rate limiting to the login endpoint?"
+Agent: "On it. I'll add rate limiting using the existing Redis connection..."
+```
+
+The agent has full context of your codebase, can answer questions, and can make changes—all from a Discord conversation on your phone. When you get back to your desk, `claude --resume` the session to review what it did.
+
+### Engineering Manager Agent
+
+Not every issue should go straight to a developer. An Engineering Manager agent can be the first line of defense when issues get filed—triaging, asking clarifying questions, estimating complexity, and tagging appropriately. Only when an issue has been approved and marked "ready for development" does the Software Developer agent get triggered.
+
+Chain your agents: the manager triages, the developer implements, the reviewer checks the PR. Each agent has its own identity and responsibilities, working together like a team.
+
+### Community & Product Intelligence Agent
+
+Monitor the places your customers talk: Reddit, Hacker News, Twitter, Discord servers, Stack Overflow. Configure scheduled scans to find mentions of your product, questions from confused users, feature requests, complaints, and competitive chatter.
+
+The agent can do pure intelligence gathering—summarizing what it found and surfacing important items. Or it can run the whole operation: drafting responses, flagging urgent issues to your team, and engaging with the community on your behalf.
+
+Triggers don't have to be schedules. Webhooks can fire when someone mentions your product, kicking off an immediate response workflow. The agent becomes your always-on community presence.
+
+### CTO / Overseer Agent
+
+Here's where it gets meta. If you're running multiple projects with multiple agents each, you might want an agent dedicated to *managing your other agents*.
+
+A CTO agent could:
+- Review agent performance and suggest configuration improvements
+- Create new agents when patterns emerge ("we need a dedicated security scanner")
+- Edit existing agent prompts based on what's working
+- Disable agents that aren't providing value
+
+This is future capability—agents that create, modify, and delete other agents will need proper access control and permissioning. But the architecture supports it. An agent is just a YAML file and a prompt. Another agent can write YAML files.
 
 ## Quick Start
 
 ```bash
-# Install herdctl
+# Install herdctl globally
 npm install -g herdctl
 
-# Initialize a new project
+# Initialize a new project with example agents
 herdctl init
 
 # Start your agent fleet
 herdctl start
 ```
 
-## Configuration
+Your agents are now running. Check their status:
 
-```yaml
-# herdctl.yaml
-fleet:
-  name: my-fleet
-
-agents:
-  - path: ./agents/my-agent.yaml
+```bash
+herdctl status
 ```
 
-```yaml
-# agents/my-agent.yaml
-name: my-agent
-description: My first agent
+## Core Concepts
 
-workspace:
-  path: ./workspace
+| Concept | Description |
+|---------|-------------|
+| **Fleet** | A collection of agents running together, defined in `herdctl.yaml` |
+| **Agent** | An autonomous Claude Code instance with its own identity, schedule, and permissions |
+| **Schedule** | When an agent wakes up: interval (`5m`), cron (`0 9 * * *`), or on-demand |
+| **Trigger** | What starts a job: schedule tick, webhook, chat message, or manual `herdctl trigger` |
+| **Job** | A single execution of an agent, with start time, duration, output, and status |
+| **Session** | The Claude SDK conversation context, resumable by humans or continued in chat |
+
+### Two Categories of Agents
+
+Every herdctl agent has a workspace directory. This creates two natural categories:
+
+**Standalone agents** have their own dedicated workspace for storing data. The price checker keeps price history in its folder. The hurricane tracker stores weather data. These agents don't need an existing codebase—they create their own working environment.
+
+**Project-embedded agents** run inside an existing Claude Code project—one that already has a `CLAUDE.md`, local skills, sub-agents, and project-specific configuration. When you point a herdctl agent at an existing project, it operates exactly as if you ran `claude` in that directory. Your instructions are honored. Your slash commands work. Your MCP servers are available.
+
+This means you can add autonomous capabilities to any existing Claude Code project. Your current codebase, with all its context, becomes accessible to scheduled jobs, chat interfaces, and webhook triggers.
+
+## Scheduled Agents
+
+Agents can run on fixed intervals or cron schedules:
+
+```yaml
+# agents/daily-reviewer.yaml
+name: daily-reviewer
+model: claude-sonnet-4-20250514
 
 schedules:
-  heartbeat:
+  morning-review:
+    type: cron
+    cron: "0 9 * * *"  # Every day at 9am
+    prompt: "Review all open PRs and provide feedback"
+
+  quick-check:
     type: interval
-    interval: 5m
+    interval: 30m
+    prompt: "Check for any new critical issues"
+```
+
+Each schedule can have its own prompt, permissions, and work source. An agent might do a deep review once daily but quick checks every 30 minutes.
+
+### Work Sources
+
+Agents can pull work from external systems instead of using static prompts:
+
+```yaml
+schedules:
+  process-issues:
+    type: interval
+    interval: 15m
     work_source:
       type: github_issues
       repo: my-org/my-repo
       labels:
-        include: ["ready"]
+        include: ["ready-for-ai"]
+        exclude: ["blocked"]
 ```
 
-## Commands
+When triggered, the agent receives the issue content as context and works on it autonomously.
+
+## Chat Integration
+
+### Discord (Available Now)
+
+Your agents can live in Discord. Users DM them questions. Channels become collaborative workspaces. Setup takes about a minute:
+
+```yaml
+# agents/support-bot.yaml
+name: support-bot
+model: claude-sonnet-4-20250514
+
+chat:
+  discord:
+    bot_token_env: DISCORD_BOT_TOKEN
+    mode: auto  # Respond to all DMs
+    allowed_channels:
+      - "1234567890"  # Support channel
+    allowed_roles:
+      - "9876543210"  # Team member role
+```
+
+**Features:**
+- **DMs and Channels**: Users can chat privately or in shared spaces
+- **Session Persistence**: The bot remembers conversation context across messages
+- **Slash Commands**: Built-in `/status`, `/reset`, `/help`
+- **Role-Based Access**: Control who can interact with each agent
+- **Typing Indicators**: Visual feedback while the agent thinks
+
+### Coming Soon
+
+- **Slack**: Workspace integration with thread support
+- **WhatsApp**: Personal assistant on your phone
+- **iMessage**: Native Apple Messages integration
+- **Web Widget**: Embed chat on your website
+
+The architecture is designed for multiple connectors—Discord is the first of many.
+
+## Session Continuity
+
+This is herdctl's superpower. Every agent job creates a real Claude SDK session with a persistent ID.
+
+### Resume in Terminal
+
+Your price checker just completed job #200. You want to ask it about a decision it made:
 
 ```bash
-herdctl start [agent]    # Start all agents or a specific agent
-herdctl stop [agent]     # Stop all agents or a specific agent
-herdctl status [agent]   # Show fleet or agent status
-herdctl logs [agent]     # Tail agent logs
-herdctl trigger <agent>  # Manually trigger an agent
-herdctl jobs             # List job history
-herdctl job <id>         # Show job details
+# Find the session ID
+herdctl job job-2024-01-15-abc123
+
+# Resume in Claude Code
+claude --resume clsn_abc123xyz
 ```
 
-## Execution Hooks
+You're now in the exact same conversation. Full context. All the agent's reasoning is there. Ask follow-up questions, give new instructions, or just review what happened.
 
-Herdctl supports execution hooks that run after agent jobs complete. Hooks can be used for notifications, logging, triggering downstream workflows, or any custom automation.
+### Continue in Chat
 
-### Hook Types
+When a Discord user chats with an agent, they get their own persistent session:
 
-**Shell Hooks**: Execute shell commands with the job context piped to stdin as JSON.
+```
+User: Hey, can you check the status of my order?
+Bot: I can see order #12345 shipped yesterday. Want tracking details?
+User: Yes please
 
-```yaml
-hooks:
-  after_run:
-    - type: shell
-      name: "Log completion"
-      command: ./scripts/log-job.sh
-      timeout: 30000  # ms, default: 30000
+[... hours later ...]
+
+User: Did that order arrive yet?
+Bot: Checking... Yes! It was delivered at 2:47pm to your front door.
 ```
 
-**Webhook Hooks**: POST job context as JSON to an HTTP endpoint.
+The bot remembers the entire conversation. No "Sorry, I don't have context about previous messages."
 
-```yaml
-hooks:
-  after_run:
-    - type: webhook
-      url: https://api.example.com/hooks/job-complete
-      method: POST  # or PUT
-      headers:
-        Authorization: "Bearer ${API_TOKEN}"  # env var substitution
-      timeout: 10000  # ms, default: 10000
-```
+### Cross-Interface Continuity
 
-**Discord Hooks**: Send formatted notifications to a Discord channel.
+The same session can move between interfaces:
 
-```yaml
-hooks:
-  after_run:
-    - type: discord
-      channel_id: "1234567890"
-      bot_token_env: DISCORD_BOT_TOKEN
-```
+1. Agent runs on schedule, analyzes data, creates session
+2. You `claude --resume` to review its work in terminal
+3. A colleague asks about it on Discord—same session continues
+4. You finish up back in terminal
 
-### Hook Configuration Options
+One continuous conversation across time and interfaces.
 
-All hook types support these common options:
+## Agent Communication
 
-```yaml
-hooks:
-  after_run:
-    - type: shell
-      command: ./notify.sh
-      name: "My Hook"              # Human-readable name for logs
-      continue_on_error: true      # Don't fail job if hook fails (default: true)
-      on_events: [completed]       # Only run on specific events: completed, failed, timeout, cancelled
-      when: "metadata.shouldNotify"  # Conditional execution via metadata
-```
+Agents can do more than output text. They communicate structured data back to herdctl.
 
-### Hook Events
+### Metadata Files
 
-Hooks can be configured to run on specific events:
-
-- `completed` - Job finished successfully
-- `failed` - Job encountered an error
-- `timeout` - Job exceeded time limit
-- `cancelled` - Job was manually cancelled
-
-### Hook Context
-
-All hooks receive a JSON context containing job information:
-
-```json
-{
-  "event": "completed",
-  "job": {
-    "id": "job-2024-01-15-abc123",
-    "agentId": "my-agent",
-    "scheduleName": "heartbeat",
-    "startedAt": "2024-01-15T09:00:00.000Z",
-    "completedAt": "2024-01-15T09:05:30.000Z",
-    "durationMs": 330000
-  },
-  "result": {
-    "success": true,
-    "output": "Job completed successfully...",
-    "error": null
-  },
-  "agent": {
-    "id": "my-agent",
-    "name": "My Agent"
-  },
-  "metadata": {
-    "shouldNotify": true,
-    "customField": "value"
-  }
-}
-```
-
-## Agent Metadata
-
-Agents can write a JSON file during execution that gets included in hook context. This enables conditional hook execution based on agent decisions.
-
-### Configuration
-
-```yaml
-# agents/price-checker.yaml
-name: price-checker
-metadata_file: metadata.json  # default, can be customized
-
-hooks:
-  after_run:
-    - type: discord
-      channel_id: "${DISCORD_CHANNEL_ID}"
-      bot_token_env: DISCORD_BOT_TOKEN
-      when: "metadata.shouldNotify"  # Only notify when agent sets this flag
-```
-
-### Agent Usage
-
-The agent writes `metadata.json` in its workspace during execution:
+Agents can write a `metadata.json` file during execution:
 
 ```json
 {
   "shouldNotify": true,
   "lowestPrice": 159,
   "retailer": "Staples",
-  "meetsTarget": true
+  "meetsTarget": true,
+  "nextCheckIn": "2024-01-16T09:00:00Z"
 }
 ```
 
-The `when` condition uses dot-notation to access fields:
-- `metadata.shouldNotify` - Check if shouldNotify is truthy
-- `result.success` - Check if job succeeded
-- `job.durationMs` - Access job duration (for numeric comparisons, use shell hooks)
+This data is included in hook context, enabling conditional automation.
 
-## Library Usage
+### Execution Hooks
 
-Herdctl is designed library-first. Use `@herdctl/core` to embed fleet management in your own applications:
+Hooks run after jobs complete. They receive full job context including agent metadata:
+
+**Shell Hooks**: Run any command with job data piped to stdin
+
+```yaml
+hooks:
+  after_run:
+    - type: shell
+      command: ./scripts/process-result.sh
+      when: "metadata.meetsTarget"  # Only run when target met
+```
+
+**Webhook Hooks**: POST to external APIs
+
+```yaml
+hooks:
+  after_run:
+    - type: webhook
+      url: https://api.example.com/job-complete
+      headers:
+        Authorization: "Bearer ${API_TOKEN}"
+```
+
+**Discord Hooks**: Send rich notifications
+
+```yaml
+hooks:
+  after_run:
+    - type: discord
+      channel_id: "${DISCORD_ALERTS_CHANNEL}"
+      bot_token_env: DISCORD_BOT_TOKEN
+      when: "metadata.shouldNotify"
+```
+
+### Hook Events
+
+Hooks can trigger on specific job outcomes:
+
+```yaml
+hooks:
+  after_run:
+    - type: shell
+      command: ./celebrate.sh
+      on_events: [completed]  # Only on success
+
+    - type: discord
+      channel_id: "${ALERTS_CHANNEL}"
+      on_events: [failed, timeout]  # Only on problems
+```
+
+Events: `completed`, `failed`, `timeout`, `cancelled`
+
+### Hook Context
+
+Every hook receives comprehensive job data:
+
+```json
+{
+  "event": "completed",
+  "job": {
+    "id": "job-2024-01-15-abc123",
+    "agentId": "price-checker",
+    "scheduleName": "hourly-check",
+    "startedAt": "2024-01-15T09:00:00.000Z",
+    "completedAt": "2024-01-15T09:03:30.000Z",
+    "durationMs": 210000,
+    "sessionId": "clsn_abc123xyz"
+  },
+  "result": {
+    "success": true,
+    "output": "Found lowest price at Staples: $159"
+  },
+  "metadata": {
+    "shouldNotify": true,
+    "lowestPrice": 159
+  }
+}
+```
+
+## Self-Evolving Agents (Coming Soon)
+
+The next frontier: agents that modify their own behavior.
+
+### Dynamic Schedules
+
+Imagine an agent that says: "This situation needs closer monitoring. Wake me in 37 minutes instead of the usual 4 hours."
+
+```json
+// metadata.json
+{
+  "requestedNextRun": "2024-01-15T10:37:00Z",
+  "reason": "Storm trajectory update expected"
+}
+```
+
+herdctl will read this and adjust the next trigger accordingly.
+
+### Persistent Context
+
+Agents can maintain a `context.md` file in their workspace—a persistent memory that survives across jobs:
+
+```markdown
+# Agent Context
+
+## Learned Preferences
+- User prefers concise summaries
+- Always include links to source data
+- Escalate price drops > 20%
+
+## Current State
+- Monitoring: Sony WH-1000XM5
+- Target price: $279
+- Best seen: $299 at Amazon (2024-01-14)
+```
+
+Each job reads this context, acts on it, and can update it for future runs.
+
+### Self-Modification
+
+Advanced agents could:
+- Update their own `CLAUDE.md` instructions
+- Write new slash command skills
+- Modify their YAML configuration
+- Commit and push changes to GitHub
+
+An agent that improves itself over time, learning from each interaction.
+
+## Tools & MCP Configuration
+
+Each agent can have its own tool permissions and MCP server configuration:
+
+```yaml
+# agents/code-reviewer.yaml
+name: code-reviewer
+model: claude-sonnet-4-20250514
+
+permissions:
+  mode: bypassPermissions
+  allowed_tools:
+    - Read
+    - Glob
+    - Grep
+    - Bash  # Careful with this one
+
+mcp_servers:
+  - name: github
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: "${GITHUB_TOKEN}"
+```
+
+The Claude SDK's full capabilities flow through to your agents. Any MCP server, any tool configuration.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Your Application                         │
+├─────────────────────────────────────────────────────────────────┤
+│  herdctl CLI    │    @herdctl/core    │    @herdctl/discord     │
+│  (Commands)     │    (Library)        │    (Chat Connector)     │
+├─────────────────┴───────────────────────────────────────────────┤
+│                        FleetManager                              │
+│  ┌──────────┐  ┌───────────┐  ┌──────────┐  ┌───────────────┐  │
+│  │ Scheduler │  │ JobRunner │  │  State   │  │ HookExecutor  │  │
+│  │ (cron,   │  │ (spawns   │  │ Manager  │  │ (shell,       │  │
+│  │ interval)│  │ agents)   │  │ (.herd/) │  │ webhook,      │  │
+│  └──────────┘  └───────────┘  └──────────┘  │ discord)      │  │
+│                                              └───────────────┘  │
+├─────────────────────────────────────────────────────────────────┤
+│                        Claude SDK                                │
+│              (Sessions, Tools, MCP Servers)                      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key design decisions:**
+- **Library-first**: All logic lives in `@herdctl/core`. CLI and connectors are thin wrappers.
+- **Single process**: The fleet runs in one Node.js process. Agents spawn as child processes.
+- **Persistent state**: Jobs, sessions, and fleet status are stored in `.herdctl/` for crash recovery.
+
+## Packages
+
+| Package | Description |
+|---------|-------------|
+| [`herdctl`](https://www.npmjs.com/package/herdctl) | CLI for fleet management. Install globally, run `herdctl start`. |
+| [`@herdctl/core`](https://www.npmjs.com/package/@herdctl/core) | Core library. Embed fleet management in your own applications. |
+| [`@herdctl/discord`](https://www.npmjs.com/package/@herdctl/discord) | Discord connector. Automatically loaded when agents have Discord chat config. |
+
+### Using the Library
 
 ```typescript
 import { FleetManager } from '@herdctl/core';
 
-// Initialize and start
-const fleet = new FleetManager({ configPath: './herdctl.yaml' });
+const fleet = new FleetManager();
 await fleet.initialize();
 await fleet.start();
 
 // Subscribe to events
 fleet.on('job:completed', (event) => {
-  console.log(`Job ${event.jobId} completed for ${event.agentName}`);
+  console.log(`Agent ${event.agentName} finished: ${event.result.output}`);
 });
 
-// Trigger agents programmatically
-await fleet.trigger('my-agent', { prompt: 'Check for new issues' });
+// Trigger an agent programmatically
+await fleet.trigger('my-agent', undefined, {
+  prompt: 'Check for new issues',
+  onMessage: (msg) => process.stdout.write(msg.content)
+});
 
 // Query state
+const jobs = await fleet.listJobs({ limit: 10 });
 const status = await fleet.getStatus();
-const jobs = await fleet.listJobs({ agent: 'my-agent', limit: 10 });
 ```
 
-See the [library documentation](https://herdctl.dev/library-reference/fleet-manager/) for complete API reference.
+## Configuration Reference
+
+### Fleet Configuration (`herdctl.yaml`)
+
+```yaml
+fleet:
+  name: my-fleet
+  log_level: info
+
+agents:
+  - path: ./agents/reviewer.yaml
+  - path: ./agents/monitor.yaml
+  - path: ./agents/support-bot.yaml
+
+# Global hooks (run for all agents)
+hooks:
+  after_run:
+    - type: webhook
+      url: https://api.example.com/fleet-activity
+```
+
+### Agent Configuration
+
+```yaml
+name: my-agent
+description: What this agent does
+model: claude-sonnet-4-20250514
+
+# Working directory for the agent
+workspace:
+  path: ./workspace
+
+# How the agent wakes up
+schedules:
+  daily:
+    type: cron
+    cron: "0 9 * * *"
+    prompt: "Good morning! Here's your daily task..."
+
+  frequent:
+    type: interval
+    interval: 15m
+    work_source:
+      type: github_issues
+      repo: org/repo
+
+# Chat interfaces
+chat:
+  discord:
+    bot_token_env: DISCORD_BOT_TOKEN
+    mode: auto
+    allowed_channels: ["123456789"]
+
+# Tool access
+permissions:
+  mode: bypassPermissions
+  allowed_tools: [Read, Glob, Grep, Bash]
+
+# MCP servers
+mcp_servers:
+  - name: filesystem
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allow"]
+
+# Agent-specific hooks
+hooks:
+  after_run:
+    - type: discord
+      channel_id: "${ALERTS_CHANNEL}"
+      when: "metadata.important"
+
+# Metadata file location (default: metadata.json)
+metadata_file: metadata.json
+```
+
+## CLI Commands
+
+```bash
+herdctl init              # Initialize new project
+herdctl start [agent]     # Start fleet or specific agent
+herdctl stop [agent]      # Stop fleet or specific agent
+herdctl status [agent]    # Show fleet/agent status
+herdctl trigger <agent>   # Manually trigger an agent
+herdctl logs [agent]      # Tail agent logs
+herdctl jobs              # List job history
+herdctl job <id>          # Show job details
+herdctl fork <job-id>     # Fork a job with new instructions
+```
+
+## Roadmap
+
+We're building toward a future where AI agents are first-class participants in your development workflow:
+
+- **More Chat Integrations**: Slack, WhatsApp, iMessage, web widgets
+- **Dynamic Scheduling**: Agents request their own next run time
+- **Persistent Agent Memory**: Context files that survive across jobs
+- **Agent Self-Modification**: Update own configs, write skills
+- **Web Dashboard**: Real-time fleet monitoring with streaming output
+- **Agent-to-Agent Communication**: Agents that delegate to other agents
+- **Marketplace**: Share and discover agent configurations
 
 ## Documentation
 
-Full documentation available at [herdctl.dev](https://herdctl.dev):
+Full documentation at [herdctl.dev](https://herdctl.dev):
 
-- [Getting Started](https://herdctl.dev/getting-started/)
-- [Configuration Reference](https://herdctl.dev/configuration/)
-- [CLI Reference](https://herdctl.dev/cli-reference/)
-- [Library Reference](https://herdctl.dev/library-reference/)
-- [Recipes & Examples](https://herdctl.dev/guides/recipes/)
+- [Getting Started](https://herdctl.dev/getting-started/installation/)
+- [Configuration Reference](https://herdctl.dev/configuration/fleet/)
+- [CLI Reference](https://herdctl.dev/cli-reference/commands/)
+- [Library Reference](https://herdctl.dev/library-reference/fleet-manager/)
+- [Guides & Recipes](https://herdctl.dev/guides/recipes/)
 
 ## Development
 
@@ -260,12 +643,25 @@ pnpm build
 
 # Run tests
 pnpm test
+
+# Type check
+pnpm typecheck
 ```
+
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## Community
+
+- [Discord](https://discord.gg/herdctl) - Chat with the community
+- [GitHub Discussions](https://github.com/edspencer/herdctl/discussions) - Ask questions, share ideas
+- [Twitter/X](https://twitter.com/edspencer) - Updates and announcements
 
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
 
-## Author
+---
 
-Ed Spencer - [edspencer.net](https://edspencer.net)
+<p align="center">
+  Built by <a href="https://edspencer.net">Ed Spencer</a>
+</p>
