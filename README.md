@@ -17,7 +17,7 @@
 
 <p align="center">
   <a href="https://herdctl.dev">Documentation</a> •
-  <a href="https://herdctl.dev/getting-started/installation/">Getting Started</a> •
+  <a href="https://herdctl.dev/getting-started/">Getting Started</a> •
   <a href="https://discord.gg/herdctl">Discord</a> •
   <a href="https://github.com/edspencer/herdctl/issues">Issues</a>
 </p>
@@ -622,9 +622,9 @@ We're building toward a future where AI agents are first-class participants in y
 
 Full documentation at [herdctl.dev](https://herdctl.dev):
 
-- [Getting Started](https://herdctl.dev/getting-started/installation/)
-- [Configuration Reference](https://herdctl.dev/configuration/fleet/)
-- [CLI Reference](https://herdctl.dev/cli-reference/commands/)
+- [Getting Started](https://herdctl.dev/getting-started/)
+- [Configuration Reference](https://herdctl.dev/configuration/fleet-config/)
+- [CLI Reference](https://herdctl.dev/cli-reference/)
 - [Library Reference](https://herdctl.dev/library-reference/fleet-manager/)
 - [Guides & Recipes](https://herdctl.dev/guides/recipes/)
 

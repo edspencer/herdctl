@@ -88,7 +88,6 @@ export default defineConfig({
 				{
 					label: 'Getting Started',
 					slug: 'getting-started',
-					badge: { text: 'Placeholder', variant: 'caution' },
 				},
 				{
 					label: 'Concepts',
