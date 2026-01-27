@@ -5,6 +5,7 @@
  * - Auto-discovers herdctl.yaml by walking up the directory tree
  * - Loads fleet config and all referenced agent configs
  * - Merges fleet defaults into agent configs
+ * - Loads .env files for environment variables
  * - Interpolates environment variables
  * - Validates the entire configuration tree
  */
@@ -12,6 +13,7 @@
 import { readFile, access } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { parse as parseYaml, YAMLParseError } from "yaml";
+import { config as loadDotenv } from "dotenv";
 import { ZodError } from "zod";
 import {
   FleetConfigSchema,
@@ -132,6 +134,17 @@ export interface LoadConfigOptions {
    * Defaults to true
    */
   mergeDefaults?: boolean;
+
+  /**
+   * Path to a .env file to load before interpolating environment variables.
+   * - `true` (default): Auto-load .env from the config file's directory if it exists
+   * - `false`: Don't load any .env file
+   * - `string`: Explicit path to a .env file to load
+   *
+   * Variables from the .env file are merged into process.env and used during
+   * configuration interpolation. Existing environment variables take precedence.
+   */
+  envFile?: boolean | string;
 }
 
 // =============================================================================
@@ -326,10 +339,16 @@ export async function loadConfig(
   options: LoadConfigOptions = {}
 ): Promise<ResolvedConfig> {
   const {
-    env = process.env,
+    env: providedEnv,
     interpolate = true,
     mergeDefaults = true,
+    envFile = true,
   } = options;
+
+  // Start with process.env, we'll merge .env file vars into this
+  let env: Record<string, string | undefined> = providedEnv ?? {
+    ...process.env,
+  };
 
   // Determine the config file path
   let resolvedConfigPath: string;
@@ -362,6 +381,28 @@ export async function loadConfig(
     searchedPaths = found.searchedPaths;
   }
 
+  const configDir = dirname(resolvedConfigPath);
+
+  // Load .env file if configured
+  if (envFile !== false) {
+    const envFilePath =
+      typeof envFile === "string" ? resolve(envFile) : join(configDir, ".env");
+
+    // Only load if the file exists
+    if (await fileExists(envFilePath)) {
+      const result = loadDotenv({ path: envFilePath });
+      if (result.parsed) {
+        // Merge .env vars into env, but don't override existing values
+        // This ensures system env vars take precedence
+        for (const [key, value] of Object.entries(result.parsed)) {
+          if (env[key] === undefined) {
+            env[key] = value;
+          }
+        }
+      }
+    }
+  }
+
   // Read the fleet config file
   let fleetContent: string;
   try {
@@ -380,8 +421,6 @@ export async function loadConfig(
   if (interpolate) {
     fleetConfig = interpolateConfig(fleetConfig, { env });
   }
-
-  const configDir = dirname(resolvedConfigPath);
 
   // Load all agent configs
   const agents: ResolvedAgent[] = [];
