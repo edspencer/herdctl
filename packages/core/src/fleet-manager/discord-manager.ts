@@ -184,6 +184,149 @@ async function importDiscordPackage(): Promise<DiscordModule | null> {
   }
 }
 
+// =============================================================================
+// Streaming Responder
+// =============================================================================
+
+/**
+ * Options for StreamingResponder
+ */
+interface StreamingResponderOptions {
+  /** Function to send a reply to Discord */
+  reply: (content: string) => Promise<void>;
+  /** Function to split long messages */
+  splitResponse: (text: string) => string[];
+  /** Logger for debug output */
+  logger: DiscordLogger;
+  /** Agent name for logging */
+  agentName: string;
+  /** Minimum time between messages in ms (default: 1000) */
+  minMessageInterval?: number;
+  /** Maximum buffer size before forcing a send (default: 1500) */
+  maxBufferSize?: number;
+}
+
+/**
+ * StreamingResponder handles incremental message delivery to Discord
+ *
+ * Instead of collecting all output and sending at the end, this class:
+ * - Buffers incoming content
+ * - Sends messages as complete chunks arrive (detected by double newlines or size)
+ * - Respects rate limits by enforcing minimum intervals between sends
+ * - Handles message splitting for content exceeding Discord's 2000 char limit
+ */
+class StreamingResponder {
+  private buffer: string = "";
+  private lastSendTime: number = 0;
+  private messagesSent: number = 0;
+  private readonly reply: (content: string) => Promise<void>;
+  private readonly splitResponse: (text: string) => string[];
+  private readonly logger: DiscordLogger;
+  private readonly agentName: string;
+  private readonly minMessageInterval: number;
+  private readonly maxBufferSize: number;
+
+  constructor(options: StreamingResponderOptions) {
+    this.reply = options.reply;
+    this.splitResponse = options.splitResponse;
+    this.logger = options.logger;
+    this.agentName = options.agentName;
+    this.minMessageInterval = options.minMessageInterval ?? 1000; // 1 second default
+    this.maxBufferSize = options.maxBufferSize ?? 1500; // Leave room for Discord's 2000 limit
+  }
+
+  /**
+   * Add a complete message and send it immediately (with rate limiting)
+   *
+   * Use this for complete assistant message turns from the SDK.
+   * Each assistant message is a complete response that should be sent.
+   */
+  async addMessageAndSend(content: string): Promise<void> {
+    if (!content || content.trim().length === 0) {
+      return;
+    }
+
+    // Add to any existing buffer (in case there's leftover content)
+    this.buffer += content;
+
+    // Send everything in the buffer
+    await this.sendAll();
+  }
+
+  /**
+   * Send all buffered content immediately (with rate limiting)
+   */
+  private async sendAll(): Promise<void> {
+    if (this.buffer.trim().length === 0) {
+      return;
+    }
+
+    const content = this.buffer.trim();
+    this.buffer = "";
+
+    // Respect rate limiting - wait if needed
+    const now = Date.now();
+    const timeSinceLastSend = now - this.lastSendTime;
+    if (timeSinceLastSend < this.minMessageInterval && this.lastSendTime > 0) {
+      const waitTime = this.minMessageInterval - timeSinceLastSend;
+      await this.sleep(waitTime);
+    }
+
+    // Split if needed for Discord's limit
+    const chunks = this.splitResponse(content);
+
+    for (const chunk of chunks) {
+      try {
+        await this.reply(chunk);
+        this.messagesSent++;
+        this.lastSendTime = Date.now();
+        this.logger.debug(`Streamed message to Discord`, {
+          agentName: this.agentName,
+          chunkLength: chunk.length,
+          totalSent: this.messagesSent,
+        });
+
+        // Small delay between multiple chunks from same content
+        if (chunks.length > 1) {
+          await this.sleep(500);
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.error(`Failed to send Discord message`, {
+          agentName: this.agentName,
+          error: errorMessage,
+        });
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Flush any remaining content in the buffer
+   */
+  async flush(): Promise<void> {
+    await this.sendAll();
+  }
+
+  /**
+   * Check if any messages have been sent
+   */
+  hasSentMessages(): boolean {
+    return this.messagesSent > 0;
+  }
+
+  /**
+   * Sleep for a given number of milliseconds
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+}
+
+// =============================================================================
+// Discord Manager
+// =============================================================================
+
 /**
  * DiscordManager handles Discord connections for agents
  *
@@ -497,8 +640,13 @@ export class DiscordManager {
       }
     }
 
-    // Collect all response chunks as the job executes
-    const responseChunks: string[] = [];
+    // Create streaming responder for incremental message delivery
+    const streamer = new StreamingResponder({
+      reply: event.reply,
+      splitResponse: (text) => this.splitResponse(text),
+      logger,
+      agentName,
+    });
 
     // Start typing indicator while processing
     const stopTyping = event.startTyping();
@@ -520,30 +668,29 @@ export class DiscordManager {
 
       // Execute job via FleetManager.trigger()
       // Pass resume option for conversation continuity
-      // The onMessage callback collects streaming output
+      // The onMessage callback streams output incrementally to Discord
       const result = await fleetManager.trigger(agentName, undefined, {
         prompt: event.prompt,
         resume: existingSessionId,
-        onMessage: (message) => {
-          // Extract text content from assistant messages
+        onMessage: async (message) => {
+          // Extract text content from assistant messages and stream to Discord
           if (message.type === "assistant") {
             const content = this.extractMessageContent(message);
             if (content) {
-              responseChunks.push(content);
+              // Each assistant message is a complete turn - send immediately
+              await streamer.addMessageAndSend(content);
             }
           }
         },
       });
 
+      // Flush any remaining buffered content
+      await streamer.flush();
+
       logger.info(`Discord job completed: ${result.jobId} for agent '${agentName}'${result.sessionId ? ` (session: ${result.sessionId})` : ""}`);
 
-      // Combine all response chunks
-      const fullResponse = responseChunks.join("");
-
-      // Send response to Discord channel (handles splitting if needed)
-      if (fullResponse) {
-        await this.sendResponse(event.reply, fullResponse);
-      } else {
+      // If no messages were sent, send a completion message
+      if (!streamer.hasSentMessages()) {
         await event.reply("I've completed the task, but I don't have a specific response to share.");
       }
 

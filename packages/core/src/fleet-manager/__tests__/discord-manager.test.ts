@@ -834,15 +834,15 @@ describe("DiscordManager message handling", () => {
       );
     });
 
-    it("collects and sends streaming response with onMessage callback", async () => {
+    it("streams each assistant message immediately via onMessage callback", async () => {
       // Create trigger mock that invokes onMessage callback with streaming content
       const customTriggerMock = vi.fn().mockImplementation(async (_agentName, _scheduleName, options) => {
-        // Simulate streaming messages from the agent
+        // Simulate streaming messages from the agent - each is sent immediately
         if (options?.onMessage) {
-          options.onMessage({ type: "assistant", content: "Hello! " });
-          options.onMessage({ type: "assistant", content: "How can I help you today?" });
+          await options.onMessage({ type: "assistant", content: "Hello! " });
+          await options.onMessage({ type: "assistant", content: "How can I help you today?" });
           // Non-assistant message should be ignored
-          options.onMessage({ type: "system", content: "System message" });
+          await options.onMessage({ type: "system", content: "System message" });
         }
         return { jobId: "streaming-job-123" };
       });
@@ -952,11 +952,13 @@ describe("DiscordManager message handling", () => {
       // Emit the message event
       mockConnector.emit("message", messageEvent);
 
-      // Wait for async processing
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // Wait for async processing (includes rate limiting delays between messages)
+      await new Promise((resolve) => setTimeout(resolve, 2500));
 
-      // Should have collected the streaming messages and sent them
-      expect(replyMock).toHaveBeenCalledWith("Hello! How can I help you today?");
+      // Should have sent each message immediately (streaming behavior)
+      expect(replyMock).toHaveBeenCalledTimes(2);
+      expect(replyMock).toHaveBeenNthCalledWith(1, "Hello!");
+      expect(replyMock).toHaveBeenNthCalledWith(2, "How can I help you today?");
     });
 
     it("sends long streaming response with splitResponse", async () => {
@@ -964,7 +966,7 @@ describe("DiscordManager message handling", () => {
       const longResponse = "This is a very long response. ".repeat(100); // About 3100 chars
       const customTriggerMock = vi.fn().mockImplementation(async (_agentName, _scheduleName, options) => {
         if (options?.onMessage) {
-          options.onMessage({ type: "assistant", content: longResponse });
+          await options.onMessage({ type: "assistant", content: longResponse });
         }
         return { jobId: "long-job-123" };
       });
@@ -1074,8 +1076,8 @@ describe("DiscordManager message handling", () => {
       // Emit the message event
       mockConnector.emit("message", messageEvent);
 
-      // Wait for async processing
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // Wait for async processing (includes delay between split chunks)
+      await new Promise((resolve) => setTimeout(resolve, 1500));
 
       // Should have sent multiple messages (split response)
       expect(replyMock).toHaveBeenCalledTimes(2);
