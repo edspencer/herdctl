@@ -16,6 +16,10 @@ agents:
       schedules:
         check:
           interval: 2h
+      # Disable hooks - the base agent has Discord notification hooks,
+      # but we're using chat instead so notifications would be redundant
+      hooks:
+        after_run: []
       # Add Discord chat - uses its own bot
       chat:
         discord:
@@ -40,6 +44,10 @@ agents:
       schedules:
         check:
           interval: 1h
+      # Disable hooks - the base agent has Discord notification hooks,
+      # but we're using chat instead so notifications would be redundant
+      hooks:
+        after_run: []
       # Add Discord chat - uses its own bot
       chat:
         discord:
