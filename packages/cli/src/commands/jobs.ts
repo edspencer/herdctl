@@ -10,11 +10,8 @@
  */
 
 import {
-  FleetManager,
-  ConfigNotFoundError,
-  isFleetManagerError,
-  isAgentNotFoundError,
   JobManager,
+  isJobNotFoundError,
   type Job,
   type JobFilter,
 } from "@herdctl/core";
@@ -278,17 +275,8 @@ export async function jobsCommand(options: JobsOptions): Promise<void> {
     process.exit(1);
   }
 
-  // Create FleetManager
-  const manager = new FleetManager({
-    configPath: options.config,
-    stateDir,
-  });
-
   try {
-    // Initialize to load configuration
-    await manager.initialize();
-
-    // Create JobManager to query jobs
+    // Create JobManager directly (no config validation needed for read-only queries)
     const { join } = await import("node:path");
     const jobsDir = join(stateDir, "jobs");
 
@@ -335,53 +323,12 @@ export async function jobsCommand(options: JobsOptions): Promise<void> {
     }
   } catch (error) {
     // Handle specific error types
-    if (error instanceof ConfigNotFoundError) {
+    if (isJobNotFoundError(error)) {
       if (isJsonOutput) {
         console.log(
           JSON.stringify({
             error: {
-              code: "CONFIG_NOT_FOUND",
-              message: "No configuration file found",
-              startDirectory: error.startDirectory,
-            },
-          })
-        );
-        process.exit(1);
-      }
-      console.error("");
-      console.error("Error: No configuration file found.");
-      console.error(`Searched from: ${error.startDirectory}`);
-      console.error("");
-      console.error("Run 'herdctl init' to create a configuration file.");
-      process.exit(1);
-    }
-
-    if (isAgentNotFoundError(error)) {
-      if (isJsonOutput) {
-        console.log(
-          JSON.stringify({
-            error: {
-              code: "AGENT_NOT_FOUND",
-              message: error.message,
-              agentName: options.agent,
-            },
-          })
-        );
-        process.exit(1);
-      }
-      console.error("");
-      console.error(`Error: Agent '${options.agent}' not found.`);
-      console.error("");
-      console.error("Run 'herdctl status' to see all agents.");
-      process.exit(1);
-    }
-
-    if (isFleetManagerError(error)) {
-      if (isJsonOutput) {
-        console.log(
-          JSON.stringify({
-            error: {
-              code: error.code,
+              code: "JOB_NOT_FOUND",
               message: error.message,
             },
           })
@@ -390,9 +337,6 @@ export async function jobsCommand(options: JobsOptions): Promise<void> {
       }
       console.error("");
       console.error(`Error: ${error.message}`);
-      if (error.code) {
-        console.error(`Code: ${error.code}`);
-      }
       process.exit(1);
     }
 

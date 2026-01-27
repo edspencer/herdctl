@@ -8,13 +8,9 @@
  */
 
 import {
-  FleetManager,
-  ConfigNotFoundError,
-  isFleetManagerError,
-  isJobNotFoundError,
   JobManager,
+  isJobNotFoundError,
   type Job,
-  type LogEntry,
 } from "@herdctl/core";
 
 export interface JobOptions {
@@ -304,15 +300,6 @@ function formatOutputMessage(entry: JobOutputMessage): void {
   }
 }
 
-/**
- * Format a LogEntry (from streamJobOutput) for console display
- */
-function formatLogEntry(entry: LogEntry): void {
-  // LogEntry has level and message fields
-  const levelColor = entry.level === "error" ? "red" :
-                     entry.level === "warn" ? "yellow" : "reset";
-  console.log(colorize(entry.message, levelColor));
-}
 
 /**
  * Show job details (herdctl job)
@@ -324,12 +311,6 @@ export async function jobCommand(
   const stateDir = options.state || DEFAULT_STATE_DIR;
   const isJsonOutput = options.json === true;
   const showLogs = options.logs === true;
-
-  // Create FleetManager
-  const manager = new FleetManager({
-    configPath: options.config,
-    stateDir,
-  });
 
   // Track if we're shutting down (for log streaming)
   let isShuttingDown = false;
@@ -351,10 +332,7 @@ export async function jobCommand(
   }
 
   try {
-    // Initialize to load configuration
-    await manager.initialize();
-
-    // Create JobManager to query job
+    // Create JobManager directly (no config validation needed for read-only queries)
     const { join } = await import("node:path");
     const jobsDir = join(stateDir, "jobs");
 
@@ -420,16 +398,26 @@ export async function jobCommand(
           console.log("");
         }
 
-        // If job is still running, stream live output
+        // If job is still running, stream live output using JobManager
         if (job.status === "running" || job.status === "pending") {
           console.log(colorize("Streaming live output (Ctrl+C to stop)...", "dim"));
           console.log("");
 
           try {
-            for await (const entry of manager.streamJobOutput(jobId)) {
-              if (isShuttingDown) break;
-              formatLogEntry(entry);
-            }
+            const stream = await jobManager.streamJobOutput(jobId);
+
+            await new Promise<void>((resolve, reject) => {
+              stream.on("message", (msg) => {
+                if (isShuttingDown) {
+                  stream.stop();
+                  return;
+                }
+                formatOutputMessage(msg as JobOutputMessage);
+              });
+
+              stream.on("end", () => resolve());
+              stream.on("error", (err) => reject(err));
+            });
 
             if (!isShuttingDown) {
               console.log("");
@@ -473,27 +461,6 @@ export async function jobCommand(
     }
   } catch (error) {
     // Handle specific error types
-    if (error instanceof ConfigNotFoundError) {
-      if (isJsonOutput) {
-        console.log(
-          JSON.stringify({
-            error: {
-              code: "CONFIG_NOT_FOUND",
-              message: "No configuration file found",
-              startDirectory: error.startDirectory,
-            },
-          })
-        );
-        process.exit(1);
-      }
-      console.error("");
-      console.error("Error: No configuration file found.");
-      console.error(`Searched from: ${error.startDirectory}`);
-      console.error("");
-      console.error("Run 'herdctl init' to create a configuration file.");
-      process.exit(1);
-    }
-
     if (isJobNotFoundError(error)) {
       if (isJsonOutput) {
         console.log(
@@ -511,26 +478,6 @@ export async function jobCommand(
       console.error(`Error: Job '${jobId}' not found.`);
       console.error("");
       console.error("Run 'herdctl jobs' to see recent jobs.");
-      process.exit(1);
-    }
-
-    if (isFleetManagerError(error)) {
-      if (isJsonOutput) {
-        console.log(
-          JSON.stringify({
-            error: {
-              code: error.code,
-              message: error.message,
-            },
-          })
-        );
-        process.exit(1);
-      }
-      console.error("");
-      console.error(`Error: ${error.message}`);
-      if (error.code) {
-        console.error(`Code: ${error.code}`);
-      }
       process.exit(1);
     }
 

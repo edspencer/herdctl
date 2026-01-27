@@ -17,8 +17,10 @@ import {
   AgentNotFoundError,
   JobNotFoundError,
   isFleetManagerError,
+  JobManager,
   type LogEntry,
   type LogLevel,
+  type JobOutputMessage,
 } from "@herdctl/core";
 
 export interface LogsOptions {
@@ -189,6 +191,33 @@ function formatLogEntryJson(entry: LogEntry): string {
 }
 
 /**
+ * Format a job output message to a displayable string
+ */
+function formatJobOutputMessage(msg: JobOutputMessage): string {
+  switch (msg.type) {
+    case "assistant":
+      return msg.content ?? "";
+    case "tool_use":
+      return `[Tool: ${msg.tool_name ?? "unknown"}]`;
+    case "tool_result": {
+      if (msg.error) {
+        return `[Tool Error: ${msg.error}]`;
+      }
+      const result = msg.result;
+      const resultStr = typeof result === "string" ? result : JSON.stringify(result);
+      const truncated = resultStr && resultStr.length > 100 ? `${resultStr.substring(0, 100)}...` : resultStr;
+      return `[Result: ${truncated ?? ""}]`;
+    }
+    case "error":
+      return `[Error: ${msg.message ?? "unknown error"}]`;
+    case "system":
+      return `[System: ${msg.content ?? ""}]`;
+    default:
+      return "[Unknown]";
+  }
+}
+
+/**
  * Show logs (herdctl logs)
  */
 export async function logsCommand(
@@ -196,13 +225,13 @@ export async function logsCommand(
   options: LogsOptions
 ): Promise<void> {
   const stateDir = options.state || DEFAULT_STATE_DIR;
-  const lines = parseInt(options.lines || String(DEFAULT_LINES), 10);
+  const lines = Number.parseInt(options.lines || String(DEFAULT_LINES), 10);
   const isFollowMode = options.follow === true;
   const isJsonOutput = options.json === true;
   const jobId = options.job;
 
   // Validate lines option
-  if (isNaN(lines) || lines < 1) {
+  if (Number.isNaN(lines) || lines < 1) {
     console.error("Error: --lines must be a positive integer");
     process.exit(1);
   }
@@ -238,16 +267,86 @@ export async function logsCommand(
   }
 
   try {
+    // For job-specific logs, use JobManager directly (no config validation needed)
+    if (jobId) {
+      const { join } = await import("node:path");
+      const jobsDir = join(stateDir, "jobs");
+      const jobManager = new JobManager({ jobsDir });
+
+      try {
+        // Get job to verify it exists and stream output
+        const stream = await jobManager.streamJobOutput(jobId);
+        const entries: LogEntry[] = [];
+
+        // Convert JobOutputStream events to LogEntry format
+        await new Promise<void>((resolve, reject) => {
+          stream.on("message", (msg: JobOutputMessage) => {
+            if (isShuttingDown) {
+              stream.stop();
+              return;
+            }
+
+            const entry: LogEntry = {
+              timestamp: msg.timestamp,
+              level: msg.type === "error" ? "error" : "info",
+              source: "job",
+              jobId,
+              message: formatJobOutputMessage(msg),
+              data: { outputType: msg.type },
+            };
+
+            if (isFollowMode) {
+              if (isJsonOutput) {
+                console.log(formatLogEntryJson(entry));
+              } else {
+                console.log(formatLogEntry(entry));
+              }
+            } else {
+              entries.push(entry);
+              if (entries.length > lines) {
+                entries.shift();
+              }
+            }
+          });
+
+          stream.on("end", () => resolve());
+          stream.on("error", (err) => reject(err));
+        });
+
+        // Output collected entries for non-follow mode
+        if (!isFollowMode) {
+          const toOutput = entries.slice(-lines);
+          if (toOutput.length === 0) {
+            if (!isJsonOutput) {
+              console.log("No log entries found.");
+            }
+          } else {
+            for (const entry of toOutput) {
+              if (isJsonOutput) {
+                console.log(formatLogEntryJson(entry));
+              } else {
+                console.log(formatLogEntry(entry));
+              }
+            }
+          }
+        }
+        return;
+      } catch (error) {
+        if (error instanceof JobNotFoundError) {
+          throw error;
+        }
+        throw error;
+      }
+    }
+
+    // For agent logs or all logs, need FleetManager with config
     // Initialize to load configuration
     await manager.initialize();
 
     // Determine which stream to use
     let logStream: AsyncIterable<LogEntry>;
 
-    if (jobId) {
-      // Stream logs from specific job
-      logStream = manager.streamJobOutput(jobId);
-    } else if (agentName) {
+    if (agentName) {
       // Stream logs from specific agent
       logStream = manager.streamAgentLogs(agentName);
     } else {
