@@ -53,6 +53,10 @@ vi.mock("discord.js", () => {
       DirectMessages: 4,
       MessageContent: 8,
     },
+    Partials: {
+      Channel: 0,
+      Message: 1,
+    },
     Events: {
       ClientReady: "ready",
       ShardDisconnect: "shardDisconnect",
@@ -154,6 +158,7 @@ function createMockSessionManager(): ISessionManager {
     getSession: vi.fn().mockResolvedValue(null),
     clearSession: vi.fn().mockResolvedValue(true),
     cleanupExpiredSessions: vi.fn().mockResolvedValue(0),
+    getActiveSessionCount: vi.fn().mockResolvedValue(0),
   };
 }
 

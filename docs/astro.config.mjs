@@ -127,6 +127,7 @@ export default defineConfig({
 					label: 'Guides',
 					collapsed: true,
 					items: [
+						{ label: 'Discord Chat Quick Start', slug: 'guides/discord-quick-start' },
 						{ label: 'Example Projects', slug: 'guides/examples' },
 						{ label: 'Persistent Memory', slug: 'guides/persistent-memory' },
 						{ label: 'Recipes & Patterns', slug: 'guides/recipes' },

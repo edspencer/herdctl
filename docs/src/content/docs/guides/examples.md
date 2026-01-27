@@ -126,6 +126,59 @@ hooks:
 }
 ```
 
+### discord-chat-bot
+
+**Difficulty:** Advanced
+**Features:** Discord chat integration, scheduled checks, notifications, conversation memory
+
+A price monitoring agent that combines scheduled automation with interactive Discord chat:
+
+```bash
+cd examples/discord-chat-bot
+export DISCORD_BOT_TOKEN="your-token"
+export DISCORD_GUILD_ID="your-guild-id"
+export DISCORD_CHANNEL_ID="your-channel-id"
+../../packages/cli/bin/herdctl.js start
+```
+
+**What you'll learn:**
+- **Discord chat**: Two-way conversations via @mentions and DMs
+- **Scheduled + interactive**: Same agent runs on schedule AND responds to chat
+- **Session context**: Bot remembers conversation history (24h default)
+- **Slash commands**: `/help`, `/reset`, `/status` built-in
+
+**Key configuration:**
+
+```yaml
+# Discord chat integration - users can @mention the bot
+chat:
+  discord:
+    bot_token_env: DISCORD_BOT_TOKEN
+    session_expiry_hours: 24
+    guilds:
+      - id: "${DISCORD_GUILD_ID}"
+        channels:
+          - id: "${DISCORD_CHANNEL_ID}"
+            mode: mention  # Requires @mention
+    dm:
+      enabled: true
+      mode: auto  # No @mention needed in DMs
+```
+
+**Example interactions:**
+
+```
+You: @price-bot What's the best price right now?
+Bot: Based on my last check, the Hyken chair is $189 at Staples...
+
+You: @price-bot Check prices now
+Bot: Checking Staples and IKEA... [performs live price check]
+```
+
+**Prerequisites:**
+- Discord bot with Message Content Intent enabled
+- See [Discord Quick Start](/guides/discord-quick-start/) for setup
+
 ## Pattern Reference
 
 ### Persistent Memory Pattern

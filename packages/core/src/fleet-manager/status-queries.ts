@@ -14,11 +14,13 @@ import type { Scheduler } from "../scheduler/index.js";
 import type {
   FleetStatus,
   AgentInfo,
+  AgentDiscordStatus,
   ScheduleInfo,
   FleetCounts,
 } from "./types.js";
 import type { FleetManagerContext } from "./context.js";
 import { AgentNotFoundError } from "./errors.js";
+import type { DiscordManager } from "./discord-manager.js";
 
 // =============================================================================
 // Fleet State Snapshot Type
@@ -125,6 +127,7 @@ export class StatusQueries {
    * - Current status and job information
    * - Schedule details with runtime state
    * - Configuration details
+   * - Discord connection state (if configured)
    *
    * This method works whether the fleet is running or stopped.
    *
@@ -137,9 +140,12 @@ export class StatusQueries {
     // Read fleet state for runtime information
     const fleetState = await this.readFleetStateSnapshot();
 
+    // Get Discord manager for connection status
+    const discordManager = this.ctx.getDiscordManager?.() as DiscordManager | undefined;
+
     return agents.map((agent) => {
       const agentState = fleetState.agents[agent.name];
-      return buildAgentInfo(agent, agentState, this.ctx.getScheduler());
+      return buildAgentInfo(agent, agentState, this.ctx.getScheduler(), discordManager);
     });
   }
 
@@ -150,6 +156,7 @@ export class StatusQueries {
    * - Current status and job information
    * - Schedule details with runtime state
    * - Configuration details
+   * - Discord connection state (if configured)
    *
    * This method works whether the fleet is running or stopped.
    *
@@ -170,7 +177,10 @@ export class StatusQueries {
     const fleetState = await this.readFleetStateSnapshot();
     const agentState = fleetState.agents[name];
 
-    return buildAgentInfo(agent, agentState, this.ctx.getScheduler());
+    // Get Discord manager for connection status
+    const discordManager = this.ctx.getDiscordManager?.() as DiscordManager | undefined;
+
+    return buildAgentInfo(agent, agentState, this.ctx.getScheduler(), discordManager);
   }
 }
 
@@ -184,12 +194,14 @@ export class StatusQueries {
  * @param agent - Resolved agent configuration
  * @param agentState - Runtime agent state (optional)
  * @param scheduler - Scheduler instance for running job counts (optional)
+ * @param discordManager - Discord manager for connection status (optional)
  * @returns Complete AgentInfo object
  */
 export function buildAgentInfo(
   agent: ResolvedAgent,
   agentState?: AgentState,
-  scheduler?: Scheduler | null
+  scheduler?: Scheduler | null,
+  discordManager?: DiscordManager
 ): AgentInfo {
   // Build schedule info
   const schedules = buildScheduleInfoList(agent, agentState);
@@ -205,6 +217,9 @@ export function buildAgentInfo(
     workspace = agent.workspace.root;
   }
 
+  // Build Discord status
+  const discord = buildDiscordStatus(agent, discordManager);
+
   return {
     name: agent.name,
     description: agent.description,
@@ -218,6 +233,43 @@ export function buildAgentInfo(
     schedules,
     model: agent.model,
     workspace,
+    discord,
+  };
+}
+
+/**
+ * Build Discord status for an agent
+ *
+ * @param agent - Resolved agent configuration
+ * @param discordManager - Discord manager instance (optional)
+ * @returns AgentDiscordStatus object
+ */
+function buildDiscordStatus(
+  agent: ResolvedAgent,
+  discordManager?: DiscordManager
+): AgentDiscordStatus | undefined {
+  // Check if agent has Discord configured
+  const hasDiscordConfig = agent.chat?.discord !== undefined;
+
+  if (!hasDiscordConfig) {
+    return undefined;
+  }
+
+  // Get connector state if available
+  const connector = discordManager?.getConnector(agent.name);
+  if (!connector) {
+    return {
+      configured: true,
+      connectionStatus: "disconnected",
+    };
+  }
+
+  const state = connector.getState();
+  return {
+    configured: true,
+    connectionStatus: state.status,
+    botUsername: state.botUser?.username,
+    lastError: state.lastError ?? undefined,
   };
 }
 

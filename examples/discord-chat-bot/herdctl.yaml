@@ -1,0 +1,8 @@
+version: 1
+
+fleet:
+  name: discord-chat-bot-example
+  description: Example fleet with Discord chat integration
+
+agents:
+  - path: agents/price-bot.yaml

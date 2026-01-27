@@ -21,6 +21,14 @@
     "yaml": "^2.3.0",
     "zod": "^3.22.0"
   },
+  "peerDependencies": {
+    "@herdctl/discord": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@herdctl/discord": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.17",
     "typescript": "^5",

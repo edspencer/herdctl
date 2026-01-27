@@ -309,6 +309,12 @@ export interface DiscordConnectorEventMap {
     };
     /** Function to send a reply in the same channel */
     reply: (content: string) => Promise<void>;
+    /**
+     * Start showing "typing" indicator in the channel.
+     * Returns a stop function that should be called when done processing.
+     * The indicator auto-refreshes every 8 seconds until stopped.
+     */
+    startTyping: () => () => void;
   };
 
   /**

@@ -821,6 +821,155 @@ for await (const log of manager.streamAgentLogs('my-agent')) {
 
 ---
 
+## Discord Methods
+
+These methods are available when agents have Discord chat integration configured.
+
+### `getDiscordConnector(agentName)`
+
+Returns the Discord connector for a specific agent.
+
+```typescript
+manager.getDiscordConnector(agentName: string): DiscordConnector | undefined
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `agentName` | `string` | **Yes** | Name of the agent with Discord configured |
+
+#### Returns
+
+Returns `undefined` if the agent doesn't have Discord configured or if `@herdctl/discord` is not installed.
+
+#### Example
+
+```typescript
+const connector = manager.getDiscordConnector('support-agent');
+
+if (connector) {
+  const state = connector.getState();
+  console.log(`Status: ${state.status}`);
+  console.log(`Messages received: ${state.messageStats.received}`);
+}
+```
+
+---
+
+### `getDiscordStatus()`
+
+Returns the status of all Discord connectors in the fleet.
+
+```typescript
+await manager.getDiscordStatus(): Promise<DiscordStatusMap>
+```
+
+#### Returns
+
+```typescript
+interface DiscordStatusMap {
+  [agentName: string]: {
+    status: 'connected' | 'connecting' | 'disconnected' | 'error';
+    connectedAt: string | null;
+    botUser: {
+      id: string;
+      username: string;
+      discriminator: string;
+    } | null;
+    messageStats: {
+      received: number;
+      sent: number;
+      ignored: number;
+    };
+    rateLimits: {
+      totalCount: number;
+      isRateLimited: boolean;
+    };
+  };
+}
+```
+
+#### Example
+
+```typescript
+const discordStatus = await manager.getDiscordStatus();
+
+for (const [agentName, status] of Object.entries(discordStatus)) {
+  console.log(`${agentName}: ${status.status}`);
+  if (status.botUser) {
+    console.log(`  Bot: ${status.botUser.username}#${status.botUser.discriminator}`);
+  }
+  console.log(`  Messages: ${status.messageStats.received} received, ${status.messageStats.sent} sent`);
+}
+```
+
+---
+
+### Discord Events
+
+The FleetManager emits Discord-specific events when `@herdctl/discord` is installed:
+
+```typescript
+// Connection events
+manager.on('discord:connected', (payload) => {
+  console.log(`${payload.agentName} connected as ${payload.botUser.username}`);
+});
+
+manager.on('discord:disconnected', (payload) => {
+  console.log(`${payload.agentName} disconnected: ${payload.reason}`);
+});
+
+// Message events
+manager.on('discord:message:handled', (payload) => {
+  console.log(`${payload.agentName} handled message from ${payload.userId}`);
+  console.log(`  Channel: ${payload.channelId}`);
+  console.log(`  Response time: ${payload.responseTimeMs}ms`);
+});
+
+// Error events
+manager.on('discord:error', (payload) => {
+  console.error(`${payload.agentName} Discord error: ${payload.error.message}`);
+});
+```
+
+#### Event Payloads
+
+```typescript
+interface DiscordConnectedPayload {
+  agentName: string;
+  botUser: {
+    id: string;
+    username: string;
+    discriminator: string;
+  };
+  timestamp: string;
+}
+
+interface DiscordDisconnectedPayload {
+  agentName: string;
+  reason: string;
+  timestamp: string;
+}
+
+interface DiscordMessageHandledPayload {
+  agentName: string;
+  channelId: string;
+  userId: string;
+  messageId: string;
+  responseTimeMs: number;
+  timestamp: string;
+}
+
+interface DiscordErrorPayload {
+  agentName: string;
+  error: Error;
+  timestamp: string;
+}
+```
+
+---
+
 ## State Accessors
 
 ### `state`

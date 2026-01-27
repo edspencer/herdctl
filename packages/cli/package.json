@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@herdctl/core": "workspace:*",
+    "@herdctl/discord": "workspace:*",
     "@inquirer/prompts": "^8.2.0",
     "commander": "^12"
   },

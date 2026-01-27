@@ -27,6 +27,7 @@ interface MockUser {
 
 interface MockMentions {
   users: Map<string, MockUser>;
+  roles: Map<string, { members: Map<string, unknown> }>;
 }
 
 interface MockMessage {
@@ -64,6 +65,7 @@ function createMockUser(overrides: Partial<MockUser> = {}): MockUser {
 function createMockMessage(overrides: Partial<MockMessage> = {}): Message {
   const mockMentions: MockMentions = {
     users: new Map<string, MockUser>(),
+    roles: new Map<string, { members: Map<string, unknown> }>(),
     ...(overrides.mentions as Partial<MockMentions>),
   };
 
@@ -117,7 +119,7 @@ describe("isBotMentioned", () => {
 
     const message = createMockMessage({
       content: "<@bot-123> help me",
-      mentions: { users: mentionsMap },
+      mentions: { users: mentionsMap, roles: new Map() },
     });
 
     expect(isBotMentioned(message, "bot-123")).toBe(true);
@@ -138,7 +140,7 @@ describe("isBotMentioned", () => {
 
     const message = createMockMessage({
       content: "<@other-user> hello",
-      mentions: { users: mentionsMap },
+      mentions: { users: mentionsMap, roles: new Map() },
     });
 
     expect(isBotMentioned(message, "bot-123")).toBe(false);
@@ -160,7 +162,7 @@ describe("shouldProcessMessage", () => {
 
       const message = createMockMessage({
         content: "<@bot-123> help me",
-        mentions: { users: mentionsMap },
+        mentions: { users: mentionsMap, roles: new Map() },
       });
 
       expect(shouldProcessMessage(message, botUserId, "mention")).toBe(true);
@@ -182,7 +184,7 @@ describe("shouldProcessMessage", () => {
       const message = createMockMessage({
         content: "<@bot-123> test",
         author: createMockUser({ bot: true }),
-        mentions: { users: mentionsMap },
+        mentions: { users: mentionsMap, roles: new Map() },
       });
 
       expect(shouldProcessMessage(message, botUserId, "mention")).toBe(false);
@@ -397,7 +399,7 @@ describe("buildConversationContext", () => {
       id: "msg-3",
       content: "<@bot-123> help me please",
       createdAt: new Date("2024-01-20T10:00:00Z"),
-      mentions: { users: mentionsMap },
+      mentions: { users: mentionsMap, roles: new Map() },
       channel: channel as unknown as MockChannel,
     });
 
@@ -601,7 +603,7 @@ describe("buildConversationContext", () => {
     const triggerMessage = createMockMessage({
       id: "trigger",
       content: "<@bot-123> hello",
-      mentions: { users: mentionsMap },
+      mentions: { users: mentionsMap, roles: new Map() },
       channel: channel as unknown as MockChannel,
     });
 

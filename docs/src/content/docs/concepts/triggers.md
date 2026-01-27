@@ -14,7 +14,7 @@ Every schedule needs a trigger to determine when it runs. The trigger type you c
 | **Interval** | Regular recurring tasks (polling, health checks) | Available |
 | **Cron** | Precise timing (daily reports, scheduled maintenance) | Available |
 | **Webhook** | Event-driven automation (deployments, external events) | Future |
-| **Chat** | Interactive responses (support, commands) | Future |
+| **Chat** | Interactive responses (support, commands) | Available |
 
 ## Interval Triggers
 
@@ -308,102 +308,104 @@ schedules:
 
 ## Chat Triggers
 
-:::note[Future Feature]
-Chat triggers are planned for a future release. This documentation describes the intended behavior.
+Chat triggers execute in response to messages in Discord. This enables interactive agents that respond to user questions, commands, or mentions. Unlike schedules that run automatically, chat triggers fire when a user messages or @mentions your bot.
+
+:::tip
+See the [Discord Quick Start](/guides/discord-quick-start/) for a 5-minute setup guide, or the [full Discord reference](/integrations/discord/) for advanced configuration.
 :::
 
-Chat triggers execute in response to messages in Discord or Slack. This enables interactive agents that respond to user questions, commands, or mentions.
+### Configuration
 
-### Syntax
-
-```yaml
-schedules:
-  support-response:
-    type: chat
-    platform: discord
-    channel: "#support"
-    mention: true
-    prompt: |
-      A user has asked a question.
-      Respond helpfully based on the project documentation.
-```
-
-### Chat Configuration
-
-| Property | Required | Description |
-|----------|----------|-------------|
-| `platform` | Yes | Chat platform: `discord` or `slack` |
-| `channel` | No | Specific channel(s) to monitor |
-| `mention` | No | Require @mention to trigger (default: true) |
-| `keywords` | No | Keywords that trigger the agent |
-| `thread` | No | How to handle threading |
-
-### Chat Context
-
-When a chat trigger fires, message context is available:
+Chat triggers are configured in the `chat` section of your agent config, not in `schedules`:
 
 ```yaml
-schedules:
-  answer-question:
-    type: chat
-    platform: discord
-    mention: true
-    prompt: |
-      User {{message.author}} asked in {{message.channel}}:
+name: support-agent
 
-      {{message.content}}
-
-      Provide a helpful response. If you're unsure, say so.
+chat:
+  discord:
+    bot_token_env: DISCORD_BOT_TOKEN
+    guilds:
+      - id: "123456789012345678"
+        channels:
+          - id: "987654321098765432"
+            mode: mention    # Only respond to @mentions
+    dm:
+      enabled: true
+      mode: auto           # Always respond to DMs
 ```
 
-### Common Chat Patterns
+### Response Modes
+
+| Mode | Behavior | Use Case |
+|------|----------|----------|
+| `mention` | Responds only when @mentioned | Shared channels with multiple bots |
+| `auto` | Responds to all messages | Dedicated support channels, DMs |
+
+### How Chat Triggers Work
+
+1. User sends a message (or @mentions the bot)
+2. herdctl receives the message via Discord gateway
+3. The agent's session is loaded (or created)
+4. The message becomes the prompt for a Claude session
+5. The response is sent back to Discord
+6. Session context is preserved for follow-up messages
+
+### Session Management
+
+Discord chat maintains conversation context per channel:
+
+- **Session Expiry**: Default 24 hours (configurable via `session_expiry_hours`)
+- **Scope**: Sessions are per-channel, not per-user
+- **Reset**: Users can clear context with the `/reset` slash command
+- **Memory**: Agents "remember" recent messages within a session
+
+### Built-in Slash Commands
+
+Every Discord-enabled agent automatically supports:
+
+| Command | Description |
+|---------|-------------|
+| `/help` | Show available commands and bot info |
+| `/reset` | Clear conversation context |
+| `/status` | Show connection status and stats |
+
+### Combining Chat with Schedules
+
+A single agent can have both scheduled runs AND respond to chat:
 
 ```yaml
-# Support bot responding to mentions
-schedules:
-  support:
-    type: chat
-    platform: discord
-    channel: "#support"
-    mention: true
-    prompt: |
-      Answer the user's question based on documentation.
-      Be helpful and concise. Link to relevant docs when possible.
+name: price-bot
 
-# Command handler
+# Scheduled price checks
 schedules:
-  commands:
-    type: chat
-    platform: slack
-    keywords: ["!deploy", "!status", "!help"]
-    prompt: |
-      User issued command: {{message.content}}
+  check:
+    type: interval
+    interval: 4h
 
-      Execute the requested action and report results.
-
-# Code review requests
-schedules:
-  review-request:
-    type: chat
-    platform: discord
-    channel: "#code-review"
-    keywords: ["review", "PR"]
-    prompt: |
-      User is requesting a code review.
-      Check for any linked PRs and provide feedback.
+# Interactive Discord chat
+chat:
+  discord:
+    bot_token_env: DISCORD_BOT_TOKEN
+    guilds:
+      - id: "${DISCORD_GUILD_ID}"
+        channels:
+          - id: "${DISCORD_CHANNEL_ID}"
+            mode: mention
 ```
+
+Users can ask the bot questions like "What's the current price?" between scheduled runs.
 
 ### When to Use Chat Triggers
 
 ✅ **Good for:**
-- Interactive support
-- On-demand commands
-- Team notifications
-- Q&A automation
+- Interactive support bots
+- On-demand queries ("What's the status?")
+- Q&A over project documentation
+- User-initiated actions
 
 ❌ **Not ideal for:**
 - Background automation (use cron or interval)
-- Event-driven workflows (use webhook)
+- Event-driven workflows (use webhook when available)
 
 ## Choosing the Right Trigger
 
@@ -433,7 +435,7 @@ Do you need to run at a specific time?
 | Timing | Relative | Absolute | On-demand | On-demand |
 | Precision | Low | High | Immediate | Immediate |
 | Use case | Polling | Scheduled | Events | Interactive |
-| Status | Available | Available | Future | Future |
+| Status | Available | Available | Future | Available |
 
 ## Trigger Options
 

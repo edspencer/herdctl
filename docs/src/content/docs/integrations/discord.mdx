@@ -495,7 +495,7 @@ SupportBot: To reset your password, follow these steps...
 
 ### 5. Test Slash Commands
 
-herdctl registers these slash commands:
+herdctl automatically registers slash commands for every Discord-enabled agent:
 
 | Command | Description |
 |---------|-------------|
@@ -508,6 +508,67 @@ Try them in any channel where the bot is active:
 ```
 /status
 ```
+
+#### /help Command
+
+Shows available commands and basic usage information:
+
+```
+/help
+```
+
+**Example output:**
+```
+🤖 Support Bot Commands
+
+/help - Show this message
+/status - Show bot status and stats
+/reset - Clear conversation context
+
+Chat with me:
+• @SupportBot your question - In channels
+• Just type in DMs - Direct messages
+```
+
+#### /status Command
+
+Shows detailed connection status and statistics:
+
+```
+/status
+```
+
+**Example output:**
+```
+🟢 Support Bot Status
+
+Connected: Yes
+Uptime: 2h 34m
+Session: Active (expires in 21h)
+
+Stats:
+• Messages received: 47
+• Responses sent: 43
+• Current channel: #support
+```
+
+#### /reset Command
+
+Clears the conversation context for the current channel:
+
+```
+/reset
+```
+
+**Example output:**
+```
+✨ Conversation reset! Starting fresh.
+```
+
+Use `/reset` when:
+- The bot seems confused or stuck on a previous topic
+- You want to start a completely new conversation
+- The session has accumulated too much irrelevant context
 
 ### 6. Test DMs
 
@@ -571,6 +632,159 @@ chat:
 | Two bots in same channel | Use `mode: mention` for both |
 | Bot in dedicated channel | Use `mode: auto` |
 | Support + Dev bots | Separate channels or mention mode |
+
+## Session Management
+
+Discord chat integration maintains conversation context so your agent can have multi-turn conversations and "remember" what was discussed.
+
+### How Sessions Work
+
+- **Scope**: Sessions are per-channel (or per-DM conversation)
+- **Identity**: Session ID is based on channel ID
+- **Expiry**: Sessions expire after `session_expiry_hours` (default: 24 hours)
+- **Persistence**: Sessions survive bot restarts within the expiry window
+
+### Session Context
+
+When a user sends a message, the agent receives:
+1. The current message as the prompt
+2. Recent conversation history from the session
+3. The channel/user context
+
+This allows natural conversations:
+
+```
+User: What's the current price of the Hyken chair?
+Bot: The Hyken chair is currently $189 at Staples.
+
+User: When did you last check?
+Bot: I checked prices 2 hours ago at 10:30 AM.
+
+User: Is that below my target?
+Bot: Yes! Your target is $200, so $189 is $11 below target.
+```
+
+The bot remembers the chair and target price from earlier in the conversation.
+
+### Configuring Session Expiry
+
+```yaml
+chat:
+  discord:
+    bot_token_env: DISCORD_BOT_TOKEN
+    session_expiry_hours: 24  # Default: 24 hours
+```
+
+Choose expiry based on your use case:
+
+| Use Case | Recommended Expiry |
+|----------|-------------------|
+| Support bot | 24-48 hours |
+| Quick Q&A | 1-4 hours |
+| Long-running projects | 72+ hours |
+| Stateless responses | 1 hour |
+
+### Clearing Sessions
+
+Users can clear their session context using `/reset`:
+
+```
+/reset
+```
+
+This is useful when:
+- The bot is confused about context from earlier
+- Starting a completely new topic
+- Testing fresh conversation flows
+
+### Context Messages
+
+Control how many recent messages are included as context:
+
+```yaml
+guilds:
+  - id: "123456789012345678"
+    channels:
+      - id: "987654321098765432"
+        mode: mention
+        context_messages: 10  # Include last 10 messages
+```
+
+More context = better continuity but higher token usage.
+
+## Best Practices
+
+### Choosing Response Modes
+
+| Scenario | Recommended Mode |
+|----------|-----------------|
+| Shared channel with humans | `mention` |
+| Shared channel with other bots | `mention` |
+| Dedicated support channel | `auto` |
+| Direct messages | `auto` |
+| High-traffic general channel | `mention` |
+
+### Channel Organization
+
+For multiple agents in the same server:
+
+1. **Dedicated channels**: Give each bot its own channel with `auto` mode
+   ```
+   #support → SupportBot (auto)
+   #dev-help → CoderBot (auto)
+   ```
+
+2. **Shared channels**: Use `mention` mode so users choose which bot to address
+   ```
+   #general → SupportBot (mention) + CoderBot (mention)
+   ```
+
+### DM Configuration Patterns
+
+**Open DMs (friendly bot):**
+```yaml
+dm:
+  enabled: true
+  mode: auto
+```
+
+**Restricted DMs (team only):**
+```yaml
+dm:
+  enabled: true
+  mode: auto
+  allowlist:
+    - "user-id-1"
+    - "user-id-2"
+```
+
+**No DMs (channel-only):**
+```yaml
+dm:
+  enabled: false
+```
+
+**Block specific users:**
+```yaml
+dm:
+  enabled: true
+  mode: auto
+  blocklist:
+    - "spam-user-id"
+```
+
+### Rate Limit Considerations
+
+Discord has rate limits on message sending. To avoid issues:
+
+1. **Don't use auto mode in high-traffic channels** - Use mention mode instead
+2. **Keep responses concise** - Avoid very long multi-paragraph responses
+3. **Reduce context_messages** for busy channels - Lower token usage means faster responses
+
+If you see rate limit warnings in logs, consider:
+- Switching busy channels to mention mode
+- Reducing session expiry to limit context size
+- Using shorter context_messages values
 
 ## Troubleshooting
 

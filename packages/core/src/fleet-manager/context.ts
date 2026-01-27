@@ -86,4 +86,9 @@ export interface FleetManagerContext {
    * Get the event emitter (for subscribing to events in modules)
    */
   getEmitter(): EventEmitter;
+
+  /**
+   * Get the Discord manager instance (may return undefined if not initialized)
+   */
+  getDiscordManager?(): unknown;
 }

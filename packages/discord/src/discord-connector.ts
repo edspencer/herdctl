@@ -11,6 +11,7 @@ import {
   Client,
   GatewayIntentBits,
   Events,
+  Partials,
   type ClientOptions,
   type Message,
   type TextChannel,
@@ -190,12 +191,18 @@ export class DiscordConnector
 
     try {
       // Create client with necessary intents
+      // Note: Partials.Channel is required for DM support in discord.js v14+
+      // Without it, DM channels aren't cached and MessageCreate won't fire for DMs
       const clientOptions: ClientOptions = {
         intents: [
           GatewayIntentBits.Guilds,
           GatewayIntentBits.GuildMessages,
           GatewayIntentBits.DirectMessages,
           GatewayIntentBits.MessageContent,
+        ],
+        partials: [
+          Partials.Channel, // Required for DM support
+          Partials.Message, // Allows receiving uncached messages
         ],
       };
 
@@ -346,6 +353,18 @@ export class DiscordConnector
 
       // Set presence if configured
       this._setPresence();
+
+      // Clean up expired sessions on startup
+      try {
+        const cleanedUp = await this._sessionManager.cleanupExpiredSessions();
+        if (cleanedUp > 0) {
+          this._logger.info("Cleaned up expired sessions on startup", { count: cleanedUp });
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this._logger.warn("Failed to clean up expired sessions", { error: errorMessage });
+        // Don't throw - session cleanup failure shouldn't prevent connection
+      }
 
       // Initialize and register slash commands
       await this._initializeCommands();
@@ -665,6 +684,33 @@ export class DiscordConnector
       });
     };
 
+    // Create typing indicator function
+    // Returns a stop function that should be called when done
+    const startTyping = (): (() => void) => {
+      const textChannel = channel as TextChannel | DMChannel | NewsChannel | ThreadChannel;
+      let typingInterval: ReturnType<typeof setInterval> | null = null;
+
+      // Send initial typing indicator
+      textChannel.sendTyping().catch((err) => {
+        this._logger.debug("Failed to send typing indicator", { error: err.message });
+      });
+
+      // Refresh typing every 8 seconds (indicator lasts ~10 seconds)
+      typingInterval = setInterval(() => {
+        textChannel.sendTyping().catch((err) => {
+          this._logger.debug("Failed to refresh typing indicator", { error: err.message });
+        });
+      }, 8000);
+
+      // Return stop function
+      return () => {
+        if (typingInterval) {
+          clearInterval(typingInterval);
+          typingInterval = null;
+        }
+      };
+    };
+
     // Emit message event
     const payload: DiscordConnectorEventMap["message"] = {
       agentName: this.agentName,
@@ -680,6 +726,7 @@ export class DiscordConnector
         mode,
       },
       reply,
+      startTyping,
     };
     this.emit("message", payload);
   }

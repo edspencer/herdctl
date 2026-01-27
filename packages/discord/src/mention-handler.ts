@@ -69,9 +69,14 @@ export interface ConversationContext {
 /**
  * Check if a message mentions a specific bot user
  *
+ * Checks both direct user mentions (@BotName) and role mentions where
+ * the bot is a member of the mentioned role. This handles the common case
+ * where Discord auto-creates a managed role for bots and users accidentally
+ * mention the role instead of the user.
+ *
  * @param message - Discord message to check
  * @param botUserId - The bot's user ID
- * @returns true if the bot is mentioned, false otherwise
+ * @returns true if the bot is mentioned (directly or via role), false otherwise
  *
  * @example
  * ```typescript
@@ -81,8 +86,20 @@ export interface ConversationContext {
  * ```
  */
 export function isBotMentioned(message: Message, botUserId: string): boolean {
-  // Check if the bot is directly mentioned
-  return message.mentions.users.has(botUserId);
+  // Check if the bot user is directly mentioned
+  if (message.mentions.users.has(botUserId)) {
+    return true;
+  }
+
+  // Check if any mentioned role contains the bot as a member
+  // This handles the case where the bot's managed role is mentioned
+  for (const [, role] of message.mentions.roles) {
+    if (role.members.has(botUserId)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -146,6 +163,37 @@ export function stripBotMention(content: string, botUserId: string): string {
 }
 
 /**
+ * Strip bot role mentions from message content
+ *
+ * Removes role mentions (e.g., <@&123456789>) where the bot is a member
+ * of that role. This handles the case where users mention the bot's
+ * auto-created managed role instead of the bot user directly.
+ *
+ * @param content - Message content to process
+ * @param message - The Discord message (to access role mentions)
+ * @param botUserId - The bot's user ID
+ * @returns Content with bot role mentions removed
+ */
+export function stripBotRoleMentions(
+  content: string,
+  message: Message,
+  botUserId: string
+): string {
+  let result = content;
+
+  // Find role mentions where the bot is a member and strip them
+  for (const [roleId, role] of message.mentions.roles) {
+    if (role.members.has(botUserId)) {
+      // Strip this role mention
+      const roleRegex = new RegExp(`<@&${roleId}>`, "g");
+      result = result.replace(roleRegex, "");
+    }
+  }
+
+  return result.trim();
+}
+
+/**
  * Strip all bot mentions from message content
  *
  * Removes all user mentions from the message content. Useful for
@@ -178,12 +226,16 @@ export function processMessage(
   message: Message,
   botUserId: string
 ): ContextMessage {
+  // Strip both user mentions and role mentions where bot is a member
+  let content = stripBotMention(message.content, botUserId);
+  content = stripBotRoleMentions(content, message, botUserId);
+
   return {
     authorId: message.author.id,
     authorName: message.author.displayName ?? message.author.username,
     isBot: message.author.bot,
     isSelf: message.author.id === botUserId,
-    content: stripBotMention(message.content, botUserId),
+    content,
     timestamp: message.createdAt.toISOString(),
     messageId: message.id,
   };
@@ -247,7 +299,9 @@ export async function buildConversationContext(
 
   // Process the trigger message
   const wasMentioned = isBotMentioned(triggerMessage, botUserId);
-  const prompt = stripBotMention(triggerMessage.content, botUserId);
+  // Strip both direct user mentions and role mentions where the bot is a member
+  let prompt = stripBotMention(triggerMessage.content, botUserId);
+  prompt = stripBotRoleMentions(prompt, triggerMessage, botUserId);
 
   // Fetch message history (messages before the trigger)
   // Fetch more than we need to allow for filtering

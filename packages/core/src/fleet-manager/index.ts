@@ -18,6 +18,8 @@ export { ConfigReload } from "./config-reload.js";
 export { JobControl } from "./job-control.js";
 export { LogStreaming } from "./log-streaming.js";
 export { ScheduleExecutor } from "./schedule-executor.js";
+export { DiscordManager } from "./discord-manager.js";
+export type { DiscordConnectionStatus, DiscordConnectorState } from "./discord-manager.js";
 
 // Event emitters (US-4: Extract Event Emitters Module)
 export {
@@ -128,9 +130,14 @@ export type {
   // Job control event types (US-6)
   JobCancelledPayload,
   JobForkedPayload,
+  // Discord connector event types
+  DiscordConnectorConnectedPayload,
+  DiscordConnectorDisconnectedPayload,
+  DiscordConnectorErrorPayload,
   // Status query types (US-3)
   FleetStatus,
   AgentInfo,
+  AgentDiscordStatus,
   ScheduleInfo,
   FleetCounts,
   // Trigger types (US-5)

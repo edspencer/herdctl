@@ -1,0 +1,6 @@
+# herdctl state directory
+.herdctl/
+
+# Environment files
+.env
+.env.local

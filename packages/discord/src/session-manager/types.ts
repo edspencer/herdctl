@@ -159,6 +159,15 @@ export interface ISessionManager {
   cleanupExpiredSessions(): Promise<number>;
 
   /**
+   * Get the count of active (non-expired) sessions
+   *
+   * Useful for logging during shutdown to confirm sessions are preserved.
+   *
+   * @returns Number of active sessions
+   */
+  getActiveSessionCount(): Promise<number>;
+
+  /**
    * Name of the agent this session manager is for
    */
   readonly agentName: string;
