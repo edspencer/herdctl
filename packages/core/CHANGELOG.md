@@ -1,5 +1,23 @@
 # @herdctl/core
 
+## 0.3.0
+
+### Minor Changes
+
+- [#8](https://github.com/edspencer/herdctl/pull/8) [`5423647`](https://github.com/edspencer/herdctl/commit/54236477ed55e655c756bb601985d946d7eb4b41) Thanks [@edspencer](https://github.com/edspencer)! - Add Discord chat integration via DiscordManager module
+
+  - DiscordManager manages lifecycle of Discord connectors per agent
+  - Messages routed to FleetManager.trigger() for Claude execution
+  - Responses delivered back to Discord channels with automatic splitting
+  - Session persistence across restarts via SessionManager
+  - New events: discord:message:handled, discord:message:error, discord:error
+  - New status queries: getDiscordStatus(), getDiscordConnectorStatus()
+
+### Patch Changes
+
+- Updated dependencies [[`5423647`](https://github.com/edspencer/herdctl/commit/54236477ed55e655c756bb601985d946d7eb4b41)]:
+  - @herdctl/discord@0.0.4
+
 ## 0.2.0
 
 ### Minor Changes

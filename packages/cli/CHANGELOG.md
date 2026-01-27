@@ -1,5 +1,21 @@
 # herdctl
 
+## 0.3.0
+
+### Minor Changes
+
+- [#8](https://github.com/edspencer/herdctl/pull/8) [`5423647`](https://github.com/edspencer/herdctl/commit/54236477ed55e655c756bb601985d946d7eb4b41) Thanks [@edspencer](https://github.com/edspencer)! - Bundle @herdctl/discord with CLI for out-of-box Discord chat support
+
+  - Installing `herdctl` now automatically includes Discord chat integration
+  - No separate `npm install @herdctl/discord` needed for CLI users
+  - Programmatic users of `@herdctl/core` can still optionally add Discord
+
+### Patch Changes
+
+- Updated dependencies [[`5423647`](https://github.com/edspencer/herdctl/commit/54236477ed55e655c756bb601985d946d7eb4b41), [`5423647`](https://github.com/edspencer/herdctl/commit/54236477ed55e655c756bb601985d946d7eb4b41)]:
+  - @herdctl/core@0.3.0
+  - @herdctl/discord@0.0.4
+
 ## 0.2.0
 
 ### Minor Changes

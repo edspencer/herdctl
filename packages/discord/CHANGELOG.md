@@ -1,5 +1,18 @@
 # @herdctl/discord
 
+## 0.0.4
+
+### Patch Changes
+
+- [#8](https://github.com/edspencer/herdctl/pull/8) [`5423647`](https://github.com/edspencer/herdctl/commit/54236477ed55e655c756bb601985d946d7eb4b41) Thanks [@edspencer](https://github.com/edspencer)! - Fix session lifecycle issues discovered during FleetManager integration
+
+  - Clean up expired sessions automatically on bot startup
+  - Session cleanup failures logged but don't prevent connection
+  - Improved session persistence reliability across restarts
+
+- Updated dependencies [[`5423647`](https://github.com/edspencer/herdctl/commit/54236477ed55e655c756bb601985d946d7eb4b41)]:
+  - @herdctl/core@0.3.0
+
 ## 0.0.3
 
 ### Patch Changes
