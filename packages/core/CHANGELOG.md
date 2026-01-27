@@ -1,5 +1,52 @@
 # @herdctl/core
 
+## 1.3.0
+
+### Minor Changes
+
+- [#17](https://github.com/edspencer/herdctl/pull/17) [`9fc000c`](https://github.com/edspencer/herdctl/commit/9fc000c9d2275de6df3c2f87fa2242316c15d2eb) Thanks [@edspencer](https://github.com/edspencer)! - Add .env file support for environment variable loading
+
+  The config loader now automatically loads `.env` files from the config directory before interpolating environment variables. This makes it easier to manage environment-specific configuration without setting up shell environment variables.
+
+  Features:
+
+  - Automatically loads `.env` from the same directory as `herdctl.yaml`
+  - System environment variables take precedence over `.env` values
+  - New `envFile` option in `loadConfig()` to customize behavior:
+    - `true` (default): Auto-load `.env` from config directory
+    - `false`: Disable `.env` loading
+    - `string`: Specify a custom path to the `.env` file
+
+  Example `.env.example` file added to the discord-chat-bot example.
+
+- [#17](https://github.com/edspencer/herdctl/pull/17) [`9fc000c`](https://github.com/edspencer/herdctl/commit/9fc000c9d2275de6df3c2f87fa2242316c15d2eb) Thanks [@edspencer](https://github.com/edspencer)! - Add per-agent config overrides when referencing agents in fleet config
+
+  You can now override any agent configuration field when referencing an agent in your fleet's `herdctl.yaml`:
+
+  ```yaml
+  agents:
+    - path: ./agents/my-agent.yaml
+      overrides:
+        schedules:
+          check:
+            interval: 2h # Override the default interval
+        hooks:
+          after_run: [] # Disable all hooks for this fleet
+  ```
+
+  Overrides are deep-merged after fleet defaults are applied, so you only need to specify the fields you want to change. Arrays are replaced entirely (not merged).
+
+  This enables:
+
+  - Reusing agent configs across fleets with different settings
+  - Customizing schedules, hooks, permissions per-fleet
+  - Disabling features (like Discord notifications) for specific fleets
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @herdctl/discord@0.1.3
+
 ## 1.2.0
 
 ### Minor Changes

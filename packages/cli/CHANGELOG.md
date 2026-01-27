@@ -1,5 +1,13 @@
 # herdctl
 
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [[`9fc000c`](https://github.com/edspencer/herdctl/commit/9fc000c9d2275de6df3c2f87fa2242316c15d2eb), [`9fc000c`](https://github.com/edspencer/herdctl/commit/9fc000c9d2275de6df3c2f87fa2242316c15d2eb)]:
+  - @herdctl/core@1.3.0
+  - @herdctl/discord@0.1.3
+
 ## 0.4.0
 
 ### Minor Changes
