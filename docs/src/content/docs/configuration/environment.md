@@ -14,17 +14,18 @@ Environment variables can be referenced in any string value within your configur
 Use `${VAR_NAME}` to reference a required environment variable:
 
 ```yaml
-mcp:
-  servers:
-    - name: github
-      env:
-        GITHUB_TOKEN: ${GITHUB_TOKEN}
+mcp_servers:
+  github:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
 ```
 
 If the variable is not defined, herdctl will throw an error at configuration load time:
 
 ```
-UndefinedVariableError: Undefined environment variable 'GITHUB_TOKEN' at 'mcp.servers[0].env.GITHUB_TOKEN' (no default provided)
+UndefinedVariableError: Undefined environment variable 'GITHUB_TOKEN' at 'mcp_servers.github.env.GITHUB_TOKEN' (no default provided)
 ```
 
 ### Variables with Default Values
@@ -72,12 +73,13 @@ defaults:
         - ${PACKAGE_MANAGER:-npm}
 
 # MCP server configuration
-mcp:
-  servers:
-    - name: github
-      env:
-        GITHUB_TOKEN: ${GITHUB_TOKEN}
-        API_URL: ${GITHUB_API_URL:-https://api.github.com}
+mcp_servers:
+  github:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+      API_URL: ${GITHUB_API_URL:-https://api.github.com}
 ```
 
 ### Non-String Values
@@ -155,14 +157,17 @@ Always use interpolation for sensitive values:
 
 ```yaml
 # Good: Secrets come from environment
-mcp:
-  servers:
-    - name: github
-      env:
-        GITHUB_TOKEN: ${GITHUB_TOKEN}
-    - name: anthropic
-      env:
-        ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+mcp_servers:
+  github:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+  custom-api:
+    command: node
+    args: ["./mcp-servers/custom.js"]
+    env:
+      API_KEY: ${API_KEY}
 
 webhooks:
   secret_env: WEBHOOK_SECRET  # Reference by name, not value
@@ -170,11 +175,12 @@ webhooks:
 
 ```yaml
 # Bad: Secrets hardcoded in config
-mcp:
-  servers:
-    - name: github
-      env:
-        GITHUB_TOKEN: ghp_xxxxxxxxxxxx  # Never do this!
+mcp_servers:
+  github:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: ghp_xxxxxxxxxxxx  # Never do this!
 ```
 
 ### Set Variables in Your Environment
@@ -206,15 +212,12 @@ For production deployments, use your platform's secrets management:
 ### API Tokens and Keys
 
 ```yaml
-mcp:
-  servers:
-    - name: github
-      env:
-        GITHUB_TOKEN: ${GITHUB_TOKEN}
-
-    - name: linear
-      env:
-        LINEAR_API_KEY: ${LINEAR_API_KEY}
+mcp_servers:
+  github:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
 
 # Chat integrations are per-agent (each agent has its own bot)
 # See agent config for chat settings
@@ -223,12 +226,13 @@ mcp:
 ### URLs and Endpoints
 
 ```yaml
-mcp:
-  servers:
-    - name: custom-api
-      env:
-        API_BASE_URL: ${API_BASE_URL:-https://api.example.com}
-        API_VERSION: ${API_VERSION:-v1}
+mcp_servers:
+  custom-api:
+    command: node
+    args: ["./mcp-servers/custom-api.js"]
+    env:
+      API_BASE_URL: ${API_BASE_URL:-https://api.example.com}
+      API_VERSION: ${API_VERSION:-v1}
 ```
 
 ### Paths and Directories
@@ -315,14 +319,15 @@ agents:
   - path: ./agents/${AGENT_PROFILE:-default}/coder.yaml
   - path: ./agents/${AGENT_PROFILE:-default}/reviewer.yaml
 
-mcp:
-  servers:
-    - name: github
-      env:
-        GITHUB_TOKEN: ${GITHUB_TOKEN}
-    - name: filesystem
-      env:
-        ALLOWED_PATHS: ${ALLOWED_PATHS:-/tmp}
+mcp_servers:
+  github:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+  filesystem:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "${ALLOWED_PATHS:-/tmp}"]
 
 # Note: Chat (Discord/Slack) is configured per-agent, not at fleet level.
 # Each agent references its own token env var in its config.

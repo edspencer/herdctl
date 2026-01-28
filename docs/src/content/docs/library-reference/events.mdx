@@ -886,31 +886,3 @@ import type {
 } from '@herdctl/core';
 ```
 
----
-
-## Legacy Events
-
-For backwards compatibility, the following legacy events are still emitted:
-
-| Legacy Event | Replacement | Notes |
-|--------------|-------------|-------|
-| `schedule:trigger` | `schedule:triggered` | Use new event for typed payload |
-| `schedule:complete` | `job:completed` | Use job event for full metadata |
-| `schedule:error` | `job:failed` | Use job event for error details |
-
-```typescript
-// Legacy (deprecated)
-manager.on('schedule:trigger', (agentName, scheduleName) => {
-  console.log(`${agentName}/${scheduleName} triggered`);
-});
-
-// Preferred
-manager.on('schedule:triggered', (payload) => {
-  console.log(`${payload.agentName}/${payload.scheduleName} triggered`);
-  // Also have access to payload.schedule, payload.timestamp
-});
-```
-
-<Aside type="caution">
-Legacy events will be removed in a future major version. Migrate to the typed events for full payload access.
-</Aside>

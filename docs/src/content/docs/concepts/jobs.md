@@ -45,10 +45,12 @@ When a job completes, it records an exit reason explaining why it ended:
 
 | Exit Reason | Description |
 |-------------|-------------|
-| `success` | Job completed all tasks successfully |
-| `error` | Job failed due to an error |
+| `end_turn` | Job completed naturally |
+| `stop_sequence` | Job hit a stop sequence |
+| `max_turns` | Job reached maximum conversation turns |
 | `timeout` | Job exceeded its configured time limit |
-| `manual_cancel` | Job was cancelled by user intervention |
+| `interrupt` | Job was cancelled by user intervention |
+| `error` | Job failed due to an error |
 
 ### Example Job Record
 
@@ -92,76 +94,58 @@ Job output is stored in **JSONL (JSON Lines)** format, where each line is a sepa
 ### Viewing Job Output
 
 ```bash
-# Stream job output
-herdctl jobs logs <job-id>
+# View logs for a specific job
+herdctl logs --job <job-id>
 
-# Follow output in real-time
-herdctl jobs logs <job-id> --follow
+# View logs for an agent (shows recent jobs)
+herdctl logs <agent-name>
 
-# Show only errors
-herdctl jobs logs <job-id> --level error
+# Follow logs in real-time
+herdctl logs <agent-name> --follow
 
 # Export to file
-herdctl jobs logs <job-id> > job-output.log
+herdctl logs --job <job-id> > job-output.log
 ```
 
 ## Working with Jobs
 
-### Listing Jobs
+### Viewing Agent and Job Status
 
 ```bash
-# List all jobs
-herdctl jobs list
+# Show all agents and their status
+herdctl status
 
-# Filter by status
-herdctl jobs list --status running
-herdctl jobs list --status completed
-herdctl jobs list --status failed
-herdctl jobs list --status cancelled
-
-# Filter by agent
-herdctl jobs list --agent bragdoc-coder
-
-# Filter by time range
-herdctl jobs list --since 24h
-herdctl jobs list --since "2024-01-15"
-```
-
-### Viewing Job Details
-
-```bash
-# Show full job details
-herdctl jobs show <job-id>
-
-# Show job in JSON format
-herdctl jobs show <job-id> --json
+# Show specific agent status
+herdctl status <agent-name>
 ```
 
 ### Cancelling Jobs
 
 ```bash
 # Cancel a running job
-herdctl jobs cancel <job-id>
-
-# Cancel all jobs for an agent
-herdctl jobs cancel --agent bragdoc-coder
+herdctl cancel <job-id>
 ```
 
-## Job Resume
+## Session Resume
 
 Jobs store their Claude session ID, enabling resume after interruption. This is useful when:
 
 - Network connectivity was lost
-- The job was manually paused
 - The system was restarted during execution
+- You want to continue an agent's work interactively
 
 ```bash
-# Resume a specific job
-herdctl jobs resume <job-id>
+# Resume the most recent session
+herdctl sessions resume
 
-# Resume with additional context
-herdctl jobs resume <job-id> --prompt "Continue from where you left off"
+# Resume by session ID (supports partial match)
+herdctl sessions resume <session-id>
+
+# Resume by agent name
+herdctl sessions resume <agent-name>
 ```
+
+See [Sessions](/concepts/sessions/) for more details on session management and resume capabilities.
 
 ## Job Storage
 

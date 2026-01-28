@@ -182,7 +182,7 @@ class JobNotFoundError extends FleetManagerError {
 import { isJobNotFoundError } from '@herdctl/core';
 
 try {
-  const status = await manager.getJobStatus('job-2024-01-15-abc');
+  const output = await manager.getJobFinalOutput('job-2024-01-15-abc');
 } catch (error) {
   if (isJobNotFoundError(error)) {
     console.error(`Job "${error.jobId}" not found`);

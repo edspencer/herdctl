@@ -142,15 +142,60 @@ private sleep(ms: number, signal?: AbortSignal): Promise<void> {
 }
 ```
 
+## Supported Schedule Types
+
+The scheduler supports two automatic trigger types:
+
+### Interval Schedules
+
+Run at fixed intervals after the previous job completes:
+
+```yaml
+schedules:
+  check-issues:
+    type: interval
+    interval: 5m
+    prompt: "Check for ready issues."
+```
+
+### Cron Schedules
+
+Run on precise time-based schedules using cron expressions:
+
+```yaml
+schedules:
+  morning-report:
+    type: cron
+    expression: "0 9 * * 1-5"  # 9am weekdays
+    prompt: "Generate daily report."
+```
+
+The scheduler uses [cron-parser](https://www.npmjs.com/package/cron-parser) for cron expression evaluation. Supported shorthands:
+
+| Shorthand | Equivalent | Description |
+|-----------|------------|-------------|
+| `@hourly` | `0 * * * *` | Every hour |
+| `@daily` | `0 0 * * *` | Every day at midnight |
+| `@weekly` | `0 0 * * 0` | Every Sunday at midnight |
+| `@monthly` | `0 0 1 * *` | First of each month |
+| `@yearly` | `0 0 1 1 *` | January 1st |
+
+### Non-Automatic Schedule Types
+
+The `webhook` and `chat` schedule types are **not automatically triggered** by the scheduler. They exist for configuration documentation and are handled by their respective subsystems:
+
+- **webhook**: Triggered by external HTTP requests
+- **chat**: Triggered by the Discord connector when messages are received
+
 ## Schedule Checking
 
 Each schedule check evaluates multiple conditions:
 
 ```typescript
 private async checkSchedule(agent, scheduleName, schedule): Promise<ScheduleCheckResult> {
-  // 1. Skip non-interval types
-  if (schedule.type !== "interval") {
-    return { shouldTrigger: false, skipReason: "not_interval" };
+  // 1. Skip unsupported types (webhook, chat)
+  if (schedule.type !== "interval" && schedule.type !== "cron") {
+    return { shouldTrigger: false, skipReason: "unsupported_type" };
   }
 
   // 2. Get current state
@@ -187,7 +232,7 @@ private async checkSchedule(agent, scheduleName, schedule): Promise<ScheduleChec
 
 | Reason | Description |
 |--------|-------------|
-| `not_interval` | Schedule type is not "interval" |
+| `unsupported_type` | Schedule type is not automatically triggered (webhook, chat) |
 | `disabled` | Schedule status is "disabled" |
 | `already_running` | Schedule has an active job |
 | `at_capacity` | Agent at `max_concurrent` limit |

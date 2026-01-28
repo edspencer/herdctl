@@ -183,6 +183,27 @@ herdctl stop
 herdctl stop price-checker
 ```
 
+### cancel
+
+Cancel a running job.
+
+```bash
+herdctl cancel <job-id>
+```
+
+**Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `job-id` | ID of the job to cancel |
+
+**Examples:**
+
+```bash
+# Cancel a specific job
+herdctl cancel job-2024-01-15-abc123
+```
+
 ### validate
 
 Validate configuration files.

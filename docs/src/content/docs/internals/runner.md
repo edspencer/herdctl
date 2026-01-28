@@ -349,6 +349,10 @@ Session info is persisted in `.herdctl/sessions/<agent-name>.json`:
 
 The runner streams output in real-time using JSONL (newline-delimited JSON).
 
+### Output File Location
+
+By default, job output is written to `.herdctl/jobs/{jobId}.jsonl`. When `outputToFile: true` is specified in the runner options, output is also written to `.herdctl/jobs/{jobId}/output.log` as plain text for easier reading.
+
 ### JSONL Format
 
 Each line is a complete, self-contained JSON object:

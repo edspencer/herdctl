@@ -871,23 +871,7 @@ Verbose logs include:
 
 ### Checking Bot State
 
-Use the `/status` command or check programmatically:
-
-```typescript
-import { FleetManager } from '@herdctl/core';
-
-const manager = new FleetManager({ /* config */ });
-const connector = manager.getDiscordConnector('support-agent');
-
-console.log(connector.getState());
-// {
-//   status: 'connected',
-//   connectedAt: '2024-01-15T10:30:00Z',
-//   botUser: { id: '...', username: 'SupportBot', discriminator: '1234' },
-//   messageStats: { received: 42, sent: 38, ignored: 4 },
-//   rateLimits: { totalCount: 0, isRateLimited: false }
-// }
-```
+Use the `/status` slash command in Discord to check the bot's connection status and statistics.
 
 ### Rate Limits
 

@@ -7,7 +7,7 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 ## What is herdctl?
 
-**herdctl** is an open-source platform for running fleets of autonomous AI agents. Each agent has its own identity, schedules, and work sources. Agents can be triggered by time (interval/cron), events (webhooks), or chat messages (Discord/Slack).
+**herdctl** is an open-source platform for running fleets of autonomous AI agents. Each agent has its own identity, schedules, and work sources. Agents can be triggered by time (interval/cron), events (webhooks), or chat messages (Discord).
 
 Think of it as **"Kubernetes for AI agents"** - declarative configuration, multiple runtimes, pluggable integrations.
 
@@ -24,7 +24,7 @@ Think of it as **"Kubernetes for AI agents"** - declarative configuration, multi
     Trigger agents with intervals ("every 5 minutes"), cron schedules ("9am weekdays"), webhooks, or chat messages from Discord/Slack.
   </Card>
   <Card title="Pluggable Work Sources" icon="list-format">
-    Connect agents to GitHub Issues, Jira, Linear, or custom work queues. Agents automatically discover, claim, and complete tasks.
+    Connect agents to GitHub Issues. Agents automatically discover, claim, and complete tasks from your issue tracker.
   </Card>
 </CardGrid>
 
@@ -35,7 +35,7 @@ Think of it as **"Kubernetes for AI agents"** - declarative configuration, multi
 | Manually run Claude for each task | Agents work continuously, autonomously |
 | Single agent, single task | Fleet of specialized agents per project |
 | No scheduling or triggers | Interval, cron, webhook, and chat triggers |
-| No work queue integration | GitHub Issues, Jira, Linear integration |
+| No work queue integration | GitHub Issues integration |
 | Context lost between sessions | Persistent sessions with resume capability |
 
 ## Next Steps

@@ -118,6 +118,27 @@ output_file: job-2024-01-19-abc123.jsonl
 | `summary` | `string?` | Brief summary of job results |
 | `output_file` | `string?` | Path to the JSONL output file |
 
+### Job Status Values
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Job created but not yet started |
+| `running` | Job is currently executing |
+| `completed` | Job finished successfully |
+| `failed` | Job ended with an error |
+| `cancelled` | Job was cancelled by user |
+
+### Exit Reason Values
+
+| Exit Reason | Description |
+|-------------|-------------|
+| `end_turn` | Job completed naturally |
+| `stop_sequence` | Job hit a stop sequence |
+| `max_turns` | Job reached maximum conversation turns |
+| `timeout` | Job exceeded configured time limit |
+| `interrupt` | Job was cancelled by user intervention |
+| `error` | Job failed due to an error |
+
 ### Streaming Output (JSONL)
 
 Job output is stored as newline-delimited JSON (JSONL) for efficient streaming:

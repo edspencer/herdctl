@@ -427,15 +427,9 @@ The adapter automatically infers priority from labels:
 
 ### GitHub Enterprise
 
-For GitHub Enterprise installations, configure the API base URL:
-
-```yaml
-work_source:
-  type: github
-  repo: myorg/my-project
-  # GitHub Enterprise Server
-  api_base_url: https://github.mycompany.com/api/v3
-```
+:::note[Not Yet Available in YAML]
+GitHub Enterprise support (custom API base URL) is supported in the TypeScript API but is not yet exposed in the YAML configuration schema. This feature is planned for a future release.
+:::
 
 ### Cleanup Behavior
 

@@ -188,19 +188,9 @@ Current time: 10:30 (system was asleep)
 
 ### Jitter (Thundering Herd Prevention)
 
-When many agents have the same interval, they can synchronize and all trigger simultaneously. The scheduler supports optional jitter (0-10%) to spread out triggers:
+When many agents have the same interval, they can synchronize and all trigger simultaneously. The scheduler includes internal jitter handling to spread out triggers naturally, preventing all agents from firing at exactly the same moment.
 
-```
-Without jitter:
-- Agent A: triggers at 10:00, 10:05, 10:10...
-- Agent B: triggers at 10:00, 10:05, 10:10...
-- Agent C: triggers at 10:00, 10:05, 10:10...
-
-With 5% jitter on 5-minute interval:
-- Agent A: triggers at 10:00, 10:05:12, 10:10:08...
-- Agent B: triggers at 10:00:05, 10:05:18, 10:10:02...
-- Agent C: triggers at 10:00:10, 10:05:05, 10:10:15...
-```
+This behavior is automatic and does not require configuration.
 
 ## Concurrency Control with max_concurrent
 

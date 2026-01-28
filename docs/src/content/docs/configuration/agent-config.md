@@ -246,6 +246,10 @@ schedules:
 | `webhook` | Triggered by HTTP webhook | — |
 | `chat` | Triggered by chat messages | — |
 
+:::note[Webhook and Chat Schedules]
+`webhook` and `chat` schedule types are for documentation and configuration purposes. They are **not automatically triggered** by the scheduler. Webhook triggers require an external HTTP request, and chat triggers are handled by the Discord connector when messages are received.
+:::
+
 #### Cron Schedules
 
 Use cron expressions for precise time-based scheduling. Cron format: `minute hour day month weekday`
@@ -564,14 +568,6 @@ chat:
           enabled: true
           mode: auto
 
-  slack:
-    bot_token_env: SUPPORT_SLACK_TOKEN
-    app_token_env: SUPPORT_SLACK_APP_TOKEN
-    workspaces:
-      - id: "T12345678"
-        channels:
-          - id: "C12345678"
-            mode: mention
 ```
 
 #### Discord Settings
@@ -588,20 +584,8 @@ chat:
 | `guilds[].dm.enabled` | boolean | `true` | Allow direct messages |
 | `guilds[].dm.mode` | string | `auto` | DM response mode |
 
-#### Slack Settings
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `bot_token_env` | string | — | **Required.** Environment variable name for Slack bot token |
-| `app_token_env` | string | — | **Required for Socket Mode.** Environment variable name for Slack app token |
-| `workspaces` | array | — | Slack workspaces this bot participates in |
-| `workspaces[].id` | string | — | Slack workspace ID (e.g., `T12345678`) |
-| `workspaces[].channels` | array | — | Channels to monitor |
-| `workspaces[].channels[].id` | string | — | Slack channel ID (e.g., `C12345678`) |
-| `workspaces[].channels[].mode` | string | `mention` | Response mode |
-
 :::note[Bot Setup Required]
-Each chat-enabled agent needs its own Discord Application (created in [Discord Developer Portal](https://discord.com/developers/applications)) and/or Slack App (created in [Slack API](https://api.slack.com/apps)). See the integration guides for setup instructions.
+Each chat-enabled agent needs its own Discord Application (created in [Discord Developer Portal](https://discord.com/developers/applications)). See the [Discord integration guide](/integrations/discord/) for setup instructions.
 :::
 
 ### docker
