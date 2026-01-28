@@ -1,5 +1,14 @@
 # @herdctl/core
 
+## 1.3.1
+
+### Patch Changes
+
+- [#20](https://github.com/edspencer/herdctl/pull/20) [`3816d08`](https://github.com/edspencer/herdctl/commit/3816d08b5a9f2b2c6bccbd55332c8cec0da0c7a6) Thanks [@edspencer](https://github.com/edspencer)! - Fix system prompt not being passed to Claude SDK correctly. Custom system prompts were being ignored because we passed `{ type: 'custom', content: '...' }` but the SDK expects a plain string for custom prompts.
+
+- Updated dependencies []:
+  - @herdctl/discord@0.1.4
+
 ## 1.3.0
 
 ### Minor Changes
