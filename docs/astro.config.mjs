@@ -78,7 +78,7 @@ export default defineConfig({
 				},
 			],
 			social: [
-				{ icon: 'github', label: 'GitHub', href: 'https://github.com/egghead-io/herdctl' },
+				{ icon: 'github', label: 'GitHub', href: 'https://github.com/edspencer/herdctl' },
 			],
 			sidebar: [
 				{
