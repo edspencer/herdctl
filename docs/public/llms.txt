@@ -1,0 +1,129 @@
+# herdctl
+
+> Autonomous Agent Fleet Management for Claude Code
+
+herdctl is a TypeScript-based system for managing fleets of autonomous Claude Code agents. It provides programmatic and CLI-based fleet orchestration with schedules, triggers, and intelligent job management.
+
+## Quick Links
+
+- Documentation: https://herdctl.dev
+- GitHub: https://github.com/edspencer/herdctl
+- npm: https://www.npmjs.com/package/herdctl
+
+## Packages
+
+- `herdctl` - CLI for command-line fleet operations
+- `@herdctl/core` - Core library for programmatic fleet management
+- `@herdctl/discord` - Discord connector for chat-based agent interaction
+
+## Core Concepts
+
+### Agents
+Agents are Claude Code instances that execute jobs. Each agent has its own configuration file defining its capabilities, permissions, and work sources.
+
+### Work Sources
+Work sources define where agents get their tasks from:
+- **Schedules**: Cron-based recurring jobs
+- **Triggers**: Event-driven job initiation (webhooks, file changes)
+- **GitHub Issues**: Pull work from GitHub issues with specific labels
+
+### Jobs
+Jobs are individual units of work executed by agents. Each job runs in an isolated workspace with defined permissions and constraints.
+
+### Fleet
+A fleet is a collection of agents managed together via a single `herdctl.yaml` configuration file.
+
+## Installation
+
+```bash
+npm install -g herdctl
+# or
+pnpm add -g herdctl
+```
+
+## Basic Usage
+
+1. Create `herdctl.yaml` in your project root:
+```yaml
+version: 1
+fleet:
+  name: my-fleet
+agents:
+  - agents/my-agent.yaml
+```
+
+2. Create agent config `agents/my-agent.yaml`:
+```yaml
+name: my-agent
+model: claude-sonnet-4-20250514
+workSources:
+  schedules:
+    - name: daily-task
+      cron: "0 9 * * *"
+      task: "Review and summarize recent changes"
+```
+
+3. Start the fleet:
+```bash
+herdctl start
+```
+
+## Documentation Structure
+
+### Getting Started
+- /getting-started/ - Installation, quick start, and first fleet setup
+
+### Concepts
+- /concepts/agents/ - Agent configuration and lifecycle
+- /concepts/work-sources/ - Schedules, triggers, and GitHub integration
+- /concepts/schedules/ - Cron-based scheduling
+- /concepts/triggers/ - Event-driven job triggers
+- /concepts/jobs/ - Job execution and management
+- /concepts/hooks/ - Pre/post job hooks
+- /concepts/workspaces/ - Workspace isolation and management
+- /concepts/sessions/ - Session persistence
+
+### Configuration
+- /configuration/fleet-config/ - herdctl.yaml reference
+- /configuration/agent-config/ - Agent YAML reference
+- /configuration/github-work-source/ - GitHub issues integration
+- /configuration/permissions/ - Permission configuration
+- /configuration/mcp-servers/ - MCP server setup
+- /configuration/environment/ - Environment variables
+
+### Integrations
+- /integrations/discord/ - Discord bot integration
+
+### Guides
+- /guides/discord-quick-start/ - Discord chat quick start
+- /guides/examples/ - Example projects
+- /guides/persistent-memory/ - Memory persistence patterns
+- /guides/recipes/ - Common patterns and recipes
+
+### Library Reference
+- /library-reference/fleet-manager/ - FleetManager API
+
+### CLI Reference
+- /cli-reference/ - CLI commands reference
+
+## Library Usage
+
+```typescript
+import { FleetManager } from '@herdctl/core';
+
+const fleet = new FleetManager();
+
+fleet.on('job:started', (job) => {
+  console.log(`Job ${job.id} started`);
+});
+
+fleet.on('job:completed', (job) => {
+  console.log(`Job ${job.id} completed`);
+});
+
+await fleet.start();
+```
+
+## Optional
+
+For complete API documentation, see the full docs at https://herdctl.dev

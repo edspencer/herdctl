@@ -1,0 +1,24 @@
+# herdctl.dev robots.txt
+#
+# Policy: Allow AI assistants to READ documentation for helping users.
+#         Disallow AI TRAINING on this content.
+#
+# We want Claude Code, GPT, and other AI assistants to be able to help
+# users work with herdctl by reading our docs. We just don't want our
+# docs used to train foundation models.
+
+User-agent: *
+Allow: /
+
+# LLM-friendly documentation
+# See /llms.txt for condensed docs optimized for LLMs
+# See /llms-full.txt for complete documentation
+
+# Sitemap for discovery
+Sitemap: https://herdctl.dev/sitemap-index.xml
+
+# Content signals (https://blog.cloudflare.com/content-signal-spec/)
+# ai-train=no: Don't use for model training
+# search=yes: Index for search engines
+# ai-input=yes: AI assistants can read to help users
+Content-Signal: search=yes, ai-input=yes, ai-train=no

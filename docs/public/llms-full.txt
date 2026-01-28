@@ -1,0 +1,603 @@
+# herdctl - Complete Documentation
+
+> Autonomous Agent Fleet Management for Claude Code
+
+This is the complete LLM-optimized documentation for herdctl. For the condensed version, see /llms.txt
+
+---
+
+## Overview
+
+herdctl is a TypeScript-based system for managing fleets of autonomous Claude Code agents. It provides:
+
+- `herdctl` - CLI for command-line fleet operations
+- `@herdctl/core` - Core library for programmatic fleet management
+- `@herdctl/discord` - Discord connector for chat-based agent interaction
+
+### Key Features
+
+- **Fleet Management**: Orchestrate multiple Claude Code agents from a single configuration
+- **Declarative Config**: YAML-based configuration for fleets and agents
+- **Multiple Triggers**: Cron schedules, webhooks, file watchers, GitHub issues
+- **Pluggable Work Sources**: GitHub issues, manual triggers, scheduled tasks
+- **Library-First Design**: All business logic in @herdctl/core, thin client wrappers
+
+---
+
+## Installation
+
+### Prerequisites
+- Node.js 20+
+- Claude Code CLI installed and authenticated
+- Git
+
+### Install via npm/pnpm
+
+```bash
+# Global install for CLI usage
+npm install -g herdctl
+# or
+pnpm add -g herdctl
+
+# Library usage in a project
+npm install @herdctl/core
+# or
+pnpm add @herdctl/core
+```
+
+---
+
+## Quick Start
+
+### Step 1: Create Project Structure
+
+```bash
+mkdir my-fleet && cd my-fleet
+mkdir agents
+```
+
+### Step 2: Create Fleet Configuration
+
+Create `herdctl.yaml`:
+
+```yaml
+version: 1
+
+fleet:
+  name: my-fleet
+  description: My autonomous agent fleet
+
+workspace:
+  root: ./workspaces
+
+agents:
+  - agents/code-reviewer.yaml
+```
+
+### Step 3: Create Agent Configuration
+
+Create `agents/code-reviewer.yaml`:
+
+```yaml
+name: code-reviewer
+description: Reviews pull requests and provides feedback
+model: claude-sonnet-4-20250514
+
+permissions:
+  allowedTools:
+    - Read
+    - Glob
+    - Grep
+    - Bash
+  disallowedTools:
+    - Write
+    - Edit
+
+workSources:
+  schedules:
+    - name: morning-review
+      cron: "0 9 * * 1-5"
+      task: |
+        Review any open pull requests in the repository.
+        Focus on code quality, potential bugs, and adherence to best practices.
+```
+
+### Step 4: Start the Fleet
+
+```bash
+herdctl start
+```
+
+### Step 5: Check Status
+
+```bash
+herdctl status
+```
+
+---
+
+## Configuration Reference
+
+### Fleet Configuration (herdctl.yaml)
+
+The root configuration file for your fleet.
+
+```yaml
+version: 1                    # Required: Schema version (currently 1)
+
+fleet:
+  name: string                # Fleet identifier
+  description: string         # Human-readable description
+
+defaults:                     # Default settings for all agents
+  model: string               # Default model (e.g., claude-sonnet-4-20250514)
+  maxConcurrentJobs: number   # Max parallel jobs per agent
+  permissions:                # Default permissions
+    allowedTools: string[]
+    disallowedTools: string[]
+
+workspace:
+  root: string                # Root directory for workspaces
+  cloneStrategy: string       # "fresh" | "reuse" | "branch"
+
+agents:                       # List of agent config file paths
+  - path/to/agent1.yaml
+  - path/to/agent2.yaml
+
+webhooks:                     # Webhook server configuration
+  enabled: boolean
+  port: number
+  secret: string              # Webhook signing secret
+
+docker:                       # Docker configuration
+  enabled: boolean
+  image: string
+  network: string
+```
+
+### Agent Configuration
+
+Individual agent configuration files.
+
+```yaml
+name: string                  # Required: Unique agent identifier
+description: string           # What this agent does
+model: string                 # Claude model to use
+
+permissions:
+  allowedTools: string[]      # Tools the agent can use
+  disallowedTools: string[]   # Tools explicitly denied
+  allowedCommands: string[]   # Bash commands allowed
+  disallowedCommands: string[] # Bash commands denied
+
+workSources:
+  schedules:                  # Cron-based triggers
+    - name: string
+      cron: string            # Cron expression
+      task: string            # Task prompt
+      enabled: boolean        # Default: true
+
+  triggers:                   # Event-based triggers
+    - name: string
+      type: string            # "webhook" | "file" | "manual"
+      task: string
+      config: object          # Type-specific configuration
+
+  github:                     # GitHub issues work source
+    owner: string
+    repo: string
+    labels: string[]          # Filter issues by labels
+    assignee: string          # Filter by assignee
+
+hooks:                        # Pre/post job hooks
+  preJob: string[]            # Commands to run before job
+  postJob: string[]           # Commands to run after job
+
+mcp:                          # MCP server configuration
+  servers:
+    - name: string
+      command: string
+      args: string[]
+      env: object
+
+chat:                         # Chat integration
+  discord:
+    enabled: boolean
+    channelId: string
+```
+
+---
+
+## Work Sources
+
+### Schedules
+
+Cron-based recurring tasks.
+
+```yaml
+workSources:
+  schedules:
+    - name: daily-backup
+      cron: "0 2 * * *"        # 2 AM daily
+      task: "Run database backup and verify integrity"
+
+    - name: weekly-review
+      cron: "0 9 * * 1"        # 9 AM Mondays
+      task: "Review code changes from the past week"
+```
+
+Cron format: `minute hour day-of-month month day-of-week`
+
+### Triggers
+
+Event-driven job initiation.
+
+#### Webhook Triggers
+
+```yaml
+workSources:
+  triggers:
+    - name: deploy-trigger
+      type: webhook
+      task: "Deploy the application to staging"
+      config:
+        path: /deploy
+        method: POST
+```
+
+#### File Watch Triggers
+
+```yaml
+workSources:
+  triggers:
+    - name: config-change
+      type: file
+      task: "Validate configuration changes"
+      config:
+        paths:
+          - "config/**/*.yaml"
+        events: ["change", "create"]
+```
+
+### GitHub Issues
+
+Pull tasks from GitHub issues.
+
+```yaml
+workSources:
+  github:
+    owner: myorg
+    repo: myrepo
+    labels:
+      - "agent-task"
+      - "automated"
+    assignee: "@me"
+```
+
+---
+
+## CLI Reference
+
+### Start Commands
+
+```bash
+herdctl start                 # Start fleet from ./herdctl.yaml
+herdctl start -c config.yaml  # Start from specific config
+herdctl start --dry-run       # Validate without starting
+```
+
+### Status Commands
+
+```bash
+herdctl status                # Show fleet status
+herdctl status --json         # JSON output
+herdctl status agent-name     # Status of specific agent
+```
+
+### Job Commands
+
+```bash
+herdctl jobs                  # List all jobs
+herdctl jobs --agent name     # Jobs for specific agent
+herdctl jobs --status running # Filter by status
+herdctl job <id>              # Show job details
+herdctl job <id> --logs       # Show job logs
+```
+
+### Agent Commands
+
+```bash
+herdctl agents                # List agents
+herdctl agent <name>          # Show agent details
+herdctl trigger <agent> <trigger-name>  # Manually trigger
+```
+
+### Other Commands
+
+```bash
+herdctl stop                  # Stop the fleet
+herdctl validate              # Validate configuration
+herdctl version               # Show version
+```
+
+---
+
+## Library Reference
+
+### FleetManager
+
+The main orchestration class.
+
+```typescript
+import { FleetManager } from '@herdctl/core';
+
+const fleet = new FleetManager({
+  configPath: './herdctl.yaml',  // Optional: default is ./herdctl.yaml
+});
+
+// Event handlers
+fleet.on('fleet:started', () => console.log('Fleet started'));
+fleet.on('fleet:stopped', () => console.log('Fleet stopped'));
+fleet.on('agent:ready', (agent) => console.log(`Agent ${agent.name} ready`));
+fleet.on('job:started', (job) => console.log(`Job ${job.id} started`));
+fleet.on('job:completed', (job) => console.log(`Job ${job.id} completed`));
+fleet.on('job:failed', (job, error) => console.error(`Job ${job.id} failed`, error));
+fleet.on('schedule:triggered', (schedule) => console.log(`Schedule ${schedule.name} triggered`));
+
+// Start/stop
+await fleet.start();
+await fleet.stop();
+
+// Manual triggers
+await fleet.triggerAgent('agent-name', 'trigger-name', { data: 'payload' });
+
+// Status
+const status = fleet.getStatus();
+const agentStatus = fleet.getAgentStatus('agent-name');
+const jobs = fleet.getJobs({ status: 'running' });
+```
+
+### Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `fleet:started` | - | Fleet has started |
+| `fleet:stopped` | - | Fleet has stopped |
+| `agent:ready` | Agent | Agent initialized and ready |
+| `agent:error` | Agent, Error | Agent encountered error |
+| `job:queued` | Job | Job added to queue |
+| `job:started` | Job | Job execution started |
+| `job:completed` | Job | Job completed successfully |
+| `job:failed` | Job, Error | Job failed |
+| `schedule:triggered` | Schedule | Scheduled job triggered |
+| `trigger:fired` | Trigger, Data | Trigger activated |
+
+### Error Handling
+
+```typescript
+import { FleetManagerError, ConfigError, AgentError } from '@herdctl/core';
+
+try {
+  await fleet.start();
+} catch (error) {
+  if (error instanceof ConfigError) {
+    console.error('Configuration error:', error.message);
+  } else if (error instanceof AgentError) {
+    console.error('Agent error:', error.agent, error.message);
+  } else if (error instanceof FleetManagerError) {
+    console.error('Fleet error:', error.message);
+  }
+}
+```
+
+---
+
+## Discord Integration
+
+### Setup
+
+1. Create a Discord bot at https://discord.com/developers/applications
+2. Enable Message Content Intent
+3. Add bot to your server with appropriate permissions
+
+### Configuration
+
+In your agent config:
+
+```yaml
+name: discord-agent
+chat:
+  discord:
+    enabled: true
+    channelId: "1234567890"  # Channel to monitor
+```
+
+Environment variables:
+
+```bash
+DISCORD_BOT_TOKEN=your-bot-token
+DISCORD_APPLICATION_ID=your-app-id
+```
+
+### Usage
+
+Once configured, mention the bot or use the configured prefix to interact:
+
+```
+@herdctl-bot please review the latest PR
+```
+
+---
+
+## Permissions
+
+### Tool Permissions
+
+Control which Claude Code tools agents can use:
+
+```yaml
+permissions:
+  allowedTools:
+    - Read
+    - Glob
+    - Grep
+    - Bash
+    - Write
+    - Edit
+  disallowedTools:
+    - WebFetch  # Prevent web access
+```
+
+### Bash Command Permissions
+
+Fine-grained control over shell commands:
+
+```yaml
+permissions:
+  allowedCommands:
+    - "npm test"
+    - "npm run build"
+    - "git status"
+    - "git diff"
+  disallowedCommands:
+    - "rm -rf"
+    - "sudo"
+```
+
+---
+
+## State Management
+
+herdctl maintains state in `.herdctl/` directory:
+
+```
+.herdctl/
+├── state.json          # Current fleet state
+├── jobs/               # Job records
+│   └── {job-id}.json
+├── logs/               # Job logs
+│   └── {job-id}.log
+└── sessions/           # Agent sessions
+    └── {agent-name}/
+```
+
+### State Persistence
+
+- Jobs are persisted across restarts
+- Running jobs resume on restart (if possible)
+- Failed jobs can be retried
+
+---
+
+## Examples
+
+### Code Review Agent
+
+```yaml
+name: code-reviewer
+description: Automated code review for pull requests
+model: claude-sonnet-4-20250514
+
+permissions:
+  allowedTools: [Read, Glob, Grep, Bash]
+  disallowedTools: [Write, Edit]
+  allowedCommands:
+    - "git diff"
+    - "git log"
+    - "git show"
+
+workSources:
+  github:
+    owner: myorg
+    repo: myrepo
+    labels: ["needs-review"]
+```
+
+### Documentation Generator
+
+```yaml
+name: doc-generator
+description: Generates and updates documentation
+model: claude-sonnet-4-20250514
+
+permissions:
+  allowedTools: [Read, Write, Edit, Glob, Grep, Bash]
+  allowedCommands:
+    - "npm run docs:*"
+
+workSources:
+  schedules:
+    - name: weekly-docs
+      cron: "0 10 * * 5"
+      task: |
+        Review the codebase for undocumented functions and classes.
+        Update the documentation in docs/ directory.
+```
+
+### Issue Triage Agent
+
+```yaml
+name: issue-triage
+description: Triages and labels GitHub issues
+model: claude-sonnet-4-20250514
+
+workSources:
+  schedules:
+    - name: hourly-triage
+      cron: "0 * * * *"
+      task: |
+        Check for new unlabeled issues.
+        Analyze the issue content and apply appropriate labels.
+        Add initial response if needed.
+
+  github:
+    owner: myorg
+    repo: myrepo
+    labels: ["needs-triage"]
+```
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+**Fleet won't start**
+- Check `herdctl validate` for config errors
+- Verify Claude Code CLI is authenticated
+- Check agent config file paths exist
+
+**Jobs not triggering**
+- Verify cron expressions at crontab.guru
+- Check schedule is `enabled: true`
+- Review logs with `herdctl job <id> --logs`
+
+**Permission errors**
+- Review `allowedTools` includes needed tools
+- Check `allowedCommands` for bash requirements
+- Verify file system permissions
+
+### Debug Mode
+
+```bash
+DEBUG=herdctl:* herdctl start
+```
+
+### Logs
+
+```bash
+# View fleet logs
+tail -f .herdctl/logs/fleet.log
+
+# View specific job logs
+herdctl job <id> --logs
+```
+
+---
+
+## Links
+
+- Documentation: https://herdctl.dev
+- GitHub: https://github.com/edspencer/herdctl
+- npm: https://www.npmjs.com/package/herdctl
+- Issues: https://github.com/edspencer/herdctl/issues

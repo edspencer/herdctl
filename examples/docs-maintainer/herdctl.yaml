@@ -1,0 +1,12 @@
+version: 1
+
+fleet:
+  name: docs-maintainer
+  description: |
+    Self-maintaining documentation fleet for herdctl.
+    This fleet monitors the herdctl repository and automatically updates
+    the LLM-friendly documentation (llms.txt files) when relevant changes
+    are detected on the main branch.
+
+agents:
+  - path: agents/llms-txt-updater.yaml

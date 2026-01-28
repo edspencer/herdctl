@@ -97,22 +97,23 @@ export function transformMcpServers(
 /**
  * Build the system prompt configuration for SDK
  *
+ * The SDK accepts either:
+ * - A plain string for custom prompts
+ * - An object with type: 'preset' for using Claude Code's default prompt
+ *
  * @param agent - Resolved agent configuration
  * @returns System prompt configuration for SDK
  */
 export function buildSystemPrompt(agent: ResolvedAgent): SDKSystemPrompt {
-  // If agent has a custom system prompt, use it
+  // If agent has a custom system prompt, return it as a plain string
   if (agent.system_prompt) {
-    return {
-      type: "custom",
-      content: agent.system_prompt,
-    };
+    return agent.system_prompt;
   }
 
   // Default to claude_code preset
   return {
     type: "preset",
-    preset: DEFAULT_PRESET,
+    preset: "claude_code",
   };
 }
 

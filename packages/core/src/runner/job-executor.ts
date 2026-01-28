@@ -198,6 +198,13 @@ export class JobExecutor {
       fork: options.fork ? true : undefined,
     });
 
+    // DEBUG: Log SDK options to help diagnose system prompt issues
+    const promptType = typeof sdkOptions.systemPrompt === "string" ? "custom" : "preset";
+    this.logger.info?.(`SDK options for job ${job.id}: settingSources=${JSON.stringify(sdkOptions.settingSources)}, systemPrompt.type=${promptType}, cwd=${sdkOptions.cwd ?? "(not set)"}`);
+    if (typeof sdkOptions.systemPrompt === "string") {
+      this.logger.info?.(`SDK systemPrompt content (first 100 chars): ${sdkOptions.systemPrompt.substring(0, 100)}`);
+    }
+
     // Step 5: Execute agent and stream output
     try {
       let messages: AsyncIterable<SDKMessage>;

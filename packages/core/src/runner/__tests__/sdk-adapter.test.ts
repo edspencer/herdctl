@@ -170,10 +170,8 @@ describe("toSDKOptions", () => {
         system_prompt: "You are a helpful assistant specialized in testing.",
       });
       const result = toSDKOptions(agent);
-      expect(result.systemPrompt).toEqual({
-        type: "custom",
-        content: "You are a helpful assistant specialized in testing.",
-      });
+      // Custom system prompts are passed as plain strings to the SDK
+      expect(result.systemPrompt).toBe("You are a helpful assistant specialized in testing.");
     });
 
     it("handles empty system prompt by using preset", () => {
@@ -321,10 +319,7 @@ describe("toSDKOptions", () => {
         permissionMode: "bypassPermissions",
         allowedTools: ["Read", "Write", "Bash"],
         deniedTools: ["WebFetch"],
-        systemPrompt: {
-          type: "custom",
-          content: "You are a specialized test agent.",
-        },
+        systemPrompt: "You are a specialized test agent.", // Custom prompts are plain strings
         settingSources: [], // Empty - autonomous agents don't load project settings
         mcpServers: {
           posthog: {
@@ -610,15 +605,13 @@ describe("buildSystemPrompt", () => {
     });
   });
 
-  it("returns custom when system_prompt is specified", () => {
+  it("returns plain string when system_prompt is specified", () => {
     const agent = createTestAgent({
       system_prompt: "Custom instructions for the agent.",
     });
     const result = buildSystemPrompt(agent);
-    expect(result).toEqual({
-      type: "custom",
-      content: "Custom instructions for the agent.",
-    });
+    // SDK expects custom prompts as plain strings
+    expect(result).toBe("Custom instructions for the agent.");
   });
 
   it("returns preset for empty string system_prompt", () => {
@@ -640,10 +633,8 @@ Always be thorough and constructive.`;
       system_prompt: multilinePrompt,
     });
     const result = buildSystemPrompt(agent);
-    expect(result).toEqual({
-      type: "custom",
-      content: multilinePrompt,
-    });
+    // SDK expects custom prompts as plain strings
+    expect(result).toBe(multilinePrompt);
   });
 
   it("handles system prompt with special characters", () => {
@@ -651,9 +642,7 @@ Always be thorough and constructive.`;
       system_prompt: "Handle ${VARIABLES} and 'quotes' correctly",
     });
     const result = buildSystemPrompt(agent);
-    expect(result).toEqual({
-      type: "custom",
-      content: "Handle ${VARIABLES} and 'quotes' correctly",
-    });
+    // SDK expects custom prompts as plain strings
+    expect(result).toBe("Handle ${VARIABLES} and 'quotes' correctly");
   });
 });

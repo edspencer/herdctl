@@ -11,7 +11,11 @@
  * - Scheduler (interval, cron)
  */
 
-export const VERSION = "0.0.1";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const { version: VERSION } = require("../package.json");
+
+export { VERSION };
 
 // Config exports (PRD 1)
 export * from "./config/index.js";

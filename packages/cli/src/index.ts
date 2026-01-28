@@ -26,7 +26,10 @@
  */
 
 import { Command } from "commander";
-import { VERSION } from "@herdctl/core";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+const { version: VERSION } = require("../package.json");
 import { initCommand } from "./commands/init.js";
 import { startCommand } from "./commands/start.js";
 import { stopCommand } from "./commands/stop.js";

@@ -1,0 +1,16 @@
+# Environment files (contain secrets!)
+.env
+.env.local
+.env.*.local
+
+# State directory (created by herdctl)
+.herdctl/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~

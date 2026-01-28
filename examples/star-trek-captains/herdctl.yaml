@@ -1,0 +1,21 @@
+# Star Trek Captains - Multi-Agent Discord Discussion
+#
+# A fleet of Star Trek captains (and one ambassador) who can discuss
+# scenarios and debate command decisions in a Discord channel.
+#
+# Each captain has their own Discord bot identity and personality.
+# They can @mention each other to create fascinating debates!
+
+version: 1
+
+fleet:
+  name: star-trek-captains
+  description: Star Trek captains discussing scenarios and command decisions
+
+agents:
+  - path: agents/captain-kirk.yaml
+  - path: agents/captain-picard.yaml
+  - path: agents/captain-janeway.yaml
+  - path: agents/captain-sisko.yaml
+  - path: agents/ambassador-spock.yaml
+  - path: agents/gorn-captain.yaml

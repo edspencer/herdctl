@@ -154,10 +154,14 @@ export interface SDKMcpServerConfig {
 
 /**
  * System prompt configuration for SDK
+ *
+ * The SDK accepts either:
+ * - A plain string for custom prompts
+ * - An object with type: 'preset' for using Claude Code's default prompt
  */
 export type SDKSystemPrompt =
-  | { type: "preset"; preset: string }
-  | { type: "custom"; content: string };
+  | string
+  | { type: "preset"; preset: "claude_code"; append?: string };
 
 /**
  * SDK query options (matching Claude Agent SDK types)

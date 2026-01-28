@@ -1,11 +1,13 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import sitemap from '@astrojs/sitemap';
 
 // https://astro.build/config
 export default defineConfig({
 	site: 'https://herdctl.dev',
 	integrations: [
+		sitemap(),
 		starlight({
 			title: 'herdctl',
 			tagline: 'Autonomous Agent Fleet Management for Claude Code',
