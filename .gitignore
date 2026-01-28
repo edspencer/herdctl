@@ -9,6 +9,9 @@ dist/
 # State directory
 .herdctl/
 
+# Agent-generated metadata
+**/metadata.json
+
 # Environment
 .env
 .env.local

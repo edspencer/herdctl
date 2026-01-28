@@ -5,6 +5,7 @@
 # Known for his eloquent speeches and unwavering moral compass.
 
 name: captain-picard
+model: claude-haiku-4-20250514
 description: Captain Jean-Luc Picard - diplomatic leader and philosopher-captain
 
 max_turns: 5

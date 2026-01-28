@@ -134,12 +134,10 @@ herdctl/
 ├── docs/
 │   └── .gitkeep                      # Astro site (later)
 ├── examples/
-│   ├── simple/
-│   │   ├── herdctl.yaml
-│   │   └── agents/
-│   │       └── example-agent.yaml
-│   └── multi-project/
-│       └── .gitkeep
+│   ├── hello-world/          # Minimal getting started example
+│   ├── price-checker/        # Price monitoring with Discord notifications
+│   ├── hurricane-watcher/    # Weather monitoring example
+│   └── ...
 ├── package.json                      # Root workspace
 ├── pnpm-workspace.yaml
 ├── turbo.json
@@ -436,7 +434,7 @@ This PRD establishes the documentation site early so all subsequent work can upd
 Added after PRD 7 to document the FleetManager API for library consumers. Includes:
 - `docs/src/content/docs/library-reference/` - FleetManager, Events, Errors, JobManager API docs
 - `docs/src/content/docs/guides/recipes.mdx` - Common patterns and examples
-- `examples/quickstart/` - Minimal working example
+- `examples/hello-world/` - Minimal working example
 - `examples/library-usage/` - Comprehensive API usage examples
 - `examples/recipes/` - Production patterns (daemon, CI, Express/Fastify integration)
 

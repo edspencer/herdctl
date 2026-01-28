@@ -5,6 +5,7 @@
 # The Gorn see the galaxy very differently from warm-blooded species.
 
 name: gorn-captain
+model: claude-haiku-4-20250514
 description: Gorn Captain - patient predator with alien perspective
 
 max_turns: 5

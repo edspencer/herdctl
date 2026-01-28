@@ -1163,8 +1163,9 @@ herdctl/
 │   └── public/
 │
 ├── examples/                 # Example configurations
-│   ├── simple/               # Single agent example
-│   └── multi-project/        # Multiple projects example
+│   ├── hello-world/          # Minimal getting started example
+│   ├── price-checker/        # Price monitoring with Discord notifications
+│   └── ...
 │
 ├── turbo.json
 ├── package.json

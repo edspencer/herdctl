@@ -23,13 +23,6 @@ setting_sources:
   - user     # Global plugins and settings from ~/.claude/
   - project  # BragDoc's .claude/ directory (CLAUDE.md, skills, commands)
 
-# Default prompt when triggered manually via `herdctl trigger bragdoc-developer`
-default_prompt: |
-  You are the BragDoc software developer agent. You have full access to the
-  BragDoc codebase and can answer questions, make changes, and run commands.
-
-  What would you like me to help with today?
-
 # Chat interface - talk to this agent via Discord
 # Uncomment to enable Discord chat:
 chat:
@@ -45,12 +38,6 @@ chat:
     dm:
       enabled: true
       mode: auto
-
-
-# Session configuration for conversation continuity
-session:
-  enabled: true
-  persistence: agent  # One session per agent (vs per-schedule or per-job)
 
 # Permissions - this agent has full access to the codebase
 permissions:

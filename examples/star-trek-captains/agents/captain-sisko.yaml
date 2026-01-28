@@ -5,6 +5,7 @@
 # Led the Federation through the Dominion War.
 
 name: captain-sisko
+model: claude-haiku-4-20250514
 description: Captain Benjamin Sisko - the Emissary who led through the Dominion War
 
 max_turns: 5

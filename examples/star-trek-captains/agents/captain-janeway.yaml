@@ -5,6 +5,7 @@
 # Stranded 70,000 light-years from home, she got her crew back.
 
 name: captain-janeway
+model: claude-haiku-4-20250514
 description: Captain Kathryn Janeway - determined scientist who brought Voyager home
 
 max_turns: 5

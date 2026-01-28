@@ -5,6 +5,7 @@
 # Famous for bending the rules to save his crew and finding third options.
 
 name: captain-kirk
+model: claude-haiku-4-20250514
 description: Captain James T. Kirk - bold leader who trusts his instincts
 
 max_turns: 5
