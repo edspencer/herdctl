@@ -169,9 +169,9 @@ herdctl/
 - Each test file: `*.test.ts` suffix, Vitest framework
 
 **Examples:**
-- `examples/simple/`: Minimal herdctl.yaml
-- `examples/quickstart/`: Example with agents
-- `examples/github/`: GitHub Issues integration
+- `examples/hello-world/`: Minimal getting started example
+- `examples/price-checker/`: Price monitoring with Discord notifications
+- `examples/hurricane-watcher/`: Weather monitoring example
 - `examples/library-usage/`: TypeScript library usage
 
 ## Naming Conventions
