@@ -11,7 +11,11 @@ export default defineConfig({
 		starlight({
 			title: 'herdctl',
 			tagline: 'Autonomous Agent Fleet Management for Claude Code',
-			favicon: '/favicon.svg',
+			favicon: '/favicon.ico',
+			logo: {
+				src: './src/assets/herdctl-logo.svg',
+				alt: 'herdctl',
+			},
 			head: [
 				// OpenGraph meta tags
 				{
@@ -81,7 +85,12 @@ export default defineConfig({
 			],
 			social: [
 				{ icon: 'github', label: 'GitHub', href: 'https://github.com/edspencer/herdctl' },
+				{ icon: 'rss', label: 'Blog', href: 'https://edspencer.net' },
 			],
+			credits: false,
+			components: {
+				Footer: './src/components/Footer.astro',
+			},
 			sidebar: [
 				{
 					label: 'Welcome',

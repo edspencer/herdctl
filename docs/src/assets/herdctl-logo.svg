@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <!-- Background rounded square (like K8s uses heptagon) -->
+  <rect x="5" y="5" width="110" height="110" rx="20" ry="20" fill="#326CE5"/>
+
+  <!-- h structure: lines connecting nodes -->
+  <g stroke="white" stroke-width="4" stroke-linecap="round">
+    <!-- Left vertical (full height) -->
+    <line x1="35" y1="30" x2="35" y2="90"/>
+    <!-- Right vertical (crossbar to bottom only) -->
+    <line x1="85" y1="60" x2="85" y2="90"/>
+    <!-- Horizontal crossbar -->
+    <line x1="35" y1="60" x2="85" y2="60"/>
+  </g>
+
+  <!-- Nodes (circles at connection points) -->
+  <g fill="white">
+    <!-- Left vertical nodes -->
+    <circle cx="35" cy="30" r="8"/>  <!-- Top left -->
+    <circle cx="35" cy="60" r="8"/>  <!-- Left middle -->
+    <circle cx="35" cy="90" r="8"/>  <!-- Bottom left -->
+
+    <!-- Right vertical nodes (no top-right anymore) -->
+    <circle cx="85" cy="60" r="8"/>  <!-- Right middle -->
+    <circle cx="85" cy="90" r="8"/>  <!-- Bottom right -->
+
+    <!-- Central hub (slightly larger) -->
+    <circle cx="60" cy="60" r="10"/>
+  </g>
+</svg>

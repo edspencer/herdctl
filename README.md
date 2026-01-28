@@ -18,7 +18,7 @@
 <p align="center">
   <a href="https://herdctl.dev">Documentation</a> •
   <a href="https://herdctl.dev/getting-started/">Getting Started</a> •
-  <a href="https://discord.gg/herdctl">Discord</a> •
+  <a href="https://discord.gg/d2eXZKtNrh">Discord</a> •
   <a href="https://github.com/edspencer/herdctl/issues">Issues</a>
 </p>
 
@@ -652,7 +652,7 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Community
 
-- [Discord](https://discord.gg/herdctl) - Chat with the community
+- [Discord](https://discord.gg/d2eXZKtNrh) - Chat with the community
 - [GitHub Discussions](https://github.com/edspencer/herdctl/discussions) - Ask questions, share ideas
 - [Twitter/X](https://twitter.com/edspencer) - Updates and announcements
 
