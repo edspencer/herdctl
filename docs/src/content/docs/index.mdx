@@ -1,31 +1,15 @@
 ---
-title: herdctl
-description: Autonomous Agent Fleet Management for Claude Code
-template: splash
-hero:
-  tagline: Autonomous Agent Fleet Management for Claude Code
-  image:
-    alt: herdctl logo
-    file: ../../assets/herdctl-logo.svg
-  actions:
-    - text: Get Started
-      link: /getting-started/
-      icon: right-arrow
-    - text: View on GitHub
-      link: https://github.com/edspencer/herdctl
-      icon: external
-      variant: minimal
+title: Welcome to herdctl
+description: Introduction to autonomous agent fleet management
 ---
 
 import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 ## What is herdctl?
 
-An **open-source platform** for running fleets of autonomous AI agents. Each agent has its own identity, schedules, and work sources. Agents can be triggered by time (interval/cron), events (webhooks), or chat messages (Discord/Slack).
+**herdctl** is an open-source platform for running fleets of autonomous AI agents. Each agent has its own identity, schedules, and work sources. Agents can be triggered by time (interval/cron), events (webhooks), or chat messages (Discord).
 
 Think of it as **"Kubernetes for AI agents"** - declarative configuration, multiple runtimes, pluggable integrations.
-
----
 
 ## Key Features
 
@@ -40,47 +24,9 @@ Think of it as **"Kubernetes for AI agents"** - declarative configuration, multi
     Trigger agents with intervals ("every 5 minutes"), cron schedules ("9am weekdays"), webhooks, or chat messages from Discord/Slack.
   </Card>
   <Card title="Pluggable Work Sources" icon="list-format">
-    Connect agents to GitHub Issues, Jira, Linear, or custom work queues. Agents automatically discover, claim, and complete tasks.
+    Connect agents to GitHub Issues. Agents automatically discover, claim, and complete tasks from your issue tracker.
   </Card>
 </CardGrid>
-
----
-
-## Core Concepts
-
-<CardGrid>
-  <Card title="Agent" icon="seti:robot">
-    A configured Claude instance with identity (CLAUDE.md), workspace (repo clone), and permissions. Each agent can have multiple schedules.
-  </Card>
-  <Card title="Schedule" icon="seti:clock">
-    Defines when and how to invoke an agent. Combines a trigger (interval, cron, webhook, chat) with a prompt template.
-  </Card>
-  <Card title="Job" icon="seti:todo">
-    A single execution of an agent. Has unique ID, tracks status (running/completed/failed), stores session ID for resume capability.
-  </Card>
-  <Card title="Workspace" icon="seti:folder">
-    The directory where an agent operates - a dedicated clone separate from your working copy, keeping agent changes isolated.
-  </Card>
-</CardGrid>
-
----
-
-## Quick Navigation
-
-<CardGrid>
-  <LinkCard
-    title="Getting Started"
-    description="Install herdctl and run your first agent fleet"
-    href="/getting-started/"
-  />
-  <LinkCard
-    title="Configuration"
-    description="Learn how to configure agents, schedules, and work sources"
-    href="/configuration/fleet-config/"
-  />
-</CardGrid>
-
----
 
 ## Why herdctl?
 
@@ -89,64 +35,24 @@ Think of it as **"Kubernetes for AI agents"** - declarative configuration, multi
 | Manually run Claude for each task | Agents work continuously, autonomously |
 | Single agent, single task | Fleet of specialized agents per project |
 | No scheduling or triggers | Interval, cron, webhook, and chat triggers |
-| No work queue integration | GitHub Issues, Jira, Linear integration |
+| No work queue integration | GitHub Issues integration |
 | Context lost between sessions | Persistent sessions with resume capability |
 
----
-
-## Example Configuration
-
-```yaml
-# herdctl.yaml
-version: 1
-
-workspace:
-  root: ~/herdctl-workspace
-  auto_clone: true
-
-agents:
-  - path: ./agents/coder.yaml
-  - path: ./agents/marketer.yaml
-```
-
-```yaml
-# agents/coder.yaml
-name: bragdoc-coder
-description: "Implements features and fixes bugs"
-
-workspace: bragdoc-ai
-repo: edspencer/bragdoc-ai
-
-work_source:
-  type: github
-  filter:
-    labels:
-      any: ["ready", "bug", "feature"]
-
-schedules:
-  - name: issue-check
-    trigger:
-      type: interval
-      every: 5m
-    prompt: |
-      Check for ready issues and implement the oldest one.
-```
-
----
-
-## Get Started
-
-Ready to run your own agent fleet?
+## Next Steps
 
 <CardGrid>
   <LinkCard
-    title="Installation"
-    description="npm install -g herdctl"
+    title="Getting Started"
+    description="Install herdctl and run your first agent fleet"
     href="/getting-started/"
   />
   <LinkCard
-    title="GitHub"
-    description="Star us on GitHub"
-    href="https://github.com/edspencer/herdctl"
+    title="Core Concepts"
+    description="Learn about agents, schedules, jobs, and workspaces"
+    href="/concepts/agents/"
   />
 </CardGrid>
+
+---
+
+Built by [Ed Spencer](https://edspencer.net)

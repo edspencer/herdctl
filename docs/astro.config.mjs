@@ -85,6 +85,7 @@ export default defineConfig({
 			],
 			social: [
 				{ icon: 'github', label: 'GitHub', href: 'https://github.com/edspencer/herdctl' },
+				{ icon: 'discord', label: 'Discord', href: 'https://discord.gg/d2eXZKtNrh' },
 				{ icon: 'rss', label: 'Blog', href: 'https://edspencer.net' },
 			],
 			credits: false,
@@ -94,7 +95,7 @@ export default defineConfig({
 			sidebar: [
 				{
 					label: 'Welcome',
-					slug: 'welcome',
+					link: '/',
 				},
 				{
 					label: 'Getting Started',
