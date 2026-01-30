@@ -26,13 +26,15 @@
 
 ## The Vision
 
-Claude Code changed how developers work. But every session ends when you close the terminal. What if Claude Code could invoke itself?
+Claude Code has changed the world, but most of the work it does is supervised by a human. What if Claude Code could invoke itself?
 
-**herdctl** makes Claude Code autonomous. Define agents that wake up on schedules, respond to chat messages, and work continuously in the background. A price-checking agent that monitors deals daily. A PR reviewer that provides feedback every morning. A hurricane tracker that checks hourly during storm season.
+**herdctl** is an orchestration layer for Claude Code. Under the hood, it uses the Claude Agents SDK to trigger Claude Code sessions on schedules, via webhooks, or via chat messages.
 
-The magic goes deeper: every agent job creates a real Claude SDK session. When your price checker finishes job #200, you can `claude --resume` that exact session in your terminal. Or continue the conversation via Discord DM. The agent's context—what it learned, what it decided—persists across time and interfaces.
+It uses simple .yml files that are a thin wrapper around Claude Agents SDK configs, plus a couple of extra features provided by herdctl - `schedules`, `chat` and `hooks`. Each Agent defined this way can have any number of **schedules** that trigger the agent to do something automatically.
 
-This is fleet management for AI agents. Not one agent, but dozens. Running in parallel, each with its own identity, schedule, and purpose. Think of it as Kubernetes for Claude Code.
+herdctl can run **fleets of agents**, each with their own source-controllable configurations. Agent fleets can be run anywhere via a simple `herdctl start` command.
+
+herdctl allows you to interact with all of your existing Claude Code projects via **chat apps like Discord** (Telegram and Slack support coming soon).
 
 ## Key Features
 
