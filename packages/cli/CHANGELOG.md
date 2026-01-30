@@ -1,5 +1,13 @@
 # herdctl
 
+## 0.4.3
+
+### Patch Changes
+
+- [#28](https://github.com/edspencer/herdctl/pull/28) [`93e209a`](https://github.com/edspencer/herdctl/commit/93e209a74aa248e54830e1aef7a4965b03f50216) Thanks [@edspencer](https://github.com/edspencer)! - Fix init templates using incorrect `workspace.path` key instead of `workspace: path` string format
+
+- [#30](https://github.com/edspencer/herdctl/pull/30) [`6ae6ad2`](https://github.com/edspencer/herdctl/commit/6ae6ad24cddba84105e25eaeebeb7d0138c3dd5c) Thanks [@edspencer](https://github.com/edspencer)! - Remove default model from init templates - SDK uses its own sensible default
+
 ## 0.4.2
 
 ### Patch Changes
