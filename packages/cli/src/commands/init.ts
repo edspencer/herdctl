@@ -42,7 +42,6 @@ fleet:
   description: {{FLEET_DESCRIPTION}}
 
 defaults:
-  model: claude-sonnet-4-20250514
   max_turns: 50
   permission_mode: default
 
@@ -131,7 +130,6 @@ fleet:
   description: {{FLEET_DESCRIPTION}}
 
 defaults:
-  model: claude-sonnet-4-20250514
   max_turns: 100
   permission_mode: acceptEdits
 

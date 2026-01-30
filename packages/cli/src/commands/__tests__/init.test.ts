@@ -146,7 +146,8 @@ describe("initCommand", () => {
         "utf-8"
       );
       expect(content).toContain("defaults:");
-      expect(content).toContain("model: claude-sonnet-4-20250514");
+      expect(content).toContain("max_turns: 50");
+      expect(content).not.toContain("model:"); // model should not be set - SDK uses its own default
 
       const agentPath = path.join(tempDir, "agents", "example-agent.yaml");
       expect(fs.existsSync(agentPath)).toBe(true);
