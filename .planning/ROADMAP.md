@@ -29,10 +29,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. JobExecutor accepts RuntimeInterface instead of direct SDK calls
   4. RuntimeFactory can instantiate SDK runtime from agent config
   5. Old SDK adapter code removed entirely (no backwards compatibility needed)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: TBD during planning
+- [ ] 01-01-PLAN.md - Create runtime abstraction layer (RuntimeInterface, SDKRuntime, RuntimeFactory)
+- [ ] 01-02-PLAN.md - Refactor JobExecutor and update call sites to use RuntimeFactory
 
 ### Phase 2: CLI Runtime Implementation
 **Goal**: Enable CLI runtime backend for Max plan users with file watching and session parsing
@@ -88,11 +89,11 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Runtime Abstraction Foundation | 0/TBD | Not started | - |
+| 1. Runtime Abstraction Foundation | 0/2 | Planned | - |
 | 2. CLI Runtime Implementation | 0/TBD | Not started | - |
 | 3. Docker Integration | 0/TBD | Not started | - |
 | 4. Documentation & Testing | 0/TBD | Not started | - |
