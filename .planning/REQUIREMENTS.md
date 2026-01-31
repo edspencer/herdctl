@@ -7,7 +7,7 @@
 
 Requirements for milestone v1.0: Runtime abstraction and Docker containerization.
 
-### Runtime Abstraction
+### Runtime Abstraction (10 requirements)
 
 - [ ] **RUNTIME-01**: Define RuntimeInterface with execute() method returning AsyncIterable<SDKMessage>
 - [ ] **RUNTIME-02**: Implement SDKRuntime adapter wrapping existing SDK integration
@@ -20,11 +20,11 @@ Requirements for milestone v1.0: Runtime abstraction and Docker containerization
 - [ ] **RUNTIME-09**: JobExecutor refactored to use RuntimeInterface instead of direct SDK calls
 - [ ] **RUNTIME-10**: Remove old SDK adapter code entirely (no backwards compatibility needed)
 
-### Docker Integration
+### Docker Integration (11 requirements)
 
 - [ ] **DOCKER-01**: Implement ContainerRunner decorator wrapping RuntimeInterface
-- [ ] **DOCKER-02**: Docker containers mount workspace directory read-write
-- [ ] **DOCKER-03**: Docker containers mount Claude auth files read-only
+- [ ] **DOCKER-02**: Docker containers support configurable workspace mount mode (read-write or read-only)
+- [ ] **DOCKER-03**: Docker auth is configurable (mount auth files, use API key env var, or other methods)
 - [ ] **DOCKER-04**: Docker sessions stored in .herdctl/docker-sessions/ separate from host
 - [ ] **DOCKER-05**: Docker containers support network isolation (none/bridge/host)
 - [ ] **DOCKER-06**: Docker containers enforce memory limits (default 2g)
@@ -32,10 +32,9 @@ Requirements for milestone v1.0: Runtime abstraction and Docker containerization
 - [ ] **DOCKER-08**: Docker containers support custom volume mounts
 - [ ] **DOCKER-09**: Docker containers auto-cleanup with --rm flag
 - [ ] **DOCKER-10**: Docker containers run as non-root user for security
-- [ ] **DOCKER-11**: Agent configuration supports docker field with options
-- [ ] **DOCKER-12**: ContainerRunner translates host paths to container paths
+- [ ] **DOCKER-11**: Agent configuration supports docker field with options (auth method, mount modes, etc)
 
-### Configuration Schema
+### Configuration Schema (6 requirements)
 
 - [ ] **CONFIG-01**: AgentConfigSchema includes runtime field (sdk|cli)
 - [ ] **CONFIG-02**: AgentConfigSchema includes docker field with sub-options
@@ -44,7 +43,7 @@ Requirements for milestone v1.0: Runtime abstraction and Docker containerization
 - [ ] **CONFIG-05**: Docker config validates volume mount syntax
 - [ ] **CONFIG-06**: Config validation provides clear error messages
 
-### Documentation
+### Documentation (8 requirements)
 
 - [ ] **DOCS-01**: Document when to use SDK runtime vs CLI runtime
 - [ ] **DOCS-02**: Document Docker security model and isolation guarantees
@@ -55,7 +54,7 @@ Requirements for milestone v1.0: Runtime abstraction and Docker containerization
 - [ ] **DOCS-07**: Document troubleshooting for path resolution issues
 - [ ] **DOCS-08**: Document troubleshooting for Docker container issues
 
-### Testing
+### Testing (10 requirements)
 
 - [ ] **TEST-01**: Unit tests for RuntimeInterface implementations
 - [ ] **TEST-02**: Unit tests for RuntimeFactory selection logic
@@ -119,7 +118,6 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DOCKER-09 | Phase 3 | Pending |
 | DOCKER-10 | Phase 3 | Pending |
 | DOCKER-11 | Phase 3 | Pending |
-| DOCKER-12 | Phase 3 | Pending |
 | CONFIG-01 | Phase 3 | Pending |
 | CONFIG-02 | Phase 3 | Pending |
 | CONFIG-03 | Phase 3 | Pending |
@@ -146,8 +144,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TEST-10 | Phase 4 | Pending |
 
 **Coverage:**
-- v1 requirements: 46 total
-- Mapped to phases: 46
+- v1 requirements: 45 total
+- Mapped to phases: 45
 - Unmapped: 0 ✓
 
 ---
