@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-01-31)
 ## Current Position
 
 Phase: 4 of 4 (Documentation & Testing)
-Plan: 2 of TBD in current phase
+Plan: 1 of TBD in current phase
 Status: In progress
-Last activity: 2026-02-01 — Completed 04-02-PLAN.md
+Last activity: 2026-02-01 — Completed 04-01-PLAN.md
 
 Progress: [█████████░] 90% (9/10 plans estimated across all phases)
 
@@ -21,7 +21,7 @@ Progress: [█████████░] 90% (9/10 plans estimated across all 
 **Velocity:**
 - Total plans completed: 9
 - Average duration: 3.1 minutes
-- Total execution time: 0.48 hours
+- Total execution time: 0.47 hours
 
 **By Phase:**
 
@@ -30,11 +30,11 @@ Progress: [█████████░] 90% (9/10 plans estimated across all 
 | 1. Runtime Abstraction Foundation | 2 | 9min | 4.5min |
 | 2. CLI Runtime Implementation | 3 | 9min | 3.0min |
 | 3. Docker Integration | 3 | 10min | 3.3min |
-| 4. Documentation & Testing | 2 | 6min | 3.0min |
+| 4. Documentation & Testing | 1 | 3min | 3.0min |
 
 **Recent Trend:**
-- Last 5 plans: 03-01 (4min), 03-02 (5min), 03-03 (1min), 04-01 (3min), 04-02 (3min)
-- Trend: Consistent (3min average for recent plans)
+- Last 5 plans: 03-02 (5min), 03-03 (1min), 04-01 (3min)
+- Trend: Accelerating (recent plans completing quickly)
 
 *Updated after each plan completion*
 
@@ -77,9 +77,8 @@ Recent decisions affecting current work:
 - **03-03:** RuntimeFactory wraps base runtime with ContainerRunner when agent.docker.enabled is true
 - **03-03:** stateDir defaults to process.cwd()/.herdctl if not provided to RuntimeFactory
 - **03-03:** All RuntimeFactory call sites pass stateDir explicitly for Docker session isolation
-- **04-02:** Example configs organized by use case (dev/cost-optimized/production/mixed) rather than by feature
-- **04-02:** Troubleshooting guide organized by symptom/error message for better discoverability
-- **04-02:** Anti-patterns documented as commented YAML in examples for educational value
+- **04-01:** Use decision matrix tables for runtime selection guidance - provides clear SDK vs CLI comparison
+- **04-01:** Document security model before configuration details in Docker docs - establishes trust first
 
 ### Pending Todos
 
@@ -96,6 +95,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-01 (phase execution)
-Stopped at: Completed 04-02-PLAN.md (Example Configurations and Troubleshooting)
+Stopped at: Completed 04-01-PLAN.md (Runtime and Docker Documentation)
 Resume file: None
 Next: Phase 4 in progress. Continue with additional documentation or testing plans.
