@@ -22,50 +22,50 @@ Requirements for milestone v1.0: Runtime abstraction and Docker containerization
 
 ### Docker Integration (11 requirements)
 
-- [ ] **DOCKER-01**: Implement ContainerRunner decorator wrapping RuntimeInterface
-- [ ] **DOCKER-02**: Docker containers support configurable workspace mount mode (read-write or read-only)
-- [ ] **DOCKER-03**: Docker auth is configurable (mount auth files, use API key env var, or other methods)
-- [ ] **DOCKER-04**: Docker sessions stored in .herdctl/docker-sessions/ separate from host
-- [ ] **DOCKER-05**: Docker containers support network isolation (none/bridge/host)
-- [ ] **DOCKER-06**: Docker containers enforce memory limits (default 2g)
-- [ ] **DOCKER-07**: Docker containers support optional CPU limits
-- [ ] **DOCKER-08**: Docker containers support custom volume mounts
-- [ ] **DOCKER-09**: Docker containers auto-cleanup with --rm flag
-- [ ] **DOCKER-10**: Docker containers run as non-root user for security
-- [ ] **DOCKER-11**: Agent configuration supports docker field with options (auth method, mount modes, etc)
+- [x] **DOCKER-01**: Implement ContainerRunner decorator wrapping RuntimeInterface
+- [x] **DOCKER-02**: Docker containers support configurable workspace mount mode (read-write or read-only)
+- [x] **DOCKER-03**: Docker auth is configurable (mount auth files, use API key env var, or other methods)
+- [x] **DOCKER-04**: Docker sessions stored in .herdctl/docker-sessions/ separate from host
+- [x] **DOCKER-05**: Docker containers support network isolation (none/bridge/host)
+- [x] **DOCKER-06**: Docker containers enforce memory limits (default 2g)
+- [x] **DOCKER-07**: Docker containers support optional CPU limits
+- [x] **DOCKER-08**: Docker containers support custom volume mounts
+- [x] **DOCKER-09**: Docker containers auto-cleanup with --rm flag
+- [x] **DOCKER-10**: Docker containers run as non-root user for security
+- [x] **DOCKER-11**: Agent configuration supports docker field with options (auth method, mount modes, etc)
 
 ### Configuration Schema (6 requirements)
 
-- [ ] **CONFIG-01**: AgentConfigSchema includes runtime field (sdk|cli)
-- [ ] **CONFIG-02**: AgentConfigSchema includes docker field with sub-options
-- [ ] **CONFIG-03**: Docker config validates network isolation modes
-- [ ] **CONFIG-04**: Docker config validates resource limit formats
-- [ ] **CONFIG-05**: Docker config validates volume mount syntax
-- [ ] **CONFIG-06**: Config validation provides clear error messages
+- [x] **CONFIG-01**: AgentConfigSchema includes runtime field (sdk|cli)
+- [x] **CONFIG-02**: AgentConfigSchema includes docker field with sub-options
+- [x] **CONFIG-03**: Docker config validates network isolation modes
+- [x] **CONFIG-04**: Docker config validates resource limit formats
+- [x] **CONFIG-05**: Docker config validates volume mount syntax
+- [x] **CONFIG-06**: Config validation provides clear error messages
 
 ### Documentation (8 requirements)
 
-- [ ] **DOCS-01**: Document when to use SDK runtime vs CLI runtime
-- [ ] **DOCS-02**: Document Docker security model and isolation guarantees
-- [ ] **DOCS-03**: Provide example config for cost-optimized setup (CLI + Docker)
-- [ ] **DOCS-04**: Provide example config for development setup (SDK, no Docker)
-- [ ] **DOCS-05**: Provide example config for production setup (SDK + Docker)
-- [ ] **DOCS-06**: Provide example config for mixed fleet
-- [ ] **DOCS-07**: Document troubleshooting for path resolution issues
-- [ ] **DOCS-08**: Document troubleshooting for Docker container issues
+- [x] **DOCS-01**: Document when to use SDK runtime vs CLI runtime
+- [x] **DOCS-02**: Document Docker security model and isolation guarantees
+- [x] **DOCS-03**: Provide example config for cost-optimized setup (CLI + Docker)
+- [x] **DOCS-04**: Provide example config for development setup (SDK, no Docker)
+- [x] **DOCS-05**: Provide example config for production setup (SDK + Docker)
+- [x] **DOCS-06**: Provide example config for mixed fleet
+- [x] **DOCS-07**: Document troubleshooting for path resolution issues
+- [x] **DOCS-08**: Document troubleshooting for Docker container issues
 
 ### Testing (10 requirements)
 
-- [ ] **TEST-01**: Unit tests for RuntimeInterface implementations
-- [ ] **TEST-02**: Unit tests for RuntimeFactory selection logic
-- [ ] **TEST-03**: Unit tests for CLIRuntime file watching
-- [ ] **TEST-04**: Unit tests for session file parsing
-- [ ] **TEST-05**: Integration tests for SDK runtime execution
-- [ ] **TEST-06**: Integration tests for CLI runtime execution
-- [ ] **TEST-07**: Integration tests for Docker container execution
-- [ ] **TEST-08**: Integration tests for Docker with SDK runtime
-- [ ] **TEST-09**: Integration tests for Docker with CLI runtime
-- [ ] **TEST-10**: Tests for path translation correctness
+- [x] **TEST-01**: Unit tests for RuntimeInterface implementations
+- [x] **TEST-02**: Unit tests for RuntimeFactory selection logic
+- [x] **TEST-03**: Unit tests for CLIRuntime file watching
+- [x] **TEST-04**: Unit tests for session file parsing
+- [x] **TEST-05**: Integration tests for SDK runtime execution
+- [x] **TEST-06**: Integration tests for CLI runtime execution
+- [x] **TEST-07**: Integration tests for Docker container execution
+- [x] **TEST-08**: Integration tests for Docker with SDK runtime
+- [x] **TEST-09**: Integration tests for Docker with CLI runtime
+- [x] **TEST-10**: Tests for path translation correctness
 
 ## v2 Requirements
 
