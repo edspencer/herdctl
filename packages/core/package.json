@@ -19,6 +19,7 @@
     "@anthropic-ai/claude-agent-sdk": "^0.1.0",
     "chokidar": "^5",
     "cron-parser": "^4.9.0",
+    "dockerode": "^4.0.9",
     "dotenv": "^17.2.3",
     "execa": "^9",
     "yaml": "^2.3.0",
@@ -33,6 +34,7 @@
     }
   },
   "devDependencies": {
+    "@types/dockerode": "^4.0.1",
     "@vitest/coverage-v8": "^4.0.17",
     "typescript": "^5",
     "vitest": "^4.0.17"
