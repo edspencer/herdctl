@@ -24,3 +24,7 @@ export {
   getCliSessionDir,
   getCliSessionFile,
 } from "./cli-session-path.js";
+export {
+  CLISessionWatcher,
+  watchSessionFile,
+} from "./cli-session-watcher.js";
