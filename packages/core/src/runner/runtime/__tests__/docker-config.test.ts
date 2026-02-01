@@ -206,7 +206,7 @@ describe("resolveDockerConfig", () => {
       const config = resolveDockerConfig(undefined);
 
       expect(config.enabled).toBe(false);
-      expect(config.ephemeral).toBe(false);
+      expect(config.ephemeral).toBe(true);
       expect(config.image).toBe(DEFAULT_DOCKER_IMAGE);
       expect(config.network).toBe("bridge");
       expect(config.memoryBytes).toBe(parseMemoryToBytes(DEFAULT_MEMORY_LIMIT));

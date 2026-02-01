@@ -408,9 +408,9 @@ describe("Docker Config Security Defaults", () => {
     expect(config.workspaceMode).toBe("rw");
   });
 
-  it("defaults ephemeral to false", () => {
+  it("defaults ephemeral to true", () => {
     const config = resolveDockerConfig({ enabled: true });
-    expect(config.ephemeral).toBe(false);
+    expect(config.ephemeral).toBe(true);
   });
 
   it("defaults max_containers to 5", () => {

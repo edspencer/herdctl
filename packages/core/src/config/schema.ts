@@ -177,7 +177,7 @@ export const DockerSchema = z
     enabled: z.boolean().optional().default(false),
 
     /** Use ephemeral containers (fresh per job, auto-removed) vs persistent (reuse across jobs, kept for inspection) */
-    ephemeral: z.boolean().optional().default(false),
+    ephemeral: z.boolean().optional().default(true),
 
     /** Docker image to use (default: anthropic/claude-code:latest) */
     image: z.string().optional(),

@@ -151,7 +151,7 @@ export function getHostUser(): string {
 export function resolveDockerConfig(docker?: DockerInput): DockerConfig {
   return {
     enabled: docker?.enabled ?? false,
-    ephemeral: docker?.ephemeral ?? false,
+    ephemeral: docker?.ephemeral ?? true,
     image: docker?.image ?? docker?.base_image ?? DEFAULT_DOCKER_IMAGE,
     network: docker?.network ?? "bridge",
     memoryBytes: parseMemoryToBytes(docker?.memory ?? DEFAULT_MEMORY_LIMIT),
