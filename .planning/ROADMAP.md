@@ -45,10 +45,12 @@ Plans:
   3. JSONL session format converts to SDK message stream correctly
   4. Agent configuration accepts runtime: { type: "cli" } and routes to CLIRuntime
   5. CLI sessions stored separately from SDK sessions to prevent path conflicts
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: TBD during planning
+- [ ] 02-01-PLAN.md - Install dependencies (execa, chokidar), create CLI output parser and session path utilities
+- [ ] 02-02-PLAN.md - Implement CLIRuntime class, update RuntimeFactory to support 'cli' type
+- [ ] 02-03-PLAN.md - Create session file watcher with chokidar debouncing
 
 ### Phase 3: Docker Integration
 **Goal**: Provide optional Docker containerization for security isolation with configurable resource limits
@@ -94,6 +96,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Runtime Abstraction Foundation | 2/2 | ✓ Complete | 2026-02-01 |
-| 2. CLI Runtime Implementation | 0/TBD | Not started | - |
+| 2. CLI Runtime Implementation | 0/3 | Not started | - |
 | 3. Docker Integration | 0/TBD | Not started | - |
 | 4. Documentation & Testing | 0/TBD | Not started | - |
