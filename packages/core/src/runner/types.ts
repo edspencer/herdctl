@@ -33,6 +33,8 @@ export interface RunnerOptions {
   forkedFrom?: string;
   /** When true, job output is also written to .herdctl/jobs/{jobId}/output.log (default: false) */
   outputToFile?: boolean;
+  /** AbortController for canceling the execution */
+  abortController?: AbortController;
 }
 
 /**

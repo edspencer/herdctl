@@ -25,7 +25,7 @@ import {
   classifyError,
   buildErrorMessage,
 } from "./errors.js";
-import { toSDKOptions } from "./sdk-adapter.js";
+import type { RuntimeInterface, RuntimeExecuteOptions } from "./runtime/index.js";
 import {
   processSDKMessage,
   isTerminalMessage,
@@ -66,6 +66,7 @@ export interface JobExecutorOptions {
 
 /**
  * SDK query function type (for dependency injection)
+ * @deprecated Use RuntimeInterface instead. This type is kept for test compatibility.
  */
 export type SDKQueryFunction = (params: {
   prompt: string;
@@ -98,7 +99,8 @@ const defaultLogger: JobExecutorLogger = {
  *
  * @example
  * ```typescript
- * const executor = new JobExecutor(sdkQuery);
+ * const runtime = RuntimeFactory.create(agent);
+ * const executor = new JobExecutor(runtime);
  *
  * const result = await executor.execute({
  *   agent: resolvedAgent,
@@ -111,17 +113,17 @@ const defaultLogger: JobExecutorLogger = {
  * ```
  */
 export class JobExecutor {
-  private sdkQuery: SDKQueryFunction;
+  private runtime: RuntimeInterface;
   private logger: JobExecutorLogger;
 
   /**
    * Create a new job executor
    *
-   * @param sdkQuery - The SDK query function to use for agent execution
+   * @param runtime - The runtime interface to use for agent execution
    * @param options - Optional configuration
    */
-  constructor(sdkQuery: SDKQueryFunction, options: JobExecutorOptions = {}) {
-    this.sdkQuery = sdkQuery;
+  constructor(runtime: RuntimeInterface, options: JobExecutorOptions = {}) {
+    this.runtime = runtime;
     this.logger = options.logger ?? defaultLogger;
   }
 
@@ -192,28 +194,18 @@ export class JobExecutor {
       // Continue execution - job was created
     }
 
-    // Step 4: Build SDK options
-    const sdkOptions = toSDKOptions(agent, {
-      resume: options.resume,
-      fork: options.fork ? true : undefined,
-    });
-
-    // DEBUG: Log SDK options to help diagnose system prompt issues
-    const promptType = typeof sdkOptions.systemPrompt === "string" ? "custom" : "preset";
-    this.logger.info?.(`SDK options for job ${job.id}: settingSources=${JSON.stringify(sdkOptions.settingSources)}, systemPrompt.type=${promptType}, cwd=${sdkOptions.cwd ?? "(not set)"}`);
-    if (typeof sdkOptions.systemPrompt === "string") {
-      this.logger.info?.(`SDK systemPrompt content (first 100 chars): ${sdkOptions.systemPrompt.substring(0, 100)}`);
-    }
-
-    // Step 5: Execute agent and stream output
+    // Step 4: Execute agent and stream output
     try {
       let messages: AsyncIterable<SDKMessage>;
 
-      // Catch SDK initialization errors (e.g., missing API key)
+      // Catch runtime initialization errors
       try {
-        messages = this.sdkQuery({
+        messages = this.runtime.execute({
           prompt,
-          options: sdkOptions as Record<string, unknown>,
+          agent: options.agent,
+          resume: options.resume,
+          fork: options.fork ? true : undefined,
+          abortController: options.abortController,
         });
       } catch (initError) {
         // Wrap initialization errors with context
@@ -524,16 +516,17 @@ export class JobExecutor {
  * a single execution. For multiple executions, prefer creating a
  * JobExecutor instance directly.
  *
- * @param sdkQuery - The SDK query function
+ * @param runtime - The runtime interface
  * @param options - Runner options including agent config and prompt
  * @param executorOptions - Optional executor configuration
  * @returns Result of the execution
  *
  * @example
  * ```typescript
- * import { query } from "@anthropic-ai/claude-agent-sdk";
+ * import { RuntimeFactory } from "@herdctl/core";
  *
- * const result = await executeJob(query, {
+ * const runtime = RuntimeFactory.create(agent);
+ * const result = await executeJob(runtime, {
  *   agent: resolvedAgent,
  *   prompt: "Fix the bug",
  *   stateDir: "/path/to/.herdctl",
@@ -541,10 +534,10 @@ export class JobExecutor {
  * ```
  */
 export async function executeJob(
-  sdkQuery: SDKQueryFunction,
+  runtime: RuntimeInterface,
   options: RunnerOptionsWithCallbacks,
   executorOptions: JobExecutorOptions = {}
 ): Promise<RunnerResult> {
-  const executor = new JobExecutor(sdkQuery, executorOptions);
+  const executor = new JobExecutor(runtime, executorOptions);
   return executor.execute(options);
 }
