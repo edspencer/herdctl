@@ -43,3 +43,11 @@ export {
   DEFAULT_MEMORY_LIMIT,
   DEFAULT_MAX_CONTAINERS,
 } from "./docker-config.js";
+
+// Container execution
+export { ContainerRunner } from "./container-runner.js";
+export {
+  ContainerManager,
+  buildContainerMounts,
+  buildContainerEnv,
+} from "./container-manager.js";
