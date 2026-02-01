@@ -129,7 +129,7 @@ export class CLISessionWatcher {
       await processFile();
     });
 
-    this.watcher.on("error", (error: Error) => {
+    this.watcher.on("error", (error: unknown) => {
       console.error(
         `[CLISessionWatcher] Watcher error: ${error instanceof Error ? error.message : String(error)}`,
       );

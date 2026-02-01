@@ -8,12 +8,13 @@
 import type { ResolvedAgent } from "../../config/index.js";
 import type { RuntimeInterface } from "./interface.js";
 import { SDKRuntime } from "./sdk-runtime.js";
+import { CLIRuntime } from "./cli-runtime.js";
 
 /**
  * Runtime type identifier
  *
  * - 'sdk': Claude Agent SDK runtime (default, standard pricing)
- * - 'cli': Claude CLI runtime (Phase 2, Max plan pricing)
+ * - 'cli': Claude CLI runtime (Max plan pricing)
  */
 export type RuntimeType = "sdk" | "cli";
 
@@ -53,15 +54,12 @@ export class RuntimeFactory {
         return new SDKRuntime();
 
       case "cli":
-        throw new Error(
-          "CLI runtime not yet implemented (coming in Phase 2). " +
-            "Use runtime: 'sdk' or omit runtime field to use default SDK runtime."
-        );
+        return new CLIRuntime();
 
       default:
         throw new Error(
           `Unknown runtime type: ${runtimeType}. ` +
-            "Supported types: 'sdk' (default), 'cli' (Phase 2)"
+            "Supported types: 'sdk' (default), 'cli'"
         );
     }
   }
