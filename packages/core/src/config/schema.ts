@@ -142,10 +142,112 @@ export const InstancesSchema = z.object({
 // Docker Schemas
 // =============================================================================
 
-export const DockerSchema = z.object({
-  enabled: z.boolean().optional().default(false),
-  base_image: z.string().optional(),
-});
+/**
+ * Network isolation modes for Docker containers
+ * - "none": No network access (most secure, rare use case)
+ * - "bridge": Standard Docker networking with NAT (default)
+ * - "host": Share host network namespace (least isolated)
+ */
+export const DockerNetworkModeSchema = z.enum(["none", "bridge", "host"]);
+
+/**
+ * Docker container configuration schema
+ *
+ * Supports container lifecycle, resource limits, and security options.
+ * All options are optional - defaults provide secure, sensible configuration.
+ *
+ * @example
+ * ```yaml
+ * docker:
+ *   enabled: true
+ *   ephemeral: false        # Reuse container across jobs
+ *   image: anthropic/claude-code:latest
+ *   network: bridge         # Full network access
+ *   memory: 2g              # Memory limit
+ *   cpu_shares: 512         # CPU weight
+ *   user: "1000:1000"       # Run as specific UID:GID
+ *   max_containers: 5       # Keep last 5 containers per agent
+ *   volumes:                # Additional volume mounts
+ *     - "/host/data:/container/data:ro"
+ * ```
+ */
+export const DockerSchema = z
+  .object({
+    /** Enable Docker containerization for this agent (default: false) */
+    enabled: z.boolean().optional().default(false),
+
+    /** Use ephemeral containers (fresh per job, auto-removed) vs persistent (reuse across jobs, kept for inspection) */
+    ephemeral: z.boolean().optional().default(false),
+
+    /** Docker image to use (default: anthropic/claude-code:latest) */
+    image: z.string().optional(),
+
+    /** Network isolation mode (default: bridge for full network access) */
+    network: DockerNetworkModeSchema.optional().default("bridge"),
+
+    /** Memory limit (e.g., "2g", "512m") (default: 2g) */
+    memory: z.string().optional().default("2g"),
+
+    /** CPU shares (relative weight, 512 is normal) */
+    cpu_shares: z.number().int().positive().optional(),
+
+    /** Container user as "UID:GID" string (default: match host user) */
+    user: z.string().optional(),
+
+    /** Maximum containers to keep per agent before cleanup (default: 5) */
+    max_containers: z.number().int().positive().optional().default(5),
+
+    /** Additional volume mounts in Docker format: "host:container:mode" */
+    volumes: z.array(z.string()).optional(),
+
+    /** Workspace mount mode: rw (read-write, default) or ro (read-only) */
+    workspace_mode: z.enum(["rw", "ro"]).optional().default("rw"),
+
+    /** @deprecated Use 'image' instead */
+    base_image: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      if (!data.memory) return true;
+      // Validate memory format: number followed by optional unit (k, m, g, t, b)
+      return /^\d+(?:\.\d+)?\s*[kmgtb]?$/i.test(data.memory);
+    },
+    {
+      message:
+        'Invalid memory format. Use format like "2g", "512m", "1024k", or "2048" (bytes).',
+      path: ["memory"],
+    }
+  )
+  .refine(
+    (data) => {
+      if (!data.volumes) return true;
+      // Validate volume format: host:container or host:container:mode
+      return data.volumes.every((vol) => {
+        const parts = vol.split(":");
+        if (parts.length < 2 || parts.length > 3) return false;
+        if (parts.length === 3 && parts[2] !== "ro" && parts[2] !== "rw") {
+          return false;
+        }
+        return true;
+      });
+    },
+    {
+      message:
+        'Invalid volume format. Use "host:container" or "host:container:ro|rw".',
+      path: ["volumes"],
+    }
+  )
+  .refine(
+    (data) => {
+      if (!data.user) return true;
+      // Validate user format: UID or UID:GID
+      return /^\d+(?::\d+)?$/.test(data.user);
+    },
+    {
+      message: 'Invalid user format. Use "UID" or "UID:GID" (e.g., "1000" or "1000:1000").',
+      path: ["user"],
+    }
+  );
 
 // =============================================================================
 // Session Schema (for agent session config)
@@ -227,6 +329,8 @@ export const ScheduleSchema = z.object({
   outputToFile: z.boolean().optional(),
   /** When false, schedule will not auto-trigger but can still be manually triggered (default: true) */
   enabled: z.boolean().optional().default(true),
+  /** When false, start a fresh session instead of resuming (default: true - resumes existing session) */
+  resume_session: z.boolean().optional().default(true),
 });
 
 // =============================================================================

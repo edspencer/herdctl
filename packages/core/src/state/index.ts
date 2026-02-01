@@ -78,3 +78,9 @@ export {
   type SessionLogger,
   type SessionInfoUpdates,
 } from "./session.js";
+
+// Re-export session validation functions
+export {
+  validateSession,
+  isSessionExpiredError,
+} from "./session-validation.js";

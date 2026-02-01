@@ -38,9 +38,11 @@ import {
   getJobOutputPath,
   updateSessionInfo,
   getSessionInfo,
+  clearSession,
+  validateSession,
+  isSessionExpiredError,
   type JobMetadata,
   type TriggerType,
-  type SessionInfo,
 } from "../state/index.js";
 
 // =============================================================================
@@ -194,6 +196,52 @@ export class JobExecutor {
       // Continue execution - job was created
     }
 
+    // Step 3.5: Validate session if resuming
+    // This prevents unexpected logouts by checking session expiration before attempting resume
+    let effectiveResume = options.resume;
+    if (effectiveResume) {
+      const sessionsDir = join(stateDir, "sessions");
+      const existingSession = await getSessionInfo(sessionsDir, agent.name);
+      const sessionTimeout = agent.session?.timeout;
+
+      const validation = validateSession(existingSession, sessionTimeout);
+
+      if (!validation.valid) {
+        this.logger.warn(
+          `Session validation failed for ${agent.name}: ${validation.message}. Starting fresh session.`
+        );
+
+        // Write info to job output
+        try {
+          await appendJobOutput(jobsDir, job.id, {
+            type: "system",
+            content: `Session expired or invalid: ${validation.message}. Starting fresh session.`,
+          });
+        } catch {
+          // Ignore output write failures
+        }
+
+        // Clear the expired session
+        if (existingSession) {
+          try {
+            await clearSession(sessionsDir, agent.name);
+            this.logger.info?.(`Cleared expired session for ${agent.name}`);
+          } catch (clearError) {
+            this.logger.warn(
+              `Failed to clear expired session: ${(clearError as Error).message}`
+            );
+          }
+        }
+
+        // Don't resume - start fresh
+        effectiveResume = undefined;
+      } else if (existingSession) {
+        this.logger.info?.(
+          `Session for ${agent.name} is valid (age: ${Math.round((validation.ageMs ?? 0) / 60000)}m, timeout: ${Math.round((validation.timeoutMs ?? 0) / 60000)}m)`
+        );
+      }
+    }
+
     // Step 4: Execute agent and stream output
     try {
       let messages: AsyncIterable<SDKMessage>;
@@ -203,7 +251,7 @@ export class JobExecutor {
         messages = this.runtime.execute({
           prompt,
           agent: options.agent,
-          resume: options.resume,
+          resume: effectiveResume,
           fork: options.fork ? true : undefined,
           abortController: options.abortController,
         });
@@ -329,6 +377,25 @@ export class JobExecutor {
       // Add messages received count for streaming errors
       if (lastError instanceof SDKStreamingError && messagesReceived > 0) {
         (lastError as SDKStreamingError & { messagesReceived?: number }).messagesReceived = messagesReceived;
+      }
+
+      // Check if this is a session expiration error from the SDK
+      // This can happen if the server-side session expired even though local validation passed
+      if (isSessionExpiredError(error as Error)) {
+        this.logger.warn(
+          `Session expired on server for ${agent.name}. The session will be cleared.`
+        );
+
+        // Clear the expired session so the next run starts fresh
+        try {
+          const sessionsDir = join(stateDir, "sessions");
+          await clearSession(sessionsDir, agent.name);
+          this.logger.info?.(`Cleared expired session for ${agent.name}`);
+        } catch (clearError) {
+          this.logger.warn(
+            `Failed to clear expired session: ${(clearError as Error).message}`
+          );
+        }
       }
 
       // Log the error with context
