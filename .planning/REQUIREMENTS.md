@@ -9,16 +9,16 @@ Requirements for milestone v1.0: Runtime abstraction and Docker containerization
 
 ### Runtime Abstraction (10 requirements)
 
-- [ ] **RUNTIME-01**: Define RuntimeInterface with execute() method returning AsyncIterable<SDKMessage>
-- [ ] **RUNTIME-02**: Implement SDKRuntime adapter wrapping existing SDK integration
+- [x] **RUNTIME-01**: Define RuntimeInterface with execute() method returning AsyncIterable<SDKMessage>
+- [x] **RUNTIME-02**: Implement SDKRuntime adapter wrapping existing SDK integration
 - [ ] **RUNTIME-03**: Implement CLIRuntime with file watching and session parsing
-- [ ] **RUNTIME-04**: Create RuntimeFactory for runtime selection based on config
+- [x] **RUNTIME-04**: Create RuntimeFactory for runtime selection based on config
 - [ ] **RUNTIME-05**: CLI runtime spawns claude command via execa
 - [ ] **RUNTIME-06**: CLI runtime watches session files via chokidar with debouncing
 - [ ] **RUNTIME-07**: CLI runtime parses JSONL session format to SDK messages
 - [ ] **RUNTIME-08**: Agent configuration supports runtime field (sdk|cli)
-- [ ] **RUNTIME-09**: JobExecutor refactored to use RuntimeInterface instead of direct SDK calls
-- [ ] **RUNTIME-10**: Remove old SDK adapter code entirely (no backwards compatibility needed)
+- [x] **RUNTIME-09**: JobExecutor refactored to use RuntimeInterface instead of direct SDK calls
+- [x] **RUNTIME-10**: Remove old SDK adapter code entirely (no backwards compatibility needed)
 
 ### Docker Integration (11 requirements)
 
@@ -97,11 +97,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RUNTIME-01 | Phase 1 | Pending |
-| RUNTIME-02 | Phase 1 | Pending |
-| RUNTIME-04 | Phase 1 | Pending |
-| RUNTIME-09 | Phase 1 | Pending |
-| RUNTIME-10 | Phase 1 | Pending |
+| RUNTIME-01 | Phase 1 | Complete |
+| RUNTIME-02 | Phase 1 | Complete |
+| RUNTIME-04 | Phase 1 | Complete |
+| RUNTIME-09 | Phase 1 | Complete |
+| RUNTIME-10 | Phase 1 | Complete |
 | RUNTIME-03 | Phase 2 | Pending |
 | RUNTIME-05 | Phase 2 | Pending |
 | RUNTIME-06 | Phase 2 | Pending |

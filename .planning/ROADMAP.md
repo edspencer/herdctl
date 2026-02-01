@@ -12,7 +12,7 @@ This roadmap transforms herdctl from SDK-only execution to a flexible, secure pl
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Runtime Abstraction Foundation** - Interface design and SDK adapter refactoring
+- [x] **Phase 1: Runtime Abstraction Foundation** - Interface design and SDK adapter refactoring
 - [ ] **Phase 2: CLI Runtime Implementation** - CLI backend with file watching and session parsing
 - [ ] **Phase 3: Docker Integration** - Container execution with security hardening
 - [ ] **Phase 4: Documentation & Testing** - Complete docs, examples, and comprehensive test coverage
@@ -32,8 +32,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md - Create runtime abstraction layer (RuntimeInterface, SDKRuntime, RuntimeFactory)
-- [ ] 01-02-PLAN.md - Refactor JobExecutor and update call sites to use RuntimeFactory
+- [x] 01-01-PLAN.md - Create runtime abstraction layer (RuntimeInterface, SDKRuntime, RuntimeFactory)
+- [x] 01-02-PLAN.md - Refactor JobExecutor and update call sites to use RuntimeFactory
 
 ### Phase 2: CLI Runtime Implementation
 **Goal**: Enable CLI runtime backend for Max plan users with file watching and session parsing
@@ -93,7 +93,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Runtime Abstraction Foundation | 0/2 | Planned | - |
+| 1. Runtime Abstraction Foundation | 2/2 | ✓ Complete | 2026-02-01 |
 | 2. CLI Runtime Implementation | 0/TBD | Not started | - |
 | 3. Docker Integration | 0/TBD | Not started | - |
 | 4. Documentation & Testing | 0/TBD | Not started | - |
