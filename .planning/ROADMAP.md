@@ -13,7 +13,7 @@ This roadmap transforms herdctl from SDK-only execution to a flexible, secure pl
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Runtime Abstraction Foundation** - Interface design and SDK adapter refactoring
-- [ ] **Phase 2: CLI Runtime Implementation** - CLI backend with file watching and session parsing
+- [x] **Phase 2: CLI Runtime Implementation** - CLI backend with file watching and session parsing
 - [ ] **Phase 3: Docker Integration** - Container execution with security hardening
 - [ ] **Phase 4: Documentation & Testing** - Complete docs, examples, and comprehensive test coverage
 
@@ -44,13 +44,13 @@ Plans:
   2. Session files are watched via chokidar with debouncing to prevent race conditions
   3. JSONL session format converts to SDK message stream correctly
   4. Agent configuration accepts runtime: { type: "cli" } and routes to CLIRuntime
-  5. CLI sessions stored separately from SDK sessions to prevent path conflicts
+  5. CLI sessions (managed by Claude CLI in ~/.claude/) are separate from SDK sessions (in .herdctl/) to prevent path conflicts
 **Plans**: 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md - Install dependencies (execa, chokidar), create CLI output parser and session path utilities
-- [ ] 02-02-PLAN.md - Implement CLIRuntime class, update RuntimeFactory to support 'cli' type
-- [ ] 02-03-PLAN.md - Create session file watcher with chokidar debouncing
+- [x] 02-01-PLAN.md - Install dependencies (execa, chokidar), create CLI output parser and session path utilities
+- [x] 02-02-PLAN.md - Implement CLIRuntime class, update RuntimeFactory to support 'cli' type
+- [x] 02-03-PLAN.md - Create session file watcher with chokidar debouncing
 
 ### Phase 3: Docker Integration
 **Goal**: Provide optional Docker containerization for security isolation with configurable resource limits
@@ -96,6 +96,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Runtime Abstraction Foundation | 2/2 | ✓ Complete | 2026-02-01 |
-| 2. CLI Runtime Implementation | 0/3 | Not started | - |
+| 2. CLI Runtime Implementation | 3/3 | ✓ Complete | 2026-02-01 |
 | 3. Docker Integration | 0/TBD | Not started | - |
 | 4. Documentation & Testing | 0/TBD | Not started | - |

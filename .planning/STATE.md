@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-01-31)
 
 **Core value:** Autonomous Claude Code agents with full capabilities: if Claude Code can do it manually, herdctl agents can do it automatically.
-**Current focus:** Phase 2 - CLI Runtime Implementation
+**Current focus:** Phase 3 - Docker Integration
 
 ## Current Position
 
-Phase: 2 of 4 (CLI Runtime Implementation)
-Plan: 3 of TBD in current phase
-Status: In progress
-Last activity: 2026-02-01 — Completed 02-03-PLAN.md
+Phase: 3 of 4 (Docker Integration)
+Plan: 0 of TBD in current phase
+Status: Ready to plan
+Last activity: 2026-02-01 — Phase 2 complete and verified
 
 Progress: [█████░░░░░] 50% (5/10 plans estimated across all phases)
 
@@ -62,6 +62,7 @@ Recent decisions affecting current work:
 - **02-02:** Handle workspace as string | object in CLIRuntime cwd parameter
 - **02-02:** RuntimeFactory now supports both 'sdk' and 'cli' runtime types
 - **02-03:** Export CLISessionWatcher for session replay and robustness use cases
+- **02-VERIFY:** CLI sessions managed by Claude CLI (in ~/.claude/), separate from herdctl sessions (.herdctl/) - no conflicts
 
 ### Pending Todos
 
@@ -77,7 +78,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-01 (plan execution)
-Stopped at: Completed 02-03-PLAN.md - Exported CLISessionWatcher utilities for session monitoring
+Last session: 2026-02-01 (phase execution)
+Stopped at: Completed Phase 2 - CLI Runtime Implementation (all 3 plans executed and verified)
 Resume file: None
-Next: Ready for next Phase 2 plan or continue with CLI runtime implementation.
+Next: Phase 2 complete. Ready for Phase 3 (Docker Integration) planning.

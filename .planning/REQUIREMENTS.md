@@ -11,12 +11,12 @@ Requirements for milestone v1.0: Runtime abstraction and Docker containerization
 
 - [x] **RUNTIME-01**: Define RuntimeInterface with execute() method returning AsyncIterable<SDKMessage>
 - [x] **RUNTIME-02**: Implement SDKRuntime adapter wrapping existing SDK integration
-- [ ] **RUNTIME-03**: Implement CLIRuntime with file watching and session parsing
+- [x] **RUNTIME-03**: Implement CLIRuntime with file watching and session parsing
 - [x] **RUNTIME-04**: Create RuntimeFactory for runtime selection based on config
-- [ ] **RUNTIME-05**: CLI runtime spawns claude command via execa
-- [ ] **RUNTIME-06**: CLI runtime watches session files via chokidar with debouncing
-- [ ] **RUNTIME-07**: CLI runtime parses JSONL session format to SDK messages
-- [ ] **RUNTIME-08**: Agent configuration supports runtime field (sdk|cli)
+- [x] **RUNTIME-05**: CLI runtime spawns claude command via execa
+- [x] **RUNTIME-06**: CLI runtime watches session files via chokidar with debouncing
+- [x] **RUNTIME-07**: CLI runtime parses JSONL session format to SDK messages
+- [x] **RUNTIME-08**: Agent configuration supports runtime field (sdk|cli)
 - [x] **RUNTIME-09**: JobExecutor refactored to use RuntimeInterface instead of direct SDK calls
 - [x] **RUNTIME-10**: Remove old SDK adapter code entirely (no backwards compatibility needed)
 
@@ -102,11 +102,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RUNTIME-04 | Phase 1 | Complete |
 | RUNTIME-09 | Phase 1 | Complete |
 | RUNTIME-10 | Phase 1 | Complete |
-| RUNTIME-03 | Phase 2 | Pending |
-| RUNTIME-05 | Phase 2 | Pending |
-| RUNTIME-06 | Phase 2 | Pending |
-| RUNTIME-07 | Phase 2 | Pending |
-| RUNTIME-08 | Phase 2 | Pending |
+| RUNTIME-03 | Phase 2 | Complete |
+| RUNTIME-05 | Phase 2 | Complete |
+| RUNTIME-06 | Phase 2 | Complete |
+| RUNTIME-07 | Phase 2 | Complete |
+| RUNTIME-08 | Phase 2 | Complete |
 | DOCKER-01 | Phase 3 | Pending |
 | DOCKER-02 | Phase 3 | Pending |
 | DOCKER-03 | Phase 3 | Pending |
