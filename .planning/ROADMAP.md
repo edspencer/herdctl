@@ -65,10 +65,12 @@ Plans:
   6. Containers run as non-root user with security flags enabled
   7. Containers auto-cleanup after job completion (--rm flag)
   8. Agent config validates docker options with clear error messages
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: TBD during planning
+- [ ] 03-01-PLAN.md - Extend DockerSchema with full configuration options, create docker-config.ts types
+- [ ] 03-02-PLAN.md - Implement ContainerRunner decorator and ContainerManager lifecycle
+- [ ] 03-03-PLAN.md - Integrate ContainerRunner into RuntimeFactory, wire up stateDir
 
 ### Phase 4: Documentation & Testing
 **Goal**: Complete production-ready documentation and comprehensive test coverage
@@ -97,5 +99,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 |-------|----------------|--------|-----------|
 | 1. Runtime Abstraction Foundation | 2/2 | ✓ Complete | 2026-02-01 |
 | 2. CLI Runtime Implementation | 3/3 | ✓ Complete | 2026-02-01 |
-| 3. Docker Integration | 0/TBD | Not started | - |
+| 3. Docker Integration | 0/3 | Planned | - |
 | 4. Documentation & Testing | 0/TBD | Not started | - |
