@@ -149,6 +149,23 @@ export class CLIRuntime implements RuntimeInterface {
       args.push("--disallowedTools", ...options.agent.permissions.denied_tools);
     }
 
+    // Add bash permissions if specified
+    // Transform allowed_commands into Bash(command *) patterns
+    if (options.agent.permissions?.bash?.allowed_commands?.length) {
+      const bashPatterns = options.agent.permissions.bash.allowed_commands.map(
+        (cmd) => `Bash(${cmd} *)`
+      );
+      args.push("--allowedTools", ...bashPatterns);
+    }
+
+    // Transform denied_patterns into Bash(pattern) patterns
+    if (options.agent.permissions?.bash?.denied_patterns?.length) {
+      const bashDeniedPatterns = options.agent.permissions.bash.denied_patterns.map(
+        (pattern) => `Bash(${pattern})`
+      );
+      args.push("--disallowedTools", ...bashDeniedPatterns);
+    }
+
     // Add setting sources if specified (comma-separated)
     if (options.agent.setting_sources?.length) {
       args.push("--setting-sources", options.agent.setting_sources.join(","));
