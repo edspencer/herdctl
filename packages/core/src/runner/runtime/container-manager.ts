@@ -100,7 +100,7 @@ export class ContainerManager {
         // Resource limits
         Memory: config.memoryBytes,
         MemorySwap: config.memoryBytes, // Same as Memory = no swap
-        CpuShares: config.cpuShares ?? 512,
+        CpuShares: config.cpuShares, // undefined = no limit (full CPU access)
 
         // Network isolation
         NetworkMode: config.network,
