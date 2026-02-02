@@ -14,10 +14,15 @@ RUN apt-get update && apt-get install -y \
 # Install Claude CLI globally
 RUN npm install -g @anthropic-ai/claude-code
 
-# Create workspace directory
-RUN mkdir -p /workspace
+# Create directories that Claude CLI will need to write to
+# Make them world-writable so any UID can use them (container isolation provides security)
+RUN mkdir -p /home/claude/.claude/projects && \
+    chmod -R 777 /home/claude
+
+# Create workspace directory writable by any user
+RUN mkdir -p /workspace && chmod 777 /workspace
 WORKDIR /workspace
 
-# The Claude CLI will be executed via docker exec
-# No ENTRYPOINT or CMD needed - container stays running
+# The Claude CLI will be executed via docker exec as non-root user (via --user flag)
+# Container stays running but exec commands run as the host user's UID for security
 CMD ["tail", "-f", "/dev/null"]

@@ -25,6 +25,41 @@ import {
 import { CLISessionWatcher } from "./cli-session-watcher.js";
 
 /**
+ * Process spawner function type
+ *
+ * Spawns a claude CLI process and returns a subprocess handle.
+ * Used to allow custom process spawning (e.g., inside Docker containers).
+ *
+ * Returns Subprocess directly (not wrapped in Promise) - execa returns
+ * a special promise-like object (Subprocess) that has extra properties.
+ */
+export type ProcessSpawner = (
+  args: string[],
+  cwd: string,
+  signal?: AbortSignal
+) => Subprocess;
+
+/**
+ * CLI runtime configuration options
+ */
+export interface CLIRuntimeOptions {
+  /**
+   * Custom process spawner for claude CLI execution
+   *
+   * Defaults to local execa spawning. Provide custom spawner for Docker execution.
+   */
+  processSpawner?: ProcessSpawner;
+
+  /**
+   * Custom session directory override
+   *
+   * For Docker execution, this should be the host-side mount point where
+   * container session files are visible (e.g., .herdctl/docker-sessions).
+   */
+  sessionDirOverride?: string;
+}
+
+/**
  * CLI runtime implementation
  *
  * This runtime uses the Claude CLI to execute agents, providing an alternative
@@ -36,20 +71,36 @@ import { CLISessionWatcher } from "./cli-session-watcher.js";
  * - Full Claude Code capabilities (identical to manual CLI usage)
  * - AbortController support for process cancellation
  *
+ * Supports both local and Docker execution via configurable process spawning.
+ *
  * @example
  * ```typescript
+ * // Local execution
  * const runtime = new CLIRuntime();
- * const messages = runtime.execute({
- *   prompt: "Fix the bug in auth.ts",
- *   agent: resolvedAgent,
- * });
  *
- * for await (const message of messages) {
- *   console.log(message.type, message.content);
- * }
+ * // Docker execution
+ * const runtime = new CLIRuntime({
+ *   processSpawner: async (args, cwd, signal) => {
+ *     return execa("docker", ["exec", containerId, "sh", "-c",
+ *                             `cd /workspace && claude ${args.join(" ")}`],
+ *                  { cancelSignal: signal });
+ *   },
+ *   sessionDirOverride: "/path/to/.herdctl/docker-sessions"
+ * });
  * ```
  */
 export class CLIRuntime implements RuntimeInterface {
+  private processSpawner: ProcessSpawner;
+  private sessionDirOverride?: string;
+
+  constructor(options?: CLIRuntimeOptions) {
+    // Default to local execa spawning
+    this.processSpawner = options?.processSpawner ?? ((args, cwd, signal) =>
+      execa("claude", args, { cwd, stdin: "ignore", cancelSignal: signal })
+    );
+
+    this.sessionDirOverride = options?.sessionDirOverride;
+  }
   /**
    * Execute an agent using the Claude CLI
    *
@@ -110,19 +161,17 @@ export class CLIRuntime implements RuntimeInterface {
       console.log("[CLIRuntime] Agent working_directory config:", working_directory);
 
       // Get the CLI session directory where files will be written
-      const sessionDir = getCliSessionDir(cwd);
+      // Use override if provided (for Docker execution with mounted sessions)
+      const sessionDir = this.sessionDirOverride ?? getCliSessionDir(cwd);
       console.log("[CLIRuntime] Session directory:", sessionDir);
 
       // Record start time before spawning process
       const processStartTime = Date.now();
 
       // Spawn claude subprocess (we won't read its output)
-      // Set stdin to 'ignore' so Claude doesn't wait for input
-      subprocess = execa("claude", args, {
-        cwd,
-        stdin: "ignore",
-        cancelSignal: options.abortController?.signal,
-      });
+      // Uses custom spawner if provided (e.g., for Docker execution)
+      // Note: processSpawner returns Subprocess directly (which is promise-like)
+      subprocess = this.processSpawner(args, cwd, options.abortController?.signal);
 
       console.log("[CLIRuntime] Subprocess spawned, PID:", subprocess.pid);
 

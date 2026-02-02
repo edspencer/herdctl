@@ -236,20 +236,15 @@ export function buildContainerMounts(
     });
   }
 
-  // Auth file mount (read-only) - always mount for CLI runtime compatibility
-  // Both env var (preferred) and mounted auth file are supported simultaneously
-  const claudeConfigDir = path.join(os.homedir(), ".claude");
-  mounts.push({
-    hostPath: claudeConfigDir,
-    containerPath: "/home/claude/.claude",
-    mode: "ro",
-  });
-
   // Docker sessions directory (separate from host sessions)
+  // Claude CLI writes sessions to ~/.claude/projects/<encoded-workspace>/
+  // Inside container, working dir is /workspace → encoded as "-workspace"
+  // Mount docker-sessions to this location so we can watch files from host
+  // Note: Authentication uses ANTHROPIC_API_KEY env var, so no auth mount needed
   const dockerSessionsDir = path.join(stateDir, "docker-sessions");
   mounts.push({
     hostPath: dockerSessionsDir,
-    containerPath: "/home/claude/.herdctl/sessions",
+    containerPath: "/home/claude/.claude/projects/-workspace",
     mode: "rw",
   });
 
