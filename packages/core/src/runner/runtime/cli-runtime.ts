@@ -64,11 +64,12 @@ export class CLIRuntime implements RuntimeInterface {
    */
   async *execute(options: RuntimeExecuteOptions): AsyncIterable<SDKMessage> {
     // Build CLI arguments
+    // Note: -p is a boolean flag for print mode, prompt goes at the end as positional arg
     const args: string[] = [
       "-p",
-      options.prompt,
       "--output-format",
       "stream-json",
+      "--include-partial-messages",
       "--verbose",
       "--dangerously-skip-permissions",
     ];
@@ -80,6 +81,9 @@ export class CLIRuntime implements RuntimeInterface {
     if (options.fork) {
       args.push("--fork-session");
     }
+
+    // Add prompt as positional argument at the end
+    args.push(options.prompt);
 
     // Track session ID for debugging
     let sessionId: string | undefined;
