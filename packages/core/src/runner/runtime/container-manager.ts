@@ -273,6 +273,11 @@ export function buildContainerEnv(agent: ResolvedAgent): string[] {
     env.push(`ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY}`);
   }
 
+  // Pass through OAuth token if available (for Claude Max web authentication)
+  if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+    env.push(`CLAUDE_CODE_OAUTH_TOKEN=${process.env.CLAUDE_CODE_OAUTH_TOKEN}`);
+  }
+
   // Terminal support
   env.push("TERM=xterm-256color");
 
