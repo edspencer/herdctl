@@ -102,17 +102,85 @@ export class ContainerRunner implements RuntimeInterface {
       const modem = new Dockerode().modem;
       modem.demuxStream(stream, stdout, stderr);
 
+      // Collect stderr for error diagnosis
+      const stderrLines: string[] = [];
+      const stderrRl = createInterface({
+        input: stderr,
+        crlfDelay: Infinity,
+      });
+
+      stderrRl.on("line", (line) => {
+        const trimmed = line.trim();
+        if (trimmed) {
+          stderrLines.push(trimmed);
+        }
+      });
+
       // Parse stdout line-by-line
       const rl = createInterface({
         input: stdout,
         crlfDelay: Infinity,
       });
 
-      // Stream messages
-      for await (const line of rl) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
+      // Timeout detection: if no output after 30 seconds, assume hang
+      let outputReceived = false;
+      const TIMEOUT_MS = 30000; // 30 seconds
 
+      const timeoutPromise = new Promise<"timeout">((resolve) => {
+        setTimeout(() => {
+          if (!outputReceived) {
+            resolve("timeout");
+          }
+        }, TIMEOUT_MS);
+      });
+
+      // Helper to get first line with timeout
+      const firstLinePromise = new Promise<string | "timeout">((resolve) => {
+        let resolved = false;
+
+        // Timeout handler
+        const timeoutId = setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            resolve("timeout");
+          }
+        }, TIMEOUT_MS);
+
+        // First line handler
+        rl.once("line", (line) => {
+          if (!resolved) {
+            resolved = true;
+            clearTimeout(timeoutId);
+            outputReceived = true;
+            resolve(line);
+          }
+        });
+
+        // Handle stream end before any line
+        rl.once("close", () => {
+          if (!resolved) {
+            resolved = true;
+            clearTimeout(timeoutId);
+            resolve("timeout");
+          }
+        });
+      });
+
+      const firstLine = await firstLinePromise;
+
+      if (firstLine === "timeout") {
+        // No output received - likely authentication issue
+        const errorMessage = this.buildAuthenticationErrorMessage(stderrLines);
+        yield {
+          type: "error",
+          message: errorMessage,
+        } as SDKMessage;
+        return;
+      }
+
+      // Process first line if we got one
+      const trimmed = firstLine.trim();
+      if (trimmed) {
         try {
           const message = JSON.parse(trimmed) as SDKMessage;
           yield message;
@@ -124,14 +192,33 @@ export class ContainerRunner implements RuntimeInterface {
         }
       }
 
+      // Continue streaming remaining messages
+      for await (const line of rl) {
+        const lineTrimmed = line.trim();
+        if (!lineTrimmed) continue;
+
+        try {
+          const message = JSON.parse(lineTrimmed) as SDKMessage;
+          yield message;
+        } catch (error) {
+          // Skip invalid JSON lines (CLI may output non-JSON)
+          console.warn(
+            `[ContainerRunner] Failed to parse line: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+      }
+
       // Check exec exit code
       const inspectData = await exec.inspect();
-      if (inspectData.ExitCode !== 0) {
+      const exitCode = inspectData.ExitCode ?? 0;
+      if (exitCode !== 0) {
+        const errorMessage = this.buildExitErrorMessage(
+          exitCode,
+          stderrLines
+        );
         yield {
           type: "error",
-          error: {
-            message: `Container execution failed with exit code ${inspectData.ExitCode}`,
-          },
+          message: errorMessage,
         } as SDKMessage;
       }
 
@@ -143,9 +230,7 @@ export class ContainerRunner implements RuntimeInterface {
 
       yield {
         type: "error",
-        error: {
-          message: `Docker execution failed: ${errorMessage}`,
-        },
+        message: `Docker execution failed: ${errorMessage}`,
       } as SDKMessage;
 
       // If container startup failed, try to clean up
@@ -157,6 +242,47 @@ export class ContainerRunner implements RuntimeInterface {
         }
       }
     }
+  }
+
+  /**
+   * Build actionable error message for authentication failures
+   */
+  private buildAuthenticationErrorMessage(stderrLines: string[]): string {
+    const stderr = stderrLines.join("\n");
+
+    let message = "Docker container execution timed out (no output after 30 seconds).\n\n";
+    message += "This usually indicates an authentication problem. Claude CLI requires one of:\n\n";
+    message += "1. ANTHROPIC_API_KEY environment variable (for API key users)\n";
+    message += "   - Set in your shell: export ANTHROPIC_API_KEY='your-key-here'\n";
+    message += "   - Or add to .env file in your project root\n\n";
+    message += "2. Claude Max web authentication (session token in system keychain)\n";
+    message += "   - Run 'claude' outside Docker first to authenticate\n";
+    message += "   - Note: macOS Keychain is not accessible from Docker containers\n";
+    message += "   - You may need to use ANTHROPIC_API_KEY instead\n";
+
+    if (stderr) {
+      message += "\n\nContainer stderr output:\n" + stderr;
+    }
+
+    return message;
+  }
+
+  /**
+   * Build error message from exit code and stderr
+   */
+  private buildExitErrorMessage(
+    exitCode: number,
+    stderrLines: string[]
+  ): string {
+    const stderr = stderrLines.join("\n");
+
+    let message = `Container execution failed with exit code ${exitCode}`;
+
+    if (stderr) {
+      message += "\n\nContainer stderr output:\n" + stderr;
+    }
+
+    return message;
   }
 
   /**

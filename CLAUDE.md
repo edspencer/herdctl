@@ -173,3 +173,6 @@ Documentation lives in `docs/` and deploys to herdctl.dev. When adding features:
 1. Update relevant docs in `docs/src/content/docs/`
 2. Run `pnpm build` in docs/ to verify
 3. Docs deploy automatically on merge to main
+
+
+DO NOT use `git add -A` or `git add .` to stage changes. Stage just the files you definitely want to commit.

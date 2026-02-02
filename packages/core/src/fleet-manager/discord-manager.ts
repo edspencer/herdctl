@@ -663,7 +663,7 @@ export class DiscordManager {
             resume?: string;
             onMessage?: (message: { type: string; content?: string; message?: { content?: unknown } }) => void | Promise<void>;
           }
-        ) => Promise<{ jobId: string; success: boolean; sessionId?: string }>;
+        ) => Promise<import("./types.js").TriggerResult>;
       };
 
       // Execute job via FleetManager.trigger()
@@ -689,9 +689,15 @@ export class DiscordManager {
 
       logger.info(`Discord job completed: ${result.jobId} for agent '${agentName}'${result.sessionId ? ` (session: ${result.sessionId})` : ""}`);
 
-      // If no messages were sent, send a completion message
+      // If no messages were sent, send an appropriate message based on success/failure
       if (!streamer.hasSentMessages()) {
-        await event.reply("I've completed the task, but I don't have a specific response to share.");
+        if (result.success) {
+          await event.reply("I've completed the task, but I don't have a specific response to share.");
+        } else {
+          // Job failed without streaming any messages - send error details
+          const errorMessage = result.errorDetails?.message ?? result.error?.message ?? "An unknown error occurred";
+          await event.reply(`❌ **Error:** ${errorMessage}\n\nThe task could not be completed. Please check the logs for more details.`);
+        }
       }
 
       // Store the SDK session ID for future conversation continuity

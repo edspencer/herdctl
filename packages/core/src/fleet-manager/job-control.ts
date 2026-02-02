@@ -225,6 +225,8 @@ export class JobControl {
       prompt,
       success: result.success,
       sessionId: result.sessionId,
+      error: result.error,
+      errorDetails: result.errorDetails,
     };
   }
 

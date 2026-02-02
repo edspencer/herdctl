@@ -360,6 +360,13 @@ export class JobExecutor {
             }
           }
 
+          // Log error messages to console immediately
+          if (processed.output.type === "error") {
+            this.logger.error(
+              `Job ${job.id} error: ${processed.output.message}`
+            );
+          }
+
           // Extract session ID if present
           if (processed.sessionId) {
             sessionId = processed.sessionId;

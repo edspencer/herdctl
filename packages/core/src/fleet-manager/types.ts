@@ -558,6 +558,16 @@ export interface TriggerResult {
    * Failed jobs may return session IDs that are invalid.
    */
   sessionId?: string;
+
+  /**
+   * Error if the job failed
+   */
+  error?: Error;
+
+  /**
+   * Detailed error information for programmatic access
+   */
+  errorDetails?: import("../runner/types.js").RunnerErrorDetails;
 }
 
 // =============================================================================
