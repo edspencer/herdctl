@@ -129,6 +129,31 @@ export class CLIRuntime implements RuntimeInterface {
     const permissionMode = options.agent.permission_mode ?? "acceptEdits";
     args.push("--permission-mode", permissionMode);
 
+    // Add model if specified
+    if (options.agent.model) {
+      args.push("--model", options.agent.model);
+    }
+
+    // Add system prompt if specified
+    if (options.agent.system_prompt) {
+      args.push("--system-prompt", options.agent.system_prompt);
+    }
+
+    // Add allowed tools if specified
+    if (options.agent.permissions?.allowed_tools?.length) {
+      args.push("--allowedTools", ...options.agent.permissions.allowed_tools);
+    }
+
+    // Add denied tools if specified
+    if (options.agent.permissions?.denied_tools?.length) {
+      args.push("--disallowedTools", ...options.agent.permissions.denied_tools);
+    }
+
+    // Add setting sources if specified (comma-separated)
+    if (options.agent.setting_sources?.length) {
+      args.push("--setting-sources", options.agent.setting_sources.join(","));
+    }
+
     // Add session options
     if (options.resume) {
       args.push("--resume", options.resume);
