@@ -23,6 +23,7 @@ import {
   waitForNewSessionFile,
 } from "./cli-session-path.js";
 import { CLISessionWatcher } from "./cli-session-watcher.js";
+import { transformMcpServers } from "../sdk-adapter.js";
 
 /**
  * Process spawner function type
@@ -169,6 +170,14 @@ export class CLIRuntime implements RuntimeInterface {
     // Add setting sources if specified (comma-separated)
     if (options.agent.setting_sources?.length) {
       args.push("--setting-sources", options.agent.setting_sources.join(","));
+    }
+
+    // Add MCP servers if specified
+    // Transform agent config format to SDK format and serialize to JSON
+    if (options.agent.mcp_servers && Object.keys(options.agent.mcp_servers).length > 0) {
+      const mcpServers = transformMcpServers(options.agent.mcp_servers);
+      const mcpConfig = JSON.stringify(mcpServers);
+      args.push("--mcp-config", mcpConfig);
     }
 
     // Add session options
