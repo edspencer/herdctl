@@ -16,7 +16,7 @@ The SDK runtime uses the Claude Agent SDK directly to execute agents. This is th
 - Requires only `ANTHROPIC_API_KEY` environment variable
 - Fully programmatic execution
 - All SDK features available
-- Sessions stored in `.herdctl/sessions/`
+- Sessions stored in `~/.claude/projects/`
 
 ### CLI Runtime
 
@@ -26,8 +26,8 @@ The CLI runtime spawns the `claude` CLI command to execute agents. This runtime 
 - Max plan pricing (if subscribed)
 - Requires Claude CLI installed and logged in
 - Full Claude Code capabilities
-- Sessions managed by Claude CLI in `~/.claude/`
-- Separate from herdctl session storage
+- Sessions stored in `~/.claude/projects/` (same as SDK)
+- Fully compatible with SDK runtime sessions
 
 ## Decision Matrix
 
@@ -39,7 +39,8 @@ Choose the appropriate runtime based on your requirements:
 | **Setup** | Just API key | Claude CLI installed + logged in |
 | **Features** | Full SDK support | Full Claude Code capabilities |
 | **Best for** | API-only deployments, CI/CD | Max plan users wanting cost savings |
-| **Session storage** | `.herdctl/sessions/` | `~/.claude/` (managed by CLI) |
+| **Session storage** | `~/.claude/projects/` | `~/.claude/projects/` (same location) |
+| **Session compatibility** | ✅ Compatible with CLI | ✅ Compatible with SDK |
 | **Authentication** | `ANTHROPIC_API_KEY` | `claude login` |
 | **Dependencies** | None | Claude CLI must be installed |
 
@@ -111,39 +112,49 @@ schedules:
 
 ## Session Management
 
-Runtime choice affects where agent sessions are stored and managed:
+Both SDK and CLI runtimes use the same Claude Code session storage, enabling seamless runtime switching without losing conversation context.
 
-### SDK Runtime Sessions
+### Unified Session Storage
 
-- **Location:** `.herdctl/sessions/{agentName}/`
-- **Format:** JSON session state files
-- **Management:** herdctl creates and manages session files
-- **Resumption:** Sessions can be resumed across runs
+- **Location:** `~/.claude/projects/{workspace-path-hash}/`
+- **Format:** JSONL session files (UUID-based filenames)
+- **Compatibility:** Sessions work across both runtimes
+- **Resumption:** Full conversation history preserved when switching
 
 **Example session file:**
 ```
-.herdctl/sessions/my-agent/session-2026-01-15-10-30-45.json
+~/.claude/projects/-Users-ed-projects-myapp/052cf4a1-92f9-4c33-a527-9cdc107f0d1d.jsonl
 ```
 
-### CLI Runtime Sessions
+### Cross-Runtime Session Compatibility
 
-- **Location:** `~/.claude/sessions/`
-- **Format:** CLI-native session files
-- **Management:** Claude CLI creates and manages sessions
-- **Resumption:** Sessions managed by Claude CLI
+Because both runtimes use the same underlying Claude Code session system:
 
-**Example session path:**
+- **SDK → CLI**: Sessions created by SDK runtime can be resumed by CLI runtime
+- **CLI → SDK**: Sessions created by CLI runtime can be resumed by SDK runtime
+- **Conversation continuity**: Full message history is preserved across the switch
+- **Zero migration needed**: Just change the `runtime` field and restart
+
+**Example workflow:**
+```yaml
+# Start with CLI runtime (Max plan pricing)
+name: my-agent
+runtime: cli
+
+# Later switch to SDK runtime (standard pricing)
+name: my-agent
+runtime: sdk  # Or remove runtime field for default
+
+# Sessions automatically continue - no data loss!
 ```
-~/.claude/sessions/workspace-path-hash-123abc/
-```
 
-:::note[No Session Migration]
-Sessions are not portable between runtime types. If you switch an agent from SDK to CLI runtime (or vice versa), it will start a fresh session, not resume the previous one.
+:::tip[Runtime Flexibility]
+You can switch runtimes at any time without losing conversation context. This makes it easy to experiment with different pricing models or deployment environments while maintaining session continuity.
 :::
 
 ## Runtime Switching
 
-You can switch an agent's runtime at any time by changing the `runtime` field. The agent will use the new runtime for all subsequent executions.
+You can switch an agent's runtime at any time by changing the `runtime` field. Sessions are fully compatible across runtimes, so conversation context is preserved.
 
 ```yaml
 # Before (SDK runtime - default)
@@ -155,7 +166,13 @@ name: my-agent
 runtime: cli
 ```
 
-**Important:** Existing sessions from the previous runtime will not be resumed. The agent will start fresh with the new runtime.
+**Session Continuity:** When you switch runtimes, existing sessions are automatically resumed by the new runtime. The conversation history is preserved, and the agent continues from where it left off.
+
+**Use cases for runtime switching:**
+- Switch to CLI runtime to leverage Max plan pricing
+- Switch to SDK runtime for CI/CD or container deployments
+- Experiment with different runtime backends without losing context
+- Optimize costs by switching based on usage patterns
 
 ## Docker Compatibility
 
@@ -172,9 +189,10 @@ docker:
 ```
 
 When Docker is enabled:
-- SDK runtime sessions stored in `.herdctl/docker-sessions/`
-- CLI runtime sessions managed by Claude CLI inside the container
+- Session files stored in `~/.claude/projects/` inside the container
+- Sessions persist in Docker volumes between container restarts
 - Auth files mounted read-only into container
+- Sessions remain compatible across SDK and CLI runtimes
 
 See [Docker Configuration](/configuration/docker/) for more details.
 
@@ -201,14 +219,15 @@ See [Docker Configuration](/configuration/docker/) for more details.
 
 ### Session Issues
 
-**Problem:** Sessions not resuming
-- **Check:** Verify session files exist in the correct location
-- **SDK:** Check `.herdctl/sessions/{agentName}/`
-- **CLI:** Check `~/.claude/sessions/`
+**Problem:** Sessions not resuming after runtime switch
+- **Check:** Verify session files exist: `~/.claude/projects/{workspace}/`
+- **Check:** Ensure working directory hasn't changed (sessions are tied to workspace path)
+- **Solution:** Sessions are compatible across runtimes - if sessions aren't resuming, check the working directory configuration
 
-**Problem:** Session conflicts after runtime switch
-- **Explanation:** Sessions are not compatible between runtimes
-- **Solution:** This is expected - the agent starts fresh with the new runtime
+**Problem:** "Session expired" after runtime switch
+- **Explanation:** Sessions have a default 24h timeout based on last activity
+- **Solution:** This is normal behavior - not related to runtime switching
+- **Fix:** Increase `session.timeout` in agent config if needed
 
 ## Related Pages
 
