@@ -29,10 +29,7 @@ import {
   buildContainerEnv,
 } from "./container-manager.js";
 import { parseCLILine } from "./cli-output-parser.js";
-
-// Use require for dockerode to work around TypeScript/NodeNext module resolution
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const Dockerode = require("dockerode") as typeof import("dockerode");
+import Dockerode from "dockerode";
 
 /**
  * Container runtime decorator

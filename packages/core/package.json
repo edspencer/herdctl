@@ -11,6 +11,7 @@
   ],
   "scripts": {
     "build": "tsc",
+    "postbuild": "node --input-type=module -e \"import('./dist/index.js').then(() => console.log('✓ Core module loads successfully'))\"",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --coverage"
