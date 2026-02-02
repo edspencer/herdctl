@@ -5,6 +5,8 @@
  * unexpected logouts when resuming expired sessions.
  */
 
+import { access } from "node:fs/promises";
+import { getCliSessionFile } from "../runner/runtime/cli-session-path.js";
 import type { SessionInfo } from "./schemas/session-info.js";
 
 // =============================================================================
@@ -18,7 +20,7 @@ export interface SessionValidationResult {
   /** Whether the session is valid (not expired) */
   valid: boolean;
   /** If invalid, the reason why */
-  reason?: "expired" | "missing" | "invalid_timeout";
+  reason?: "expired" | "missing" | "invalid_timeout" | "file_not_found";
   /** Human-readable message */
   message?: string;
   /** Age of the session in milliseconds */
@@ -87,6 +89,26 @@ export const DEFAULT_SESSION_TIMEOUT_MS = 24 * 60 * 60 * 1000; // 24 hours
 // =============================================================================
 // Session Validation
 // =============================================================================
+
+/**
+ * Check if a CLI session file exists on disk
+ *
+ * @param workingDirectory - Working directory for the session
+ * @param sessionId - Session ID to check
+ * @returns true if the session file exists
+ */
+export async function cliSessionFileExists(
+  workingDirectory: string,
+  sessionId: string
+): Promise<boolean> {
+  try {
+    const sessionFile = getCliSessionFile(workingDirectory, sessionId);
+    await access(sessionFile);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Check if a session has expired based on its last_used_at timestamp
@@ -181,6 +203,60 @@ export function validateSession(
     ageMs,
     timeoutMs,
   };
+}
+
+/**
+ * Validate a session including CLI session file existence check
+ *
+ * This async version of validateSession also checks if the CLI session file
+ * exists on disk (for CLI runtime sessions). Use this when validating sessions
+ * that will be resumed via CLI runtime.
+ *
+ * @param session - The session info to validate
+ * @param timeout - Timeout string (e.g., "30m", "1h") or undefined for default
+ * @returns Promise resolving to validation result
+ *
+ * @example
+ * ```typescript
+ * const session = await getSessionInfo(sessionsDir, agentName);
+ * if (session) {
+ *   const validation = await validateSessionWithFileCheck(session, "1h");
+ *   if (!validation.valid) {
+ *     console.log(`Session invalid: ${validation.message}`);
+ *     // Clear the session and start fresh
+ *   }
+ * }
+ * ```
+ */
+export async function validateSessionWithFileCheck(
+  session: SessionInfo | null,
+  timeout?: string
+): Promise<SessionValidationResult> {
+  // First do basic validation (expiration, etc.)
+  const basicValidation = validateSession(session, timeout);
+  if (!basicValidation.valid) {
+    return basicValidation;
+  }
+
+  // If session exists and isn't expired, check if CLI session file exists
+  if (session && session.working_directory) {
+    const fileExists = await cliSessionFileExists(
+      session.working_directory,
+      session.session_id
+    );
+
+    if (!fileExists) {
+      return {
+        valid: false,
+        reason: "file_not_found",
+        message: `CLI session file not found for session ${session.session_id}`,
+        ageMs: basicValidation.ageMs,
+        timeoutMs: basicValidation.timeoutMs,
+      };
+    }
+  }
+
+  return basicValidation;
 }
 
 /**

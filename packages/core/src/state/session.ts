@@ -127,17 +127,17 @@ export async function getSessionInfo(
 
   const session = parseResult.data;
 
-  // If timeout is provided, validate session expiry
+  // If timeout is provided, validate session expiry and file existence
   // Dynamic import to avoid circular dependency with session-validation.ts
   if (timeout) {
-    const { validateSession } = await import("./session-validation.js");
-    const validation = validateSession(session, timeout);
+    const { validateSessionWithFileCheck } = await import("./session-validation.js");
+    const validation = await validateSessionWithFileCheck(session, timeout);
     if (!validation.valid) {
-      if (validation.reason === "expired") {
+      if (validation.reason === "expired" || validation.reason === "file_not_found") {
         logger.warn(
-          `Session for ${agentName} has expired: ${validation.message}. Clearing stale session.`
+          `Session for ${agentName} is invalid: ${validation.message}. Clearing stale session.`
         );
-        // Clear the expired session to prevent stale session IDs from being used
+        // Clear the invalid session to prevent stale session IDs from being used
         await clearSession(sessionsDir, agentName).catch(() => {
           // Ignore errors during cleanup - session is already treated as invalid
         });

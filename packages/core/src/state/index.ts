@@ -82,6 +82,8 @@ export {
 // Re-export session validation functions
 export {
   validateSession,
+  validateSessionWithFileCheck,
+  cliSessionFileExists,
   isSessionExpiredError,
 } from "./session-validation.js";
 
