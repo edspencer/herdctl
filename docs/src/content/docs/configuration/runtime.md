@@ -174,27 +174,118 @@ runtime: cli
 - Experiment with different runtime backends without losing context
 - Optimize costs by switching based on usage patterns
 
-## Docker Compatibility
+## Execution Modes
 
-Both runtimes work with Docker containerization:
+Herdctl supports four execution modes based on runtime type and execution environment:
+
+| Mode | Runtime | Environment | Description |
+|------|---------|-------------|-------------|
+| **SDK Local** | `runtime: sdk` | Local (no Docker) | Default mode, standard API pricing, runs on host |
+| **CLI Local** | `runtime: cli` | Local (no Docker) | Max plan pricing, runs on host |
+| **SDK Docker** | `runtime: sdk` | `docker.enabled: true` | Isolated SDK execution in container |
+| **CLI Docker** | `runtime: cli` | `docker.enabled: true` | Isolated CLI execution in container |
+
+### Session Compatibility Across Modes
+
+Understanding session persistence is crucial when switching between modes:
+
+#### ✅ Compatible: Within Same Environment
+
+Sessions **are compatible** when switching runtimes within the same environment:
+
+- **Local SDK ↔ Local CLI**: Sessions resume seamlessly
+  - Both use `~/.claude/projects/` on your host machine
+  - Full conversation history preserved
+  - No configuration changes needed
+
+- **Docker SDK ↔ Docker CLI**: Sessions resume seamlessly
+  - Both use `.herdctl/docker-sessions/` (mounted to containers)
+  - Full conversation history preserved
+  - No configuration changes needed
+
+#### ❌ Not Compatible: Across Environments
+
+Sessions **are not compatible** when switching between Docker and local environments:
+
+- **Local → Docker** or **Docker → Local**: Fresh session starts
+  - Docker sessions: `.herdctl/docker-sessions/`
+  - Local sessions: `.herdctl/sessions/` (SDK) or `~/.claude/projects/` (CLI)
+  - Different filesystems prevent session sharing
+  - This is by design for container isolation
+
+**Example session behavior:**
+
+```yaml
+# Job 1: SDK runtime, local execution
+runtime: sdk
+# Session: abc-123 stored in ~/.claude/projects/
+
+# Job 2: CLI runtime, local execution
+runtime: cli
+# ✅ Session abc-123 resumes - same environment
+
+# Job 3: CLI runtime, Docker enabled
+runtime: cli
+docker:
+  enabled: true
+# ❌ New session xyz-789 - different environment
+# Cannot access session abc-123 from Jobs 1-2
+
+# Job 4: SDK runtime, Docker still enabled
+runtime: sdk
+docker:
+  enabled: true
+# ✅ Session xyz-789 resumes - same Docker environment
+```
+
+:::caution[Session Isolation]
+Enabling or disabling Docker will start a fresh session. Docker sessions are isolated from local sessions to prevent path conflicts and maintain container security. Plan your runtime and environment choices accordingly.
+:::
+
+### Choosing Your Execution Mode
+
+**Use SDK Local (default) when:**
+- Standard API pricing works for your use case
+- Running on your local machine or VM
+- Want simplest setup with minimal dependencies
+
+**Use CLI Local when:**
+- You have a Claude Max subscription
+- Want to use Max plan pricing benefits
+- Running on your local machine or VM
+
+**Use SDK Docker when:**
+- Need container isolation for security
+- Running untrusted code or workspace
+- Want resource limits and sandboxing
+- Standard API pricing is acceptable
+
+**Use CLI Docker when:**
+- Need container isolation AND Max plan pricing
+- Running untrusted code or workspace
+- Want resource limits and sandboxing
+- Have Claude Max subscription
+
+## Docker Configuration
+
+Both runtimes work with Docker containerization. Enable Docker in your agent config:
 
 ```yaml
 name: containerized-agent
-runtime: cli  # CLI runtime in container
+runtime: cli  # or sdk (default)
 docker:
   enabled: true
-  image: anthropic/claude-code:latest
   network: bridge
   memory: 2g
 ```
 
-When Docker is enabled:
-- Session files stored in `~/.claude/projects/` inside the container
-- Sessions persist in Docker volumes between container restarts
-- Auth files mounted read-only into container
-- Sessions remain compatible across SDK and CLI runtimes
+**Key Docker behaviors:**
+- Agents run isolated in containers
+- Sessions stored separately (`.herdctl/docker-sessions/`)
+- Runtime switching within Docker preserves sessions
+- Switching between Docker and local starts fresh sessions
 
-See [Docker Configuration](/configuration/docker/) for more details.
+See [Docker Configuration](/configuration/docker/) for complete Docker options, security model, and best practices.
 
 ## Troubleshooting
 

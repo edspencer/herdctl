@@ -445,20 +445,24 @@ docker:
 
 ## Combining with Runtime Selection
 
-Docker works with both SDK and CLI runtimes:
+Docker works with both SDK and CLI runtimes. You can switch between runtimes within Docker and sessions will resume seamlessly.
 
-### SDK Runtime + Docker
+### SDK Runtime + Docker (Default)
 
 ```yaml
 name: sdk-dockerized
-runtime: sdk  # SDK runtime (default)
+runtime: sdk  # SDK runtime (default, can be omitted)
 docker:
   enabled: true
   network: bridge
   memory: "2g"
 ```
 
-Sessions stored in: `.herdctl/docker-sessions/sdk-dockerized/`
+**Characteristics:**
+- Standard API pricing
+- Requires only `ANTHROPIC_API_KEY`
+- Full SDK features available
+- Sessions stored in `.herdctl/docker-sessions/`
 
 ### CLI Runtime + Docker
 
@@ -471,9 +475,36 @@ docker:
   memory: "2g"
 ```
 
-Claude CLI manages sessions inside the container.
+**Characteristics:**
+- Max plan pricing (if subscribed)
+- Requires Claude CLI authentication
+- Full Claude Code capabilities
+- Sessions stored in `.herdctl/docker-sessions/` (same as SDK)
 
-See [Runtime Configuration](/configuration/runtime/) for runtime details.
+### Runtime Switching Within Docker
+
+Sessions are compatible when switching runtimes within Docker:
+
+```yaml
+# Job 1: SDK runtime in Docker
+runtime: sdk
+docker:
+  enabled: true
+
+# Job 2: Switch to CLI runtime
+runtime: cli
+docker:
+  enabled: true
+# ✅ Session resumes from Job 1
+```
+
+Both runtimes share the same Docker session storage, enabling seamless runtime switching without losing conversation context.
+
+:::tip[Cross-Runtime Sessions]
+Within Docker, SDK and CLI runtimes share session storage. You can switch between them without losing context. However, Docker sessions are separate from local (non-Docker) sessions.
+:::
+
+See [Runtime Configuration](/configuration/runtime/) for detailed runtime comparison and [Execution Modes](/configuration/runtime/#execution-modes) for session compatibility across all modes.
 
 ## Troubleshooting
 

@@ -369,30 +369,66 @@ schedules:
 
 ## Session Storage
 
-Sessions are persisted in the herdctl state directory:
+Session storage location varies by runtime and execution environment:
+
+### Storage Locations by Mode
+
+| Runtime | Environment | Storage Location | Notes |
+|---------|-------------|------------------|-------|
+| **SDK** | Local | `.herdctl/sessions/` | herdctl manages session metadata |
+| **CLI** | Local | `~/.claude/projects/` | Claude CLI manages sessions |
+| **SDK** | Docker | `.herdctl/docker-sessions/` | Isolated from local sessions |
+| **CLI** | Docker | `.herdctl/docker-sessions/` | Isolated from local sessions |
+
+**Key behaviors:**
+- **Local SDK ↔ CLI**: Sessions compatible (both use Claude Code session system)
+- **Docker SDK ↔ CLI**: Sessions compatible (both use Docker mount)
+- **Local ↔ Docker**: Sessions NOT compatible (different storage locations)
+
+### Session Compatibility
+
+Sessions persist when switching runtimes **within the same environment**:
+
+```yaml
+# Local environment - sessions resume
+runtime: sdk    # Job 1
+runtime: cli    # Job 2 resumes Job 1's session
+
+# Enable Docker - new session starts
+docker:
+  enabled: true
+runtime: sdk    # Job 3 - fresh session (Docker isolation)
+runtime: cli    # Job 4 resumes Job 3's session (both in Docker)
+```
+
+:::tip[Environment Isolation]
+Docker and local sessions are isolated by design. This prevents path conflicts and maintains container security. If you need to switch between Docker and local execution, expect sessions to start fresh.
+:::
+
+### Session File Structure
+
+herdctl stores session metadata for tracking and management:
 
 ```
 ~/.herdctl/
 └── sessions/
-    ├── sess-a1b2c3d4.json        # Session metadata
-    ├── sess-a1b2c3d4.context     # Conversation context
-    ├── sess-e5f6g7h8.json
+    ├── agent-name.json           # Session info per agent
     └── ...
+
+~/.herdctl/
+└── docker-sessions/              # Docker container sessions
+    └── (mounted to containers)
 ```
 
-### Session File Structure
+Example session metadata:
 
 ```json
 {
-  "id": "sess-a1b2c3d4",
-  "agentId": "bragdoc-coder",
-  "mode": "persistent",
-  "status": "paused",
-  "createdAt": "2024-01-15T09:00:00Z",
-  "lastActiveAt": "2024-01-15T10:30:00Z",
-  "messageCount": 47,
-  "tokenEstimate": 32000,
-  "jobs": ["job-123", "job-124", "job-125"]
+  "session_id": "a1b2c3d4-5678-90ab-cdef-123456789abc",
+  "agent_name": "bragdoc-coder",
+  "created_at": "2024-01-15T09:00:00Z",
+  "last_used_at": "2024-01-15T10:30:00Z",
+  "working_directory": "/Users/you/projects/myapp"
 }
 ```
 
