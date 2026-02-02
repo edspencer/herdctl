@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   integration-tests:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     # Don't run on forks (they won't have the secret)
     if: github.repository == 'edspencer/herdctl' || github.event_name == 'workflow_dispatch'
 
