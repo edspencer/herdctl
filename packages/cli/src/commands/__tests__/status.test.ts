@@ -73,7 +73,7 @@ const mockAgentInfo = [
       },
     ],
     model: "claude-sonnet-4-20250514",
-    workspace: "/projects/my-app",
+    working_directory: "/projects/my-app",
   },
   {
     name: "issue-triage",
@@ -98,7 +98,7 @@ const mockAgentInfo = [
       },
     ],
     model: undefined,
-    workspace: undefined,
+    working_directory: undefined,
   },
 ];
 
@@ -282,7 +282,7 @@ describe("statusCommand", () => {
 
       expect(consoleLogs.some((log) => log.includes("Configuration"))).toBe(true);
       expect(consoleLogs.some((log) => log.includes("Model:"))).toBe(true);
-      expect(consoleLogs.some((log) => log.includes("Workspace:"))).toBe(true);
+      expect(consoleLogs.some((log) => log.includes("Working Directory:"))).toBe(true);
       expect(consoleLogs.some((log) => log.includes("Concurrency:"))).toBe(true);
     });
 

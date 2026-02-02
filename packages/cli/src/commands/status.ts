@@ -267,7 +267,7 @@ function formatAgentDetail(agent: AgentInfo): string {
     lines.push(`Model:       ${agent.model}`);
   }
   if (agent.working_directory) {
-    lines.push(`Workspace:   ${agent.working_directory}`);
+    lines.push(`Working Directory: ${agent.working_directory}`);
   }
   lines.push(`Concurrency: ${agent.runningCount}/${agent.maxConcurrent}`);
 
