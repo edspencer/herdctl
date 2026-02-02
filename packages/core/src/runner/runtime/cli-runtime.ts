@@ -170,8 +170,21 @@ export class CLIRuntime implements RuntimeInterface {
         console.log("[CLIRuntime] New session, watching newly created file:", sessionFilePath);
       }
 
+      // Extract session ID from filename (basename without .jsonl extension)
+      // For CLI runtime, the session ID is the filename - this matches SDK runtime behavior
+      const sessionFileName = sessionFilePath.split("/").pop() || "";
+      const extractedSessionId = sessionFileName.replace(/\.jsonl$/, "");
+      console.log("[CLIRuntime] Extracted session ID:", extractedSessionId);
+
       // Watch the session file for messages
       watcher = new CLISessionWatcher(sessionFilePath);
+
+      // When resuming, initialize watcher to skip existing content
+      // This prevents replaying the entire conversation history on each message
+      if (options.resume) {
+        await watcher.initialize();
+        console.log("[CLIRuntime] Watcher initialized for resume, will skip existing content");
+      }
 
       // Set up abort handling
       if (options.abortController) {
@@ -197,6 +210,16 @@ export class CLIRuntime implements RuntimeInterface {
       // Stream messages from the session file
       // Just iterate naturally - the watcher handles all the waiting
       console.log("[CLIRuntime] Starting to stream messages from watcher");
+
+      // Yield synthetic system message with session ID (matches SDK runtime behavior)
+      // This allows the message processor to extract the session ID for persistence
+      yield {
+        type: "system",
+        subtype: "init",
+        session_id: extractedSessionId,
+        content: "CLI session initialized",
+      };
+      console.log("[CLIRuntime] Yielded synthetic system message with session ID");
 
       // Stream messages from the watcher as they arrive
       for await (const message of watcher.watch()) {

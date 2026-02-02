@@ -25,6 +25,30 @@ export class CLISessionWatcher {
   }
 
   /**
+   * Initialize watcher by reading existing file content
+   *
+   * When resuming a session, call this before watch() to skip existing
+   * messages and only process new content appended after this point.
+   */
+  async initialize(): Promise<void> {
+    try {
+      const content = await readFile(this.sessionFilePath, "utf-8");
+      const lines = content.split("\n").filter((line) => line.trim() !== "");
+      this.lastLineCount = lines.length;
+      console.log(`[CLISessionWatcher] Initialized at line ${this.lastLineCount}, will skip existing content`);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        // File doesn't exist yet - that's fine for new sessions
+        console.log(`[CLISessionWatcher] File doesn't exist yet, starting from line 0`);
+      } else {
+        console.warn(
+          `[CLISessionWatcher] Failed to initialize: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
+  }
+
+  /**
    * Process file and queue any new messages
    */
   private async processFile(): Promise<void> {
