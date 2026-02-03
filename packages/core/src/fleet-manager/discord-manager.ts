@@ -682,17 +682,17 @@ export class DiscordManager {
             if (content) {
               // Each assistant message is a complete turn - send immediately
               await streamer.addMessageAndSend(content);
-
-              // Stop typing indicator as soon as we send the first message
-              // This prevents the interval from sending more typing indicators after messages are visible
-              if (!typingStopped) {
-                stopTyping();
-                typingStopped = true;
-              }
             }
           }
         },
       });
+
+      // Stop typing indicator immediately after SDK execution completes
+      // This prevents the interval from firing during flush/session storage
+      if (!typingStopped) {
+        stopTyping();
+        typingStopped = true;
+      }
 
       // Flush any remaining buffered content
       await streamer.flush();
