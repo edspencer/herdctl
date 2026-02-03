@@ -176,3 +176,18 @@ Documentation lives in `docs/` and deploys to herdctl.dev. When adding features:
 
 
 DO NOT use `git add -A` or `git add .` to stage changes. Stage just the files you definitely want to commit.
+
+---
+
+## ⚠️ CRITICAL: Docker Network Requirements
+
+**NEVER suggest `network: none` for Docker containers running Claude Code agents.**
+
+Claude Code agents MUST have network access to communicate with Anthropic's APIs. Without network access, the agent cannot function at all. The available network modes are:
+
+- `bridge` (default) - Standard Docker networking with NAT. Agent can reach the internet including Anthropic APIs.
+- `host` - Share host's network namespace. Use only when specifically needed (e.g., for SSH access to local services).
+
+**`network: none` will completely break the agent** - it won't be able to call Claude's APIs and will fail immediately.
+
+When discussing Docker security, emphasize that `bridge` mode still provides network namespace isolation (separate network stack from host), just with outbound internet access enabled.
