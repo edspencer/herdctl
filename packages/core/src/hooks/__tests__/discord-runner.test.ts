@@ -132,7 +132,9 @@ describe("DiscordHookRunner", () => {
       expect(fieldNames).toContain("Job ID");
       expect(fieldNames).toContain("Duration");
       expect(fieldNames).toContain("Schedule");
-      expect(fieldNames).toContain("Output");
+
+      // Output is now in description, not fields
+      expect(embed.description).toBe("Job completed successfully");
 
       // Verify field values
       const agentField = embed.fields.find((f: { name: string }) => f.name === "Agent");
@@ -415,7 +417,7 @@ describe("DiscordHookRunner", () => {
       expect(mockLogger.error).toHaveBeenCalled();
     }, 15000); // Extend test timeout
 
-    it("should truncate long output to 1000 characters", async () => {
+    it("should truncate long output to 4096 characters in description", async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
@@ -428,12 +430,12 @@ describe("DiscordHookRunner", () => {
         fetch: mockFetch,
       });
 
-      // Create a context with very long output
+      // Create a context with very long output (longer than Discord's 4096 limit)
       const longOutputContext: HookContext = {
         ...sampleContext,
         result: {
           success: true,
-          output: "A".repeat(2000), // 2000 characters
+          output: "A".repeat(5000), // 5000 characters
         },
       };
 
@@ -448,12 +450,11 @@ describe("DiscordHookRunner", () => {
       const [, options] = mockFetch.mock.calls[0];
       const body = JSON.parse(options.body);
 
-      const outputField = body.embeds[0].fields.find((f: { name: string }) => f.name === "Output");
-      expect(outputField).toBeDefined();
-      // The value includes code fence markers, so we check the truncated content
-      expect(outputField.value).toContain("...");
-      // Total should be under 1100 chars (1000 + code fences + ellipsis)
-      expect(outputField.value.length).toBeLessThanOrEqual(1020);
+      // Output is now in description, not a field
+      expect(body.embeds[0].description).toBeDefined();
+      expect(body.embeds[0].description).toContain("...");
+      // Should be truncated to 4096 chars (Discord's embed description limit)
+      expect(body.embeds[0].description.length).toBeLessThanOrEqual(4096);
     });
 
     it("should format duration correctly for various values", async () => {
@@ -676,7 +677,7 @@ describe("DiscordHookRunner", () => {
       expect(result.error).toContain("Something went wrong");
     });
 
-    it("should not include output field if output is empty", async () => {
+    it("should not include description if output is empty", async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
@@ -708,11 +709,11 @@ describe("DiscordHookRunner", () => {
       const [, options] = mockFetch.mock.calls[0];
       const body = JSON.parse(options.body);
 
-      const outputField = body.embeds[0].fields.find((f: { name: string }) => f.name === "Output");
-      expect(outputField).toBeUndefined();
+      // Description should be undefined when output is empty
+      expect(body.embeds[0].description).toBeUndefined();
     });
 
-    it("should not include output field if output is whitespace only", async () => {
+    it("should not include description if output is whitespace only", async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
@@ -744,8 +745,8 @@ describe("DiscordHookRunner", () => {
       const [, options] = mockFetch.mock.calls[0];
       const body = JSON.parse(options.body);
 
-      const outputField = body.embeds[0].fields.find((f: { name: string }) => f.name === "Output");
-      expect(outputField).toBeUndefined();
+      // Description should be undefined when output is whitespace only
+      expect(body.embeds[0].description).toBeUndefined();
     });
   });
 });

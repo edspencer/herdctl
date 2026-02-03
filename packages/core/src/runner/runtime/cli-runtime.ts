@@ -285,8 +285,13 @@ export class CLIRuntime implements RuntimeInterface {
       // Determine which session file to watch
       let sessionFilePath: string;
       if (options.resume) {
-        // When resuming, use the known session ID
-        sessionFilePath = getCliSessionFile(cwd, options.resume);
+        // When resuming, use sessionDirOverride if provided (for Docker execution)
+        // Otherwise fall back to native CLI path
+        if (this.sessionDirOverride) {
+          sessionFilePath = `${this.sessionDirOverride}/${options.resume}.jsonl`;
+        } else {
+          sessionFilePath = getCliSessionFile(cwd, options.resume);
+        }
         console.log("[CLIRuntime] Resuming session, watching file:", sessionFilePath);
       } else {
         // When starting new session, wait for a NEW file created after process start

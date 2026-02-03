@@ -509,15 +509,16 @@ describe("extractSummary", () => {
     expect(extractSummary(message)).toBe("Task completed successfully.");
   });
 
-  it("does not use long assistant content as summary", () => {
-    const longContent = "x".repeat(501);
+  it("returns full assistant content regardless of length", () => {
+    const longContent = "x".repeat(5000);
     const message: SDKMessage = {
       type: "assistant",
       content: longContent,
       partial: false,
     };
 
-    expect(extractSummary(message)).toBeUndefined();
+    // No length limit - returns full content
+    expect(extractSummary(message)).toBe(longContent);
   });
 
   it("does not use partial assistant content as summary", () => {
@@ -557,14 +558,15 @@ describe("extractSummary", () => {
     expect(extractSummary(message)).toBe("Explicit summary");
   });
 
-  it("handles content at exactly 500 characters", () => {
-    const content = "x".repeat(500);
+  it("handles long assistant content", () => {
+    const content = "x".repeat(5000);
     const message: SDKMessage = {
       type: "assistant",
       content,
       partial: false,
     };
 
+    // No truncation - returns full content
     expect(extractSummary(message)).toBe(content);
   });
 
@@ -579,47 +581,18 @@ describe("extractSummary", () => {
     expect(extractSummary(message)).toBe("Some content");
   });
 
-  it("truncates explicit summary longer than 500 characters", () => {
-    const longSummary = "x".repeat(600);
+  it("returns full explicit summary without truncation", () => {
+    const longSummary = "x".repeat(5000);
     const message: SDKMessage = {
       type: "assistant",
       content: "Some content",
       summary: longSummary,
     };
 
+    // No truncation - downstream consumers handle their own limits
     const result = extractSummary(message);
-    expect(result).toBeDefined();
-    expect(result!.length).toBe(500);
-    expect(result!.endsWith("...")).toBe(true);
-  });
-
-  it("does not truncate explicit summary at exactly 500 characters", () => {
-    const summary = "x".repeat(500);
-    const message: SDKMessage = {
-      type: "assistant",
-      content: "Some content",
-      summary,
-    };
-
-    const result = extractSummary(message);
-    expect(result).toBe(summary);
-    expect(result!.length).toBe(500);
-    expect(result!.endsWith("...")).toBe(false);
-  });
-
-  it("truncates explicit summary at 501 characters", () => {
-    const summary = "x".repeat(501);
-    const message: SDKMessage = {
-      type: "assistant",
-      content: "Some content",
-      summary,
-    };
-
-    const result = extractSummary(message);
-    expect(result!.length).toBe(500);
-    expect(result!.endsWith("...")).toBe(true);
-    // Should be 497 x's + "..."
-    expect(result).toBe("x".repeat(497) + "...");
+    expect(result).toBe(longSummary);
+    expect(result!.length).toBe(5000);
   });
 
   it("converts non-string summary to string", () => {

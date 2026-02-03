@@ -85,7 +85,9 @@ export {
   validateSessionWithFileCheck,
   validateRuntimeContext,
   cliSessionFileExists,
+  dockerSessionFileExists,
   isSessionExpiredError,
+  type SessionFileCheckOptions,
 } from "./session-validation.js";
 
 // Re-export working directory validation functions

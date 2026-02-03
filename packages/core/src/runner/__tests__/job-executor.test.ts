@@ -883,8 +883,8 @@ describe("JobExecutor", () => {
       expect(result.summary).toBeUndefined();
     });
 
-    it("returns undefined summary when all assistant messages are too long", async () => {
-      const longContent = "x".repeat(501);
+    it("returns full summary for long assistant messages (no truncation)", async () => {
+      const longContent = "x".repeat(5000);
       const messages: SDKMessage[] = [
         { type: "assistant", content: longContent },
         { type: "assistant", content: longContent },
@@ -900,11 +900,14 @@ describe("JobExecutor", () => {
         stateDir,
       });
 
-      expect(result.summary).toBeUndefined();
+      // No truncation at this layer - downstream consumers (Discord) handle their own limits
+      expect(result.summary).toBeDefined();
+      expect(result.summary).toBe(longContent);
+      expect(result.summary?.length).toBe(5000);
     });
 
-    it("truncates long explicit summary to 500 chars", async () => {
-      const longSummary = "x".repeat(600);
+    it("returns full explicit summary (no truncation)", async () => {
+      const longSummary = "x".repeat(5000);
       const messages: SDKMessage[] = [
         { type: "assistant", content: "Done!", summary: longSummary },
       ];
@@ -919,12 +922,13 @@ describe("JobExecutor", () => {
         stateDir,
       });
 
+      // No truncation at this layer
       expect(result.summary).toBeDefined();
-      expect(result.summary!.length).toBe(500);
-      expect(result.summary!.endsWith("...")).toBe(true);
+      expect(result.summary).toBe(longSummary);
+      expect(result.summary!.length).toBe(5000);
 
       const job = await getJob(join(stateDir, "jobs"), result.jobId);
-      expect(job?.summary?.length).toBe(500);
+      expect(job?.summary).toBe(longSummary);
     });
 
     it("uses latest summary when multiple messages have summaries", async () => {

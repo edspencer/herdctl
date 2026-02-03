@@ -141,7 +141,7 @@ export async function getSessionInfo(
     // For CLI runtime, check both expiration and file existence
     // For SDK runtime (or unspecified), only check expiration
     const validation = options.runtime === "cli"
-      ? await validateSessionWithFileCheck(session, timeout)
+      ? await validateSessionWithFileCheck(session, timeout, { sessionsDir })
       : validateSession(session, timeout);
 
     if (!validation.valid) {

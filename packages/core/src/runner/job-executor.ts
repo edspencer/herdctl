@@ -138,13 +138,14 @@ export class JobExecutor {
    * @returns Result of the execution including job ID and status
    */
   async execute(options: RunnerOptionsWithCallbacks): Promise<RunnerResult> {
-    const { agent, prompt, stateDir, triggerType, schedule, onMessage, outputToFile } =
+    const { agent, prompt, stateDir, triggerType, schedule, onMessage, onJobCreated, outputToFile } =
       options;
 
     const jobsDir = join(stateDir, "jobs");
     let job: JobMetadata;
     let sessionId: string | undefined;
     let summary: string | undefined;
+    let lastAssistantContent: string | undefined; // Track last assistant message for fallback summary
     let lastError: RunnerError | undefined;
     let errorDetails: RunnerErrorDetails | undefined;
     let messagesReceived = 0;
@@ -166,6 +167,11 @@ export class JobExecutor {
       });
 
       this.logger.info?.(`Created job ${job.id} for agent ${agent.name}`);
+
+      // Notify caller of job ID immediately (before execution starts)
+      if (onJobCreated) {
+        onJobCreated(job.id);
+      }
     } catch (error) {
       this.logger.error(`Failed to create job: ${(error as Error).message}`);
       throw error;
@@ -401,10 +407,20 @@ export class JobExecutor {
             sessionId = processed.sessionId;
           }
 
-          // Extract summary if present
-          const messageSummary = extractSummary(sdkMessage);
-          if (messageSummary) {
-            summary = messageSummary;
+          // Track last non-partial assistant message content for fallback summary
+          // This ensures we capture the final response even if it's long
+          if (processed.output.type === "assistant" && !processed.output.partial && processed.output.content) {
+            lastAssistantContent = processed.output.content;
+          }
+
+          // Extract explicit summary if present (summary field or result message)
+          // Only track explicit summaries here - assistant content is tracked above
+          // Guard against null/undefined messages from malformed SDK responses
+          if (sdkMessage && (sdkMessage.summary || sdkMessage.type === "result")) {
+            const messageSummary = extractSummary(sdkMessage);
+            if (messageSummary) {
+              summary = messageSummary;
+            }
           }
 
           // Call user's onMessage callback if provided
@@ -535,6 +551,15 @@ export class JobExecutor {
         errorDetails.type = "unknown";
         errorDetails.recoverable = false;
       }
+    }
+
+    // Final summary logic:
+    // 1. If an explicit summary was found (from summary field or result message), use it
+    // 2. Otherwise, use the last assistant content
+    // This ensures we capture the final response, not an early short message
+    // Note: Truncation is handled by downstream consumers (e.g., Discord hook truncates to 4096)
+    if (!summary && lastAssistantContent) {
+      summary = lastAssistantContent;
     }
 
     // Step 5: Update job with final status

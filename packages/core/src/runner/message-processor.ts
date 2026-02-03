@@ -575,26 +575,16 @@ export function isTerminalMessage(message: SDKMessage): boolean {
   return false;
 }
 
-/** Maximum summary length in characters */
-const MAX_SUMMARY_LENGTH = 500;
-
-/**
- * Truncate a string to maximum length, adding ellipsis if truncated
- */
-function truncateSummary(text: string): string {
-  if (text.length <= MAX_SUMMARY_LENGTH) {
-    return text;
-  }
-  return text.slice(0, MAX_SUMMARY_LENGTH - 3) + "...";
-}
-
 /**
  * Extract the final summary from a message if present
  *
  * Looks for summaries in the following order:
- * 1. Explicit `summary` field on the message (truncated to 500 chars)
+ * 1. Explicit `summary` field on the message
  * 2. Result message with `result` field (SDK final result)
- * 3. Short assistant message content (≤500 chars, non-partial)
+ * 3. Non-partial assistant message content
+ *
+ * Note: No truncation is applied here. Downstream consumers (e.g., Discord hook)
+ * are responsible for truncating to their specific limits (e.g., 4096 for Discord).
  *
  * @param message - The SDK message to extract summary from
  * @returns Summary string if present, undefined otherwise
@@ -605,17 +595,16 @@ export function extractSummary(message: SDKMessage): string | undefined {
     return undefined;
   }
 
-  // Check for explicit summary field (truncate if too long)
+  // Check for explicit summary field
   if (message.summary) {
-    const summaryStr = String(message.summary);
-    return truncateSummary(summaryStr);
+    return String(message.summary);
   }
 
   // For result messages, use the result field as summary
   if (message.type === "result") {
     const resultMsg = message as { result?: string };
     if (resultMsg.result) {
-      return truncateSummary(resultMsg.result);
+      return resultMsg.result;
     }
   }
 
@@ -625,7 +614,7 @@ export function extractSummary(message: SDKMessage): string | undefined {
     const content = apiMessage?.content ?? message.content;
     const textContent = extractTextFromContentBlocks(content);
 
-    if (textContent && textContent.length <= MAX_SUMMARY_LENGTH) {
+    if (textContent) {
       return textContent;
     }
   }

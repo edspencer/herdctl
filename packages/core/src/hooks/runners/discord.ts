@@ -13,9 +13,15 @@ import type { HookContext, HookResult, DiscordHookConfigInput } from "../types.j
 const DEFAULT_TIMEOUT = 10000;
 
 /**
- * Maximum output length to include in embed (Discord has a 4096 char limit for embed descriptions)
+ * Maximum output length for embed description (Discord limit: 4096 chars)
  */
-const MAX_OUTPUT_LENGTH = 1000;
+const MAX_DESCRIPTION_LENGTH = 4096;
+
+/**
+ * Maximum length for embed field values (Discord limit: 1024 chars)
+ * Used for metadata and error fields
+ */
+const MAX_FIELD_LENGTH = 900; // Leave room for code fence markers
 
 /**
  * Embed colors for different event types
@@ -157,36 +163,34 @@ function buildEmbed(context: HookContext): DiscordEmbed {
     });
   }
 
-  // Add error message if present
+  // Add error message if present (in a field since errors are usually short)
   if (context.result.error) {
     fields.push({
       name: "Error",
-      value: `\`\`\`\n${truncateOutput(context.result.error, 500)}\n\`\`\``,
+      value: `\`\`\`\n${truncateOutput(context.result.error, MAX_FIELD_LENGTH)}\n\`\`\``,
       inline: false,
     });
   }
 
-  // Add metadata JSON if present
+  // Add metadata JSON if present (in a field)
   if (context.metadata && Object.keys(context.metadata).length > 0) {
     fields.push({
       name: "Metadata",
-      value: `\`\`\`json\n${truncateOutput(JSON.stringify(context.metadata, null, 2), MAX_OUTPUT_LENGTH)}\n\`\`\``,
+      value: `\`\`\`json\n${truncateOutput(JSON.stringify(context.metadata, null, 2), MAX_FIELD_LENGTH)}\n\`\`\``,
       inline: false,
     });
   }
 
-  // Add output preview if present and meaningful
+  // Build the embed with output in description (allows up to 4096 chars)
   const output = context.result.output.trim();
+  let description: string | undefined;
   if (output && output.length > 0) {
-    fields.push({
-      name: "Output",
-      value: `\`\`\`\n${truncateOutput(output, MAX_OUTPUT_LENGTH)}\n\`\`\``,
-      inline: false,
-    });
+    description = truncateOutput(output, MAX_DESCRIPTION_LENGTH);
   }
 
   return {
     title: getEventTitle(context.event),
+    description,
     color: EMBED_COLORS[context.event] ?? EMBED_COLORS.completed,
     fields,
     timestamp: context.job.completedAt,

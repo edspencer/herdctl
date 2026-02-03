@@ -6,6 +6,7 @@
  */
 
 import { access } from "node:fs/promises";
+import { join, dirname } from "node:path";
 import { getCliSessionFile } from "../runner/runtime/cli-session-path.js";
 import type { SessionInfo } from "./schemas/session-info.js";
 
@@ -27,6 +28,17 @@ export interface SessionValidationResult {
   ageMs?: number;
   /** Configured timeout in milliseconds */
   timeoutMs?: number;
+}
+
+/**
+ * Options for session validation with file check
+ */
+export interface SessionFileCheckOptions {
+  /**
+   * Path to the sessions directory (.herdctl/sessions)
+   * Required for Docker session file lookups
+   */
+  sessionsDir?: string;
 }
 
 // =============================================================================
@@ -91,7 +103,7 @@ export const DEFAULT_SESSION_TIMEOUT_MS = 24 * 60 * 60 * 1000; // 24 hours
 // =============================================================================
 
 /**
- * Check if a CLI session file exists on disk
+ * Check if a CLI session file exists on disk (native CLI, not Docker)
  *
  * @param workingDirectory - Working directory for the session
  * @param sessionId - Session ID to check
@@ -103,6 +115,32 @@ export async function cliSessionFileExists(
 ): Promise<boolean> {
   try {
     const sessionFile = getCliSessionFile(workingDirectory, sessionId);
+    await access(sessionFile);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if a Docker session file exists on disk
+ *
+ * Docker sessions are stored in .herdctl/docker-sessions/{session-id}.jsonl
+ * instead of the native ~/.claude/projects/ location.
+ *
+ * @param sessionsDir - Path to the sessions directory (.herdctl/sessions)
+ * @param sessionId - Session ID to check
+ * @returns true if the Docker session file exists
+ */
+export async function dockerSessionFileExists(
+  sessionsDir: string,
+  sessionId: string
+): Promise<boolean> {
+  try {
+    // Docker sessions are in .herdctl/docker-sessions/, sibling to .herdctl/sessions/
+    const stateDir = dirname(sessionsDir);
+    const dockerSessionsDir = join(stateDir, "docker-sessions");
+    const sessionFile = join(dockerSessionsDir, `${sessionId}.jsonl`);
     await access(sessionFile);
     return true;
   } catch {
@@ -212,15 +250,19 @@ export function validateSession(
  * exists on disk (for CLI runtime sessions). Use this when validating sessions
  * that will be resumed via CLI runtime.
  *
+ * For Docker sessions (session.docker_enabled === true), checks the docker-sessions
+ * directory instead of the native ~/.claude/projects/ location.
+ *
  * @param session - The session info to validate
  * @param timeout - Timeout string (e.g., "30m", "1h") or undefined for default
+ * @param options - Optional configuration including sessionsDir for Docker lookups
  * @returns Promise resolving to validation result
  *
  * @example
  * ```typescript
  * const session = await getSessionInfo(sessionsDir, agentName);
  * if (session) {
- *   const validation = await validateSessionWithFileCheck(session, "1h");
+ *   const validation = await validateSessionWithFileCheck(session, "1h", { sessionsDir });
  *   if (!validation.valid) {
  *     console.log(`Session invalid: ${validation.message}`);
  *     // Clear the session and start fresh
@@ -230,7 +272,8 @@ export function validateSession(
  */
 export async function validateSessionWithFileCheck(
   session: SessionInfo | null,
-  timeout?: string
+  timeout?: string,
+  options?: SessionFileCheckOptions
 ): Promise<SessionValidationResult> {
   // First do basic validation (expiration, etc.)
   const basicValidation = validateSession(session, timeout);
@@ -238,18 +281,33 @@ export async function validateSessionWithFileCheck(
     return basicValidation;
   }
 
-  // If session exists and isn't expired, check if CLI session file exists
-  if (session && session.working_directory) {
-    const fileExists = await cliSessionFileExists(
-      session.working_directory,
-      session.session_id
-    );
+  // If session exists and isn't expired, check if session file exists
+  if (session) {
+    let fileExists = false;
+
+    if (session.docker_enabled && options?.sessionsDir) {
+      // Docker sessions are stored in .herdctl/docker-sessions/
+      fileExists = await dockerSessionFileExists(
+        options.sessionsDir,
+        session.session_id
+      );
+    } else if (session.working_directory) {
+      // Native CLI sessions are stored in ~/.claude/projects/
+      fileExists = await cliSessionFileExists(
+        session.working_directory,
+        session.session_id
+      );
+    } else {
+      // No working directory and not Docker - skip file check
+      return basicValidation;
+    }
 
     if (!fileExists) {
+      const location = session.docker_enabled ? "Docker" : "CLI";
       return {
         valid: false,
         reason: "file_not_found",
-        message: `CLI session file not found for session ${session.session_id}`,
+        message: `${location} session file not found for session ${session.session_id}`,
         ageMs: basicValidation.ageMs,
         timeoutMs: basicValidation.timeoutMs,
       };
