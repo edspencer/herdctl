@@ -41,6 +41,7 @@ import {
   clearSession,
   isSessionExpiredError,
   validateWorkingDirectory,
+  validateRuntimeContext,
   type JobMetadata,
   type TriggerType,
 } from "../state/index.js";
@@ -231,30 +232,57 @@ export class JobExecutor {
           // Continue without resume - working directory changed
           effectiveResume = undefined;
         } else {
-          // Use the actual session ID from the stored session, not the original options.resume value
-          // This ensures we always use the correct session ID stored on disk
-          effectiveResume = existingSession.session_id;
-          this.logger.info?.(
-            `Found valid session for ${agent.name}: ${effectiveResume}, will attempt to resume`
+          // Validate that the runtime context hasn't changed since the session was created
+          // Sessions are tied to specific runtime configurations (SDK vs CLI, Docker vs native)
+          const currentRuntimeType = (agent.runtime as "sdk" | "cli") ?? "sdk";
+          const currentDockerEnabled = agent.docker?.enabled ?? false;
+          const runtimeValidation = validateRuntimeContext(
+            existingSession,
+            currentRuntimeType,
+            currentDockerEnabled
           );
 
-          // Update last_used_at NOW to prevent session from expiring during long-running jobs
-          // This fixes the authentication bug where sessions could expire mid-execution
-          try {
-            await updateSessionInfo(sessionsDir, agent.name, {
-              session_id: existingSession.session_id,
-              job_count: existingSession.job_count,
-              mode: existingSession.mode,
-              working_directory: currentWorkingDirectory,
-            });
-            this.logger.info?.(
-              `Refreshed session timestamp for ${agent.name} before execution`
-            );
-          } catch (updateError) {
+          if (!runtimeValidation.valid) {
             this.logger.warn(
-              `Failed to refresh session timestamp: ${(updateError as Error).message}`
+              `${runtimeValidation.message} - clearing stale session ${existingSession.session_id}`
             );
-            // Continue anyway - the session is still valid for now
+            try {
+              await clearSession(sessionsDir, agent.name);
+            } catch (clearError) {
+              this.logger.warn(
+                `Failed to clear stale session: ${(clearError as Error).message}`
+              );
+            }
+            // Continue without resume - runtime context changed
+            effectiveResume = undefined;
+          } else {
+            // Use the actual session ID from the stored session, not the original options.resume value
+            // This ensures we always use the correct session ID stored on disk
+            effectiveResume = existingSession.session_id;
+            this.logger.info?.(
+              `Found valid session for ${agent.name}: ${effectiveResume}, will attempt to resume`
+            );
+
+            // Update last_used_at NOW to prevent session from expiring during long-running jobs
+            // This fixes the authentication bug where sessions could expire mid-execution
+            try {
+              await updateSessionInfo(sessionsDir, agent.name, {
+                session_id: existingSession.session_id,
+                job_count: existingSession.job_count,
+                mode: existingSession.mode,
+                working_directory: currentWorkingDirectory,
+                runtime_type: (agent.runtime as "sdk" | "cli") ?? "sdk",
+                docker_enabled: agent.docker?.enabled ?? false,
+              });
+              this.logger.info?.(
+                `Refreshed session timestamp for ${agent.name} before execution`
+              );
+            } catch (updateError) {
+              this.logger.warn(
+                `Failed to refresh session timestamp: ${(updateError as Error).message}`
+              );
+              // Continue anyway - the session is still valid for now
+            }
           }
         }
       } else {
@@ -549,6 +577,8 @@ export class JobExecutor {
           job_count: (existingSession?.job_count ?? 0) + 1,
           mode: existingSession?.mode ?? "autonomous",
           working_directory: currentWorkingDirectory,
+          runtime_type: (agent.runtime as "sdk" | "cli") ?? "sdk",
+          docker_enabled: agent.docker?.enabled ?? false,
         });
 
         this.logger.info?.(

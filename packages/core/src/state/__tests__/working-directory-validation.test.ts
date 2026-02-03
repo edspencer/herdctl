@@ -14,6 +14,8 @@ describe("validateWorkingDirectory", () => {
     last_used_at: "2026-01-01T00:00:00Z",
     job_count: 1,
     mode: "autonomous",
+    runtime_type: "sdk",
+    docker_enabled: false,
   };
 
   describe("when session is null", () => {

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import {
   parseTimeout,
   validateSession,
+  validateRuntimeContext,
   formatDuration,
   isSessionExpiredError,
   cleanupExpiredSessions,
@@ -50,6 +51,8 @@ function createSessionWithAge(
     last_used_at: lastUsedAt,
     job_count: 1,
     mode: "autonomous",
+    runtime_type: "sdk",
+    docker_enabled: false,
   };
 }
 
@@ -195,6 +198,8 @@ describe("validateSession", () => {
       last_used_at: "invalid-date-string",
       job_count: 1,
       mode: "autonomous",
+      runtime_type: "sdk",
+      docker_enabled: false,
     };
 
     const result = validateSession(session, "1h");
@@ -214,6 +219,8 @@ describe("validateSession", () => {
       last_used_at: futureTime,
       job_count: 1,
       mode: "autonomous",
+      runtime_type: "sdk",
+      docker_enabled: false,
     };
 
     const result = validateSession(session, "1h");
@@ -412,5 +419,136 @@ describe("cleanupExpiredSessions", () => {
 describe("DEFAULT_SESSION_TIMEOUT_MS", () => {
   it("is 24 hours", () => {
     expect(DEFAULT_SESSION_TIMEOUT_MS).toBe(24 * 60 * 60 * 1000);
+  });
+});
+
+describe("validateRuntimeContext", () => {
+  // Helper to create a session with runtime context
+  function createSessionWithRuntime(
+    runtimeType: "sdk" | "cli",
+    dockerEnabled: boolean
+  ): SessionInfo {
+    const now = new Date().toISOString();
+    return {
+      agent_name: "test-agent",
+      session_id: `session-${Math.random().toString(36).slice(2)}`,
+      created_at: now,
+      last_used_at: now,
+      job_count: 1,
+      mode: "autonomous",
+      runtime_type: runtimeType,
+      docker_enabled: dockerEnabled,
+    };
+  }
+
+  it("validates session with matching runtime context", () => {
+    const session = createSessionWithRuntime("sdk", false);
+    const result = validateRuntimeContext(session, "sdk", false);
+    expect(result.valid).toBe(true);
+    expect(result.reason).toBeUndefined();
+  });
+
+  it("validates CLI runtime with native execution", () => {
+    const session = createSessionWithRuntime("cli", false);
+    const result = validateRuntimeContext(session, "cli", false);
+    expect(result.valid).toBe(true);
+  });
+
+  it("validates SDK runtime with Docker enabled", () => {
+    const session = createSessionWithRuntime("sdk", true);
+    const result = validateRuntimeContext(session, "sdk", true);
+    expect(result.valid).toBe(true);
+  });
+
+  it("validates CLI runtime with Docker enabled", () => {
+    const session = createSessionWithRuntime("cli", true);
+    const result = validateRuntimeContext(session, "cli", true);
+    expect(result.valid).toBe(true);
+  });
+
+  it("invalidates session when runtime type changes from SDK to CLI", () => {
+    const session = createSessionWithRuntime("sdk", false);
+    const result = validateRuntimeContext(session, "cli", false);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe("runtime_mismatch");
+    expect(result.message).toContain('Runtime type changed from "sdk" to "cli"');
+  });
+
+  it("invalidates session when runtime type changes from CLI to SDK", () => {
+    const session = createSessionWithRuntime("cli", false);
+    const result = validateRuntimeContext(session, "sdk", false);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe("runtime_mismatch");
+    expect(result.message).toContain('Runtime type changed from "cli" to "sdk"');
+  });
+
+  it("invalidates session when Docker is enabled after native session", () => {
+    const session = createSessionWithRuntime("sdk", false);
+    const result = validateRuntimeContext(session, "sdk", true);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe("runtime_mismatch");
+    expect(result.message).toContain("Docker context changed from native to Docker");
+  });
+
+  it("invalidates session when Docker is disabled after Docker session", () => {
+    const session = createSessionWithRuntime("sdk", true);
+    const result = validateRuntimeContext(session, "sdk", false);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe("runtime_mismatch");
+    expect(result.message).toContain("Docker context changed from Docker to native");
+  });
+
+  it("invalidates session when both runtime type and Docker change", () => {
+    const session = createSessionWithRuntime("cli", true);
+    const result = validateRuntimeContext(session, "sdk", false);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe("runtime_mismatch");
+    // Should fail on first check (runtime type)
+    expect(result.message).toContain('Runtime type changed from "cli" to "sdk"');
+  });
+
+  it("returns invalid for null session", () => {
+    const result = validateRuntimeContext(null, "sdk", false);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe("missing");
+    expect(result.message).toBe("No session found");
+  });
+
+  it("validates legacy session without runtime context (defaults to SDK native)", () => {
+    // Legacy session missing runtime_type and docker_enabled fields
+    // Schema defaults will apply when parsed
+    const legacySession: SessionInfo = {
+      agent_name: "legacy-agent",
+      session_id: "legacy-session-id",
+      created_at: new Date().toISOString(),
+      last_used_at: new Date().toISOString(),
+      job_count: 5,
+      mode: "autonomous",
+      runtime_type: "sdk", // Schema defaults these
+      docker_enabled: false,
+    };
+
+    const result = validateRuntimeContext(legacySession, "sdk", false);
+    expect(result.valid).toBe(true);
+  });
+
+  it("invalidates legacy session when switching to Docker", () => {
+    // Legacy session defaults to SDK native
+    const legacySession: SessionInfo = {
+      agent_name: "legacy-agent",
+      session_id: "legacy-session-id",
+      created_at: new Date().toISOString(),
+      last_used_at: new Date().toISOString(),
+      job_count: 5,
+      mode: "autonomous",
+      runtime_type: "sdk",
+      docker_enabled: false,
+    };
+
+    // Now trying to use with Docker enabled
+    const result = validateRuntimeContext(legacySession, "sdk", true);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe("runtime_mismatch");
+    expect(result.message).toContain("Docker context changed from native to Docker");
   });
 });

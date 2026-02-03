@@ -38,6 +38,8 @@ describe("SessionInfoSchema", () => {
     last_used_at: "2024-01-15T12:30:00.000Z",
     job_count: 5,
     mode: "autonomous",
+    runtime_type: "sdk",
+    docker_enabled: false,
   };
 
   it("accepts valid session info", () => {
@@ -360,6 +362,8 @@ describe("type inference", () => {
       last_used_at: "2024-01-15T10:00:00Z",
       job_count: 0,
       mode: "autonomous",
+      runtime_type: "sdk",
+      docker_enabled: false,
     };
 
     const result = SessionInfoSchema.parse(session);

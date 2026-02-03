@@ -83,6 +83,7 @@ export {
 export {
   validateSession,
   validateSessionWithFileCheck,
+  validateRuntimeContext,
   cliSessionFileExists,
   isSessionExpiredError,
 } from "./session-validation.js";

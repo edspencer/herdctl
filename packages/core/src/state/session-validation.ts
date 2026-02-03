@@ -20,7 +20,7 @@ export interface SessionValidationResult {
   /** Whether the session is valid (not expired) */
   valid: boolean;
   /** If invalid, the reason why */
-  reason?: "expired" | "missing" | "invalid_timeout" | "file_not_found";
+  reason?: "expired" | "missing" | "invalid_timeout" | "file_not_found" | "runtime_mismatch";
   /** Human-readable message */
   message?: string;
   /** Age of the session in milliseconds */
@@ -257,6 +257,75 @@ export async function validateSessionWithFileCheck(
   }
 
   return basicValidation;
+}
+
+/**
+ * Validate that a session's runtime context matches the current agent configuration
+ *
+ * Sessions are tied to a specific runtime configuration (SDK vs CLI, Docker vs native).
+ * If the runtime context changes, the session must be invalidated because:
+ * - CLI sessions use different session file locations than SDK sessions
+ * - Docker sessions are isolated from native sessions (different filesystems)
+ * - Session IDs are not portable across runtime contexts
+ *
+ * @param session - The session info to validate
+ * @param currentRuntimeType - Current runtime type from agent config ("sdk" or "cli")
+ * @param currentDockerEnabled - Current Docker enabled state from agent config
+ * @returns Validation result indicating if runtime context matches
+ *
+ * @example
+ * ```typescript
+ * const session = await getSessionInfo(sessionsDir, agentName);
+ * if (session) {
+ *   const validation = validateRuntimeContext(
+ *     session,
+ *     agent.runtime ?? "sdk",
+ *     agent.docker?.enabled ?? false
+ *   );
+ *   if (!validation.valid) {
+ *     console.log(`Runtime context mismatch: ${validation.message}`);
+ *     await clearSession(sessionsDir, agentName);
+ *   }
+ * }
+ * ```
+ */
+export function validateRuntimeContext(
+  session: SessionInfo | null,
+  currentRuntimeType: "sdk" | "cli",
+  currentDockerEnabled: boolean
+): SessionValidationResult {
+  // Handle missing session
+  if (!session) {
+    return {
+      valid: false,
+      reason: "missing",
+      message: "No session found",
+    };
+  }
+
+  // Check runtime type mismatch
+  if (session.runtime_type !== currentRuntimeType) {
+    return {
+      valid: false,
+      reason: "runtime_mismatch",
+      message: `Runtime type changed from "${session.runtime_type}" to "${currentRuntimeType}". Session must be recreated for the new runtime.`,
+    };
+  }
+
+  // Check Docker enabled mismatch
+  if (session.docker_enabled !== currentDockerEnabled) {
+    const oldContext = session.docker_enabled ? "Docker" : "native";
+    const newContext = currentDockerEnabled ? "Docker" : "native";
+    return {
+      valid: false,
+      reason: "runtime_mismatch",
+      message: `Docker context changed from ${oldContext} to ${newContext}. Session must be recreated for the new context.`,
+    };
+  }
+
+  return {
+    valid: true,
+  };
 }
 
 /**
