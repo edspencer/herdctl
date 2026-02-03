@@ -1,5 +1,51 @@
 # @herdctl/core
 
+## 2.0.1
+
+### Patch Changes
+
+- [#33](https://github.com/edspencer/herdctl/pull/33) [`b08d770`](https://github.com/edspencer/herdctl/commit/b08d77076584737e9a4198476959510fa60ae356) Thanks [@edspencer](https://github.com/edspencer)! - fix(core): Docker CLI runtime session persistence
+
+  Fixed session resumption for CLI runtime agents running in Docker containers.
+
+  **The bug:** When resuming a session with Docker enabled, the CLI runtime was watching the wrong session file path (`~/.claude/projects/...`) instead of the Docker-mounted session directory (`.herdctl/docker-sessions/`). This caused the session watcher to yield 0 messages, resulting in fallback responses despite Claude correctly remembering conversation context.
+
+  **The fix:**
+
+  1. Updated `validateSessionWithFileCheck` to check Docker session files at `.herdctl/docker-sessions/` when `session.docker_enabled` is true
+  2. Updated `CLIRuntime` to use `sessionDirOverride` when resuming sessions, not just when starting new ones
+
+  This ensures both session validation and session file watching use the correct paths for Docker-based CLI runtime execution.
+
+- [#33](https://github.com/edspencer/herdctl/pull/33) [`b08d770`](https://github.com/edspencer/herdctl/commit/b08d77076584737e9a4198476959510fa60ae356) Thanks [@edspencer](https://github.com/edspencer)! - Fix job streaming events during schedule execution.
+
+  Added `onJobCreated` callback to `RunnerOptionsWithCallbacks` so the job ID is available before execution starts. Previously, the job ID was only set after `executor.execute()` returned, which meant `job:output` streaming events couldn't be emitted during execution.
+
+  Now the schedule executor receives the job ID via callback as soon as the job is created, enabling real-time streaming of job output events throughout execution.
+
+- [#33](https://github.com/edspencer/herdctl/pull/33) [`b08d770`](https://github.com/edspencer/herdctl/commit/b08d77076584737e9a4198476959510fa60ae356) Thanks [@edspencer](https://github.com/edspencer)! - Fix job summary extraction and improve Discord notification formatting.
+
+  **Summary extraction fix:**
+  Previously, the `extractSummary` function captured summaries from short assistant messages (≤500 characters), which meant if an agent sent a short preliminary message ("I'll fetch the weather...") followed by a long final response, the preliminary message would be used as the summary.
+
+  Now the logic tracks the last non-partial assistant message content separately and uses it as the summary, ensuring Discord hooks receive the actual final response.
+
+  **Truncation changes:**
+
+  - Removed truncation from core summary extraction (job-executor, message-processor) - full content is now stored
+  - Truncation is now handled solely by downstream consumers at their specific limits
+
+  **Discord notification improvements:**
+
+  - Moved output from embed field (1024 char limit) to embed description (4096 char limit)
+  - This allows much longer agent responses to be displayed in Discord notifications
+  - Metadata and error fields remain in their own fields with appropriate limits
+
+  This ensures Discord hooks and other consumers receive the full final response from the agent, with each consumer handling truncation at their own appropriate limits.
+
+- Updated dependencies []:
+  - @herdctl/discord@0.1.6
+
 ## 2.0.0
 
 ### Major Changes
