@@ -83,15 +83,14 @@ name: code-reviewer
 description: Reviews pull requests and provides feedback
 model: claude-sonnet-4-20250514
 
-permissions:
-  allowedTools:
-    - Read
-    - Glob
-    - Grep
-    - Bash
-  disallowedTools:
-    - Write
-    - Edit
+allowed_tools:
+  - Read
+  - Glob
+  - Grep
+  - Bash
+denied_tools:
+  - Write
+  - Edit
 
 workSources:
   schedules:
@@ -132,9 +131,8 @@ fleet:
 defaults:                     # Default settings for all agents
   model: string               # Default model (e.g., claude-sonnet-4-20250514)
   maxConcurrentJobs: number   # Max parallel jobs per agent
-  permissions:                # Default permissions
-    allowedTools: string[]
-    disallowedTools: string[]
+  allowed_tools: string[]     # Default allowed tools
+  denied_tools: string[]      # Default denied tools
 
 workspace:
   root: string                # Root directory for workspaces
@@ -164,11 +162,9 @@ name: string                  # Required: Unique agent identifier
 description: string           # What this agent does
 model: string                 # Claude model to use
 
-permissions:
-  allowedTools: string[]      # Tools the agent can use
-  disallowedTools: string[]   # Tools explicitly denied
-  allowedCommands: string[]   # Bash commands allowed
-  disallowedCommands: string[] # Bash commands denied
+permission_mode: string       # "default" | "acceptEdits" | "bypassPermissions" | "plan"
+allowed_tools: string[]       # Tools the agent can use (supports Bash() patterns)
+denied_tools: string[]        # Tools explicitly denied (supports Bash() patterns)
 
 workSources:
   schedules:                  # Cron-based triggers
@@ -436,32 +432,37 @@ Once configured, mention the bot or use the configured prefix to interact:
 Control which Claude Code tools agents can use:
 
 ```yaml
-permissions:
-  allowedTools:
-    - Read
-    - Glob
-    - Grep
-    - Bash
-    - Write
-    - Edit
-  disallowedTools:
-    - WebFetch  # Prevent web access
+allowed_tools:
+  - Read
+  - Glob
+  - Grep
+  - Bash
+  - Write
+  - Edit
+denied_tools:
+  - WebFetch  # Prevent web access
+```
+
+### Permission Modes
+
+Set the overall permission mode:
+
+```yaml
+permission_mode: acceptEdits  # "default" | "acceptEdits" | "bypassPermissions" | "plan"
 ```
 
 ### Bash Command Permissions
 
-Fine-grained control over shell commands:
+Fine-grained control over shell commands using `Bash()` patterns:
 
 ```yaml
-permissions:
-  allowedCommands:
-    - "npm test"
-    - "npm run build"
-    - "git status"
-    - "git diff"
-  disallowedCommands:
-    - "rm -rf"
-    - "sudo"
+allowed_tools:
+  - "Bash(npm test)"
+  - "Bash(npm run *)"
+  - "Bash(git *)"
+denied_tools:
+  - "Bash(rm -rf *)"
+  - "Bash(sudo *)"
 ```
 
 ---
@@ -498,13 +499,14 @@ name: code-reviewer
 description: Automated code review for pull requests
 model: claude-sonnet-4-20250514
 
-permissions:
-  allowedTools: [Read, Glob, Grep, Bash]
-  disallowedTools: [Write, Edit]
-  allowedCommands:
-    - "git diff"
-    - "git log"
-    - "git show"
+allowed_tools:
+  - Read
+  - Glob
+  - Grep
+  - "Bash(git *)"
+denied_tools:
+  - Write
+  - Edit
 
 workSources:
   github:
@@ -520,10 +522,13 @@ name: doc-generator
 description: Generates and updates documentation
 model: claude-sonnet-4-20250514
 
-permissions:
-  allowedTools: [Read, Write, Edit, Glob, Grep, Bash]
-  allowedCommands:
-    - "npm run docs:*"
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - "Bash(npm run docs:*)"
 
 workSources:
   schedules:
@@ -573,8 +578,8 @@ workSources:
 - Review logs with `herdctl job <id> --logs`
 
 **Permission errors**
-- Review `allowedTools` includes needed tools
-- Check `allowedCommands` for bash requirements
+- Review `allowed_tools` includes needed tools
+- Check `Bash()` patterns for shell command access
 - Verify file system permissions
 
 ### Debug Mode

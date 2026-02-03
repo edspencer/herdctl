@@ -65,4 +65,4 @@ A successful test shows:
 - `workspace` - The path to an existing Claude Code project
 - `chat.discord` - Enables Discord as a chat interface
 - `session.persistence: agent` - Maintains one conversation per agent (context persists across messages)
-- `permissions.mode: bypassPermissions` - Gives full tool access (be careful with this in production)
+- `permission_mode: bypassPermissions` - Gives full tool access (be careful with this in production)

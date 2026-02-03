@@ -456,13 +456,12 @@ Each agent can have its own tool permissions and MCP server configuration:
 name: code-reviewer
 model: claude-sonnet-4-20250514
 
-permissions:
-  mode: bypassPermissions
-  allowed_tools:
-    - Read
-    - Glob
-    - Grep
-    - Bash  # Careful with this one
+permission_mode: bypassPermissions
+allowed_tools:
+  - Read
+  - Glob
+  - Grep
+  - Bash  # Careful with this one
 
 mcp_servers:
   - name: github
@@ -588,9 +587,8 @@ chat:
     allowed_channels: ["123456789"]
 
 # Tool access
-permissions:
-  mode: bypassPermissions
-  allowed_tools: [Read, Glob, Grep, Bash]
+permission_mode: bypassPermissions
+allowed_tools: [Read, Glob, Grep, Bash]
 
 # MCP servers
 mcp_servers:
