@@ -25,26 +25,9 @@ function createTestAgent(overrides: Partial<ResolvedAgent> = {}): ResolvedAgent 
 
 describe("toSDKOptions", () => {
   describe("permission mode mapping", () => {
-    it("maps permission mode correctly when set in permissions.mode", () => {
+    it("maps permission_mode to SDK permissionMode", () => {
       const agent = createTestAgent({
-        permissions: { mode: "bypassPermissions" },
-      });
-      const result = toSDKOptions(agent);
-      expect(result.permissionMode).toBe("bypassPermissions");
-    });
-
-    it("maps permission mode from permission_mode field", () => {
-      const agent = createTestAgent({
-        permission_mode: "plan",
-      });
-      const result = toSDKOptions(agent);
-      expect(result.permissionMode).toBe("plan");
-    });
-
-    it("prefers permissions.mode over permission_mode", () => {
-      const agent = createTestAgent({
-        permissions: { mode: "bypassPermissions" },
-        permission_mode: "plan",
+        permission_mode: "bypassPermissions",
       });
       const result = toSDKOptions(agent);
       expect(result.permissionMode).toBe("bypassPermissions");
@@ -58,7 +41,7 @@ describe("toSDKOptions", () => {
 
     it("supports default mode", () => {
       const agent = createTestAgent({
-        permissions: { mode: "default" },
+        permission_mode: "default",
       });
       const result = toSDKOptions(agent);
       expect(result.permissionMode).toBe("default");
@@ -66,7 +49,7 @@ describe("toSDKOptions", () => {
 
     it("supports acceptEdits mode", () => {
       const agent = createTestAgent({
-        permissions: { mode: "acceptEdits" },
+        permission_mode: "acceptEdits",
       });
       const result = toSDKOptions(agent);
       expect(result.permissionMode).toBe("acceptEdits");
@@ -74,7 +57,7 @@ describe("toSDKOptions", () => {
 
     it("supports bypassPermissions mode", () => {
       const agent = createTestAgent({
-        permissions: { mode: "bypassPermissions" },
+        permission_mode: "bypassPermissions",
       });
       const result = toSDKOptions(agent);
       expect(result.permissionMode).toBe("bypassPermissions");
@@ -82,7 +65,7 @@ describe("toSDKOptions", () => {
 
     it("supports plan mode", () => {
       const agent = createTestAgent({
-        permissions: { mode: "plan" },
+        permission_mode: "plan",
       });
       const result = toSDKOptions(agent);
       expect(result.permissionMode).toBe("plan");
@@ -90,34 +73,25 @@ describe("toSDKOptions", () => {
   });
 
   describe("allowed and denied tools", () => {
-    it("passes allowed_tools as allowedTools", () => {
+    it("passes allowed_tools as allowedTools (direct passthrough)", () => {
       const agent = createTestAgent({
-        permissions: {
-          mode: "acceptEdits",
-          allowed_tools: ["Read", "Write", "Edit"],
-        },
+        allowed_tools: ["Read", "Write", "Edit"],
       });
       const result = toSDKOptions(agent);
       expect(result.allowedTools).toEqual(["Read", "Write", "Edit"]);
     });
 
-    it("passes denied_tools as deniedTools", () => {
+    it("passes denied_tools as deniedTools (direct passthrough)", () => {
       const agent = createTestAgent({
-        permissions: {
-          mode: "acceptEdits",
-          denied_tools: ["Bash", "WebFetch"],
-        },
+        denied_tools: ["Bash(rm *)", "WebFetch"],
       });
       const result = toSDKOptions(agent);
-      expect(result.deniedTools).toEqual(["Bash", "WebFetch"]);
+      expect(result.deniedTools).toEqual(["Bash(rm *)", "WebFetch"]);
     });
 
     it("does not include allowedTools when empty array", () => {
       const agent = createTestAgent({
-        permissions: {
-          mode: "acceptEdits",
-          allowed_tools: [],
-        },
+        allowed_tools: [],
       });
       const result = toSDKOptions(agent);
       expect(result.allowedTools).toBeUndefined();
@@ -125,149 +99,35 @@ describe("toSDKOptions", () => {
 
     it("does not include deniedTools when empty array", () => {
       const agent = createTestAgent({
-        permissions: {
-          mode: "acceptEdits",
-          denied_tools: [],
-        },
+        denied_tools: [],
       });
       const result = toSDKOptions(agent);
       expect(result.deniedTools).toBeUndefined();
     });
 
     it("does not include allowedTools when not specified", () => {
-      const agent = createTestAgent({
-        permissions: { mode: "acceptEdits" },
-      });
+      const agent = createTestAgent();
       const result = toSDKOptions(agent);
       expect(result.allowedTools).toBeUndefined();
     });
 
     it("supports MCP tool wildcards", () => {
       const agent = createTestAgent({
-        permissions: {
-          mode: "acceptEdits",
-          allowed_tools: ["Read", "mcp__posthog__*", "mcp__github__*"],
-        },
+        allowed_tools: ["Read", "mcp__posthog__*", "mcp__github__*"],
       });
       const result = toSDKOptions(agent);
       expect(result.allowedTools).toContain("mcp__posthog__*");
       expect(result.allowedTools).toContain("mcp__github__*");
     });
-  });
 
-  describe("bash permissions", () => {
-    it("transforms allowed_commands into Bash() patterns", () => {
+    it("supports Bash() patterns (standard Claude Code format)", () => {
       const agent = createTestAgent({
-        permissions: {
-          mode: "acceptEdits",
-          bash: {
-            allowed_commands: ["git", "npm", "docker"],
-          },
-        },
+        allowed_tools: ["Read", "Bash(git *)", "Bash(npm *)"],
+        denied_tools: ["Bash(sudo *)", "Bash(rm -rf *)"],
       });
       const result = toSDKOptions(agent);
-      expect(result.allowedTools).toEqual([
-        "Bash(git *)",
-        "Bash(npm *)",
-        "Bash(docker *)",
-      ]);
-    });
-
-    it("transforms denied_patterns into Bash() patterns", () => {
-      const agent = createTestAgent({
-        permissions: {
-          mode: "acceptEdits",
-          bash: {
-            denied_patterns: ["sudo *", "rm -rf /", "chmod 777 *"],
-          },
-        },
-      });
-      const result = toSDKOptions(agent);
-      expect(result.deniedTools).toEqual([
-        "Bash(sudo *)",
-        "Bash(rm -rf /)",
-        "Bash(chmod 777 *)",
-      ]);
-    });
-
-    it("merges bash allowed_commands with existing allowed_tools", () => {
-      const agent = createTestAgent({
-        permissions: {
-          mode: "acceptEdits",
-          allowed_tools: ["Read", "Write"],
-          bash: {
-            allowed_commands: ["git", "npm"],
-          },
-        },
-      });
-      const result = toSDKOptions(agent);
-      expect(result.allowedTools).toEqual([
-        "Read",
-        "Write",
-        "Bash(git *)",
-        "Bash(npm *)",
-      ]);
-    });
-
-    it("merges bash denied_patterns with existing denied_tools", () => {
-      const agent = createTestAgent({
-        permissions: {
-          mode: "acceptEdits",
-          denied_tools: ["WebFetch"],
-          bash: {
-            denied_patterns: ["sudo *", "rm -rf /"],
-          },
-        },
-      });
-      const result = toSDKOptions(agent);
-      expect(result.deniedTools).toEqual([
-        "WebFetch",
-        "Bash(sudo *)",
-        "Bash(rm -rf /)",
-      ]);
-    });
-
-    it("handles both allowed_commands and denied_patterns together", () => {
-      const agent = createTestAgent({
-        permissions: {
-          mode: "acceptEdits",
-          allowed_tools: ["Read"],
-          denied_tools: ["Write"],
-          bash: {
-            allowed_commands: ["git"],
-            denied_patterns: ["sudo *"],
-          },
-        },
-      });
-      const result = toSDKOptions(agent);
-      expect(result.allowedTools).toEqual(["Read", "Bash(git *)"]);
-      expect(result.deniedTools).toEqual(["Write", "Bash(sudo *)"]);
-    });
-
-    it("does not include bash patterns when not configured", () => {
-      const agent = createTestAgent({
-        permissions: {
-          mode: "acceptEdits",
-          allowed_tools: ["Read"],
-        },
-      });
-      const result = toSDKOptions(agent);
-      expect(result.allowedTools).toEqual(["Read"]);
-    });
-
-    it("does not include bash patterns when empty arrays", () => {
-      const agent = createTestAgent({
-        permissions: {
-          mode: "acceptEdits",
-          bash: {
-            allowed_commands: [],
-            denied_patterns: [],
-          },
-        },
-      });
-      const result = toSDKOptions(agent);
-      expect(result.allowedTools).toBeUndefined();
-      expect(result.deniedTools).toBeUndefined();
+      expect(result.allowedTools).toEqual(["Read", "Bash(git *)", "Bash(npm *)"]);
+      expect(result.deniedTools).toEqual(["Bash(sudo *)", "Bash(rm -rf *)"]);
     });
   });
 
@@ -442,11 +302,9 @@ describe("toSDKOptions", () => {
       const agent = createTestAgent({
         name: "full-agent",
         system_prompt: "You are a specialized test agent.",
-        permissions: {
-          mode: "bypassPermissions",
-          allowed_tools: ["Read", "Write", "Bash"],
-          denied_tools: ["WebFetch"],
-        },
+        permission_mode: "bypassPermissions",
+        allowed_tools: ["Read", "Write", "Bash(git *)"],
+        denied_tools: ["WebFetch", "Bash(sudo *)"],
         mcp_servers: {
           posthog: {
             url: "https://mcp.posthog.com",
@@ -463,8 +321,8 @@ describe("toSDKOptions", () => {
 
       expect(result).toEqual({
         permissionMode: "bypassPermissions",
-        allowedTools: ["Read", "Write", "Bash"],
-        deniedTools: ["WebFetch"],
+        allowedTools: ["Read", "Write", "Bash(git *)"],
+        deniedTools: ["WebFetch", "Bash(sudo *)"],
         systemPrompt: "You are a specialized test agent.", // Custom prompts are plain strings
         settingSources: [], // Empty - autonomous agents don't load project settings
         mcpServers: {

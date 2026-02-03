@@ -68,15 +68,9 @@ describe("AgentConfigSchema", () => {
         timeout: "30m",
         model: "claude-sonnet-4-20250514",
       },
-      permissions: {
-        mode: "acceptEdits",
-        allowed_tools: ["Read", "Edit", "Write", "Bash"],
-        denied_tools: ["WebSearch"],
-        bash: {
-          allowed_commands: ["git", "npm"],
-          denied_patterns: ["rm -rf /"],
-        },
-      },
+      permission_mode: "acceptEdits",
+      allowed_tools: ["Read", "Edit", "Write", "Bash(git *)", "Bash(npm *)"],
+      denied_tools: ["WebSearch", "Bash(rm -rf *)"],
       mcp_servers: {
         github: {
           command: "npx",
@@ -102,7 +96,6 @@ describe("AgentConfigSchema", () => {
       },
       model: "claude-sonnet-4-20250514",
       max_turns: 100,
-      permission_mode: "bypassPermissions",
     };
 
     const result = AgentConfigSchema.safeParse(config);
@@ -181,37 +174,31 @@ describe("AgentConfigSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects unknown fields at root level (strict mode)", () => {
-    // This catches common mistakes like putting allowed_tools at root
-    // instead of under permissions
+  it("accepts allowed_tools and denied_tools at root level", () => {
     const result = AgentConfigSchema.safeParse({
       name: "test-agent",
-      allowed_tools: ["WebSearch", "WebFetch"], // Wrong! Should be under permissions
-    });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      // Should have an unrecognized_keys error
-      const unrecognizedError = result.error.issues.find(
-        (issue) => issue.code === "unrecognized_keys"
-      );
-      expect(unrecognizedError).toBeDefined();
-      expect(unrecognizedError?.message).toContain("allowed_tools");
-    }
-  });
-
-  it("accepts allowed_tools when properly nested under permissions", () => {
-    const result = AgentConfigSchema.safeParse({
-      name: "test-agent",
-      permissions: {
-        allowed_tools: ["WebSearch", "WebFetch"],
-      },
+      allowed_tools: ["WebSearch", "WebFetch", "Bash(git *)"],
+      denied_tools: ["Bash(rm *)"],
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.permissions?.allowed_tools).toEqual([
+      expect(result.data.allowed_tools).toEqual([
         "WebSearch",
         "WebFetch",
+        "Bash(git *)",
       ]);
+      expect(result.data.denied_tools).toEqual(["Bash(rm *)"]);
+    }
+  });
+
+  it("accepts permission_mode at root level", () => {
+    const result = AgentConfigSchema.safeParse({
+      name: "test-agent",
+      permission_mode: "bypassPermissions",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.permission_mode).toBe("bypassPermissions");
     }
   });
 });
@@ -449,18 +436,14 @@ schedules:
     interval: "5m"
     prompt: Check for new issues
 
-permissions:
-  mode: acceptEdits
-  allowed_tools:
-    - Read
-    - Edit
-    - Write
-    - Bash
-  bash:
-    allowed_commands:
-      - git
-      - npm
-      - pnpm
+permission_mode: acceptEdits
+allowed_tools:
+  - Read
+  - Edit
+  - Write
+  - "Bash(git *)"
+  - "Bash(npm *)"
+  - "Bash(pnpm *)"
 
 mcp_servers:
   github:
@@ -479,7 +462,7 @@ max_turns: 100
     expect(config.identity?.name).toBe("Cody");
     expect(config.work_source?.type).toBe("github");
     expect(config.schedules?.main.type).toBe("interval");
-    expect(config.permissions?.mode).toBe("acceptEdits");
+    expect(config.permission_mode).toBe("acceptEdits");
     expect(config.mcp_servers?.github.command).toBe("npx");
     expect(config.model).toBe("claude-sonnet-4-20250514");
     expect(config.max_turns).toBe(100);
@@ -791,11 +774,10 @@ session:
   timeout: "1h"
   model: claude-opus-4-20250514
 
-permissions:
-  mode: bypassPermissions
-  allowed_tools:
-    - Read
-    - Write
+permission_mode: bypassPermissions
+allowed_tools:
+  - Read
+  - Write
 
 mcp_servers:
   test:
@@ -814,7 +796,6 @@ chat:
 
 model: claude-sonnet-4-20250514
 max_turns: 100
-permission_mode: acceptEdits
 `
     );
 
@@ -823,7 +804,7 @@ permission_mode: acceptEdits
     expect(config.identity?.name).toBe("Ava");
     expect(config.schedules?.polling.type).toBe("interval");
     expect(config.session?.max_turns).toBe(50);
-    expect(config.permissions?.mode).toBe("bypassPermissions");
+    expect(config.permission_mode).toBe("bypassPermissions");
     expect(config.mcp_servers?.test.command).toBe("node");
     expect(config.chat?.discord?.guilds[0].channels?.[0].id).toBe("123456");
   });

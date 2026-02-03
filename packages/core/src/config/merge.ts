@@ -14,23 +14,8 @@ import type {
   Session,
   Docker,
   PermissionMode,
-  BashPermissions,
   AgentWorkingDirectory,
 } from "./schema.js";
-
-// =============================================================================
-// Input Types (for merging - fields are optional before Zod applies defaults)
-// =============================================================================
-
-/**
- * Permissions input type - all fields optional before Zod applies defaults
- */
-export interface PermissionsInput {
-  mode?: PermissionMode;
-  allowed_tools?: string[];
-  denied_tools?: string[];
-  bash?: BashPermissions;
-}
 
 // =============================================================================
 // Type Guards
@@ -115,13 +100,14 @@ export function deepMerge<T extends Record<string, unknown>>(
  * The fields from fleet defaults that can be merged into agent config
  */
 export interface MergeableDefaults {
-  permissions?: PermissionsInput;
   work_source?: WorkSource;
   session?: Session;
   docker?: Docker;
   model?: string;
   max_turns?: number;
   permission_mode?: PermissionMode;
+  allowed_tools?: string[];
+  denied_tools?: string[];
 }
 
 /**
@@ -130,7 +116,6 @@ export interface MergeableDefaults {
  */
 export interface ExtendedDefaults {
   docker?: Docker;
-  permissions?: PermissionsInput;
   work_source?: WorkSource;
   instances?: { max_concurrent?: number };
   session?: Session;
@@ -138,6 +123,8 @@ export interface ExtendedDefaults {
   model?: string;
   max_turns?: number;
   permission_mode?: PermissionMode;
+  allowed_tools?: string[];
+  denied_tools?: string[];
 }
 
 // =============================================================================
@@ -148,7 +135,6 @@ export interface ExtendedDefaults {
  * Merge fleet defaults into an agent configuration.
  *
  * The merge applies to the following fields:
- * - permissions: Deep merged (agent overrides fleet defaults)
  * - work_source: Deep merged
  * - session: Deep merged
  * - docker: Deep merged
@@ -157,8 +143,10 @@ export interface ExtendedDefaults {
  * - model: Agent value overrides default
  * - max_turns: Agent value overrides default
  * - permission_mode: Agent value overrides default
+ * - allowed_tools: Agent array replaces default (arrays are not merged)
+ * - denied_tools: Agent array replaces default (arrays are not merged)
  *
- * Arrays within these objects (e.g., allowed_tools) are replaced, not merged.
+ * Arrays within these objects are replaced, not merged.
  *
  * @param defaults - The fleet-level defaults
  * @param agent - The agent-specific configuration
@@ -175,14 +163,6 @@ export function mergeAgentConfig(
 
   // Start with the agent config
   const result: AgentConfig = { ...agent };
-
-  // Merge permissions (deep merge)
-  if (defaults.permissions || agent.permissions) {
-    result.permissions = deepMerge(
-      defaults.permissions as Record<string, unknown> | undefined,
-      agent.permissions as Record<string, unknown> | undefined
-    ) as AgentConfig["permissions"];
-  }
 
   // Merge work_source (deep merge)
   if (defaults.work_source || agent.work_source) {
@@ -251,6 +231,18 @@ export function mergeAgentConfig(
     result.permission_mode === undefined
   ) {
     result.permission_mode = defaults.permission_mode;
+  }
+
+  // Merge array values (agent takes precedence if defined - arrays are replaced, not merged)
+  if (
+    defaults.allowed_tools !== undefined &&
+    result.allowed_tools === undefined
+  ) {
+    result.allowed_tools = defaults.allowed_tools;
+  }
+
+  if (defaults.denied_tools !== undefined && result.denied_tools === undefined) {
+    result.denied_tools = defaults.denied_tools;
   }
 
   return result;

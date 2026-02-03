@@ -20,18 +20,6 @@ export const PermissionModeSchema = z.enum([
   "dontAsk",
 ]);
 
-export const BashPermissionsSchema = z.object({
-  allowed_commands: z.array(z.string()).optional(),
-  denied_patterns: z.array(z.string()).optional(),
-});
-
-export const PermissionsSchema = z.object({
-  mode: PermissionModeSchema.optional().default("acceptEdits"),
-  allowed_tools: z.array(z.string()).optional(),
-  denied_tools: z.array(z.string()).optional(),
-  bash: BashPermissionsSchema.optional(),
-});
-
 // =============================================================================
 // Work Source Schemas
 // =============================================================================
@@ -418,7 +406,6 @@ export const SessionSchema = z.object({
 
 export const DefaultsSchema = z.object({
   docker: FleetDockerSchema.optional(),
-  permissions: PermissionsSchema.optional(),
   work_source: WorkSourceSchema.optional(),
   instances: InstancesSchema.optional(),
   working_directory: z.lazy(() => AgentWorkingDirectorySchema).optional(),
@@ -427,6 +414,8 @@ export const DefaultsSchema = z.object({
   model: z.string().optional(),
   max_turns: z.number().int().positive().optional(),
   permission_mode: PermissionModeSchema.optional(),
+  allowed_tools: z.array(z.string()).optional(),
+  denied_tools: z.array(z.string()).optional(),
 });
 
 // =============================================================================
@@ -731,7 +720,6 @@ export const AgentConfigSchema = z
     work_source: WorkSourceSchema.optional(),
     schedules: z.record(z.string(), ScheduleSchema).optional(),
     session: SessionSchema.optional(),
-    permissions: PermissionsSchema.optional(),
     mcp_servers: z.record(z.string(), McpServerSchema).optional(),
     chat: AgentChatSchema.optional(),
     hooks: AgentHooksSchema.optional(),
@@ -740,6 +728,8 @@ export const AgentConfigSchema = z
     model: z.string().optional(),
     max_turns: z.number().int().positive().optional(),
     permission_mode: PermissionModeSchema.optional(),
+    allowed_tools: z.array(z.string()).optional(),
+    denied_tools: z.array(z.string()).optional(),
     /** Path to metadata JSON file written by agent (default: metadata.json in workspace) */
     metadata_file: z.string().optional(),
     /**
@@ -825,8 +815,6 @@ export const FleetConfigSchema = z
 // =============================================================================
 
 export type PermissionMode = z.infer<typeof PermissionModeSchema>;
-export type BashPermissions = z.infer<typeof BashPermissionsSchema>;
-export type Permissions = z.infer<typeof PermissionsSchema>;
 export type WorkSourceType = z.infer<typeof WorkSourceTypeSchema>;
 export type WorkSourceLabels = z.infer<typeof WorkSourceLabelsSchema>;
 export type GitHubAuth = z.infer<typeof GitHubAuthSchema>;

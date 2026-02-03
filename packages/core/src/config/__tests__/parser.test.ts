@@ -34,15 +34,14 @@ version: 1
 defaults:
   docker:
     enabled: false
-  permissions:
-    mode: acceptEdits
-    allowed_tools:
-      - Read
-      - Edit
-      - Write
-      - Bash
-      - Glob
-      - Grep
+  permission_mode: acceptEdits
+  allowed_tools:
+    - Read
+    - Edit
+    - Write
+    - "Bash(git *)"
+    - Glob
+    - Grep
   work_source:
     type: github
     labels:
@@ -71,8 +70,8 @@ chat:
 
       expect(config.version).toBe(1);
       expect(config.defaults?.docker?.enabled).toBe(false);
-      expect(config.defaults?.permissions?.mode).toBe("acceptEdits");
-      expect(config.defaults?.permissions?.allowed_tools).toContain("Read");
+      expect(config.defaults?.permission_mode).toBe("acceptEdits");
+      expect(config.defaults?.allowed_tools).toContain("Read");
       expect(config.defaults?.work_source?.type).toBe("github");
       expect(config.defaults?.work_source?.labels?.ready).toBe("ready");
       expect(config.defaults?.instances?.max_concurrent).toBe(1);
@@ -141,47 +140,29 @@ working_directory:
         const yaml = `
 version: 1
 defaults:
-  permissions:
-    mode: ${mode}
+  permission_mode: ${mode}
 `;
         const config = parseFleetConfig(yaml);
-        expect(config.defaults?.permissions?.mode).toBe(mode);
+        expect(config.defaults?.permission_mode).toBe(mode);
       }
     });
 
-    it("parses bash permissions", () => {
+    it("parses allowed_tools and denied_tools at defaults level", () => {
       const yaml = `
 version: 1
 defaults:
-  permissions:
-    bash:
-      allowed_commands:
-        - git
-        - npm
-        - pnpm
-      denied_patterns:
-        - "rm -rf /"
-        - "sudo *"
+  allowed_tools:
+    - Read
+    - "Bash(git *)"
+  denied_tools:
+    - WebSearch
+    - "Bash(rm -rf *)"
 `;
       const config = parseFleetConfig(yaml);
-      expect(config.defaults?.permissions?.bash?.allowed_commands).toContain(
-        "git"
-      );
-      expect(config.defaults?.permissions?.bash?.denied_patterns).toContain(
-        "rm -rf /"
-      );
-    });
-
-    it("parses denied_tools", () => {
-      const yaml = `
-version: 1
-defaults:
-  permissions:
-    denied_tools:
-      - WebSearch
-`;
-      const config = parseFleetConfig(yaml);
-      expect(config.defaults?.permissions?.denied_tools).toContain("WebSearch");
+      expect(config.defaults?.allowed_tools).toContain("Read");
+      expect(config.defaults?.allowed_tools).toContain("Bash(git *)");
+      expect(config.defaults?.denied_tools).toContain("WebSearch");
+      expect(config.defaults?.denied_tools).toContain("Bash(rm -rf *)");
     });
   });
 
@@ -236,8 +217,7 @@ version: "not-a-number"
       const yaml = `
 version: 1
 defaults:
-  permissions:
-    mode: invalid-mode
+  permission_mode: invalid-mode
 `;
       expect(() => parseFleetConfig(yaml)).toThrow(SchemaValidationError);
     });
@@ -284,8 +264,7 @@ agents:
       const yaml = `
 version: 1
 defaults:
-  permissions:
-    mode: invalid
+  permission_mode: invalid
 `;
       try {
         parseFleetConfig(yaml);
@@ -294,8 +273,8 @@ defaults:
         expect(error).toBeInstanceOf(SchemaValidationError);
         const schemaError = error as SchemaValidationError;
         expect(schemaError.issues).toHaveLength(1);
-        expect(schemaError.issues[0].path).toBe("defaults.permissions.mode");
-        expect(schemaError.message).toContain("defaults.permissions.mode");
+        expect(schemaError.issues[0].path).toBe("defaults.permission_mode");
+        expect(schemaError.message).toContain("defaults.permission_mode");
       }
     });
 
@@ -303,8 +282,7 @@ defaults:
       const yaml = `
 version: "invalid"
 defaults:
-  permissions:
-    mode: invalid
+  permission_mode: invalid
 `;
       try {
         parseFleetConfig(yaml);
@@ -510,8 +488,7 @@ describe("type safety", () => {
     const yaml = `
 version: 1
 defaults:
-  permissions:
-    mode: acceptEdits
+  permission_mode: acceptEdits
 working_directory:
   root: /tmp
 agents:
@@ -521,7 +498,7 @@ agents:
 
     // TypeScript compilation verifies these types
     const _version: number = config.version;
-    const _mode: string | undefined = config.defaults?.permissions?.mode;
+    const _mode: string | undefined = config.defaults?.permission_mode;
     const _root: string | undefined = config.working_directory?.root;
     const _path: string | undefined = config.agents[0]?.path;
 

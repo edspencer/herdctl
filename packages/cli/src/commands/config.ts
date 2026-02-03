@@ -248,20 +248,11 @@ function formatConfigForDisplay(config: ResolvedConfig): string {
     if (defaults.max_turns) lines.push(`Max Turns: ${defaults.max_turns}`);
     if (defaults.permission_mode)
       lines.push(`Permission Mode: ${defaults.permission_mode}`);
-    if (defaults.permissions) {
-      lines.push("Permissions:");
-      if (defaults.permissions.mode)
-        lines.push(`  Mode: ${defaults.permissions.mode}`);
-      if (defaults.permissions.allowed_tools?.length) {
-        lines.push(
-          `  Allowed Tools: ${defaults.permissions.allowed_tools.join(", ")}`
-        );
-      }
-      if (defaults.permissions.denied_tools?.length) {
-        lines.push(
-          `  Denied Tools: ${defaults.permissions.denied_tools.join(", ")}`
-        );
-      }
+    if (defaults.allowed_tools?.length) {
+      lines.push(`Allowed Tools: ${defaults.allowed_tools.join(", ")}`);
+    }
+    if (defaults.denied_tools?.length) {
+      lines.push(`Denied Tools: ${defaults.denied_tools.join(", ")}`);
     }
   }
 
@@ -303,20 +294,12 @@ function formatConfigForDisplay(config: ResolvedConfig): string {
       }
     }
 
-    // Permissions
-    if (agent.permissions) {
-      lines.push(`  Permissions:`);
-      if (agent.permissions.mode) lines.push(`    Mode: ${agent.permissions.mode}`);
-      if (agent.permissions.allowed_tools?.length) {
-        lines.push(
-          `    Allowed Tools: ${agent.permissions.allowed_tools.join(", ")}`
-        );
-      }
-      if (agent.permissions.denied_tools?.length) {
-        lines.push(
-          `    Denied Tools: ${agent.permissions.denied_tools.join(", ")}`
-        );
-      }
+    // Tool permissions
+    if (agent.allowed_tools?.length) {
+      lines.push(`  Allowed Tools: ${agent.allowed_tools.join(", ")}`);
+    }
+    if (agent.denied_tools?.length) {
+      lines.push(`  Denied Tools: ${agent.denied_tools.join(", ")}`);
     }
   }
 
