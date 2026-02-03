@@ -97,7 +97,6 @@ runtime: sdk
 docker:
   enabled: true
   memory: 2g
-  network: none
   env:
     GITHUB_TOKEN: "${GITHUB_TOKEN}"  # Auto-configures git auth
 ```
