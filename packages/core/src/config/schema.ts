@@ -5,6 +5,7 @@
  */
 
 import { z } from "zod";
+import type { HostConfig } from "dockerode";
 
 // =============================================================================
 // Permission Schemas
@@ -153,27 +154,115 @@ export const InstancesSchema = z.object({
 export const DockerNetworkModeSchema = z.enum(["none", "bridge", "host"]);
 
 /**
- * Docker container configuration schema
+ * Agent-level Docker configuration schema (safe options only)
  *
- * Supports container lifecycle, resource limits, and security options.
- * All options are optional - defaults provide secure, sensible configuration.
+ * These options can be specified in agent config files (herdctl-agent.yml).
+ * Only includes safe options that don't pose security risks if an agent
+ * could modify its own config file.
+ *
+ * For dangerous options (network, volumes, image, user, ports, env),
+ * use FleetDockerSchema at the fleet level.
  *
  * @example
  * ```yaml
  * docker:
  *   enabled: true
  *   ephemeral: false        # Reuse container across jobs
- *   image: anthropic/claude-code:latest
- *   network: bridge         # Full network access
  *   memory: 2g              # Memory limit
  *   cpu_shares: 512         # CPU weight
- *   user: "1000:1000"       # Run as specific UID:GID
- *   max_containers: 5       # Keep last 5 containers per agent
- *   volumes:                # Additional volume mounts
- *     - "/host/data:/container/data:ro"
+ *   pids_limit: 100         # Prevent fork bombs
+ *   tmpfs:
+ *     - "/tmp"
  * ```
  */
-export const DockerSchema = z
+export const AgentDockerSchema = z
+  .object({
+    /** Enable Docker containerization for this agent (default: false) */
+    enabled: z.boolean().optional().default(false),
+
+    /** Use ephemeral containers (fresh per job, auto-removed) vs persistent (reuse across jobs, kept for inspection) */
+    ephemeral: z.boolean().optional().default(true),
+
+    /** Memory limit (e.g., "2g", "512m") (default: 2g) */
+    memory: z.string().optional().default("2g"),
+
+    /** CPU shares (relative weight, 512 is normal) */
+    cpu_shares: z.number().int().positive().optional(),
+
+    /** Maximum containers to keep per agent before cleanup (default: 5) */
+    max_containers: z.number().int().positive().optional().default(5),
+
+    /** Workspace mount mode: rw (read-write, default) or ro (read-only) */
+    workspace_mode: z.enum(["rw", "ro"]).optional().default("rw"),
+
+    /** Tmpfs mounts in format "path" or "path:options" (e.g., "/tmp", "/tmp:size=100m,mode=1777") */
+    tmpfs: z.array(z.string()).optional(),
+
+    /** Maximum number of processes (PIDs) allowed in the container (prevents fork bombs) */
+    pids_limit: z.number().int().positive().optional(),
+
+    /** Container labels for organization and filtering */
+    labels: z.record(z.string(), z.string()).optional(),
+
+    /** CPU period in microseconds (default: 100000 = 100ms). Used with cpu_quota for hard CPU limits. */
+    cpu_period: z.number().int().positive().optional(),
+
+    /** CPU quota in microseconds per cpu_period. E.g., cpu_period=100000 + cpu_quota=50000 = 50% of one CPU. */
+    cpu_quota: z.number().int().positive().optional(),
+  })
+  .strict() // Reject unknown/dangerous Docker options at agent level
+  .refine(
+    (data) => {
+      if (!data.memory) return true;
+      // Validate memory format: number followed by optional unit (k, m, g, t, b)
+      return /^\d+(?:\.\d+)?\s*[kmgtb]?$/i.test(data.memory);
+    },
+    {
+      message:
+        'Invalid memory format. Use format like "2g", "512m", "1024k", or "2048" (bytes).',
+      path: ["memory"],
+    }
+  )
+  .refine(
+    (data) => {
+      if (!data.tmpfs) return true;
+      // Validate tmpfs format: "/path" or "/path:options"
+      return data.tmpfs.every((mount) => {
+        // Must start with /
+        const parts = mount.split(":");
+        return parts[0].startsWith("/");
+      });
+    },
+    {
+      message: 'Invalid tmpfs format. Use "/path" or "/path:options" (e.g., "/tmp", "/tmp:size=100m").',
+      path: ["tmpfs"],
+    }
+  );
+
+/**
+ * Fleet-level Docker configuration schema (all options)
+ *
+ * Includes all safe options from AgentDockerSchema plus dangerous options
+ * that should only be specified at the fleet level (in herdctl.yml).
+ *
+ * Also supports a `host_config` passthrough for raw dockerode HostConfig
+ * options not explicitly modeled in our schema.
+ *
+ * @example
+ * ```yaml
+ * defaults:
+ *   docker:
+ *     enabled: true
+ *     image: anthropic/claude-code:latest
+ *     network: bridge
+ *     memory: 2g
+ *     volumes:
+ *       - "/host/data:/container/data:ro"
+ *     host_config:           # Raw dockerode passthrough
+ *       ShmSize: 67108864
+ * ```
+ */
+export const FleetDockerSchema = z
   .object({
     /** Enable Docker containerization for this agent (default: false) */
     enabled: z.boolean().optional().default(false),
@@ -228,8 +317,15 @@ export const DockerSchema = z
 
     /** @deprecated Use 'image' instead */
     base_image: z.string().optional(),
+
+    /**
+     * Raw dockerode HostConfig passthrough for advanced options.
+     * Values here override any translated options (e.g., host_config.Memory overrides memory).
+     * See dockerode documentation for available options.
+     */
+    host_config: z.custom<HostConfig>().optional(),
   })
-  .strict() // Reject unknown Docker options to prevent silent misconfiguration
+  .strict() // Reject unknown Docker options to catch typos
   .refine(
     (data) => {
       if (!data.memory) return true;
@@ -302,6 +398,9 @@ export const DockerSchema = z
     }
   );
 
+/** @deprecated Use AgentDockerSchema or FleetDockerSchema instead */
+export const DockerSchema = FleetDockerSchema;
+
 // =============================================================================
 // Session Schema (for agent session config)
 // Note: Defined here before DefaultsSchema to allow it to reference SessionSchema
@@ -318,7 +417,7 @@ export const SessionSchema = z.object({
 // =============================================================================
 
 export const DefaultsSchema = z.object({
-  docker: DockerSchema.optional(),
+  docker: FleetDockerSchema.optional(),
   permissions: PermissionsSchema.optional(),
   work_source: WorkSourceSchema.optional(),
   instances: InstancesSchema.optional(),
@@ -636,7 +735,7 @@ export const AgentConfigSchema = z
     mcp_servers: z.record(z.string(), McpServerSchema).optional(),
     chat: AgentChatSchema.optional(),
     hooks: AgentHooksSchema.optional(),
-    docker: DockerSchema.optional(),
+    docker: AgentDockerSchema.optional(),
     instances: InstancesSchema.optional(),
     model: z.string().optional(),
     max_turns: z.number().int().positive().optional(),
@@ -717,7 +816,7 @@ export const FleetConfigSchema = z
     agents: z.array(AgentReferenceSchema).optional().default([]),
     chat: ChatSchema.optional(),
     webhooks: WebhooksSchema.optional(),
-    docker: DockerSchema.optional(),
+    docker: FleetDockerSchema.optional(),
   })
   .strict();
 
@@ -735,7 +834,13 @@ export type GitHubWorkSource = z.infer<typeof GitHubWorkSourceSchema>;
 export type BaseWorkSource = z.infer<typeof BaseWorkSourceSchema>;
 export type WorkSource = z.infer<typeof WorkSourceSchema>;
 export type Instances = z.infer<typeof InstancesSchema>;
+export type AgentDockerInput = z.input<typeof AgentDockerSchema>;
+export type AgentDocker = z.infer<typeof AgentDockerSchema>;
+export type FleetDockerInput = z.input<typeof FleetDockerSchema>;
+export type FleetDocker = z.infer<typeof FleetDockerSchema>;
+/** @deprecated Use AgentDockerInput or FleetDockerInput instead */
 export type DockerInput = z.input<typeof DockerSchema>;
+/** @deprecated Use AgentDocker or FleetDocker instead */
 export type Docker = z.infer<typeof DockerSchema>;
 export type Defaults = z.infer<typeof DefaultsSchema>;
 export type WorkingDirectory = z.infer<typeof WorkingDirectorySchema>;

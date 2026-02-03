@@ -5,7 +5,8 @@
  * and utility functions for path mapping and container management.
  */
 
-import type { Docker, DockerInput } from "../../config/schema.js";
+import type { HostConfig } from "dockerode";
+import type { FleetDockerInput } from "../../config/schema.js";
 
 /**
  * Network isolation modes for Docker containers
@@ -87,6 +88,8 @@ export interface DockerConfig {
   pidsLimit?: number;
   /** Container labels */
   labels: Record<string, string>;
+  /** Raw dockerode HostConfig passthrough (fleet-level only) */
+  hostConfigOverride?: HostConfig;
 }
 
 /**
@@ -226,14 +229,16 @@ export function getHostUser(): string {
 }
 
 /**
- * Resolve Docker config from agent configuration
+ * Resolve Docker config from fleet/agent configuration
  *
  * Applies defaults and parses string values to typed equivalents.
+ * After agent and fleet configs are merged, the result may include
+ * fleet-level options (image, network, volumes, etc.) and host_config.
  *
- * @param docker - Docker configuration from agent config (may be partial)
+ * @param docker - Docker configuration (merged agent + fleet config)
  * @returns Fully resolved DockerConfig
  */
-export function resolveDockerConfig(docker?: DockerInput): DockerConfig {
+export function resolveDockerConfig(docker?: FleetDockerInput): DockerConfig {
   return {
     enabled: docker?.enabled ?? false,
     ephemeral: docker?.ephemeral ?? true,
@@ -252,5 +257,6 @@ export function resolveDockerConfig(docker?: DockerInput): DockerConfig {
     tmpfs: docker?.tmpfs?.map(parseTmpfsMount) ?? [],
     pidsLimit: docker?.pids_limit,
     labels: docker?.labels ?? {},
+    hostConfigOverride: docker?.host_config,
   };
 }

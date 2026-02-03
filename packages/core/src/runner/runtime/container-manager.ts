@@ -5,7 +5,7 @@
  * Uses dockerode for Docker API communication.
  */
 
-import type { Container, ContainerCreateOptions, Exec } from "dockerode";
+import type { Container, ContainerCreateOptions, Exec, HostConfig } from "dockerode";
 import Dockerode from "dockerode";
 import * as path from "node:path";
 import * as os from "node:os";
@@ -97,6 +97,44 @@ export class ContainerManager {
       tmpfsMounts[tmpfs.path] = tmpfs.options ?? "";
     }
 
+    // Build our translated HostConfig
+    const translatedHostConfig: HostConfig = {
+      // Resource limits
+      Memory: config.memoryBytes,
+      MemorySwap: config.memoryBytes, // Same as Memory = no swap
+      CpuShares: config.cpuShares, // undefined = no limit (full CPU access)
+      CpuPeriod: config.cpuPeriod, // CPU period in microseconds
+      CpuQuota: config.cpuQuota, // CPU quota in microseconds per period
+      PidsLimit: config.pidsLimit, // Max processes (prevents fork bombs)
+
+      // Network isolation
+      NetworkMode: config.network,
+
+      // Port bindings
+      PortBindings: Object.keys(portBindings).length > 0 ? portBindings : undefined,
+
+      // Volume mounts
+      Binds: mounts.map(
+        (m) => `${m.hostPath}:${m.containerPath}:${m.mode}`
+      ),
+
+      // Tmpfs mounts
+      Tmpfs: Object.keys(tmpfsMounts).length > 0 ? tmpfsMounts : undefined,
+
+      // Security hardening
+      SecurityOpt: ["no-new-privileges:true"],
+      CapDrop: ["ALL"],
+      ReadonlyRootfs: false, // Claude needs to write temp files
+
+      // Cleanup
+      AutoRemove: config.ephemeral,
+    };
+
+    // Merge with hostConfigOverride - override values take precedence
+    const finalHostConfig: HostConfig = config.hostConfigOverride
+      ? { ...translatedHostConfig, ...config.hostConfigOverride }
+      : translatedHostConfig;
+
     const createOptions: ContainerCreateOptions = {
       Image: config.image,
       name: containerName,
@@ -117,37 +155,7 @@ export class ContainerManager {
       // Container labels
       Labels: Object.keys(config.labels).length > 0 ? config.labels : undefined,
 
-      HostConfig: {
-        // Resource limits
-        Memory: config.memoryBytes,
-        MemorySwap: config.memoryBytes, // Same as Memory = no swap
-        CpuShares: config.cpuShares, // undefined = no limit (full CPU access)
-        CpuPeriod: config.cpuPeriod, // CPU period in microseconds
-        CpuQuota: config.cpuQuota, // CPU quota in microseconds per period
-        PidsLimit: config.pidsLimit, // Max processes (prevents fork bombs)
-
-        // Network isolation
-        NetworkMode: config.network,
-
-        // Port bindings
-        PortBindings: Object.keys(portBindings).length > 0 ? portBindings : undefined,
-
-        // Volume mounts
-        Binds: mounts.map(
-          (m) => `${m.hostPath}:${m.containerPath}:${m.mode}`
-        ),
-
-        // Tmpfs mounts
-        Tmpfs: Object.keys(tmpfsMounts).length > 0 ? tmpfsMounts : undefined,
-
-        // Security hardening
-        SecurityOpt: ["no-new-privileges:true"],
-        CapDrop: ["ALL"],
-        ReadonlyRootfs: false, // Claude needs to write temp files
-
-        // Cleanup
-        AutoRemove: config.ephemeral,
-      },
+      HostConfig: finalHostConfig,
 
       // Non-root user
       User: config.user,

@@ -554,6 +554,34 @@ describe("resolveDockerConfig", () => {
       expect(config.maxContainers).toBe(DEFAULT_MAX_CONTAINERS);
       expect(config.workspaceMode).toBe("rw");
     });
+
+    it("passes through host_config for raw dockerode options", () => {
+      const config = resolveDockerConfig({
+        enabled: true,
+        host_config: {
+          ShmSize: 67108864,
+          Privileged: true,
+          Devices: [
+            {
+              PathOnHost: "/dev/nvidia0",
+              PathInContainer: "/dev/nvidia0",
+              CgroupPermissions: "rwm",
+            },
+          ],
+        },
+      });
+
+      expect(config.enabled).toBe(true);
+      expect(config.hostConfigOverride).toBeDefined();
+      expect(config.hostConfigOverride?.ShmSize).toBe(67108864);
+      expect(config.hostConfigOverride?.Privileged).toBe(true);
+      expect(config.hostConfigOverride?.Devices).toHaveLength(1);
+    });
+
+    it("returns undefined hostConfigOverride when not provided", () => {
+      const config = resolveDockerConfig({ enabled: true });
+      expect(config.hostConfigOverride).toBeUndefined();
+    });
   });
 });
 

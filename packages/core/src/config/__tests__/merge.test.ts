@@ -386,13 +386,14 @@ describe("mergeAgentConfig", () => {
           memory: "2g",
           max_containers: 5,
           workspace_mode: "rw" as const,
-          base_image: "herdctl-base:latest",
+          image: "herdctl-base:latest",
         },
       };
       const agent: AgentConfig = { name: "test-agent" };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.docker?.enabled).toBe(true);
-      expect(result.docker?.base_image).toBe("herdctl-base:latest");
+      // Fleet-level image is preserved in merged result
+      expect((result.docker as Record<string, unknown>)?.image).toBe("herdctl-base:latest");
     });
 
     it("agent docker values override defaults", () => {
@@ -404,23 +405,25 @@ describe("mergeAgentConfig", () => {
           memory: "2g",
           max_containers: 5,
           workspace_mode: "rw" as const,
-          base_image: "herdctl-base:latest",
+          image: "herdctl-base:latest",
         },
       };
       const agent: AgentConfig = {
         name: "test-agent",
         docker: {
+          // Agent can only specify safe options (no network, image, volumes, etc.)
           enabled: false,
           ephemeral: false,
-          network: "bridge" as const,
-          memory: "2g",
-          max_containers: 5,
-          workspace_mode: "rw" as const,
+          memory: "4g",
+          max_containers: 10,
+          workspace_mode: "ro" as const,
         },
       };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.docker?.enabled).toBe(false);
-      expect(result.docker?.base_image).toBe("herdctl-base:latest");
+      expect(result.docker?.memory).toBe("4g");
+      // Fleet-level image is preserved
+      expect((result.docker as Record<string, unknown>)?.image).toBe("herdctl-base:latest");
     });
   });
 

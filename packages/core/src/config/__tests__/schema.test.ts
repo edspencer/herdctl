@@ -9,6 +9,8 @@ import {
   GitHubWorkSourceSchema,
   GitHubAuthSchema,
   BaseWorkSourceSchema,
+  AgentDockerSchema,
+  FleetDockerSchema,
   DockerSchema,
   ChatSchema,
   WebhooksSchema,
@@ -725,16 +727,170 @@ describe("BaseWorkSourceSchema", () => {
   });
 });
 
-describe("DockerSchema", () => {
+describe("AgentDockerSchema", () => {
   it("applies default enabled", () => {
-    const result = DockerSchema.safeParse({});
+    const result = AgentDockerSchema.safeParse({});
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.enabled).toBe(false);
     }
   });
 
-  it("parses complete docker config", () => {
+  it("accepts safe options", () => {
+    const docker = {
+      enabled: true,
+      ephemeral: false,
+      memory: "4g",
+      cpu_shares: 512,
+      max_containers: 10,
+      workspace_mode: "ro",
+      tmpfs: ["/tmp"],
+      pids_limit: 100,
+      labels: { app: "test" },
+      cpu_period: 100000,
+      cpu_quota: 50000,
+    };
+    const result = AgentDockerSchema.safeParse(docker);
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects dangerous option: network", () => {
+    const result = AgentDockerSchema.safeParse({
+      enabled: true,
+      network: "host",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects dangerous option: image", () => {
+    const result = AgentDockerSchema.safeParse({
+      enabled: true,
+      image: "malicious:latest",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects dangerous option: volumes", () => {
+    const result = AgentDockerSchema.safeParse({
+      enabled: true,
+      volumes: ["/etc:/etc:ro"],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects dangerous option: user", () => {
+    const result = AgentDockerSchema.safeParse({
+      enabled: true,
+      user: "0:0",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects dangerous option: ports", () => {
+    const result = AgentDockerSchema.safeParse({
+      enabled: true,
+      ports: ["8080:80"],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects dangerous option: env", () => {
+    const result = AgentDockerSchema.safeParse({
+      enabled: true,
+      env: { MALICIOUS: "true" },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects host_config passthrough", () => {
+    const result = AgentDockerSchema.safeParse({
+      enabled: true,
+      host_config: { Privileged: true },
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("FleetDockerSchema", () => {
+  it("applies default enabled", () => {
+    const result = FleetDockerSchema.safeParse({});
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.enabled).toBe(false);
+    }
+  });
+
+  it("accepts all safe options", () => {
+    const docker = {
+      enabled: true,
+      ephemeral: false,
+      memory: "4g",
+      cpu_shares: 512,
+      max_containers: 10,
+      workspace_mode: "ro",
+      tmpfs: ["/tmp"],
+      pids_limit: 100,
+      labels: { app: "test" },
+    };
+    const result = FleetDockerSchema.safeParse(docker);
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts dangerous options at fleet level", () => {
+    const docker = {
+      enabled: true,
+      image: "custom:latest",
+      network: "host",
+      volumes: ["/data:/data:rw"],
+      user: "1001:1001",
+      ports: ["8080:80"],
+      env: { API_KEY: "secret" },
+    };
+    const result = FleetDockerSchema.safeParse(docker);
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts host_config passthrough", () => {
+    const docker = {
+      enabled: true,
+      host_config: {
+        ShmSize: 67108864,
+        Privileged: true,
+      },
+    };
+    const result = FleetDockerSchema.safeParse(docker);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.host_config?.ShmSize).toBe(67108864);
+      expect(result.data.host_config?.Privileged).toBe(true);
+    }
+  });
+
+  it("validates volume format", () => {
+    const result = FleetDockerSchema.safeParse({
+      volumes: ["invalid-format"],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("validates port format", () => {
+    const result = FleetDockerSchema.safeParse({
+      ports: ["invalid"],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("validates user format", () => {
+    const result = FleetDockerSchema.safeParse({
+      user: "invalid",
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("DockerSchema (deprecated alias)", () => {
+  it("is an alias for FleetDockerSchema", () => {
+    // DockerSchema is now an alias for FleetDockerSchema for backwards compatibility
     const docker = {
       enabled: true,
       base_image: "herdctl-base:latest",
