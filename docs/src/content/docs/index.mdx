@@ -128,16 +128,13 @@ chat:
             mode: mention
 
 # Standard Claude Code permissions
-permissions:
-  allowed_tools:
-    - Read
-    - Glob
-    - Grep
-    - WebFetch
-  bash:
-    allowed_commands:
-      - git
-      - gh
+allowed_tools:
+  - Read
+  - Glob
+  - Grep
+  - WebFetch
+  - "Bash(git *)"
+  - "Bash(gh *)"
 ```
 
 Sensitive Docker options like `env` must be configured at fleet level (see [tiered security model](/configuration/docker/#tiered-security-model)):

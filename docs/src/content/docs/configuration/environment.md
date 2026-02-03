@@ -67,10 +67,8 @@ agents:
 
 # Deeply nested
 defaults:
-  permissions:
-    bash:
-      allowed_commands:
-        - ${PACKAGE_MANAGER:-npm}
+  allowed_tools:
+    - "Bash(${PACKAGE_MANAGER:-npm} *)"
 
 # MCP server configuration
 mcp_servers:
@@ -315,13 +313,11 @@ defaults:
   model: ${CLAUDE_MODEL:-claude-sonnet-4-20250514}
   max_turns: ${MAX_TURNS:-50}
 
-  permissions:
-    mode: acceptEdits
-    bash:
-      allowed_commands:
-        - ${PACKAGE_MANAGER:-npm}
-        - git
-        - node
+  permission_mode: acceptEdits
+  allowed_tools:
+    - "Bash(${PACKAGE_MANAGER:-npm} *)"
+    - "Bash(git *)"
+    - "Bash(node *)"
 
 workspace:
   root: ${HERDCTL_WORKSPACE:-~/herdctl-workspace}

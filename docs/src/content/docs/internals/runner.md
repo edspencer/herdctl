@@ -96,18 +96,17 @@ Set the permission mode in your agent configuration:
 # agents/my-agent/agent.yaml
 name: my-agent
 
-permissions:
-  mode: acceptEdits  # default, acceptEdits, bypassPermissions, plan
+permission_mode: acceptEdits  # default, acceptEdits, bypassPermissions, plan
 
-  # Optional: explicitly allow specific tools
-  allowed_tools:
-    - Bash
-    - Read
-    - Write
+# Optional: explicitly allow specific tools
+allowed_tools:
+  - Bash
+  - Read
+  - Write
 
-  # Optional: deny specific tools
-  denied_tools:
-    - mcp__github__create_issue
+# Optional: deny specific tools
+denied_tools:
+  - mcp__github__create_issue
 ```
 
 ### Permission Examples
@@ -117,8 +116,7 @@ permissions:
 Every tool call requires human approval:
 
 ```yaml
-permissions:
-  mode: default
+permission_mode: default
 ```
 
 Use for: High-stakes operations, new agents, untested workflows.
@@ -128,8 +126,7 @@ Use for: High-stakes operations, new agents, untested workflows.
 File operations auto-approve, other tools require approval:
 
 ```yaml
-permissions:
-  mode: acceptEdits
+permission_mode: acceptEdits
 ```
 
 Use for: Most development workflows where file edits are the primary action.
@@ -139,8 +136,7 @@ Use for: Most development workflows where file edits are the primary action.
 All tools auto-approve—the agent runs fully autonomously:
 
 ```yaml
-permissions:
-  mode: bypassPermissions
+permission_mode: bypassPermissions
 ```
 
 Use for: Trusted agents in controlled environments, scheduled jobs, CI/CD.
@@ -154,8 +150,7 @@ Use for: Trusted agents in controlled environments, scheduled jobs, CI/CD.
 Agent can plan but not execute tools:
 
 ```yaml
-permissions:
-  mode: plan
+permission_mode: plan
 ```
 
 Use for: Exploring solutions without making changes, generating plans for review.
@@ -165,20 +160,19 @@ Use for: Exploring solutions without making changes, generating plans for review
 Fine-grained control over specific tools:
 
 ```yaml
-permissions:
-  mode: acceptEdits
+permission_mode: acceptEdits
 
-  # Whitelist specific tools
-  allowed_tools:
-    - Bash
-    - Read
-    - Write
-    - Edit
-    - mcp__github__*  # Wildcard for all GitHub MCP tools
+# Whitelist specific tools
+allowed_tools:
+  - Bash
+  - Read
+  - Write
+  - Edit
+  - mcp__github__*  # Wildcard for all GitHub MCP tools
 
-  # Blacklist dangerous tools
-  denied_tools:
-    - mcp__postgres__execute_query  # Prevent database writes
+# Blacklist dangerous tools
+denied_tools:
+  - mcp__postgres__execute_query  # Prevent database writes
 ```
 
 ## MCP Server Configuration
@@ -255,13 +249,14 @@ mcp_servers:
   internal-api:
     url: ${INTERNAL_API_URL}
 
-permissions:
-  mode: acceptEdits
-  allowed_tools:
-    - mcp__github__*
-    - mcp__postgres__query  # Read-only
-  denied_tools:
-    - mcp__postgres__execute  # No writes
+permission_mode: acceptEdits
+
+allowed_tools:
+  - mcp__github__*
+  - mcp__postgres__query  # Read-only
+
+denied_tools:
+  - mcp__postgres__execute  # No writes
 ```
 
 ## Session Management

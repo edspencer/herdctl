@@ -362,9 +362,15 @@ system_prompt: |
      - shouldNotify: true if price meets target
      - lowestPrice, retailer, product, url
 
-permissions:
-  allowed_tools: [WebSearch, WebFetch, Read, Write, Edit]
-  denied_tools: [Bash, Task]
+allowed_tools:
+  - WebSearch
+  - WebFetch
+  - Read
+  - Write
+  - Edit
+denied_tools:
+  - Bash
+  - Task
 
 schedules:
   check:

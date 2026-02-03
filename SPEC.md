@@ -36,7 +36,7 @@ Think of it as "Kubernetes for AI agents" - declarative configuration, multiple 
 │  • name: "bragdoc-marketer"                                     │
 │  • identity: CLAUDE.md, knowledge/                              │
 │  • workspace: ~/herdctl-workspace/bragdoc-ai                    │
-│  • permissions: { allowedTools: [...], mode: "acceptEdits" }    │
+│  • permission_mode: "acceptEdits", allowed_tools: [...]         │
 │                                                                  │
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │                    SCHEDULES                             │    │
@@ -293,9 +293,8 @@ version: 1
 defaults:
   docker:
     enabled: false  # Can override per-agent
-  permissions:
-    mode: acceptEdits
-    allowed_tools: [Read, Edit, Write, Bash, Glob, Grep]
+  permission_mode: acceptEdits
+  allowed_tools: [Read, Edit, Write, Bash, Glob, Grep]
   work_source:
     type: github
     labels:
@@ -650,23 +649,22 @@ for await (const message of query({
 **No more `--dangerously-skip-permissions`!** Instead, we have layered control:
 
 ```yaml
-# Agent permission config
-permissions:
-  mode: acceptEdits  # or: default, bypassPermissions, plan
+# Agent permission config (flat, SDK-compatible)
+permission_mode: acceptEdits  # or: default, bypassPermissions, plan
 
-  # Explicitly allowed tools
-  allowed_tools:
-    - Read
-    - Edit
-    - Write
-    - Bash
-    - Glob
-    - Grep
-    - WebFetch  # if agent needs web access
+# Explicitly allowed tools
+allowed_tools:
+  - Read
+  - Edit
+  - Write
+  - Bash
+  - Glob
+  - Grep
+  - WebFetch  # if agent needs web access
 
-  # Explicitly denied (safety)
-  denied_tools:
-    - WebSearch  # maybe not for coding agents
+# Explicitly denied (safety)
+denied_tools:
+  - WebSearch  # maybe not for coding agents
 
   # Bash command restrictions (future)
   bash:
@@ -714,17 +712,16 @@ mcp_servers:
     env:
       GITHUB_TOKEN: ${GITHUB_TOKEN}
 
-permissions:
-  allowed_tools:
-    - Read
-    - Edit
-    - Bash
-    # Allow all tools from specific MCP servers
-    - mcp__posthog__*
-    - mcp__github__*
-    # Or allow specific MCP tools
-    - mcp__filesystem__read_file
-    - mcp__filesystem__list_directory
+allowed_tools:
+  - Read
+  - Edit
+  - Bash
+  # Allow all tools from specific MCP servers
+  - mcp__posthog__*
+  - mcp__github__*
+  # Or allow specific MCP tools
+  - mcp__filesystem__read_file
+  - mcp__filesystem__list_directory
 ```
 
 **How it works in the SDK:**

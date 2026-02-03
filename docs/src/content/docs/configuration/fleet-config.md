@@ -161,26 +161,7 @@ defaults:
     base_image: node:20-alpine
 ```
 
-#### defaults.permissions
-
-| Property | Value |
-|----------|-------|
-| **Type** | `object` |
-| **Default** | `undefined` |
-| **Required** | No |
-
-Default permission settings for all agents.
-
-##### defaults.permissions.mode
-
-| Property | Value |
-|----------|-------|
-| **Type** | `enum` |
-| **Default** | `"acceptEdits"` |
-| **Required** | No |
-| **Valid Values** | `"default"`, `"acceptEdits"`, `"bypassPermissions"`, `"plan"` |
-
-##### defaults.permissions.allowed_tools
+#### defaults.allowed_tools
 
 | Property | Value |
 |----------|-------|
@@ -188,51 +169,44 @@ Default permission settings for all agents.
 | **Default** | `undefined` |
 | **Required** | No |
 
-List of tools the agent is allowed to use.
-
-##### defaults.permissions.denied_tools
-
-| Property | Value |
-|----------|-------|
-| **Type** | `string[]` |
-| **Default** | `undefined` |
-| **Required** | No |
-
-List of tools the agent is not allowed to use.
-
-##### defaults.permissions.bash
-
-| Property | Value |
-|----------|-------|
-| **Type** | `object` |
-| **Default** | `undefined` |
-| **Required** | No |
-
-Bash-specific permission controls.
-
-- `allowed_commands` (`string[]`) - Commands the agent may execute
-- `denied_patterns` (`string[]`) - Patterns to block from execution
+List of tools the agent is allowed to use. Use `Bash()` patterns to allow specific bash commands.
 
 ```yaml
 defaults:
-  permissions:
-    mode: acceptEdits
-    allowed_tools:
-      - Read
-      - Write
-      - Edit
-      - Bash
-    denied_tools:
-      - WebFetch
-    bash:
-      allowed_commands:
-        - npm
-        - git
-        - pnpm
-      denied_patterns:
-        - "rm -rf"
-        - "sudo"
+  allowed_tools:
+    - Read
+    - Write
+    - Edit
+    - "Bash(npm *)"
+    - "Bash(git *)"
+    - "Bash(pnpm *)"
 ```
+
+#### defaults.denied_tools
+
+| Property | Value |
+|----------|-------|
+| **Type** | `string[]` |
+| **Default** | `undefined` |
+| **Required** | No |
+
+List of tools the agent is not allowed to use. Use `Bash()` patterns to deny specific bash commands or patterns.
+
+```yaml
+defaults:
+  denied_tools:
+    - WebFetch
+    - "Bash(rm -rf *)"
+    - "Bash(sudo *)"
+```
+
+:::tip[Bash Permissions]
+Bash command permissions are now specified using `Bash()` patterns in `allowed_tools` and `denied_tools`. This matches the Claude Agents SDK format. For example:
+- `"Bash(npm *)"` - Allow npm commands
+- `"Bash(git *)"` - Allow git commands
+- `"Bash(rm -rf *)"` - Deny rm -rf patterns
+- `"Bash(sudo *)"` - Deny sudo commands
+:::
 
 #### defaults.work_source
 
@@ -621,29 +595,24 @@ defaults:
   model: claude-sonnet-4-20250514
   max_turns: 50
   permission_mode: acceptEdits
+  allowed_tools:
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - "Bash(npm *)"
+    - "Bash(pnpm *)"
+    - "Bash(git *)"
+    - "Bash(node *)"
+  denied_tools:
+    - "Bash(rm -rf *)"
+    - "Bash(sudo *)"
   docker:
     enabled: true
     network: bridge           # Fleet-level: set network for all agents
     env:                      # Fleet-level: pass credentials to all agents
       GITHUB_TOKEN: "${GITHUB_TOKEN}"
-  permissions:
-    mode: acceptEdits
-    allowed_tools:
-      - Read
-      - Write
-      - Edit
-      - Bash
-      - Glob
-      - Grep
-    bash:
-      allowed_commands:
-        - npm
-        - pnpm
-        - git
-        - node
-      denied_patterns:
-        - "rm -rf /"
-        - "sudo"
   work_source:
     type: github
     labels:

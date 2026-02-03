@@ -3,39 +3,34 @@ title: Permissions
 description: Control what tools and commands agents can use
 ---
 
-Permissions control what an agent can do within its session. Herdctl provides fine-grained control over tool access, bash command execution, and permission approval modes. This allows you to create agents with appropriate access levels—from read-only support bots to full-access development agents.
+Permissions control what an agent can do within its session. Herdctl provides fine-grained control over tool access and permission approval modes using a flat configuration structure that maps directly to the Claude Agents SDK. This allows you to create agents with appropriate access levels—from read-only support bots to full-access development agents.
 
 ## Quick Start
 
 ```yaml
 # agents/my-agent.yaml
-permissions:
-  mode: acceptEdits
-  allowed_tools:
-    - Read
-    - Write
-    - Edit
-    - Bash
-  denied_tools:
-    - WebSearch
-  bash:
-    allowed_commands:
-      - "git *"
-      - "npm *"
-    denied_patterns:
-      - "rm -rf *"
-      - "sudo *"
+permission_mode: acceptEdits
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - "Bash(git *)"
+  - "Bash(npm *)"
+  - "Bash(pnpm *)"
+denied_tools:
+  - WebSearch
+  - "Bash(rm -rf *)"
+  - "Bash(sudo *)"
 ```
 
 ---
 
 ## Permission Modes
 
-The `mode` field controls how Claude Code handles permission requests. This maps directly to the Claude Agent SDK's permission modes.
+The `permission_mode` field controls how Claude Code handles permission requests. This maps directly to the Claude Agents SDK's permission modes.
 
 ```yaml
-permissions:
-  mode: acceptEdits  # default
+permission_mode: acceptEdits  # default
 ```
 
 ### Available Modes
@@ -54,8 +49,7 @@ permissions:
 The most restrictive mode. Every tool use requires explicit approval through herdctl's permission callback system.
 
 ```yaml
-permissions:
-  mode: default
+permission_mode: default
 ```
 
 **When to use:**
@@ -68,8 +62,7 @@ permissions:
 Auto-approves file operations (Read, Write, Edit, mkdir, rm, mv, cp) while still requiring approval for other tools like Bash execution. This is the **default mode** if not specified.
 
 ```yaml
-permissions:
-  mode: acceptEdits
+permission_mode: acceptEdits
 ```
 
 **When to use:**
@@ -82,8 +75,7 @@ permissions:
 Auto-approves all tool requests without prompting. Use with caution.
 
 ```yaml
-permissions:
-  mode: bypassPermissions
+permission_mode: bypassPermissions
 ```
 
 **When to use:**
@@ -100,8 +92,7 @@ Only use `bypassPermissions` in isolated environments. This mode allows the agen
 Enables planning mode where Claude analyzes and plans but doesn't execute tools. Useful for understanding what an agent would do.
 
 ```yaml
-permissions:
-  mode: plan
+permission_mode: plan
 ```
 
 **When to use:**
@@ -113,23 +104,23 @@ permissions:
 
 ## Tool Permissions
 
-Control which Claude Code tools an agent can use with `allowed_tools` and `denied_tools` arrays.
+Control which Claude Code tools an agent can use with `allowed_tools` and `denied_tools` arrays. These are top-level configuration fields.
 
 ### Allowed Tools
 
 Explicitly list tools the agent can use:
 
 ```yaml
-permissions:
-  allowed_tools:
-    - Read
-    - Write
-    - Edit
-    - Bash
-    - Glob
-    - Grep
-    - Task
-    - WebFetch
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - Task
+  - WebFetch
+  - "Bash(git *)"
+  - "Bash(npm *)"
 ```
 
 ### Denied Tools
@@ -137,10 +128,11 @@ permissions:
 Explicitly block specific tools:
 
 ```yaml
-permissions:
-  denied_tools:
-    - WebSearch
-    - WebFetch
+denied_tools:
+  - WebSearch
+  - WebFetch
+  - "Bash(sudo *)"
+  - "Bash(rm -rf /)"
 ```
 
 ### Available Claude Code Tools
@@ -152,7 +144,7 @@ permissions:
 | `Edit` | Modify existing files | Medium |
 | `Glob` | Find files by pattern | Low |
 | `Grep` | Search file contents | Low |
-| `Bash` | Execute shell commands | High |
+| `Bash` | Execute shell commands (use patterns) | High |
 | `Task` | Launch subagents | Medium |
 | `WebFetch` | Fetch web content | Medium |
 | `WebSearch` | Search the web | Medium |
@@ -160,81 +152,54 @@ permissions:
 | `AskUserQuestion` | Request user input | Low |
 | `NotebookEdit` | Edit Jupyter notebooks | Medium |
 
+### Bash Command Permissions
+
+Bash commands are controlled using `Bash()` patterns in the `allowed_tools` and `denied_tools` arrays. The pattern inside the parentheses is matched against the command being executed.
+
+**Allow specific commands:**
+
+```yaml
+allowed_tools:
+  - "Bash(git *)"           # All git commands
+  - "Bash(npm run *)"       # npm run scripts
+  - "Bash(pnpm *)"          # All pnpm commands
+  - "Bash(node scripts/*)"  # Node scripts in scripts/
+  - "Bash(make build)"      # Specific make target
+```
+
+**Deny dangerous patterns:**
+
+```yaml
+denied_tools:
+  - "Bash(rm -rf /)"
+  - "Bash(rm -rf /*)"
+  - "Bash(sudo *)"
+  - "Bash(chmod 777 *)"
+  - "Bash(curl * | bash)"
+  - "Bash(curl * | sh)"
+  - "Bash(wget * | bash)"
+  - "Bash(wget * | sh)"
+  - "Bash(dd if=*)"
+  - "Bash(mkfs *)"
+  - "Bash(> /dev/*)"
+```
+
 ### MCP Tool Permissions
 
 MCP (Model Context Protocol) server tools use the `mcp__<server>__<tool>` naming convention:
 
 ```yaml
-permissions:
-  allowed_tools:
-    - Read
-    - Edit
-    - mcp__github__*         # All GitHub MCP tools
-    - mcp__posthog__*        # All PostHog MCP tools
-    - mcp__filesystem__read_file  # Specific tool only
+allowed_tools:
+  - Read
+  - Edit
+  - mcp__github__*         # All GitHub MCP tools
+  - mcp__posthog__*        # All PostHog MCP tools
+  - mcp__filesystem__read_file  # Specific tool only
 ```
 
 **Wildcard support:**
 - `mcp__github__*` — Allow all tools from the GitHub MCP server
 - `mcp__*` — Allow all MCP tools (not recommended)
-
----
-
-## Bash Restrictions
-
-Fine-tune which shell commands agents can execute with the `bash` configuration.
-
-```yaml
-permissions:
-  bash:
-    allowed_commands:
-      - "git *"
-      - "npm *"
-      - "pnpm *"
-      - "node *"
-      - "npx *"
-    denied_patterns:
-      - "rm -rf /"
-      - "rm -rf /*"
-      - "sudo *"
-      - "curl * | sh"
-      - "wget * | sh"
-```
-
-### Allowed Commands
-
-Glob patterns for commands the agent can run:
-
-```yaml
-bash:
-  allowed_commands:
-    - "git *"           # All git commands
-    - "npm run *"       # npm run scripts
-    - "pnpm *"          # All pnpm commands
-    - "node scripts/*"  # Node scripts in scripts/
-    - "make build"      # Specific make target
-```
-
-### Denied Patterns
-
-Patterns that are always blocked, even if they match an allowed command:
-
-```yaml
-bash:
-  denied_patterns:
-    - "rm -rf /"
-    - "rm -rf /*"
-    - "sudo *"
-    - "chmod 777 *"
-    - "curl * | bash"
-    - "curl * | sh"
-    - "wget * | bash"
-    - "wget * | sh"
-    - "dd if=*"
-    - "mkfs *"
-    - "> /dev/*"
-    - ":(){ :|:& };:"
-```
 
 ---
 
@@ -245,34 +210,30 @@ bash:
 Full development capabilities with sensible restrictions:
 
 ```yaml
-permissions:
-  mode: acceptEdits
-  allowed_tools:
-    - Read
-    - Write
-    - Edit
-    - Bash
-    - Glob
-    - Grep
-    - Task
-    - TodoWrite
-  bash:
-    allowed_commands:
-      - "git *"
-      - "npm *"
-      - "pnpm *"
-      - "node *"
-      - "npx *"
-      - "tsc *"
-      - "eslint *"
-      - "prettier *"
-      - "vitest *"
-      - "jest *"
-    denied_patterns:
-      - "rm -rf /"
-      - "rm -rf /*"
-      - "sudo *"
-      - "chmod 777 *"
+permission_mode: acceptEdits
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - Task
+  - TodoWrite
+  - "Bash(git *)"
+  - "Bash(npm *)"
+  - "Bash(pnpm *)"
+  - "Bash(node *)"
+  - "Bash(npx *)"
+  - "Bash(tsc *)"
+  - "Bash(eslint *)"
+  - "Bash(prettier *)"
+  - "Bash(vitest *)"
+  - "Bash(jest *)"
+denied_tools:
+  - "Bash(rm -rf /)"
+  - "Bash(rm -rf /*)"
+  - "Bash(sudo *)"
+  - "Bash(chmod 777 *)"
 ```
 
 ### Read-Only Support Agent
@@ -280,17 +241,16 @@ permissions:
 Can read and search but cannot modify:
 
 ```yaml
-permissions:
-  mode: default
-  allowed_tools:
-    - Read
-    - Glob
-    - Grep
-    - WebFetch
-  denied_tools:
-    - Write
-    - Edit
-    - Bash
+permission_mode: default
+allowed_tools:
+  - Read
+  - Glob
+  - Grep
+  - WebFetch
+denied_tools:
+  - Write
+  - Edit
+  - Bash
 ```
 
 ### Content Writer
@@ -298,19 +258,18 @@ permissions:
 Can read/write files, no shell access:
 
 ```yaml
-permissions:
-  mode: acceptEdits
-  allowed_tools:
-    - Read
-    - Write
-    - Edit
-    - Glob
-    - Grep
-    - WebFetch
-    - WebSearch
-  denied_tools:
-    - Bash
-    - Task
+permission_mode: acceptEdits
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - WebFetch
+  - WebSearch
+denied_tools:
+  - Bash
+  - Task
 ```
 
 ### Isolated Full-Access Agent
@@ -318,9 +277,8 @@ permissions:
 Maximum permissions in a Docker container:
 
 ```yaml
-permissions:
-  mode: bypassPermissions
-  allowed_tools: []  # Empty = all tools allowed
+permission_mode: bypassPermissions
+allowed_tools: []  # Empty = all tools allowed
 
 docker:
   enabled: true
@@ -332,14 +290,13 @@ docker:
 Plan and research without execution:
 
 ```yaml
-permissions:
-  mode: plan
-  allowed_tools:
-    - Read
-    - Glob
-    - Grep
-    - WebFetch
-    - WebSearch
+permission_mode: plan
+allowed_tools:
+  - Read
+  - Glob
+  - Grep
+  - WebFetch
+  - WebSearch
 ```
 
 ### Git-Only Agent
@@ -347,31 +304,27 @@ permissions:
 Can only perform git operations:
 
 ```yaml
-permissions:
-  mode: acceptEdits
-  allowed_tools:
-    - Read
-    - Glob
-    - Grep
-    - Bash
-  bash:
-    allowed_commands:
-      - "git status"
-      - "git diff *"
-      - "git log *"
-      - "git add *"
-      - "git commit *"
-      - "git push *"
-      - "git pull *"
-      - "git checkout *"
-      - "git branch *"
-      - "git merge *"
-      - "gh pr *"
-      - "gh issue *"
-    denied_patterns:
-      - "git push --force *"
-      - "git push -f *"
-      - "git reset --hard *"
+permission_mode: acceptEdits
+allowed_tools:
+  - Read
+  - Glob
+  - Grep
+  - "Bash(git status)"
+  - "Bash(git diff *)"
+  - "Bash(git log *)"
+  - "Bash(git add *)"
+  - "Bash(git commit *)"
+  - "Bash(git push *)"
+  - "Bash(git pull *)"
+  - "Bash(git checkout *)"
+  - "Bash(git branch *)"
+  - "Bash(git merge *)"
+  - "Bash(gh pr *)"
+  - "Bash(gh issue *)"
+denied_tools:
+  - "Bash(git push --force *)"
+  - "Bash(git push -f *)"
+  - "Bash(git reset --hard *)"
 ```
 
 ---
@@ -384,12 +337,11 @@ Begin with minimal permissions and expand as needed:
 
 ```yaml
 # Start here
-permissions:
-  mode: default
-  allowed_tools:
-    - Read
-    - Glob
-    - Grep
+permission_mode: default
+allowed_tools:
+  - Read
+  - Glob
+  - Grep
 
 # Add more as you verify behavior
 ```
@@ -403,42 +355,41 @@ permissions:
 | Production (Docker isolated) | `bypassPermissions` |
 | Research/Preview | `plan` |
 
-### 3. Block Dangerous Patterns
+### 3. Block Dangerous Bash Patterns
 
-Always deny dangerous bash patterns:
+Always deny dangerous patterns in `denied_tools`:
 
 ```yaml
-bash:
-  denied_patterns:
-    # Destructive commands
-    - "rm -rf /"
-    - "rm -rf /*"
-    - "rm -rf ~"
-    - "rm -rf ~/*"
-    - "rm -rf ."
-    - "rm -rf ./*"
+denied_tools:
+  # Destructive commands
+  - "Bash(rm -rf /)"
+  - "Bash(rm -rf /*)"
+  - "Bash(rm -rf ~)"
+  - "Bash(rm -rf ~/*)"
+  - "Bash(rm -rf .)"
+  - "Bash(rm -rf ./*)"
 
-    # Privilege escalation
-    - "sudo *"
-    - "su *"
-    - "doas *"
+  # Privilege escalation
+  - "Bash(sudo *)"
+  - "Bash(su *)"
+  - "Bash(doas *)"
 
-    # Remote code execution
-    - "curl * | bash"
-    - "curl * | sh"
-    - "wget * | bash"
-    - "wget * | sh"
-    - "eval *"
+  # Remote code execution
+  - "Bash(curl * | bash)"
+  - "Bash(curl * | sh)"
+  - "Bash(wget * | bash)"
+  - "Bash(wget * | sh)"
+  - "Bash(eval *)"
 
-    # System damage
-    - "dd if=*"
-    - "mkfs *"
-    - "fdisk *"
-    - "> /dev/*"
-    - "chmod -R 777 *"
+  # System damage
+  - "Bash(dd if=*)"
+  - "Bash(mkfs *)"
+  - "Bash(fdisk *)"
+  - "Bash(> /dev/*)"
+  - "Bash(chmod -R 777 *)"
 
-    # Fork bomb
-    - ":(){ :|:& };:"
+  # Fork bomb
+  - "Bash(:(){ :|:& };:)"
 ```
 
 ### 4. Scope MCP Permissions
@@ -446,13 +397,12 @@ bash:
 Only allow necessary MCP tools:
 
 ```yaml
-permissions:
-  allowed_tools:
-    # Specific MCP tools, not wildcards
-    - mcp__github__create_issue
-    - mcp__github__list_issues
-    - mcp__github__create_pull_request
-    # NOT: mcp__github__*
+allowed_tools:
+  # Specific MCP tools, not wildcards
+  - mcp__github__create_issue
+  - mcp__github__list_issues
+  - mcp__github__create_pull_request
+  # NOT: mcp__github__*
 ```
 
 ### 5. Use Docker for Untrusted Workloads
@@ -460,8 +410,7 @@ permissions:
 Combine Docker isolation with permissions:
 
 ```yaml
-permissions:
-  mode: bypassPermissions
+permission_mode: bypassPermissions
 
 docker:
   enabled: true
@@ -496,32 +445,28 @@ Agent permissions inherit from fleet defaults and can be overridden:
 ```yaml
 # herdctl.yaml (fleet defaults)
 defaults:
-  permissions:
-    mode: acceptEdits
-    denied_tools:
-      - WebSearch
-    bash:
-      denied_patterns:
-        - "sudo *"
+  permission_mode: acceptEdits
+  denied_tools:
+    - WebSearch
+    - "Bash(sudo *)"
 ```
 
 ```yaml
 # agents/trusted-agent.yaml
-permissions:
-  # Override mode
-  mode: bypassPermissions
+# Override mode
+permission_mode: bypassPermissions
 
-  # Add to allowed tools
-  allowed_tools:
-    - WebSearch  # Override fleet denial
+# Add to allowed tools
+allowed_tools:
+  - WebSearch  # Override fleet denial
 
-  # Inherits bash.denied_patterns from fleet
+# Inherits denied_tools from fleet
 ```
 
 **Inheritance rules:**
 1. Agent settings override fleet defaults
 2. `denied_tools` takes precedence over `allowed_tools`
-3. `bash.denied_patterns` always apply (never removed by inheritance)
+3. Denied bash patterns always apply (never removed by inheritance)
 
 ---
 
@@ -544,25 +489,32 @@ herdctl config show --agent my-agent --section permissions
 
 ## Schema Reference
 
-### PermissionsSchema
+### Permission Fields
 
 ```typescript
-permissions:
-  mode?: "default" | "acceptEdits" | "bypassPermissions" | "plan"
-  allowed_tools?: string[]
-  denied_tools?: string[]
-  bash?:
-    allowed_commands?: string[]
-    denied_patterns?: string[]
+// Top-level permission fields (not nested)
+permission_mode?: "default" | "acceptEdits" | "bypassPermissions" | "plan"
+allowed_tools?: string[]
+denied_tools?: string[]
 ```
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `mode` | string | `"acceptEdits"` | Permission approval mode |
-| `allowed_tools` | string[] | — | Tools the agent can use |
-| `denied_tools` | string[] | — | Tools explicitly blocked |
-| `bash.allowed_commands` | string[] | — | Allowed bash command patterns |
-| `bash.denied_patterns` | string[] | — | Blocked bash command patterns |
+| `permission_mode` | string | `"acceptEdits"` | Permission approval mode |
+| `allowed_tools` | string[] | — | Tools the agent can use (including `Bash()` patterns) |
+| `denied_tools` | string[] | — | Tools explicitly blocked (including `Bash()` patterns) |
+
+### Bash Pattern Syntax
+
+Bash commands are specified using `Bash(<pattern>)` syntax:
+
+| Pattern | Description |
+|---------|-------------|
+| `Bash(git *)` | Allow any git command |
+| `Bash(npm run build)` | Allow specific npm script |
+| `Bash(node scripts/*)` | Allow node scripts in specific directory |
+| `Bash(sudo *)` | (Deny) Block all sudo commands |
+| `Bash(rm -rf /)` | (Deny) Block dangerous rm command |
 
 ---
 

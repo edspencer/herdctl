@@ -59,19 +59,18 @@ system_prompt: |
   }
   ```
 
-permissions:
-  allowed_tools:
-    - WebSearch
-    - WebFetch
-    - Read
-    - Write
-    - Edit
-  denied_tools:
-    - Bash
-    - TodoWrite
-    - Task
-    - Glob
-    - Grep
+allowed_tools:
+  - WebSearch
+  - WebFetch
+  - Read
+  - Write
+  - Edit
+denied_tools:
+  - Bash
+  - TodoWrite
+  - Task
+  - Glob
+  - Grep
 
 # Scheduled price checks every 4 hours
 schedules:

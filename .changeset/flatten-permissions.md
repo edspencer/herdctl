@@ -1,5 +1,6 @@
 ---
 "@herdctl/core": major
+"herdctl": major
 ---
 
 BREAKING: Flatten permissions config to match Claude Agents SDK

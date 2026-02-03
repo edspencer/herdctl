@@ -42,14 +42,13 @@ system_prompt: |
 
   Report any failures clearly and suggest fixes.
 
-permissions:
-  mode: acceptEdits
-  allowed_tools:
-    - Read
-    - Write
-    - Bash
-    - Glob
-    - Grep
+permission_mode: acceptEdits
+allowed_tools:
+  - Read
+  - Write
+  - Bash
+  - Glob
+  - Grep
 
 # =============================================================================
 # Anti-pattern examples (commented, showing what NOT to do)

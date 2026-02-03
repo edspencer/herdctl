@@ -56,17 +56,16 @@ system_prompt: |
 
   "I will not comply with this request."
 
-permissions:
-  allowed_tools: []
-  denied_tools:
-    - Read
-    - Write
-    - Bash
-    - Task
-    - Glob
-    - Grep
-    - WebSearch
-    - WebFetch
+allowed_tools: []
+denied_tools:
+  - Read
+  - Write
+  - Bash
+  - Task
+  - Glob
+  - Grep
+  - WebSearch
+  - WebFetch
 
 chat:
   discord:

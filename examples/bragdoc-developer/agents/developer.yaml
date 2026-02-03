@@ -40,13 +40,12 @@ chat:
       mode: auto
 
 # Permissions - this agent has full access to the codebase
-permissions:
-  mode: bypassPermissions
-  allowed_tools:
-    - Read
-    - Write
-    - Edit
-    - Glob
-    - Grep
-    - Bash
-    - WebFetch
+permission_mode: bypassPermissions
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - Bash
+  - WebFetch

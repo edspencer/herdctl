@@ -199,11 +199,10 @@ system_prompt: |
   1. Update context.md with the results of this check
   2. Keep history to the last 10 entries
 
-permissions:
-  allowed_tools:
-    - Read
-    - Write
-    - Edit
+allowed_tools:
+  - Read
+  - Write
+  - Edit
 ```
 
 See [Persistent Memory Guide](/guides/persistent-memory/) for details.
@@ -233,17 +232,16 @@ hooks:
 Prevent agents from using certain tools:
 
 ```yaml
-permissions:
-  allowed_tools:
-    - WebSearch
-    - WebFetch
-    - Read
-    - Write
-    - Edit
-  denied_tools:
-    - Bash        # No shell access
-    - Task        # No spawning subagents
-    - TodoWrite   # Don't waste turns on todos
+allowed_tools:
+  - WebSearch
+  - WebFetch
+  - Read
+  - Write
+  - Edit
+denied_tools:
+  - Bash        # No shell access
+  - Task        # No spawning subagents
+  - TodoWrite   # Don't waste turns on todos
 ```
 
 ## Running Examples

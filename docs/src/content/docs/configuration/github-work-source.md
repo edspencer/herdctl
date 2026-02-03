@@ -557,16 +557,15 @@ session:
   model: claude-sonnet-4-20250514
 
 # Permissions
-permissions:
-  mode: acceptEdits
-  allowed_tools:
-    - Read
-    - Write
-    - Edit
-    - Bash
-    - Glob
-    - Grep
-    - Task
+permission_mode: acceptEdits
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - Bash
+  - Glob
+  - Grep
+  - Task
 
 mcp_servers:
   github:

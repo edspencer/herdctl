@@ -15,7 +15,7 @@ An **Agent** is a configured Claude Code instance with its own identity, workspa
 │  • name: "bragdoc-marketer"                                     │
 │  • identity: CLAUDE.md, knowledge/                              │
 │  • workspace: ~/herdctl-workspace/bragdoc-ai                    │
-│  • permissions: { allowedTools: [...], mode: "acceptEdits" }    │
+│  • permission_mode: "acceptEdits", allowed_tools: [...]         │
 │                                                                 │
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │                    SCHEDULES                             │   │
