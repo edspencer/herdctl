@@ -30,6 +30,26 @@ export interface PathMapping {
 }
 
 /**
+ * Port binding configuration
+ */
+export interface PortBinding {
+  /** Port on the host */
+  hostPort: number;
+  /** Port in the container */
+  containerPort: number;
+}
+
+/**
+ * Tmpfs mount configuration
+ */
+export interface TmpfsMount {
+  /** Path inside the container */
+  path: string;
+  /** Mount options (e.g., "size=100m,mode=1777") */
+  options?: string;
+}
+
+/**
  * Resolved Docker configuration with defaults applied
  */
 export interface DockerConfig {
@@ -45,6 +65,10 @@ export interface DockerConfig {
   memoryBytes: number;
   /** CPU shares (relative weight) */
   cpuShares?: number;
+  /** CPU period in microseconds (for hard CPU limits) */
+  cpuPeriod?: number;
+  /** CPU quota in microseconds per period (for hard CPU limits) */
+  cpuQuota?: number;
   /** Container user as "UID:GID" string */
   user: string;
   /** Maximum containers to keep per agent */
@@ -55,6 +79,14 @@ export interface DockerConfig {
   workspaceMode: VolumeMode;
   /** Environment variables to pass to the container */
   env: Record<string, string>;
+  /** Port bindings */
+  ports: PortBinding[];
+  /** Tmpfs mounts */
+  tmpfs: TmpfsMount[];
+  /** Maximum number of processes (PIDs) */
+  pidsLimit?: number;
+  /** Container labels */
+  labels: Record<string, string>;
 }
 
 /**
@@ -102,6 +134,54 @@ export function parseMemoryToBytes(memory: string): number {
   };
 
   return Math.floor(value * multipliers[unit]);
+}
+
+/**
+ * Parse port binding string to PortBinding
+ *
+ * @param port - Port string in format "hostPort:containerPort" or "containerPort"
+ * @returns PortBinding object
+ * @throws Error if format is invalid
+ */
+export function parsePortBinding(port: string): PortBinding {
+  const parts = port.split(":");
+
+  if (parts.length === 1) {
+    // Just container port - use same port on host
+    const containerPort = parseInt(parts[0], 10);
+    return { hostPort: containerPort, containerPort };
+  }
+
+  if (parts.length === 2) {
+    const hostPort = parseInt(parts[0], 10);
+    const containerPort = parseInt(parts[1], 10);
+    return { hostPort, containerPort };
+  }
+
+  throw new Error(
+    `Invalid port format: "${port}". Use "hostPort:containerPort" or "containerPort".`
+  );
+}
+
+/**
+ * Parse tmpfs mount string to TmpfsMount
+ *
+ * @param tmpfs - Tmpfs string in format "/path" or "/path:options"
+ * @returns TmpfsMount object
+ * @throws Error if format is invalid
+ */
+export function parseTmpfsMount(tmpfs: string): TmpfsMount {
+  const colonIndex = tmpfs.indexOf(":");
+
+  if (colonIndex === -1) {
+    // Just path, no options
+    return { path: tmpfs };
+  }
+
+  const path = tmpfs.slice(0, colonIndex);
+  const options = tmpfs.slice(colonIndex + 1);
+
+  return { path, options };
 }
 
 /**
@@ -161,10 +241,16 @@ export function resolveDockerConfig(docker?: DockerInput): DockerConfig {
     network: docker?.network ?? "bridge",
     memoryBytes: parseMemoryToBytes(docker?.memory ?? DEFAULT_MEMORY_LIMIT),
     cpuShares: docker?.cpu_shares,
+    cpuPeriod: docker?.cpu_period,
+    cpuQuota: docker?.cpu_quota,
     user: docker?.user ?? getHostUser(),
     maxContainers: docker?.max_containers ?? DEFAULT_MAX_CONTAINERS,
     volumes: docker?.volumes?.map(parseVolumeMount) ?? [],
     workspaceMode: docker?.workspace_mode ?? "rw",
     env: docker?.env ?? {},
+    ports: docker?.ports?.map(parsePortBinding) ?? [],
+    tmpfs: docker?.tmpfs?.map(parseTmpfsMount) ?? [],
+    pidsLimit: docker?.pids_limit,
+    labels: docker?.labels ?? {},
   };
 }

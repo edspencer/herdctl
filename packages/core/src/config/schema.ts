@@ -208,9 +208,28 @@ export const DockerSchema = z
     /** Environment variables to pass to the container (supports ${VAR} interpolation) */
     env: z.record(z.string(), z.string()).optional(),
 
+    /** Port bindings in format "hostPort:containerPort" or "containerPort" (e.g., "8080:80", "3000") */
+    ports: z.array(z.string()).optional(),
+
+    /** Tmpfs mounts in format "path" or "path:options" (e.g., "/tmp", "/tmp:size=100m,mode=1777") */
+    tmpfs: z.array(z.string()).optional(),
+
+    /** Maximum number of processes (PIDs) allowed in the container (prevents fork bombs) */
+    pids_limit: z.number().int().positive().optional(),
+
+    /** Container labels for organization and filtering */
+    labels: z.record(z.string(), z.string()).optional(),
+
+    /** CPU period in microseconds (default: 100000 = 100ms). Used with cpu_quota for hard CPU limits. */
+    cpu_period: z.number().int().positive().optional(),
+
+    /** CPU quota in microseconds per cpu_period. E.g., cpu_period=100000 + cpu_quota=50000 = 50% of one CPU. */
+    cpu_quota: z.number().int().positive().optional(),
+
     /** @deprecated Use 'image' instead */
     base_image: z.string().optional(),
   })
+  .strict() // Reject unknown Docker options to prevent silent misconfiguration
   .refine(
     (data) => {
       if (!data.memory) return true;
@@ -251,6 +270,35 @@ export const DockerSchema = z
     {
       message: 'Invalid user format. Use "UID" or "UID:GID" (e.g., "1000" or "1000:1000").',
       path: ["user"],
+    }
+  )
+  .refine(
+    (data) => {
+      if (!data.ports) return true;
+      // Validate port format: "hostPort:containerPort" or just "containerPort"
+      return data.ports.every((port) => {
+        // Format: "hostPort:containerPort" or "containerPort"
+        return /^\d+(?::\d+)?$/.test(port);
+      });
+    },
+    {
+      message: 'Invalid port format. Use "hostPort:containerPort" or "containerPort" (e.g., "8080:80", "3000").',
+      path: ["ports"],
+    }
+  )
+  .refine(
+    (data) => {
+      if (!data.tmpfs) return true;
+      // Validate tmpfs format: "/path" or "/path:options"
+      return data.tmpfs.every((mount) => {
+        // Must start with /
+        const parts = mount.split(":");
+        return parts[0].startsWith("/");
+      });
+    },
+    {
+      message: 'Invalid tmpfs format. Use "/path" or "/path:options" (e.g., "/tmp", "/tmp:size=100m").',
+      path: ["tmpfs"],
     }
   );
 

@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   parseMemoryToBytes,
   parseVolumeMount,
+  parsePortBinding,
+  parseTmpfsMount,
   getHostUser,
   resolveDockerConfig,
   DEFAULT_DOCKER_IMAGE,
@@ -169,6 +171,79 @@ describe("parseVolumeMount", () => {
   });
 });
 
+describe("parsePortBinding", () => {
+  describe("valid formats", () => {
+    it("parses hostPort:containerPort", () => {
+      const result = parsePortBinding("8080:80");
+      expect(result).toEqual({
+        hostPort: 8080,
+        containerPort: 80,
+      });
+    });
+
+    it("parses same port on both sides", () => {
+      const result = parsePortBinding("3000:3000");
+      expect(result).toEqual({
+        hostPort: 3000,
+        containerPort: 3000,
+      });
+    });
+
+    it("parses containerPort only (uses same for host)", () => {
+      const result = parsePortBinding("3000");
+      expect(result).toEqual({
+        hostPort: 3000,
+        containerPort: 3000,
+      });
+    });
+  });
+
+  describe("invalid formats", () => {
+    it("throws for too many colons", () => {
+      expect(() => parsePortBinding("80:80:80")).toThrow("Invalid port format");
+    });
+
+    // Empty string and non-numeric values are caught by schema validation
+    // before reaching parsePortBinding
+  });
+});
+
+describe("parseTmpfsMount", () => {
+  describe("valid formats", () => {
+    it("parses path only", () => {
+      const result = parseTmpfsMount("/tmp");
+      expect(result).toEqual({
+        path: "/tmp",
+        options: undefined,
+      });
+    });
+
+    it("parses path with options", () => {
+      const result = parseTmpfsMount("/tmp:size=100m,mode=1777");
+      expect(result).toEqual({
+        path: "/tmp",
+        options: "size=100m,mode=1777",
+      });
+    });
+
+    it("parses path with single option", () => {
+      const result = parseTmpfsMount("/run:size=50m");
+      expect(result).toEqual({
+        path: "/run",
+        options: "size=50m",
+      });
+    });
+
+    it("handles nested paths", () => {
+      const result = parseTmpfsMount("/var/tmp:size=200m");
+      expect(result).toEqual({
+        path: "/var/tmp",
+        options: "size=200m",
+      });
+    });
+  });
+});
+
 describe("getHostUser", () => {
   it("returns UID:GID format", () => {
     const user = getHostUser();
@@ -238,6 +313,32 @@ describe("resolveDockerConfig", () => {
       const config = resolveDockerConfig({});
       expect(config.cpuShares).toBeUndefined();
     });
+
+    it("defaults new CPU options to undefined", () => {
+      const config = resolveDockerConfig({});
+      expect(config.cpuPeriod).toBeUndefined();
+      expect(config.cpuQuota).toBeUndefined();
+    });
+
+    it("defaults pidsLimit to undefined", () => {
+      const config = resolveDockerConfig({});
+      expect(config.pidsLimit).toBeUndefined();
+    });
+
+    it("defaults ports to empty array", () => {
+      const config = resolveDockerConfig({});
+      expect(config.ports).toEqual([]);
+    });
+
+    it("defaults tmpfs to empty array", () => {
+      const config = resolveDockerConfig({});
+      expect(config.tmpfs).toEqual([]);
+    });
+
+    it("defaults labels to empty object", () => {
+      const config = resolveDockerConfig({});
+      expect(config.labels).toEqual({});
+    });
   });
 
   describe("field overrides", () => {
@@ -293,6 +394,61 @@ describe("resolveDockerConfig", () => {
     it("respects max_containers", () => {
       const config = resolveDockerConfig({ max_containers: 10 });
       expect(config.maxContainers).toBe(10);
+    });
+
+    it("respects cpu_period and cpu_quota", () => {
+      const config = resolveDockerConfig({
+        cpu_period: 100000,
+        cpu_quota: 50000,
+      });
+      expect(config.cpuPeriod).toBe(100000);
+      expect(config.cpuQuota).toBe(50000);
+    });
+
+    it("respects pids_limit", () => {
+      const config = resolveDockerConfig({ pids_limit: 100 });
+      expect(config.pidsLimit).toBe(100);
+    });
+
+    it("respects labels", () => {
+      const config = resolveDockerConfig({
+        labels: { app: "myapp", env: "production" },
+      });
+      expect(config.labels).toEqual({ app: "myapp", env: "production" });
+    });
+  });
+
+  describe("port parsing", () => {
+    it("parses port array", () => {
+      const config = resolveDockerConfig({
+        ports: ["8080:80", "3000"],
+      });
+
+      expect(config.ports).toHaveLength(2);
+      expect(config.ports[0]).toEqual({ hostPort: 8080, containerPort: 80 });
+      expect(config.ports[1]).toEqual({ hostPort: 3000, containerPort: 3000 });
+    });
+
+    it("handles empty ports array", () => {
+      const config = resolveDockerConfig({ ports: [] });
+      expect(config.ports).toEqual([]);
+    });
+  });
+
+  describe("tmpfs parsing", () => {
+    it("parses tmpfs array", () => {
+      const config = resolveDockerConfig({
+        tmpfs: ["/tmp", "/run:size=50m"],
+      });
+
+      expect(config.tmpfs).toHaveLength(2);
+      expect(config.tmpfs[0]).toEqual({ path: "/tmp", options: undefined });
+      expect(config.tmpfs[1]).toEqual({ path: "/run", options: "size=50m" });
+    });
+
+    it("handles empty tmpfs array", () => {
+      const config = resolveDockerConfig({ tmpfs: [] });
+      expect(config.tmpfs).toEqual([]);
     });
   });
 
