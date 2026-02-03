@@ -1,5 +1,177 @@
 # @herdctl/core
 
+## 2.0.0
+
+### Major Changes
+
+- [#31](https://github.com/edspencer/herdctl/pull/31) [`ebd3e16`](https://github.com/edspencer/herdctl/commit/ebd3e164149711cff75d52c9a8b0db518fa12d5d) Thanks [@edspencer](https://github.com/edspencer)! - **BREAKING CHANGE**: Rename `workspace` config field to `working_directory`
+
+  The configuration field `workspace` has been renamed to `working_directory` throughout the codebase for better clarity. This affects:
+
+  - Fleet config: `defaults.workspace` → `defaults.working_directory`
+  - Agent config: `workspace` → `working_directory`
+  - Fleet config: top-level `workspace` → `working_directory`
+
+  **Backward compatibility**: The old `workspace` field is still supported with automatic migration and deprecation warnings. Configs using `workspace` will continue to work but will emit a warning encouraging migration to `working_directory`.
+
+  **Migration**: Replace all occurrences of `workspace:` with `working_directory:` in your YAML config files.
+
+### Minor Changes
+
+- [#31](https://github.com/edspencer/herdctl/pull/31) [`ebd3e16`](https://github.com/edspencer/herdctl/commit/ebd3e164149711cff75d52c9a8b0db518fa12d5d) Thanks [@edspencer](https://github.com/edspencer)! - Add Docker container runtime support for agent execution
+
+  Agents can now be executed inside Docker containers instead of directly on the host machine. This provides better isolation, environment control, and resource management.
+
+  **New Configuration**:
+
+  ```yaml
+  docker:
+    enabled: true
+    image: "anthropics/claude-code:latest"
+    workspaceMode: "rw" # or "ro" for read-only
+    cpus: 2.0
+    memory: "2g"
+    network: "bridge"
+    mounts:
+      - hostPath: "/host/path"
+        containerPath: "/container/path"
+        mode: "rw"
+    environment:
+      KEY: "value"
+  ```
+
+  **Features**:
+
+  - Container-based agent execution with full isolation
+  - Ephemeral containers by default (clean state each execution)
+  - Configurable resource limits (CPU, memory)
+  - Volume mounting for workspace and custom paths
+  - Environment variable injection (custom vars + CLAUDE_CODE_OAUTH_TOKEN)
+  - Automatic git authentication when GITHUB_TOKEN is provided
+  - Network configuration (bridge, host, none)
+  - Automatic image pulling and container lifecycle management
+  - Proper cleanup on both success and failure
+  - Works with both SDK and CLI runtimes
+
+  **Use Cases**:
+
+  - Run agents in isolated environments
+  - Control resource usage per agent
+  - Ensure consistent execution environments
+  - Enhanced security through containerization
+
+- [#31](https://github.com/edspencer/herdctl/pull/31) [`ebd3e16`](https://github.com/edspencer/herdctl/commit/ebd3e164149711cff75d52c9a8b0db518fa12d5d) Thanks [@edspencer](https://github.com/edspencer)! - Add runtime selection between SDK and CLI for agent execution
+
+  Agents can now choose between two execution runtimes:
+
+  - **SDK Runtime** (default): Uses Claude Agent SDK with standard Claude Code features
+  - **CLI Runtime**: Uses `claude-p` CLI invocation to preserve Claude Max tokens
+
+  **New Configuration**:
+
+  ```yaml
+  # Agent-level runtime selection
+  runtime: sdk  # or "cli"
+
+  # Or with CLI-specific options
+  runtime:
+    type: cli
+    command: claude-p  # Custom CLI command (optional)
+  ```
+
+  **SDK Runtime** (Default):
+
+  - Full Claude Agent SDK integration
+  - All standard Claude Code features
+  - Standard token consumption
+
+  **CLI Runtime**:
+
+  - Invokes `claude -p` directly (or custom Claude CLI fork)
+  - Preserves Claude Max tokens instead of consuming API credits
+  - Session file watching for message streaming
+  - Works with both host and Docker execution
+
+  **Full Configuration Pass-Through**:
+  Both runtimes support the complete agent configuration:
+
+  - `model` - Model selection (e.g., claude-sonnet-4-20250514)
+  - `system_prompt` - Custom system prompts
+  - `permission_mode` - Permission handling (acceptEdits, plan, etc.)
+  - `permissions.allowed_tools` / `permissions.denied_tools` - Tool access control
+  - `permissions.bash.allowed_commands` / `permissions.bash.denied_patterns` - Bash restrictions
+  - `mcp_servers` - MCP server configuration
+  - `setting_sources` - Setting source configuration
+
+  **Use Cases**:
+
+  - Preserve Claude Max tokens for long-running agents
+  - Use custom Claude CLI forks with modified behavior
+  - Switch between SDK and CLI without code changes
+  - Test different runtime behaviors
+
+  The runtime architecture is pluggable, making it easy to add additional runtime types in the future.
+
+- [#31](https://github.com/edspencer/herdctl/pull/31) [`ebd3e16`](https://github.com/edspencer/herdctl/commit/ebd3e164149711cff75d52c9a8b0db518fa12d5d) Thanks [@edspencer](https://github.com/edspencer)! - Add runtime context tracking to sessions
+
+  Sessions now track the runtime configuration (SDK vs CLI, Docker vs native) they were created with. This prevents session resume errors when switching between runtime modes.
+
+  **Session Schema Updates**:
+
+  - Added `runtime_type` field (defaults to "sdk" for legacy sessions)
+  - Added `docker_enabled` field (defaults to false for legacy sessions)
+
+  **Validation**:
+
+  - Sessions are automatically invalidated when runtime context changes
+  - Prevents "conversation not found" errors when switching Docker mode
+  - Clear error messages explain why sessions were cleared
+
+  **Migration**:
+
+  - Legacy sessions automatically get default values via Zod schema
+  - No manual migration needed - sessions self-heal on first use
+  - Context mismatches trigger automatic session cleanup
+
+  This ensures sessions remain valid only for the runtime configuration they were created with, preventing confusion when enabling/disabling Docker or switching between SDK and CLI runtimes.
+
+### Patch Changes
+
+- [#31](https://github.com/edspencer/herdctl/pull/31) [`ebd3e16`](https://github.com/edspencer/herdctl/commit/ebd3e164149711cff75d52c9a8b0db518fa12d5d) Thanks [@edspencer](https://github.com/edspencer)! - Fix Discord typing indicator to stop immediately when messages are sent
+
+  The typing indicator now stops as soon as the first message is sent, rather than continuing to show "typing..." while messages are being delivered. This provides a more natural chat experience.
+
+  **Improvements**:
+
+  - Stop typing immediately after SDK execution completes
+  - Stop typing when the first streamed message is sent
+  - Prevent multiple stopTyping calls with state tracking
+  - Proper cleanup in finally block for error cases
+  - Removed verbose debug logging for cleaner output
+
+- [#31](https://github.com/edspencer/herdctl/pull/31) [`ebd3e16`](https://github.com/edspencer/herdctl/commit/ebd3e164149711cff75d52c9a8b0db518fa12d5d) Thanks [@edspencer](https://github.com/edspencer)! - Detect and clear stale sessions when working_directory changes
+
+  Adds automatic detection of working directory changes between sessions. When the `working_directory` changes, Claude Code looks for the session file in a different project directory and fails with ENOENT errors.
+
+  **Behavior**:
+
+  - Session metadata now stores the `working_directory` path
+  - On session resume, validates that `working_directory` hasn't changed
+  - If changed, logs a warning with old → new paths
+  - Automatically clears the stale session
+  - Starts fresh session instead of attempting failed resume
+
+  **Example Warning**:
+
+  ```
+  Working directory changed from /old/path to /new/path - clearing stale session abc123
+  ```
+
+  This prevents confusing "session file not found" errors when users change their agent's `working_directory` configuration.
+
+- Updated dependencies []:
+  - @herdctl/discord@0.1.5
+
 ## 1.3.1
 
 ### Patch Changes
