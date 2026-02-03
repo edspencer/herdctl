@@ -23,6 +23,15 @@ RUN npm install -g @anthropic-ai/claude-code @anthropic-ai/claude-agent-sdk
 COPY packages/core/src/runner/runtime/docker-sdk-wrapper.js /usr/local/lib/docker-sdk-wrapper.js
 RUN chmod +x /usr/local/lib/docker-sdk-wrapper.js
 
+# Create entrypoint script that configures git with GITHUB_TOKEN if present
+RUN printf '#!/bin/sh\n\
+if [ -n "$GITHUB_TOKEN" ]; then\n\
+  git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"\n\
+fi\n\
+exec "$@"\n' > /usr/local/bin/docker-entrypoint.sh && chmod +x /usr/local/bin/docker-entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+
 # Create directories that Claude CLI will need to write to
 # Make them world-writable so any UID can use them (container isolation provides security)
 RUN mkdir -p /home/claude/.claude/projects && \
