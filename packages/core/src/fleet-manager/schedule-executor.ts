@@ -94,7 +94,7 @@ export class ScheduleExecutor {
         logger,
       });
 
-      // Track whether we've emitted the job:created event
+      // Track job ID for streaming - set via onJobCreated callback before execution starts
       let jobId: string | undefined;
 
       // Execute the job with streaming output
@@ -105,6 +105,11 @@ export class ScheduleExecutor {
         triggerType: "schedule",
         schedule: scheduleName,
         outputToFile: schedule.outputToFile ?? false,
+        onJobCreated: (id: string) => {
+          // Set jobId early so onMessage can emit events during execution
+          jobId = id;
+          logger.debug(`Job ${id} created for ${agent.name}/${scheduleName}`);
+        },
         onMessage: async (message: SDKMessage) => {
           // Emit job:output events for real-time streaming
           if (jobId) {
@@ -123,9 +128,6 @@ export class ScheduleExecutor {
           }
         },
       });
-
-      // Store the jobId for reference
-      jobId = result.jobId;
 
       // Emit job:created event now that we have the job info
       const jobsDir = join(stateDir, "jobs");

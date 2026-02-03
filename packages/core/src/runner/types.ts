@@ -90,11 +90,18 @@ export interface SDKMessage {
 export type MessageCallback = (message: SDKMessage) => void | Promise<void>;
 
 /**
+ * Callback for when a job is created (before execution starts)
+ */
+export type JobCreatedCallback = (jobId: string) => void;
+
+/**
  * Extended options including callbacks
  */
 export interface RunnerOptionsWithCallbacks extends RunnerOptions {
   /** Called for each message from the SDK */
   onMessage?: MessageCallback;
+  /** Called when the job is created, before execution starts */
+  onJobCreated?: JobCreatedCallback;
 }
 
 // =============================================================================
