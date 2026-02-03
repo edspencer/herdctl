@@ -700,6 +700,10 @@ export class DiscordManager {
         }
       }
 
+      // Stop typing indicator now that all messages have been sent
+      // This prevents showing typing during session storage and event emission
+      stopTyping();
+
       // Store the SDK session ID for future conversation continuity
       // Only store if the job succeeded - failed jobs may return invalid session IDs
       if (connector && result.sessionId && result.success) {
@@ -743,7 +747,8 @@ export class DiscordManager {
         timestamp: new Date().toISOString(),
       });
     } finally {
-      // Always stop typing indicator when done
+      // Safety net: stop typing indicator if not already stopped
+      // (Should already be stopped after sending messages, but this ensures cleanup on errors)
       stopTyping();
     }
   }
