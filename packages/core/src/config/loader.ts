@@ -202,6 +202,35 @@ export async function findConfigFile(
 }
 
 // =============================================================================
+// Backward Compatibility
+// =============================================================================
+
+/**
+ * Handle backward compatibility for renamed config fields
+ *
+ * Emits warnings for deprecated field names and migrates them to new names.
+ * Currently handles: workspace -> working_directory
+ */
+function handleBackwardCompatibility(
+  config: Record<string, unknown>,
+  context: string
+): void {
+  // Handle workspace -> working_directory migration
+  if ("workspace" in config) {
+    if (!("working_directory" in config)) {
+      // Only workspace present - migrate and warn
+      console.warn(
+        `Warning: "${context}" uses deprecated "workspace" field. ` +
+          'Use "working_directory" instead.'
+      );
+      config.working_directory = config.workspace;
+    }
+    // Always delete workspace to avoid Zod strict mode errors
+    delete config.workspace;
+  }
+}
+
+// =============================================================================
 // Internal Parsing Functions
 // =============================================================================
 
@@ -228,6 +257,27 @@ function parseFleetYaml(content: string, filePath: string): FleetConfig {
   // Handle empty files
   if (rawConfig === null || rawConfig === undefined) {
     rawConfig = {};
+  }
+
+  // Handle backward compatibility for fleet config
+  if (typeof rawConfig === "object" && rawConfig !== null) {
+    handleBackwardCompatibility(
+      rawConfig as Record<string, unknown>,
+      `Fleet config '${filePath}'`
+    );
+
+    // Also handle defaults section
+    const config = rawConfig as Record<string, unknown>;
+    if (
+      config.defaults &&
+      typeof config.defaults === "object" &&
+      config.defaults !== null
+    ) {
+      handleBackwardCompatibility(
+        config.defaults as Record<string, unknown>,
+        `Fleet defaults in '${filePath}'`
+      );
+    }
   }
 
   try {
@@ -263,6 +313,14 @@ function parseAgentYaml(content: string, filePath: string): AgentConfig {
   // Handle empty files
   if (rawConfig === null || rawConfig === undefined) {
     rawConfig = {};
+  }
+
+  // Handle backward compatibility
+  if (typeof rawConfig === "object" && rawConfig !== null) {
+    handleBackwardCompatibility(
+      rawConfig as Record<string, unknown>,
+      `Agent config '${filePath}'`
+    );
   }
 
   try {
@@ -422,6 +480,27 @@ export async function loadConfig(
     fleetConfig = interpolateConfig(fleetConfig, { env });
   }
 
+  // Normalize working_directory in fleet defaults (resolve relative paths relative to fleet config directory)
+  // This ensures fleet-level default working directory paths are resolved consistently before merging into agents
+  if (fleetConfig.defaults?.working_directory) {
+    const working_directory = fleetConfig.defaults.working_directory;
+    if (typeof working_directory === "string") {
+      // Resolve relative string working directory path
+      if (!working_directory.startsWith("/")) {
+        fleetConfig.defaults.working_directory = resolve(
+          configDir,
+          working_directory
+        );
+      }
+    } else if (
+      working_directory.root &&
+      !working_directory.root.startsWith("/")
+    ) {
+      // Resolve relative root in working directory object
+      working_directory.root = resolve(configDir, working_directory.root);
+    }
+  }
+
   // Load all agent configs
   const agents: ResolvedAgent[] = [];
 
@@ -472,6 +551,29 @@ export async function loadConfig(
         agentConfig as Record<string, unknown>,
         agentRef.overrides as Record<string, unknown>
       ) as AgentConfig;
+    }
+
+    // Normalize working_directory: default to agent config directory, resolve relative paths
+    const agentConfigDir = dirname(agentPath);
+    if (!agentConfig.working_directory) {
+      // Default: working directory is the directory containing the agent config file
+      agentConfig.working_directory = agentConfigDir;
+    } else if (typeof agentConfig.working_directory === "string") {
+      // If working directory is a relative path, resolve it relative to agent config directory
+      if (!agentConfig.working_directory.startsWith("/")) {
+        agentConfig.working_directory = resolve(
+          agentConfigDir,
+          agentConfig.working_directory
+        );
+      }
+    } else if (agentConfig.working_directory.root) {
+      // If working directory is an object with relative root, resolve root relative to agent config directory
+      if (!agentConfig.working_directory.root.startsWith("/")) {
+        agentConfig.working_directory.root = resolve(
+          agentConfigDir,
+          agentConfig.working_directory.root
+        );
+      }
     }
 
     agents.push({

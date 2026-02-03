@@ -33,6 +33,8 @@ export interface RunnerOptions {
   forkedFrom?: string;
   /** When true, job output is also written to .herdctl/jobs/{jobId}/output.log (default: false) */
   outputToFile?: boolean;
+  /** AbortController for canceling the execution */
+  abortController?: AbortController;
 }
 
 /**
@@ -169,7 +171,7 @@ export type SDKSystemPrompt =
 export interface SDKQueryOptions {
   allowedTools?: string[];
   deniedTools?: string[];
-  permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan";
+  permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "delegate" | "dontAsk";
   systemPrompt?: SDKSystemPrompt;
   settingSources?: string[];
   mcpServers?: Record<string, SDKMcpServerConfig>;
@@ -179,6 +181,8 @@ export interface SDKQueryOptions {
   maxTurns?: number;
   /** Current working directory for the session */
   cwd?: string;
+  /** Model to use for the session */
+  model?: string;
 }
 
 // =============================================================================

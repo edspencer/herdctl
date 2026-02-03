@@ -1,0 +1,22 @@
+version: 1
+
+fleet:
+  name: runtime-showcase
+  description: Demonstrates SDK, CLI, and Docker runtime configurations
+
+agents:
+  - path: agents/sdk-agent.yaml
+    # Development: SDK runtime, no Docker (simplest setup)
+  - path: agents/cli-agent.yaml
+    # Cost-optimized: CLI runtime for Max plan users
+  - path: agents/docker-agent.yaml
+    # Production: Docker isolation with security hardening
+  - path: agents/mixed-fleet.yaml
+    # Mixed: Shows overrides for different runtimes per schedule
+
+defaults:
+  model: claude-sonnet-4-20250514
+  permission_mode: acceptEdits
+  session:
+    timeout: 30m
+    max_turns: 25

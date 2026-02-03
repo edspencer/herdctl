@@ -81,6 +81,7 @@ permission_mode: acceptEdits
 | `mcp_servers` | object | No | MCP server configurations |
 | `chat` | object | No | Chat integration settings |
 | `docker` | object | No | Docker execution settings |
+| `runtime` | string | No | Runtime type: `"sdk"` (default) or `"cli"` |
 | `model` | string | No | Claude model to use |
 | `max_turns` | integer | No | Maximum conversation turns |
 | `permission_mode` | string | No | Quick permission mode setting |
@@ -590,18 +591,49 @@ Each chat-enabled agent needs its own Discord Application (created in [Discord D
 
 ### docker
 
-Run the agent in a Docker container.
+Run the agent in a Docker container for security isolation.
 
 ```yaml
 docker:
   enabled: true
-  base_image: node:20-slim
+  image: "anthropic/claude-code:latest"
+  network: bridge
+  memory: "2g"
+  user: "1000:1000"
+  workspace_mode: rw
+  volumes:
+    - "/data/models:/models:ro"
 ```
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `enabled` | boolean | `false` | Enable Docker execution |
-| `base_image` | string | — | Docker image to use |
+| `image` | string | `anthropic/claude-code:latest` | Docker image |
+| `network` | string | `bridge` | Network mode: `none`, `bridge`, `host` |
+| `memory` | string | `2g` | Memory limit |
+| `cpu_shares` | integer | — | CPU relative weight |
+| `user` | string | Host UID:GID | Container user |
+| `workspace_mode` | string | `rw` | Workspace mount: `rw` or `ro` |
+| `volumes` | array | `[]` | Additional volume mounts |
+| `ephemeral` | boolean | `true` | Fresh container per job |
+| `max_containers` | integer | `5` | Container pool limit |
+
+See [Docker Configuration](/configuration/docker/) for security model and detailed options.
+
+### runtime
+
+Select the runtime backend for this agent.
+
+```yaml
+runtime: cli  # Use CLI runtime (Max plan pricing)
+```
+
+| Value | Description |
+|-------|-------------|
+| `sdk` | Claude Agent SDK (default, standard pricing) |
+| `cli` | Claude CLI (Max plan pricing, requires CLI installed) |
+
+See [Runtime Configuration](/configuration/runtime/) for detailed guidance on choosing a runtime.
 
 ### model
 
@@ -901,6 +933,8 @@ herdctl validate agents/my-agent.yaml
 ## Related Pages
 
 - [Fleet Configuration](/configuration/fleet-config/) — Global fleet settings
+- [Runtime Configuration](/configuration/runtime/) — SDK vs CLI runtime selection
+- [Docker Configuration](/configuration/docker/) — Container security and isolation
 - [Permissions](/configuration/permissions/) — Detailed permission controls
 - [MCP Servers](/configuration/mcp-servers/) — MCP server setup
 - [Hooks](/concepts/hooks/) — Post-job actions and notifications

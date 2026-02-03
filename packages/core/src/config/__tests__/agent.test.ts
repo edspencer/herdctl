@@ -35,7 +35,7 @@ describe("AgentConfigSchema", () => {
     const config = {
       name: "bragdoc-coder",
       description: "A coding assistant agent",
-      workspace: "/home/agent/workspace",
+      working_directory: "/home/agent/workspace",
       repo: "https://github.com/example/repo",
       identity: {
         name: "Cody",
@@ -136,18 +136,18 @@ describe("AgentConfigSchema", () => {
   it("accepts workspace as string path", () => {
     const result = AgentConfigSchema.safeParse({
       name: "test-agent",
-      workspace: "/path/to/workspace",
+      working_directory: "/path/to/workspace",
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.workspace).toBe("/path/to/workspace");
+      expect(result.data.working_directory).toBe("/path/to/workspace");
     }
   });
 
   it("accepts workspace as full workspace object", () => {
     const result = AgentConfigSchema.safeParse({
       name: "test-agent",
-      workspace: {
+      working_directory: {
         root: "/path/to/workspace",
         auto_clone: false,
         clone_depth: 5,
@@ -156,11 +156,11 @@ describe("AgentConfigSchema", () => {
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      const workspace = result.data.workspace;
-      expect(typeof workspace).toBe("object");
-      if (typeof workspace === "object" && workspace !== null) {
-        expect(workspace.root).toBe("/path/to/workspace");
-        expect(workspace.auto_clone).toBe(false);
+      const working_directory = result.data.working_directory;
+      expect(typeof working_directory).toBe("object");
+      if (typeof working_directory === "object" && working_directory !== null) {
+        expect(working_directory.root).toBe("/path/to/workspace");
+        expect(working_directory.auto_clone).toBe(false);
       }
     }
   });
@@ -430,7 +430,7 @@ description: A test agent
     const yaml = `
 name: bragdoc-coder
 description: A coding assistant for the bragdoc project
-workspace: ~/projects/bragdoc
+working_directory: ~/projects/bragdoc
 repo: https://github.com/example/bragdoc
 
 identity:
@@ -474,7 +474,7 @@ max_turns: 100
 `;
     const config = parseAgentConfig(yaml, "/path/to/agent.yaml");
     expect(config.name).toBe("bragdoc-coder");
-    expect(config.workspace).toBe("~/projects/bragdoc");
+    expect(config.working_directory).toBe("~/projects/bragdoc");
     expect(config.repo).toBe("https://github.com/example/bragdoc");
     expect(config.identity?.name).toBe("Cody");
     expect(config.work_source?.type).toBe("github");
@@ -768,7 +768,7 @@ description: Missing name field
       `
 name: complex-agent
 description: A fully configured agent
-workspace: ~/workspace
+working_directory: ~/workspace
 repo: https://github.com/example/repo
 
 identity:

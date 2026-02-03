@@ -10,14 +10,16 @@
 
 import type { ResolvedAgent, Schedule } from "../config/index.js";
 import type { ScheduleState } from "../state/schemas/fleet-state.js";
-import type { RunnerResult, SDKQueryFunction } from "../runner/index.js";
+import type { RunnerResult } from "../runner/index.js";
 import type {
   WorkSourceManager,
   WorkItem,
   WorkResult,
   WorkOutcome,
 } from "../work-sources/index.js";
-import { JobExecutor, type JobExecutorOptions } from "../runner/index.js";
+import { join } from "node:path";
+import { JobExecutor, RuntimeFactory, type JobExecutorOptions } from "../runner/index.js";
+import { getSessionInfo } from "../state/index.js";
 import {
   updateScheduleState,
   type ScheduleStateLogger,
@@ -67,8 +69,6 @@ export interface RunScheduleOptions {
   scheduleState: ScheduleState;
   /** Path to the state directory (e.g., .herdctl) */
   stateDir: string;
-  /** The SDK query function for agent execution */
-  sdkQuery: SDKQueryFunction;
   /** Optional work source manager for fetching work items */
   workSourceManager?: WorkSourceManager;
   /** Optional logger */
@@ -214,7 +214,6 @@ function formatWorkItem(workItem: WorkItem): string {
  *   schedule: { type: 'interval', interval: '1h', prompt: 'Check status' },
  *   scheduleState: { status: 'idle', last_run_at: null },
  *   stateDir: '.herdctl',
- *   sdkQuery: query,
  * });
  *
  * console.log(`Job ${result.jobId} completed: ${result.success}`);
@@ -250,7 +249,6 @@ export async function runSchedule(
     scheduleName,
     schedule,
     stateDir,
-    sdkQuery,
     workSourceManager,
     logger = defaultLogger,
     executorOptions,
@@ -319,8 +317,43 @@ export async function runSchedule(
       triggerMetadata.workItemTitle = workItem.title;
     }
 
-    // Step 5: Execute the agent via JobExecutor
-    const executor = new JobExecutor(sdkQuery, executorOptions);
+    // Step 5: Get existing session for conversation continuity
+    // This prevents unexpected logouts by resuming the agent's session
+    // Session expiry is validated using the agent's session.timeout config (default: 24h)
+    // By default, sessions are resumed unless explicitly disabled via resume_session: false
+    let sessionId: string | undefined;
+    if (schedule.resume_session !== false) {
+      try {
+        const sessionsDir = join(stateDir, "sessions");
+        // Use session timeout config for expiry validation to prevent resuming stale sessions
+        // Default to 24h if not configured - this prevents unexpected logouts from expired server-side sessions
+        const sessionTimeout = agent.session?.timeout ?? "24h";
+        const existingSession = await getSessionInfo(sessionsDir, agent.name, {
+          timeout: sessionTimeout,
+          logger,
+          runtime: agent.runtime ?? "sdk",
+        });
+        if (existingSession?.session_id) {
+          sessionId = existingSession.session_id;
+          logger.debug(
+            `Found valid session for ${agent.name}: ${sessionId}`
+          );
+        } else {
+          logger.debug(
+            `No valid session for ${agent.name} (expired or not found), starting fresh`
+          );
+        }
+      } catch (error) {
+        logger.warn(
+          `Failed to get session info for ${agent.name}: ${(error as Error).message}`
+        );
+        // Continue without resume - session failure shouldn't block execution
+      }
+    }
+
+    // Step 6: Execute the agent via JobExecutor
+    const runtime = RuntimeFactory.create(agent, { stateDir });
+    const executor = new JobExecutor(runtime, executorOptions);
 
     const runnerResult = await executor.execute({
       agent,
@@ -328,9 +361,10 @@ export async function runSchedule(
       stateDir,
       triggerType: "schedule",
       schedule: scheduleName,
+      resume: sessionId,
     });
 
-    // Step 6: Report outcome to work source if we processed a work item
+    // Step 7: Report outcome to work source if we processed a work item
     if (workItem && workSourceManager) {
       const workResult = buildWorkResult(runnerResult);
 
@@ -349,10 +383,10 @@ export async function runSchedule(
       }
     }
 
-    // Step 7: Calculate next trigger time based on schedule type
+    // Step 8: Calculate next trigger time based on schedule type
     const nextTrigger = calculateNextScheduleTrigger(schedule);
 
-    // Step 8: Update schedule state with success
+    // Step 9: Update schedule state with success
     await updateScheduleState(
       stateDir,
       agent.name,

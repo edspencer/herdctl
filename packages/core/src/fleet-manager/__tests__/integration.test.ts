@@ -1343,6 +1343,40 @@ describe("FleetManager Integration Tests (US-13)", () => {
         expect(manager.state.status).toBe("error");
         expect(manager.state.lastError).toBeDefined();
       });
+
+      it("rejects duplicate agent names", async () => {
+        // Create two agents with the same name
+        await createAgentConfig("agent-one", {
+          name: "duplicate-name",
+        });
+        await createAgentConfig("agent-two", {
+          name: "duplicate-name",
+        });
+
+        const configPath = await createConfig({
+          version: 1,
+          agents: [
+            { path: "./agents/agent-one.yaml" },
+            { path: "./agents/agent-two.yaml" },
+          ],
+        });
+
+        const logger = createSilentLogger();
+        const manager = new FleetManager({
+          configPath,
+          stateDir,
+          logger,
+        });
+
+        // Initialize should fail with ConfigurationError
+        await expect(manager.initialize()).rejects.toThrow(
+          /Duplicate agent names found.*"duplicate-name"/
+        );
+
+        // Status should be error
+        expect(manager.state.status).toBe("error");
+        expect(manager.state.lastError).toContain("Duplicate agent names");
+      });
     });
   });
 });

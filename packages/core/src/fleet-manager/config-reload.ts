@@ -322,17 +322,17 @@ export function getAgentModifications(
     modifications.push("system_prompt");
   }
 
-  // Check workspace
-  const oldWorkspace =
-    typeof oldAgent.workspace === "string"
-      ? oldAgent.workspace
-      : oldAgent.workspace?.root;
-  const newWorkspace =
-    typeof newAgent.workspace === "string"
-      ? newAgent.workspace
-      : newAgent.workspace?.root;
-  if (oldWorkspace !== newWorkspace) {
-    modifications.push("workspace");
+  // Check working directory
+  const oldWorkingDirectory =
+    typeof oldAgent.working_directory === "string"
+      ? oldAgent.working_directory
+      : oldAgent.working_directory?.root;
+  const newWorkingDirectory =
+    typeof newAgent.working_directory === "string"
+      ? newAgent.working_directory
+      : newAgent.working_directory?.root;
+  if (oldWorkingDirectory !== newWorkingDirectory) {
+    modifications.push("working_directory");
   }
 
   // Check instances

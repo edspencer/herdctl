@@ -15,6 +15,7 @@ import type {
   Docker,
   PermissionMode,
   BashPermissions,
+  AgentWorkingDirectory,
 } from "./schema.js";
 
 // =============================================================================
@@ -133,6 +134,7 @@ export interface ExtendedDefaults {
   work_source?: WorkSource;
   instances?: { max_concurrent?: number };
   session?: Session;
+  working_directory?: AgentWorkingDirectory;
   model?: string;
   max_turns?: number;
   permission_mode?: PermissionMode;
@@ -150,6 +152,8 @@ export interface ExtendedDefaults {
  * - work_source: Deep merged
  * - session: Deep merged
  * - docker: Deep merged
+ * - instances: Deep merged
+ * - working_directory: Agent value takes precedence, or uses fleet default if agent has none
  * - model: Agent value overrides default
  * - max_turns: Agent value overrides default
  * - permission_mode: Agent value overrides default
@@ -210,6 +214,27 @@ export function mergeAgentConfig(
       defaults.instances as Record<string, unknown> | undefined,
       agent.instances as Record<string, unknown> | undefined
     ) as AgentConfig["instances"];
+  }
+
+  // Merge working_directory
+  // If agent has no working_directory, use fleet default
+  // If both are objects, deep merge them
+  // If either is a string, agent takes precedence
+  if (
+    agent.working_directory === undefined &&
+    defaults.working_directory !== undefined
+  ) {
+    result.working_directory = defaults.working_directory;
+  } else if (
+    agent.working_directory &&
+    defaults.working_directory &&
+    typeof agent.working_directory === "object" &&
+    typeof defaults.working_directory === "object"
+  ) {
+    result.working_directory = deepMerge(
+      defaults.working_directory as Record<string, unknown>,
+      agent.working_directory as Record<string, unknown>
+    ) as AgentConfig["working_directory"];
   }
 
   // Merge scalar values (agent takes precedence if defined)

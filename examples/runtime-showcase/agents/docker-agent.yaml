@@ -1,0 +1,65 @@
+name: docker-secure
+
+description: |
+  Production agent with Docker security isolation.
+  Best for: Production deployments requiring security isolation.
+  Runs in container with restricted capabilities and resource limits.
+
+# Can use sdk or cli inside Docker
+runtime: cli
+
+# Docker security hardening
+docker:
+  enabled: true
+  image: "anthropic/claude-code:latest"
+
+  # Network: bridge (default) allows outbound; none for isolation
+  network: bridge
+
+  # Resource limits
+  memory: "2g"
+  cpu_shares: 1024
+
+  # Security: runs as non-root, matches host user
+  # Default matches your host UID:GID (run `id` to check)
+  user: "1000:1000"
+
+  # Workspace: read-write for code changes
+  workspace_mode: rw
+
+  # Additional mounts (optional)
+  # Example: mount shared data directory read-only
+  volumes:
+    - "/shared/data:/data:ro"
+
+  # Fresh container per job (default, can be omitted)
+  # ephemeral: true
+
+max_turns: 100
+default_prompt: "Process the next task from the queue."
+
+system_prompt: |
+  You are a production deployment agent.
+  Follow security best practices.
+  Never expose credentials in output.
+
+  Security checklist:
+  - Validate all inputs
+  - Use environment variables for secrets
+  - Follow principle of least privilege
+  - Log security-relevant events
+
+permissions:
+  mode: acceptEdits
+  allowed_tools:
+    - Read
+    - Write
+    - Edit
+    - Bash
+    - Glob
+    - Grep
+  bash:
+    denied_patterns:
+      - "sudo *"
+      - "rm -rf /"
+      - "chmod 777 *"

@@ -52,6 +52,8 @@ function createValidSession(agentName: string): SessionInfo {
     last_used_at: now,
     job_count: 0,
     mode: "autonomous",
+    runtime_type: "sdk",
+    docker_enabled: false,
   };
 }
 
@@ -161,6 +163,8 @@ describe("getSessionInfo", () => {
       last_used_at: "2024-01-15T12:30:00.000Z",
       job_count: 5,
       mode: "interactive",
+      runtime_type: "sdk",
+      docker_enabled: false,
     };
     await writeSessionFile(tempDir, "full-test-agent", session);
 
@@ -187,6 +191,85 @@ describe("getSessionInfo", () => {
       expect(result).not.toBeNull();
       expect(result!.mode).toBe(mode);
     }
+  });
+
+  describe("session expiry validation", () => {
+    it("returns session when not expired (no timeout option)", async () => {
+      const session = createValidSession("test-agent");
+      await writeSessionFile(tempDir, "test-agent", session);
+
+      const result = await getSessionInfo(tempDir, "test-agent");
+      expect(result).not.toBeNull();
+      expect(result!.session_id).toBe(session.session_id);
+    });
+
+    it("returns session when not expired (within timeout)", async () => {
+      const session = createValidSession("test-agent");
+      await writeSessionFile(tempDir, "test-agent", session);
+
+      // Session just created, should be valid with 1h timeout
+      const result = await getSessionInfo(tempDir, "test-agent", { timeout: "1h" });
+      expect(result).not.toBeNull();
+      expect(result!.session_id).toBe(session.session_id);
+    });
+
+    it("returns null and clears expired session", async () => {
+      const logger = createMockLogger();
+      // Create a session that's 2 hours old
+      const session = createValidSession("expired-agent");
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+      session.last_used_at = twoHoursAgo;
+      await writeSessionFile(tempDir, "expired-agent", session);
+
+      // With 1h timeout, session should be expired
+      const result = await getSessionInfo(tempDir, "expired-agent", {
+        timeout: "1h",
+        logger,
+      });
+
+      expect(result).toBeNull();
+      expect(logger.warnings.some((w) => w.includes("expired"))).toBe(true);
+
+      // Verify session file was cleared
+      const afterClear = await getSessionInfo(tempDir, "expired-agent");
+      expect(afterClear).toBeNull();
+    });
+
+    it("returns session with invalid timeout format (warns but doesn't fail)", async () => {
+      const logger = createMockLogger();
+      const session = createValidSession("test-agent");
+      await writeSessionFile(tempDir, "test-agent", session);
+
+      // Invalid timeout format should warn but still return the session
+      const result = await getSessionInfo(tempDir, "test-agent", {
+        timeout: "invalid",
+        logger,
+      });
+
+      expect(result).not.toBeNull();
+      expect(result!.session_id).toBe(session.session_id);
+      expect(logger.warnings.some((w) => w.includes("Invalid timeout"))).toBe(true);
+    });
+
+    it("handles 24h default timeout correctly", async () => {
+      // Create a session that's 23 hours old (should be valid)
+      const session = createValidSession("almost-expired-agent");
+      const twentyThreeHoursAgo = new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString();
+      session.last_used_at = twentyThreeHoursAgo;
+      await writeSessionFile(tempDir, "almost-expired-agent", session);
+
+      const result = await getSessionInfo(tempDir, "almost-expired-agent", { timeout: "24h" });
+      expect(result).not.toBeNull();
+
+      // Create a session that's 25 hours old (should be expired)
+      const expiredSession = createValidSession("definitely-expired-agent");
+      const twentyFiveHoursAgo = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
+      expiredSession.last_used_at = twentyFiveHoursAgo;
+      await writeSessionFile(tempDir, "definitely-expired-agent", expiredSession);
+
+      const expiredResult = await getSessionInfo(tempDir, "definitely-expired-agent", { timeout: "24h" });
+      expect(expiredResult).toBeNull();
+    });
   });
 });
 

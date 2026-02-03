@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   FleetConfigSchema,
   DefaultsSchema,
-  WorkspaceSchema,
+  WorkingDirectorySchema,
   PermissionsSchema,
   PermissionModeSchema,
   WorkSourceSchema,
@@ -38,7 +38,7 @@ describe("FleetConfigSchema", () => {
       version: 1,
       fleet: { name: "test", description: "test fleet" },
       defaults: {},
-      workspace: { root: "/tmp" },
+      working_directory: { root: "/tmp" },
       agents: [{ path: "./test.yaml" }],
       chat: {},
       webhooks: {},
@@ -200,14 +200,14 @@ describe("DefaultsSchema", () => {
   });
 });
 
-describe("WorkspaceSchema", () => {
+describe("WorkingDirectorySchema", () => {
   it("requires root", () => {
-    const result = WorkspaceSchema.safeParse({});
+    const result = WorkingDirectorySchema.safeParse({});
     expect(result.success).toBe(false);
   });
 
   it("parses with root only", () => {
-    const result = WorkspaceSchema.safeParse({ root: "/tmp/workspace" });
+    const result = WorkingDirectorySchema.safeParse({ root: "/tmp/workspace" });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.root).toBe("/tmp/workspace");
@@ -217,14 +217,14 @@ describe("WorkspaceSchema", () => {
     }
   });
 
-  it("parses complete workspace config", () => {
-    const workspace = {
+  it("parses complete working directory config", () => {
+    const working_directory = {
       root: "~/herdctl-workspace",
       auto_clone: false,
       clone_depth: 5,
       default_branch: "develop",
     };
-    const result = WorkspaceSchema.safeParse(workspace);
+    const result = WorkingDirectorySchema.safeParse(working_directory);
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.auto_clone).toBe(false);
@@ -234,7 +234,7 @@ describe("WorkspaceSchema", () => {
   });
 
   it("rejects non-integer clone_depth", () => {
-    const result = WorkspaceSchema.safeParse({
+    const result = WorkingDirectorySchema.safeParse({
       root: "/tmp",
       clone_depth: 1.5,
     });
@@ -242,7 +242,7 @@ describe("WorkspaceSchema", () => {
   });
 
   it("rejects zero clone_depth", () => {
-    const result = WorkspaceSchema.safeParse({ root: "/tmp", clone_depth: 0 });
+    const result = WorkingDirectorySchema.safeParse({ root: "/tmp", clone_depth: 0 });
     expect(result.success).toBe(false);
   });
 });

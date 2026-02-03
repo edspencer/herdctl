@@ -1,0 +1,87 @@
+name: mixed-fleet
+
+description: |
+  Agent demonstrating multiple runtime strategies:
+  - Development workflow: SDK runtime (fast iteration)
+  - Production deployments: Would use Docker (security isolation)
+
+  This example shows how to configure an agent that could use
+  different runtime strategies for different tasks.
+
+# Default runtime for this agent
+runtime: sdk
+
+# Development schedule (SDK, no Docker)
+schedules:
+  dev-check:
+    type: interval
+    interval: 5m
+    prompt: "Check for local changes and run tests."
+    # Inherits runtime: sdk from agent level
+
+  # Production deployment would use Docker override
+  # (configured via agent overrides in herdctl.yaml)
+  # Example override in herdctl.yaml:
+  #   - path: agents/mixed-fleet.yaml
+  #     overrides:
+  #       schedules:
+  #         prod-deploy:
+  #           docker:
+  #             enabled: true
+
+max_turns: 30
+default_prompt: "Run the development workflow."
+
+system_prompt: |
+  You are a development workflow agent.
+
+  Development tasks:
+  - Run tests on code changes
+  - Check for linting issues
+  - Verify build succeeds
+
+  Report any failures clearly and suggest fixes.
+
+permissions:
+  mode: acceptEdits
+  allowed_tools:
+    - Read
+    - Write
+    - Bash
+    - Glob
+    - Grep
+
+# =============================================================================
+# Anti-pattern examples (commented, showing what NOT to do)
+# =============================================================================
+
+# BAD: Missing auth mount when using Docker
+# docker:
+#   enabled: true
+#   volumes: []  # No auth mount = Claude can't authenticate!
+#   # FIX: Auth files are auto-mounted by default, don't override volumes
+#   #      unless you need additional mounts
+
+# BAD: No network with API-dependent agent
+# docker:
+#   enabled: true
+#   network: none  # Can't reach APIs!
+#   # FIX: Use network: bridge (default) for network access
+
+# BAD: Read-only workspace for coding agent
+# docker:
+#   enabled: true
+#   workspace_mode: ro  # Can't write code changes!
+#   # FIX: Use workspace_mode: rw (default) for coding agents
+
+# BAD: Insufficient memory for complex tasks
+# docker:
+#   enabled: true
+#   memory: "256m"  # Too small for most coding tasks!
+#   # FIX: Use at least 2g (default) or increase based on needs
+
+# BAD: Wrong user causing permission issues
+# docker:
+#   enabled: true
+#   user: "0:0"  # Running as root!
+#   # FIX: Match host user (default) or use specific UID:GID like "1000:1000"

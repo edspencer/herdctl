@@ -266,8 +266,8 @@ function formatAgentDetail(agent: AgentInfo): string {
   if (agent.model) {
     lines.push(`Model:       ${agent.model}`);
   }
-  if (agent.workspace) {
-    lines.push(`Workspace:   ${agent.workspace}`);
+  if (agent.working_directory) {
+    lines.push(`Working Directory: ${agent.working_directory}`);
   }
   lines.push(`Concurrency: ${agent.runningCount}/${agent.maxConcurrent}`);
 

@@ -282,11 +282,11 @@ function formatConfigForDisplay(config: ResolvedConfig): string {
       lines.push(`  Permission Mode: ${agent.permission_mode}`);
 
     // Workspace
-    if (agent.workspace) {
+    if (agent.working_directory) {
       const ws =
-        typeof agent.workspace === "string"
-          ? agent.workspace
-          : agent.workspace.root;
+        typeof agent.working_directory === "string"
+          ? agent.working_directory
+          : agent.working_directory.root;
       lines.push(`  Workspace: ${ws}`);
     }
 

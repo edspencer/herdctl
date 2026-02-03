@@ -10,9 +10,8 @@
 import { join } from "node:path";
 import { readFile } from "node:fs/promises";
 
-import { query as claudeSdkQuery } from "@anthropic-ai/claude-agent-sdk";
-import { createJob, getJob, updateJob, readJobOutputAll } from "../state/index.js";
-import { JobExecutor, type SDKQueryFunction } from "../runner/index.js";
+import { createJob, getJob, updateJob, readJobOutputAll, getSessionInfo } from "../state/index.js";
+import { JobExecutor, RuntimeFactory } from "../runner/index.js";
 import { HookExecutor, type HookContext } from "../hooks/index.js";
 import type { ResolvedAgent, HookEvent } from "../config/index.js";
 import type { JobMetadata } from "../state/schemas/job-metadata.js";
@@ -34,9 +33,6 @@ import {
   JobCancelError,
   JobForkError,
 } from "./errors.js";
-
-// Cast the SDK query function to our internal type
-const sdkQuery = claudeSdkQuery as unknown as SDKQueryFunction;
 
 // =============================================================================
 // JobControl Class
@@ -133,8 +129,33 @@ export class JobControl {
       `Manually triggered ${agentName}${scheduleName ? `/${scheduleName}` : ""}`
     );
 
+    // Get existing session for conversation continuity (unless explicitly provided)
+    // This prevents unexpected logouts by automatically resuming the agent's session
+    let sessionId = options?.resume;
+    if (!sessionId) {
+      try {
+        const sessionsDir = join(stateDir, "sessions");
+        // Use session timeout config for expiry validation (default: 24h)
+        const sessionTimeout = agent.session?.timeout ?? "24h";
+        const existingSession = await getSessionInfo(sessionsDir, agent.name, {
+          timeout: sessionTimeout,
+          logger,
+        });
+        if (existingSession?.session_id) {
+          sessionId = existingSession.session_id;
+          logger.debug(`Found valid session for ${agent.name}: ${sessionId}`);
+        }
+      } catch (error) {
+        logger.warn(
+          `Failed to get session info for ${agent.name}: ${(error as Error).message}`
+        );
+        // Continue without resume - session failure shouldn't block execution
+      }
+    }
+
     // Create the JobExecutor and execute the job
-    const executor = new JobExecutor(sdkQuery, { logger });
+    const runtime = RuntimeFactory.create(agent, { stateDir });
+    const executor = new JobExecutor(runtime, { logger });
 
     // Execute the job - this creates the job record and runs it
     // Note: Job output is written to JSONL by JobExecutor; log streaming picks it up
@@ -147,7 +168,7 @@ export class JobControl {
       schedule: scheduleName,
       outputToFile: schedule?.outputToFile ?? false,
       onMessage: options?.onMessage,
-      resume: options?.resume,
+      resume: sessionId,
     });
 
     // Emit job:created event
@@ -204,6 +225,8 @@ export class JobControl {
       prompt,
       success: result.success,
       sessionId: result.sessionId,
+      error: result.error,
+      errorDetails: result.errorDetails,
     };
   }
 
@@ -664,19 +687,19 @@ export class JobControl {
   }
 
   /**
-   * Resolve the agent's workspace path
+   * Resolve the agent's working directory path
    */
   private resolveAgentWorkspace(agent: ResolvedAgent): string | undefined {
-    if (!agent.workspace) {
+    if (!agent.working_directory) {
       return undefined;
     }
 
-    // If workspace is a string, it's the path directly
-    if (typeof agent.workspace === "string") {
-      return agent.workspace;
+    // If working directory is a string, it's the path directly
+    if (typeof agent.working_directory === "string") {
+      return agent.working_directory;
     }
 
-    // If workspace is an object with root property
-    return agent.workspace.root;
+    // If working directory is an object with root property
+    return agent.working_directory.root;
   }
 }

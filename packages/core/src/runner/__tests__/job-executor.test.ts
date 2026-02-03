@@ -10,6 +10,7 @@ import {
   readJobOutputAll,
   initStateDirectory,
   getSessionInfo,
+  updateSessionInfo,
 } from "../../state/index.js";
 
 // =============================================================================
@@ -50,33 +51,42 @@ function createMockLogger() {
   };
 }
 
-// Helper to create a mock SDK query function
-function createMockSDKQuery(messages: SDKMessage[]): SDKQueryFunction {
-  return async function* mockQuery() {
-    for (const message of messages) {
-      yield message;
-    }
+// Helper to create mock RuntimeInterface
+function createMockRuntime(
+  handler: (options: any) => AsyncIterableIterator<SDKMessage>
+): any {
+  return {
+    execute: handler,
   };
 }
 
-// Helper to create a mock SDK query that yields messages with delays
-function createDelayedSDKQuery(
+// Helper to create a mock runtime with predefined messages
+function createMockRuntimeWithMessages(messages: SDKMessage[]): any {
+  return createMockRuntime(async function* () {
+    for (const message of messages) {
+      yield message;
+    }
+  });
+}
+
+// Helper to create a mock runtime that yields messages with delays
+function createDelayedMockRuntime(
   messages: SDKMessage[],
   delayMs: number = 10
-): SDKQueryFunction {
-  return async function* mockQuery() {
+): any {
+  return createMockRuntime(async function* () {
     for (const message of messages) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
       yield message;
     }
-  };
+  });
 }
 
-// Helper to create a mock SDK query that throws an error
-function createErrorSDKQuery(error: Error): SDKQueryFunction {
-  return async function* mockQuery() {
+// Helper to create a mock runtime that throws an error
+function createErrorMockRuntime(error: Error): any {
+  return createMockRuntime(async function* () {
     throw error;
-  };
+  });
 }
 
 // =============================================================================
@@ -104,7 +114,7 @@ describe("JobExecutor", () => {
         { type: "assistant", content: "Done" },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -124,12 +134,12 @@ describe("JobExecutor", () => {
     it("updates job status to running", async () => {
       let jobIdDuringExecution: string | undefined;
 
-      const sdkQuery: SDKQueryFunction = async function* () {
+      const runtime = createMockRuntime(async function* (options) {
         // During execution, we can check the job status
         yield { type: "system", content: "Running" };
-      };
+      });
 
-      const executor = new JobExecutor(sdkQuery, {
+      const executor = new JobExecutor(runtime, {
         logger: createMockLogger(),
       });
 
@@ -150,7 +160,7 @@ describe("JobExecutor", () => {
         { type: "assistant", content: "Task completed!" },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -175,7 +185,7 @@ describe("JobExecutor", () => {
         { type: "error", message: "Something went wrong" },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -195,7 +205,7 @@ describe("JobExecutor", () => {
 
     it("handles SDK query throwing an error", async () => {
       const executor = new JobExecutor(
-        createErrorSDKQuery(new Error("SDK error")),
+        createErrorMockRuntime(new Error("SDK error")),
         { logger: createMockLogger() }
       );
 
@@ -223,7 +233,7 @@ describe("JobExecutor", () => {
         { type: "assistant", content: "Done" },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -246,15 +256,15 @@ describe("JobExecutor", () => {
       let outputCountDuringExecution = 0;
       const jobsDir = join(stateDir, "jobs");
 
-      const sdkQuery: SDKQueryFunction = async function* () {
+      const runtime = createMockRuntime(async function* (options) {
         yield { type: "system", content: "First" };
         yield { type: "assistant", content: "Second" };
         yield { type: "assistant", content: "Third" };
-      };
+      });
 
       // We can't easily verify real-time writing in a unit test,
       // but we can verify all messages are written
-      const executor = new JobExecutor(sdkQuery, {
+      const executor = new JobExecutor(runtime, {
         logger: createMockLogger(),
       });
 
@@ -290,7 +300,7 @@ describe("JobExecutor", () => {
         },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -336,7 +346,7 @@ describe("JobExecutor", () => {
 
     it("writes error message to output when SDK throws", async () => {
       const executor = new JobExecutor(
-        createErrorSDKQuery(new Error("Connection failed")),
+        createErrorMockRuntime(new Error("Connection failed")),
         { logger: createMockLogger() }
       );
 
@@ -366,7 +376,7 @@ describe("JobExecutor", () => {
         { type: "error", message: "Error message", code: "ERR_TEST" },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -392,7 +402,7 @@ describe("JobExecutor", () => {
         { type: "assistant", content: "Part 1... Part 2... Done!", partial: false },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -419,7 +429,7 @@ describe("JobExecutor", () => {
         { type: "tool_result", success: false, error: "File not found" },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -445,7 +455,7 @@ describe("JobExecutor", () => {
         { type: "assistant", content: "Done" },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -467,7 +477,7 @@ describe("JobExecutor", () => {
         { type: "assistant", content: "Done" },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -489,7 +499,7 @@ describe("JobExecutor", () => {
         { type: "assistant", content: "Done" },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -514,7 +524,7 @@ describe("JobExecutor", () => {
         { type: "assistant", content: "Done" },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -542,7 +552,7 @@ describe("JobExecutor", () => {
         { type: "assistant", content: "Done" },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -567,7 +577,7 @@ describe("JobExecutor", () => {
         { type: "assistant", content: "Done" },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -582,14 +592,21 @@ describe("JobExecutor", () => {
     });
 
     it("passes resume option to SDK", async () => {
+      // Create a valid session so resume isn't cleared
+      const sessionsDir = join(stateDir, "sessions");
+      await updateSessionInfo(sessionsDir, "test-agent", {
+        session_id: "session-to-resume",
+        mode: "autonomous",
+      });
+
       let receivedOptions: Record<string, unknown> | undefined;
 
-      const sdkQuery: SDKQueryFunction = async function* (params) {
-        receivedOptions = params.options;
+      const runtime = createMockRuntime(async function* (options) {
+        receivedOptions = options;
         yield { type: "assistant", content: "Resumed" };
-      };
+      });
 
-      const executor = new JobExecutor(sdkQuery, {
+      const executor = new JobExecutor(runtime, {
         logger: createMockLogger(),
       });
 
@@ -606,12 +623,12 @@ describe("JobExecutor", () => {
     it("passes fork option to SDK", async () => {
       let receivedOptions: Record<string, unknown> | undefined;
 
-      const sdkQuery: SDKQueryFunction = async function* (params) {
-        receivedOptions = params.options;
+      const runtime = createMockRuntime(async function* (options) {
+        receivedOptions = options;
         yield { type: "assistant", content: "Forked" };
-      };
+      });
 
-      const executor = new JobExecutor(sdkQuery, {
+      const executor = new JobExecutor(runtime, {
         logger: createMockLogger(),
       });
 
@@ -622,7 +639,7 @@ describe("JobExecutor", () => {
         fork: "session-to-fork",
       });
 
-      expect(receivedOptions?.forkSession).toBe(true);
+      expect(receivedOptions?.fork).toBe(true);
     });
 
     it("creates job with trigger_type 'fork' and forked_from when forking", async () => {
@@ -631,7 +648,7 @@ describe("JobExecutor", () => {
         { type: "assistant", content: "Forked session started" },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -655,7 +672,7 @@ describe("JobExecutor", () => {
         { type: "assistant", content: "Forked" },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -676,7 +693,7 @@ describe("JobExecutor", () => {
         { type: "assistant", content: "Normal run" },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -697,7 +714,7 @@ describe("JobExecutor", () => {
         { type: "assistant", content: "Resumed" },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -731,7 +748,7 @@ describe("JobExecutor", () => {
         { type: "assistant", content: "Forked" },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -766,7 +783,7 @@ describe("JobExecutor", () => {
         { type: "assistant", content: "Done" },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -789,7 +806,7 @@ describe("JobExecutor", () => {
         { type: "assistant", content: "Done!", summary: "Task completed" },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -811,7 +828,7 @@ describe("JobExecutor", () => {
         { type: "assistant", content: "All tasks finished successfully." },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -831,7 +848,7 @@ describe("JobExecutor", () => {
         { type: "tool_result", result: "file1\nfile2", success: true },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -853,7 +870,7 @@ describe("JobExecutor", () => {
         { type: "assistant", content: "Partial 2...", partial: true },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -873,7 +890,7 @@ describe("JobExecutor", () => {
         { type: "assistant", content: longContent },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -892,7 +909,7 @@ describe("JobExecutor", () => {
         { type: "assistant", content: "Done!", summary: longSummary },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -917,7 +934,7 @@ describe("JobExecutor", () => {
         { type: "assistant", content: "Third", summary: "Final summary" },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -933,7 +950,7 @@ describe("JobExecutor", () => {
     it("handles empty message stream with undefined summary", async () => {
       const messages: SDKMessage[] = [];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -960,7 +977,7 @@ describe("JobExecutor", () => {
         receivedMessages.push(msg);
       });
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -988,7 +1005,7 @@ describe("JobExecutor", () => {
         throw new Error("Callback error");
       });
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -1013,7 +1030,7 @@ describe("JobExecutor", () => {
         await new Promise((resolve) => setTimeout(resolve, 10));
       });
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -1032,7 +1049,7 @@ describe("JobExecutor", () => {
     it("sets trigger type to manual by default", async () => {
       const messages: SDKMessage[] = [{ type: "assistant", content: "Done" }];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -1049,7 +1066,7 @@ describe("JobExecutor", () => {
     it("sets trigger type from options", async () => {
       const messages: SDKMessage[] = [{ type: "assistant", content: "Done" }];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -1075,7 +1092,7 @@ describe("JobExecutor", () => {
       ];
 
       const executor = new JobExecutor(
-        createDelayedSDKQuery(messages, 50),
+        createDelayedMockRuntime(messages, 50),
         { logger: createMockLogger() }
       );
 
@@ -1118,7 +1135,7 @@ describe("executeJob", () => {
     ];
 
     const result = await executeJob(
-      createMockSDKQuery(messages),
+      createMockRuntimeWithMessages(messages),
       {
         agent: createTestAgent({ name: "convenience-agent" }),
         prompt: "Test prompt",
@@ -1139,7 +1156,7 @@ describe("executeJob", () => {
     const logger = createMockLogger();
 
     await executeJob(
-      createMockSDKQuery(messages),
+      createMockRuntimeWithMessages(messages),
       {
         agent: createTestAgent(),
         prompt: "Test prompt",
@@ -1171,7 +1188,7 @@ describe("edge cases", () => {
   });
 
   it("handles empty message stream", async () => {
-    const executor = new JobExecutor(createMockSDKQuery([]), {
+    const executor = new JobExecutor(createMockRuntimeWithMessages([]), {
       logger: createMockLogger(),
     });
 
@@ -1193,7 +1210,7 @@ describe("edge cases", () => {
       { type: "assistant", content: longContent },
     ];
 
-    const executor = new JobExecutor(createMockSDKQuery(messages), {
+    const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
       logger: createMockLogger(),
     });
 
@@ -1214,7 +1231,7 @@ describe("edge cases", () => {
       { type: "assistant", content: "Hello 世界! 🌍 Γεια σου κόσμε" },
     ];
 
-    const executor = new JobExecutor(createMockSDKQuery(messages), {
+    const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
       logger: createMockLogger(),
     });
 
@@ -1238,7 +1255,7 @@ describe("edge cases", () => {
       },
     ];
 
-    const executor = new JobExecutor(createMockSDKQuery(messages), {
+    const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
       logger: createMockLogger(),
     });
 
@@ -1264,7 +1281,7 @@ describe("edge cases", () => {
         content: `Message ${i}`,
       }));
 
-    const executor = new JobExecutor(createMockSDKQuery(messages), {
+    const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
       logger: createMockLogger(),
     });
 
@@ -1299,12 +1316,12 @@ describe("error handling (US-7)", () => {
 
   describe("SDK initialization errors", () => {
     it("catches SDK initialization errors (e.g., missing API key)", async () => {
-      // Simulates SDK throwing immediately when query is created
-      const sdkQuery: SDKQueryFunction = () => {
+      // Simulates SDK throwing immediately when execute is called
+      const runtime = createMockRuntime(() => {
         throw new Error("ANTHROPIC_API_KEY environment variable is not set");
-      };
+      });
 
-      const executor = new JobExecutor(sdkQuery, {
+      const executor = new JobExecutor(runtime, {
         logger: createMockLogger(),
       });
 
@@ -1320,11 +1337,11 @@ describe("error handling (US-7)", () => {
     });
 
     it("provides context (job ID, agent name) in initialization error", async () => {
-      const sdkQuery: SDKQueryFunction = () => {
+      const runtime = createMockRuntime(() => {
         throw new Error("SDK init failed");
-      };
+      });
 
-      const executor = new JobExecutor(sdkQuery, {
+      const executor = new JobExecutor(runtime, {
         logger: createMockLogger(),
       });
 
@@ -1341,13 +1358,13 @@ describe("error handling (US-7)", () => {
 
   describe("SDK streaming errors", () => {
     it("catches SDK streaming errors during execution", async () => {
-      const sdkQuery: SDKQueryFunction = async function* () {
+      const runtime = createMockRuntime(async function* (options) {
         yield { type: "system", content: "Init" };
         yield { type: "assistant", content: "Working..." };
         throw new Error("Connection reset by peer");
-      };
+      });
 
-      const executor = new JobExecutor(sdkQuery, {
+      const executor = new JobExecutor(runtime, {
         logger: createMockLogger(),
       });
 
@@ -1363,14 +1380,14 @@ describe("error handling (US-7)", () => {
     });
 
     it("tracks messages received before streaming error", async () => {
-      const sdkQuery: SDKQueryFunction = async function* () {
+      const runtime = createMockRuntime(async function* (options) {
         yield { type: "system", content: "Init" };
         yield { type: "assistant", content: "Message 1" };
         yield { type: "assistant", content: "Message 2" };
         throw new Error("Stream interrupted");
-      };
+      });
 
-      const executor = new JobExecutor(sdkQuery, {
+      const executor = new JobExecutor(runtime, {
         logger: createMockLogger(),
       });
 
@@ -1385,12 +1402,12 @@ describe("error handling (US-7)", () => {
     });
 
     it("identifies recoverable errors (rate limit)", async () => {
-      const sdkQuery: SDKQueryFunction = async function* () {
+      const runtime = createMockRuntime(async function* (options) {
         yield { type: "system", content: "Init" };
         throw new Error("Rate limit exceeded, please retry");
-      };
+      });
 
-      const executor = new JobExecutor(sdkQuery, {
+      const executor = new JobExecutor(runtime, {
         logger: createMockLogger(),
       });
 
@@ -1404,12 +1421,12 @@ describe("error handling (US-7)", () => {
     });
 
     it("identifies non-recoverable errors", async () => {
-      const sdkQuery: SDKQueryFunction = async function* () {
+      const runtime = createMockRuntime(async function* (options) {
         yield { type: "system", content: "Init" };
         throw new Error("Invalid request format");
-      };
+      });
 
-      const executor = new JobExecutor(sdkQuery, {
+      const executor = new JobExecutor(runtime, {
         logger: createMockLogger(),
       });
 
@@ -1426,7 +1443,7 @@ describe("error handling (US-7)", () => {
   describe("error logging to job output", () => {
     it("logs error messages to job output as error type messages", async () => {
       const executor = new JobExecutor(
-        createErrorSDKQuery(new Error("Test error for logging")),
+        createErrorMockRuntime(new Error("Test error for logging")),
         { logger: createMockLogger() }
       );
 
@@ -1450,7 +1467,7 @@ describe("error handling (US-7)", () => {
       const errorWithCode = new Error("Network error") as NodeJS.ErrnoException;
       errorWithCode.code = "ECONNRESET";
 
-      const executor = new JobExecutor(createErrorSDKQuery(errorWithCode), {
+      const executor = new JobExecutor(createErrorMockRuntime(errorWithCode), {
         logger: createMockLogger(),
       });
 
@@ -1471,7 +1488,7 @@ describe("error handling (US-7)", () => {
     it("includes stack trace in job output", async () => {
       const error = new Error("Stack trace test");
 
-      const executor = new JobExecutor(createErrorSDKQuery(error), {
+      const executor = new JobExecutor(createErrorMockRuntime(error), {
         logger: createMockLogger(),
       });
 
@@ -1494,7 +1511,7 @@ describe("error handling (US-7)", () => {
   describe("job status updates", () => {
     it("updates job status to failed with error exit_reason", async () => {
       const executor = new JobExecutor(
-        createErrorSDKQuery(new Error("Failure")),
+        createErrorMockRuntime(new Error("Failure")),
         { logger: createMockLogger() }
       );
 
@@ -1512,7 +1529,7 @@ describe("error handling (US-7)", () => {
     it("sets exit_reason to timeout for timeout errors", async () => {
       const timeoutError = new Error("Request timed out");
 
-      const executor = new JobExecutor(createErrorSDKQuery(timeoutError), {
+      const executor = new JobExecutor(createErrorMockRuntime(timeoutError), {
         logger: createMockLogger(),
       });
 
@@ -1529,7 +1546,7 @@ describe("error handling (US-7)", () => {
     it("sets exit_reason to cancelled for abort errors", async () => {
       const abortError = new Error("Operation aborted by user");
 
-      const executor = new JobExecutor(createErrorSDKQuery(abortError), {
+      const executor = new JobExecutor(createErrorMockRuntime(abortError), {
         logger: createMockLogger(),
       });
 
@@ -1546,7 +1563,7 @@ describe("error handling (US-7)", () => {
     it("sets exit_reason to max_turns for turn limit errors", async () => {
       const maxTurnsError = new Error("Maximum turns exceeded");
 
-      const executor = new JobExecutor(createErrorSDKQuery(maxTurnsError), {
+      const executor = new JobExecutor(createErrorMockRuntime(maxTurnsError), {
         logger: createMockLogger(),
       });
 
@@ -1564,7 +1581,7 @@ describe("error handling (US-7)", () => {
   describe("error details in RunnerResult", () => {
     it("provides descriptive error message with context", async () => {
       const executor = new JobExecutor(
-        createErrorSDKQuery(new Error("API connection failed")),
+        createErrorMockRuntime(new Error("API connection failed")),
         { logger: createMockLogger() }
       );
 
@@ -1584,7 +1601,7 @@ describe("error handling (US-7)", () => {
       const errorWithCode = new Error("Network timeout") as NodeJS.ErrnoException;
       errorWithCode.code = "ETIMEDOUT";
 
-      const executor = new JobExecutor(createErrorSDKQuery(errorWithCode), {
+      const executor = new JobExecutor(createErrorMockRuntime(errorWithCode), {
         logger: createMockLogger(),
       });
 
@@ -1603,14 +1620,14 @@ describe("error handling (US-7)", () => {
 
   describe("malformed SDK responses", () => {
     it("does not crash on malformed SDK messages", async () => {
-      const sdkQuery: SDKQueryFunction = async function* () {
+      const runtime = createMockRuntime(async function* (options) {
         yield { type: "system", content: "Init" };
         // Yield a malformed message (null)
         yield null as unknown as SDKMessage;
         yield { type: "assistant", content: "Continuing after malformed" };
-      };
+      });
 
-      const executor = new JobExecutor(sdkQuery, {
+      const executor = new JobExecutor(runtime, {
         logger: createMockLogger(),
       });
 
@@ -1634,13 +1651,13 @@ describe("error handling (US-7)", () => {
     });
 
     it("handles messages with missing type field", async () => {
-      const sdkQuery: SDKQueryFunction = async function* () {
+      const runtime = createMockRuntime(async function* (options) {
         yield { type: "system", content: "Init" };
         yield { content: "Missing type" } as unknown as SDKMessage;
         yield { type: "assistant", content: "Done" };
-      };
+      });
 
-      const executor = new JobExecutor(sdkQuery, {
+      const executor = new JobExecutor(runtime, {
         logger: createMockLogger(),
       });
 
@@ -1661,13 +1678,13 @@ describe("error handling (US-7)", () => {
     });
 
     it("handles messages with unexpected type values", async () => {
-      const sdkQuery: SDKQueryFunction = async function* () {
+      const runtime = createMockRuntime(async function* (options) {
         yield { type: "system", content: "Init" };
         yield { type: "unexpected_type", content: "Unknown" } as unknown as SDKMessage;
         yield { type: "assistant", content: "Done" };
-      };
+      });
 
-      const executor = new JobExecutor(sdkQuery, {
+      const executor = new JobExecutor(runtime, {
         logger: createMockLogger(),
       });
 
@@ -1690,7 +1707,7 @@ describe("error handling (US-7)", () => {
         { type: "error", message: "SDK reported error", code: "SDK_ERR" },
       ];
 
-      const executor = new JobExecutor(createMockSDKQuery(messages), {
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
         logger: createMockLogger(),
       });
 
@@ -1731,7 +1748,7 @@ describe("outputToFile (US-9)", () => {
       { type: "assistant", content: "Hello" },
     ];
 
-    const executor = new JobExecutor(createMockSDKQuery(messages), {
+    const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
       logger: createMockLogger(),
     });
 
@@ -1754,7 +1771,7 @@ describe("outputToFile (US-9)", () => {
       { type: "assistant", content: "Hello world" },
     ];
 
-    const executor = new JobExecutor(createMockSDKQuery(messages), {
+    const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
       logger: createMockLogger(),
     });
 
@@ -1778,7 +1795,7 @@ describe("outputToFile (US-9)", () => {
       { type: "assistant", content: "Hello" },
     ];
 
-    const executor = new JobExecutor(createMockSDKQuery(messages), {
+    const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
       logger: createMockLogger(),
     });
 
@@ -1805,7 +1822,7 @@ describe("outputToFile (US-9)", () => {
       { type: "assistant", content: "Hello" },
     ];
 
-    const executor = new JobExecutor(createMockSDKQuery(messages), {
+    const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
       logger: createMockLogger(),
     });
 
@@ -1835,7 +1852,7 @@ describe("outputToFile (US-9)", () => {
       { type: "error", message: "An error occurred" },
     ];
 
-    const executor = new JobExecutor(createMockSDKQuery(messages), {
+    const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
       logger: createMockLogger(),
     });
 
@@ -1861,7 +1878,7 @@ describe("outputToFile (US-9)", () => {
       { type: "assistant", content: "Hello" },
     ];
 
-    const executor = new JobExecutor(createMockSDKQuery(messages), {
+    const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
       logger: createMockLogger(),
     });
 
@@ -1885,7 +1902,7 @@ describe("outputToFile (US-9)", () => {
       { type: "assistant", content: "Response" },
     ];
 
-    const executor = new JobExecutor(createMockSDKQuery(messages), {
+    const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
       logger: createMockLogger(),
     });
 
@@ -1908,7 +1925,7 @@ describe("outputToFile (US-9)", () => {
       { type: "tool_result", result: "File not found", success: false },
     ];
 
-    const executor = new JobExecutor(createMockSDKQuery(messages), {
+    const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
       logger: createMockLogger(),
     });
 
@@ -1936,7 +1953,7 @@ describe("outputToFile (US-9)", () => {
       { type: "assistant", content: "Hello" },
     ];
 
-    const executor = new JobExecutor(createMockSDKQuery(messages), {
+    const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
       logger: createMockLogger(),
     });
 
@@ -1951,5 +1968,397 @@ describe("outputToFile (US-9)", () => {
     // Events should still be emitted
     expect(onMessage).toHaveBeenCalledTimes(2);
     expect(receivedMessages).toHaveLength(2);
+  });
+});
+
+// =============================================================================
+// Session expiration handling tests (fixes unexpected logout bug)
+// =============================================================================
+
+describe("session expiration handling", () => {
+  let tempDir: string;
+  let stateDir: string;
+
+  beforeEach(async () => {
+    tempDir = await createTempDir();
+    stateDir = join(tempDir, ".herdctl");
+    await initStateDirectory({ path: stateDir });
+  });
+
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("starts fresh session when existing session is expired", async () => {
+    const sessionsDir = join(stateDir, "sessions");
+
+    // Create an expired session (last used 25 hours ago, default timeout is 24h)
+    const expiredLastUsed = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
+    await updateSessionInfo(sessionsDir, "expiry-test-agent", {
+      session_id: "old-expired-session",
+      mode: "autonomous",
+    });
+
+    // Manually update last_used_at to make it expired
+    const { writeFile } = await import("node:fs/promises");
+    const sessionPath = join(sessionsDir, "expiry-test-agent.json");
+    const sessionData = {
+      agent_name: "expiry-test-agent",
+      session_id: "old-expired-session",
+      created_at: expiredLastUsed,
+      last_used_at: expiredLastUsed,
+      job_count: 1,
+      mode: "autonomous",
+    };
+    await writeFile(sessionPath, JSON.stringify(sessionData));
+
+    let receivedOptions: any;
+    const runtime = createMockRuntime(async function* (options) {
+      receivedOptions = options;
+      yield { type: "system", content: "Init", subtype: "init", session_id: "new-fresh-session" };
+      yield { type: "assistant", content: "Started fresh" };
+    });
+
+    const executor = new JobExecutor(runtime, {
+      logger: createMockLogger(),
+    });
+
+    const result = await executor.execute({
+      agent: createTestAgent({ name: "expiry-test-agent" }),
+      prompt: "Test prompt",
+      stateDir,
+      resume: "old-expired-session", // Try to resume expired session
+    });
+
+    expect(result.success).toBe(true);
+    // Should NOT have passed resume option since session was expired
+    expect(receivedOptions?.resume).toBeUndefined();
+    // New session should be created
+    expect(result.sessionId).toBe("new-fresh-session");
+  });
+
+  it("resumes valid session that is not expired", async () => {
+    const sessionsDir = join(stateDir, "sessions");
+
+    // Create a valid session (last used 1 hour ago, default timeout is 24h)
+    await updateSessionInfo(sessionsDir, "valid-session-agent", {
+      session_id: "valid-session-id",
+      mode: "autonomous",
+    });
+
+    let receivedOptions: any;
+    const runtime = createMockRuntime(async function* (options) {
+      receivedOptions = options;
+      yield { type: "assistant", content: "Resumed successfully" };
+    });
+
+    const executor = new JobExecutor(runtime, {
+      logger: createMockLogger(),
+    });
+
+    await executor.execute({
+      agent: createTestAgent({ name: "valid-session-agent" }),
+      prompt: "Test prompt",
+      stateDir,
+      resume: "valid-session-id",
+    });
+
+    // Should have passed resume option since session is valid
+    expect(receivedOptions?.resume).toBe("valid-session-id");
+  });
+
+  it("uses stored session_id from disk, not the options.resume value", async () => {
+    const sessionsDir = join(stateDir, "sessions");
+
+    // Create a valid session with a DIFFERENT session_id than what options.resume will provide
+    // This simulates the case where the stored session has been updated but the caller
+    // is using an outdated or generic resume value (like a boolean or old session ID)
+    await updateSessionInfo(sessionsDir, "session-mismatch-agent", {
+      session_id: "stored-session-abc123", // The actual session ID stored on disk
+      mode: "autonomous",
+    });
+
+    let receivedOptions: any;
+    const runtime = createMockRuntime(async function* (options) {
+      receivedOptions = options;
+      yield { type: "assistant", content: "Resumed with correct session" };
+    });
+
+    const executor = new JobExecutor(runtime, {
+      logger: createMockLogger(),
+    });
+
+    await executor.execute({
+      agent: createTestAgent({ name: "session-mismatch-agent" }),
+      prompt: "Test prompt",
+      stateDir,
+      // Pass a DIFFERENT value than what's stored - this could be an old session ID
+      // or any truthy value indicating "please resume"
+      resume: "outdated-session-xyz789",
+    });
+
+    // CRITICAL: Should use the session_id from the stored session file, NOT the options.resume value
+    // This is the fix for the unexpected logout bug - we must use the actual stored session ID
+    expect(receivedOptions?.resume).toBe("stored-session-abc123");
+  });
+
+  it("respects custom session timeout from agent config", async () => {
+    const sessionsDir = join(stateDir, "sessions");
+
+    // Create a session that is 2 hours old
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const { writeFile } = await import("node:fs/promises");
+    const sessionPath = join(sessionsDir, "custom-timeout-agent.json");
+    const sessionData = {
+      agent_name: "custom-timeout-agent",
+      session_id: "two-hour-old-session",
+      created_at: twoHoursAgo,
+      last_used_at: twoHoursAgo,
+      job_count: 1,
+      mode: "autonomous",
+    };
+    await writeFile(sessionPath, JSON.stringify(sessionData));
+
+    let receivedOptions: any;
+    const runtime = createMockRuntime(async function* (options) {
+      receivedOptions = options;
+      yield { type: "assistant", content: "Done" };
+    });
+
+    const executor = new JobExecutor(runtime, {
+      logger: createMockLogger(),
+    });
+
+    // With 1 hour timeout, 2-hour-old session should be expired
+    await executor.execute({
+      agent: createTestAgent({
+        name: "custom-timeout-agent",
+        session: { timeout: "1h" },
+      }),
+      prompt: "Test prompt",
+      stateDir,
+      resume: "two-hour-old-session",
+    });
+
+    // Should NOT have passed resume since session exceeded custom timeout
+    expect(receivedOptions?.resume).toBeUndefined();
+  });
+
+  it("writes system message to job output when session expires", async () => {
+    const sessionsDir = join(stateDir, "sessions");
+
+    // Create an expired session
+    const expiredLastUsed = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
+    const { writeFile } = await import("node:fs/promises");
+    const sessionPath = join(sessionsDir, "output-test-agent.json");
+    const sessionData = {
+      agent_name: "output-test-agent",
+      session_id: "expired-session",
+      created_at: expiredLastUsed,
+      last_used_at: expiredLastUsed,
+      job_count: 1,
+      mode: "autonomous",
+    };
+    await writeFile(sessionPath, JSON.stringify(sessionData));
+
+    const runtime = createMockRuntime(async function* () {
+      yield { type: "assistant", content: "Fresh start" };
+    });
+
+    const executor = new JobExecutor(runtime, {
+      logger: createMockLogger(),
+    });
+
+    const result = await executor.execute({
+      agent: createTestAgent({ name: "output-test-agent" }),
+      prompt: "Test prompt",
+      stateDir,
+      resume: "expired-session",
+    });
+
+    // Check job output for session expiry message
+    const output = await readJobOutputAll(join(stateDir, "jobs"), result.jobId);
+    const systemMsg = output.find(
+      (m) => m.type === "system" && m.content?.includes("session")
+    );
+    expect(systemMsg).toBeDefined();
+  });
+
+  it("clears expired session file when detected", async () => {
+    const sessionsDir = join(stateDir, "sessions");
+
+    // Create an expired session
+    const expiredLastUsed = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
+    const { writeFile } = await import("node:fs/promises");
+    const sessionPath = join(sessionsDir, "clear-test-agent.json");
+    const sessionData = {
+      agent_name: "clear-test-agent",
+      session_id: "expired-to-clear",
+      created_at: expiredLastUsed,
+      last_used_at: expiredLastUsed,
+      job_count: 1,
+      mode: "autonomous",
+    };
+    await writeFile(sessionPath, JSON.stringify(sessionData));
+
+    // Verify session exists
+    let sessionBefore = await getSessionInfo(sessionsDir, "clear-test-agent");
+    expect(sessionBefore).not.toBeNull();
+
+    const runtime = createMockRuntime(async function* () {
+      yield { type: "system", content: "Init", subtype: "init", session_id: "new-session" };
+      yield { type: "assistant", content: "Fresh" };
+    });
+
+    const executor = new JobExecutor(runtime, {
+      logger: createMockLogger(),
+    });
+
+    await executor.execute({
+      agent: createTestAgent({ name: "clear-test-agent" }),
+      prompt: "Test prompt",
+      stateDir,
+      resume: "expired-to-clear",
+    });
+
+    // Session should now have the new ID (old one was cleared and new one created)
+    const sessionAfter = await getSessionInfo(sessionsDir, "clear-test-agent");
+    expect(sessionAfter?.session_id).toBe("new-session");
+  });
+
+  it("retries with fresh session when server-side session expiration detected", async () => {
+    const sessionsDir = join(stateDir, "sessions");
+
+    // Create a valid session (not locally expired)
+    await updateSessionInfo(sessionsDir, "server-expiry-agent", {
+      session_id: "valid-local-session",
+      mode: "autonomous",
+    });
+
+    let attemptCount = 0;
+    let lastResumeValue: string | undefined;
+
+    // First attempt throws session expired error, second succeeds
+    const runtime = createMockRuntime(async function* (options) {
+      attemptCount++;
+      lastResumeValue = options.resume;
+
+      if (attemptCount === 1 && options.resume) {
+        // First attempt with resume - server says session expired
+        throw new Error("Session expired on server");
+      }
+
+      // Second attempt or fresh session - succeed
+      yield { type: "system", content: "Init", subtype: "init", session_id: "new-server-session" };
+      yield { type: "assistant", content: "Success after retry" };
+    });
+
+    const executor = new JobExecutor(runtime, {
+      logger: createMockLogger(),
+    });
+
+    const result = await executor.execute({
+      agent: createTestAgent({ name: "server-expiry-agent" }),
+      prompt: "Test prompt",
+      stateDir,
+      resume: "valid-local-session",
+    });
+
+    // Should have succeeded after retry
+    expect(result.success).toBe(true);
+    expect(result.sessionId).toBe("new-server-session");
+
+    // Should have attempted twice: first with resume, then fresh
+    expect(attemptCount).toBe(2);
+
+    // Second attempt should NOT have resume (fresh session)
+    expect(lastResumeValue).toBeUndefined();
+
+    // Check job output includes retry message
+    const output = await readJobOutputAll(join(stateDir, "jobs"), result.jobId);
+    const retryMsg = output.find(
+      (m) => m.type === "system" && m.content?.includes("Retrying with fresh session")
+    );
+    expect(retryMsg).toBeDefined();
+  });
+
+  it("does not retry infinitely on persistent server errors", async () => {
+    const sessionsDir = join(stateDir, "sessions");
+
+    await updateSessionInfo(sessionsDir, "no-infinite-retry-agent", {
+      session_id: "some-session",
+      mode: "autonomous",
+    });
+
+    let attemptCount = 0;
+
+    // Always throw session expired error
+    const runtime = createMockRuntime(async function* (options) {
+      attemptCount++;
+      throw new Error("Session expired on server");
+    });
+
+    const executor = new JobExecutor(runtime, {
+      logger: createMockLogger(),
+    });
+
+    const result = await executor.execute({
+      agent: createTestAgent({ name: "no-infinite-retry-agent" }),
+      prompt: "Test prompt",
+      stateDir,
+      resume: "some-session",
+    });
+
+    // Should fail after at most 2 attempts (initial + 1 retry)
+    expect(result.success).toBe(false);
+    expect(attemptCount).toBeLessThanOrEqual(2);
+    expect(result.error?.message).toContain("Session expired");
+  });
+
+  it("updates last_used_at before execution to prevent mid-job session expiry", async () => {
+    const sessionsDir = join(stateDir, "sessions");
+
+    // Create a session that is 23 hours old (close to default 24h expiry)
+    const twentyThreeHoursAgo = new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString();
+    const { writeFile } = await import("node:fs/promises");
+    const sessionPath = join(sessionsDir, "refresh-test-agent.json");
+    const sessionData = {
+      agent_name: "refresh-test-agent",
+      session_id: "almost-expired-session",
+      created_at: twentyThreeHoursAgo,
+      last_used_at: twentyThreeHoursAgo,
+      job_count: 5,
+      mode: "autonomous",
+    };
+    await writeFile(sessionPath, JSON.stringify(sessionData));
+
+    // Record when the test starts
+    const testStartTime = Date.now();
+
+    const runtime = createMockRuntime(async function* () {
+      // Simulate a delay to ensure last_used_at was updated BEFORE we got here
+      yield { type: "assistant", content: "Working..." };
+    });
+
+    const executor = new JobExecutor(runtime, {
+      logger: createMockLogger(),
+    });
+
+    await executor.execute({
+      agent: createTestAgent({ name: "refresh-test-agent" }),
+      prompt: "Test prompt",
+      stateDir,
+      resume: "almost-expired-session",
+    });
+
+    // Check that last_used_at was updated to a recent time (not 23 hours ago)
+    const sessionAfter = await getSessionInfo(sessionsDir, "refresh-test-agent");
+    expect(sessionAfter).not.toBeNull();
+
+    const lastUsedMs = new Date(sessionAfter!.last_used_at).getTime();
+    // Should be updated to approximately now (within last few seconds)
+    expect(lastUsedMs).toBeGreaterThanOrEqual(testStartTime - 1000);
+    // And not still 23 hours ago
+    expect(lastUsedMs).toBeGreaterThan(new Date(twentyThreeHoursAgo).getTime());
   });
 });

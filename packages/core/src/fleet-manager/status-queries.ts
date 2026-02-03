@@ -209,12 +209,12 @@ export function buildAgentInfo(
   // Get running count from scheduler or state
   const runningCount = scheduler?.getRunningJobCount(agent.name) ?? 0;
 
-  // Determine workspace path
-  let workspace: string | undefined;
-  if (typeof agent.workspace === "string") {
-    workspace = agent.workspace;
-  } else if (agent.workspace?.root) {
-    workspace = agent.workspace.root;
+  // Determine working directory path
+  let working_directory: string | undefined;
+  if (typeof agent.working_directory === "string") {
+    working_directory = agent.working_directory;
+  } else if (agent.working_directory?.root) {
+    working_directory = agent.working_directory.root;
   }
 
   // Build Discord status
@@ -232,7 +232,7 @@ export function buildAgentInfo(
     scheduleCount: schedules.length,
     schedules,
     model: agent.model,
-    workspace,
+    working_directory,
     discord,
   };
 }

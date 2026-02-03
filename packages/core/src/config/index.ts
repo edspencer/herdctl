@@ -9,7 +9,7 @@ export {
   // Schemas
   FleetConfigSchema,
   DefaultsSchema,
-  WorkspaceSchema,
+  WorkingDirectorySchema,
   AgentReferenceSchema,
   ChatSchema,
   DiscordChatSchema,
@@ -33,7 +33,7 @@ export {
   ScheduleTypeSchema,
   McpServerSchema,
   AgentChatSchema,
-  AgentWorkspaceSchema,
+  AgentWorkingDirectorySchema,
   // Agent Chat Discord schemas
   DiscordPresenceSchema,
   DiscordDMSchema,
@@ -50,7 +50,7 @@ export {
   // Types
   type FleetConfig,
   type Defaults,
-  type Workspace,
+  type WorkingDirectory,
   type AgentReference,
   type Chat,
   type DiscordChat,
@@ -74,7 +74,7 @@ export {
   type ScheduleType,
   type McpServer,
   type AgentChat,
-  type AgentWorkspace,
+  type AgentWorkingDirectory,
   // Agent Chat Discord types
   type DiscordPresence,
   type DiscordDM,

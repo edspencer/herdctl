@@ -11,7 +11,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ci:
+  typecheck:
+    name: Typecheck
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
@@ -29,8 +30,46 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Test
+  test:
+    name: Unit Tests
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Run unit tests
         run: pnpm test
 
-      - name: Build
+  build-and-smoke:
+    name: Build + Smoke Tests
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
         run: pnpm build
+
+      - name: Run CLI smoke tests
+        run: pnpm --filter herdctl run test:smoke

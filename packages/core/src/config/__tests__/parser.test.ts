@@ -52,7 +52,7 @@ defaults:
   instances:
     max_concurrent: 1
 
-workspace:
+working_directory:
   root: ~/herdctl-workspace
   auto_clone: true
   clone_depth: 1
@@ -76,9 +76,9 @@ chat:
       expect(config.defaults?.work_source?.type).toBe("github");
       expect(config.defaults?.work_source?.labels?.ready).toBe("ready");
       expect(config.defaults?.instances?.max_concurrent).toBe(1);
-      expect(config.workspace?.root).toBe("~/herdctl-workspace");
-      expect(config.workspace?.auto_clone).toBe(true);
-      expect(config.workspace?.clone_depth).toBe(1);
+      expect(config.working_directory?.root).toBe("~/herdctl-workspace");
+      expect(config.working_directory?.auto_clone).toBe(true);
+      expect(config.working_directory?.clone_depth).toBe(1);
       expect(config.agents).toHaveLength(3);
       expect(config.agents[0].path).toBe("./agents/bragdoc-coder.yaml");
       expect(config.chat?.discord?.enabled).toBe(true);
@@ -126,13 +126,13 @@ docker:
     it("applies default values correctly", () => {
       const yaml = `
 version: 1
-workspace:
+working_directory:
   root: /tmp/workspace
 `;
       const config = parseFleetConfig(yaml);
-      expect(config.workspace?.auto_clone).toBe(true);
-      expect(config.workspace?.clone_depth).toBe(1);
-      expect(config.workspace?.default_branch).toBe("main");
+      expect(config.working_directory?.auto_clone).toBe(true);
+      expect(config.working_directory?.clone_depth).toBe(1);
+      expect(config.working_directory?.default_branch).toBe("main");
     });
 
     it("parses all permission modes", () => {
@@ -265,7 +265,7 @@ defaults:
     it("throws SchemaValidationError for missing required workspace root", () => {
       const yaml = `
 version: 1
-workspace:
+working_directory:
   auto_clone: true
 `;
       expect(() => parseFleetConfig(yaml)).toThrow(SchemaValidationError);
@@ -319,7 +319,7 @@ defaults:
     it("throws SchemaValidationError for negative clone_depth", () => {
       const yaml = `
 version: 1
-workspace:
+working_directory:
   root: /tmp
   clone_depth: -5
 `;
@@ -329,7 +329,7 @@ workspace:
     it("throws SchemaValidationError for non-integer clone_depth", () => {
       const yaml = `
 version: 1
-workspace:
+working_directory:
   root: /tmp
   clone_depth: 1.5
 `;
@@ -512,7 +512,7 @@ version: 1
 defaults:
   permissions:
     mode: acceptEdits
-workspace:
+working_directory:
   root: /tmp
 agents:
   - path: ./test.yaml
@@ -522,7 +522,7 @@ agents:
     // TypeScript compilation verifies these types
     const _version: number = config.version;
     const _mode: string | undefined = config.defaults?.permissions?.mode;
-    const _root: string | undefined = config.workspace?.root;
+    const _root: string | undefined = config.working_directory?.root;
     const _path: string | undefined = config.agents[0]?.path;
 
     expect(_version).toBe(1);

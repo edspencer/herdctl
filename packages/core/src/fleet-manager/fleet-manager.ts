@@ -166,6 +166,9 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       this.config = await this.loadConfiguration();
       this.logger.info(`Loaded ${this.config.agents.length} agent(s) from config`);
 
+      // Validate agent names are unique
+      this.validateUniqueAgentNames(this.config.agents);
+
       this.stateDirInfo = await this.initializeStateDir();
       this.logger.debug("State directory initialized");
 
@@ -323,6 +326,37 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
         throw new ConfigurationError(`Invalid configuration: ${error.message}`, { configPath: this.configPath, cause: error });
       }
       throw new ConfigurationError(`Failed to load configuration: ${error instanceof Error ? error.message : String(error)}`, { configPath: this.configPath, cause: error instanceof Error ? error : undefined });
+    }
+  }
+
+  /**
+   * Validate that all agent names are unique
+   *
+   * Agent names are used as primary keys throughout the system (Discord connectors,
+   * session storage, job identification, etc.). Duplicate names cause silent overwrites
+   * and unpredictable behavior.
+   *
+   * @param agents - Array of resolved agents to validate
+   * @throws ConfigurationError if duplicate names are found
+   */
+  private validateUniqueAgentNames(agents: ResolvedAgent[]): void {
+    const nameCount = new Map<string, number>();
+
+    // Count occurrences of each name
+    for (const agent of agents) {
+      nameCount.set(agent.name, (nameCount.get(agent.name) || 0) + 1);
+    }
+
+    // Find duplicates
+    const duplicates = Array.from(nameCount.entries())
+      .filter(([, count]) => count > 1)
+      .map(([name]) => name);
+
+    if (duplicates.length > 0) {
+      const duplicateList = duplicates.map(name => `"${name}"`).join(", ");
+      throw new ConfigurationError(
+        `Duplicate agent names found: ${duplicateList}. Agent names must be unique across all configuration files.`
+      );
     }
   }
 

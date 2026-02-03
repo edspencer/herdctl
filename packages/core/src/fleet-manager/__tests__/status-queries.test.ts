@@ -256,7 +256,7 @@ describe("Fleet Status Query Methods", () => {
         name: "my-agent",
         description: "My test agent",
         model: "claude-3-5-sonnet",
-        workspace: "/path/to/workspace",
+        working_directory: "/path/to/workspace",
         instances: { max_concurrent: 2 },
         schedules: {
           hourly: {
@@ -288,7 +288,7 @@ describe("Fleet Status Query Methods", () => {
       expect(agents[0].name).toBe("my-agent");
       expect(agents[0].description).toBe("My test agent");
       expect(agents[0].model).toBe("claude-3-5-sonnet");
-      expect(agents[0].workspace).toBe("/path/to/workspace");
+      expect(agents[0].working_directory).toBe("/path/to/workspace");
       expect(agents[0].maxConcurrent).toBe(2);
       expect(agents[0].status).toBe("idle");
       expect(agents[0].currentJobId).toBeNull();
@@ -531,11 +531,11 @@ describe("Fleet Status Query Methods", () => {
     });
   });
 
-  describe("workspace handling", () => {
-    it("handles string workspace", async () => {
+  describe("working directory handling", () => {
+    it("handles string working directory", async () => {
       await createAgentConfig("string-ws-agent", {
         name: "string-ws-agent",
-        workspace: "/simple/path",
+        working_directory: "/simple/path",
       });
 
       const configPath = await createConfig({
@@ -551,13 +551,13 @@ describe("Fleet Status Query Methods", () => {
 
       await manager.initialize();
       const agent = await manager.getAgentInfoByName("string-ws-agent");
-      expect(agent.workspace).toBe("/simple/path");
+      expect(agent.working_directory).toBe("/simple/path");
     });
 
-    it("handles object workspace", async () => {
+    it("handles object working directory", async () => {
       await createAgentConfig("object-ws-agent", {
         name: "object-ws-agent",
-        workspace: {
+        working_directory: {
           root: "/workspace/root",
           auto_clone: true,
         },
@@ -576,10 +576,10 @@ describe("Fleet Status Query Methods", () => {
 
       await manager.initialize();
       const agent = await manager.getAgentInfoByName("object-ws-agent");
-      expect(agent.workspace).toBe("/workspace/root");
+      expect(agent.working_directory).toBe("/workspace/root");
     });
 
-    it("handles missing workspace", async () => {
+    it("handles missing working directory", async () => {
       await createAgentConfig("no-ws-agent", {
         name: "no-ws-agent",
       });
@@ -597,7 +597,8 @@ describe("Fleet Status Query Methods", () => {
 
       await manager.initialize();
       const agent = await manager.getAgentInfoByName("no-ws-agent");
-      expect(agent.workspace).toBeUndefined();
+      // With no explicit working directory, defaults to agent config directory
+      expect(agent.working_directory).toBe(join(configDir, "agents"));
     });
   });
 });

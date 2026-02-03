@@ -651,6 +651,9 @@ export class DiscordManager {
     // Start typing indicator while processing
     const stopTyping = event.startTyping();
 
+    // Track if we've stopped typing to avoid multiple calls
+    let typingStopped = false;
+
     try {
       // Import FleetManager dynamically to avoid circular dependency
       // The context's getEmitter() returns the FleetManager instance
@@ -663,7 +666,7 @@ export class DiscordManager {
             resume?: string;
             onMessage?: (message: { type: string; content?: string; message?: { content?: unknown } }) => void | Promise<void>;
           }
-        ) => Promise<{ jobId: string; success: boolean; sessionId?: string }>;
+        ) => Promise<import("./types.js").TriggerResult>;
       };
 
       // Execute job via FleetManager.trigger()
@@ -684,14 +687,33 @@ export class DiscordManager {
         },
       });
 
+      // Stop typing indicator immediately after SDK execution completes
+      // This prevents the interval from firing during flush/session storage
+      if (!typingStopped) {
+        stopTyping();
+        typingStopped = true;
+      }
+
       // Flush any remaining buffered content
       await streamer.flush();
 
       logger.info(`Discord job completed: ${result.jobId} for agent '${agentName}'${result.sessionId ? ` (session: ${result.sessionId})` : ""}`);
 
-      // If no messages were sent, send a completion message
+      // If no messages were sent, send an appropriate message based on success/failure
       if (!streamer.hasSentMessages()) {
-        await event.reply("I've completed the task, but I don't have a specific response to share.");
+        if (result.success) {
+          await event.reply("I've completed the task, but I don't have a specific response to share.");
+        } else {
+          // Job failed without streaming any messages - send error details
+          const errorMessage = result.errorDetails?.message ?? result.error?.message ?? "An unknown error occurred";
+          await event.reply(`❌ **Error:** ${errorMessage}\n\nThe task could not be completed. Please check the logs for more details.`);
+        }
+
+        // Stop typing after sending fallback message (if not already stopped)
+        if (!typingStopped) {
+          stopTyping();
+          typingStopped = true;
+        }
       }
 
       // Store the SDK session ID for future conversation continuity
@@ -737,8 +759,11 @@ export class DiscordManager {
         timestamp: new Date().toISOString(),
       });
     } finally {
-      // Always stop typing indicator when done
-      stopTyping();
+      // Safety net: stop typing indicator if not already stopped
+      // (Should already be stopped after sending messages, but this ensures cleanup on errors)
+      if (!typingStopped) {
+        stopTyping();
+      }
     }
   }
 

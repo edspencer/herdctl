@@ -225,7 +225,7 @@ fleet:
 defaults:
   model: claude-sonnet-4-20250514
   max_turns: 50
-workspace:
+working_directory:
   root: ./workspace
 `;
       await createFile(join(tempDir, "herdctl.yaml"), config);
@@ -236,7 +236,7 @@ workspace:
       expect(result.fleet.fleet?.description).toBe("A test fleet");
       expect(result.fleet.defaults?.model).toBe("claude-sonnet-4-20250514");
       expect(result.fleet.defaults?.max_turns).toBe(50);
-      expect(result.fleet.workspace?.root).toBe("./workspace");
+      expect(result.fleet.working_directory?.root).toBe("./workspace");
     });
 
     it("throws on invalid YAML syntax", async () => {
@@ -691,7 +691,7 @@ defaults:
       - Glob
       - Grep
 
-workspace:
+working_directory:
   root: ./workspace
   auto_clone: true
   clone_depth: 1
@@ -741,7 +741,7 @@ system_prompt: |
     // Fleet config
     expect(result.fleet.fleet?.name).toBe("example-fleet");
     expect(result.fleet.defaults?.model).toBe("claude-sonnet-4-20250514");
-    expect(result.fleet.workspace?.root).toBe("./workspace");
+    expect(result.fleet.working_directory?.root).toBe("./workspace");
     expect(result.fleet.chat?.discord?.enabled).toBe(true);
 
     // Agents loaded
@@ -780,5 +780,245 @@ name: nested-agent
 
     expect(result.configPath).toBe(join(tempDir, "projects", "myproject", "herdctl.yaml"));
     expect(result.agents[0].name).toBe("nested-agent");
+  });
+
+  describe("workspace normalization", () => {
+    it("defaults workspace to agent config directory when not specified", async () => {
+      await createFile(join(tempDir, "herdctl.yaml"), `
+version: 1
+agents:
+  - path: ./agents/worker.yaml
+`);
+      await createFile(join(tempDir, "agents", "worker.yaml"), `
+name: worker
+`);
+
+      const result = await loadConfig(tempDir);
+
+      expect(result.agents[0].working_directory).toBe(join(tempDir, "agents"));
+    });
+
+    it("resolves relative workspace path relative to agent config directory", async () => {
+      await createFile(join(tempDir, "herdctl.yaml"), `
+version: 1
+agents:
+  - path: ./agents/nested/worker.yaml
+`);
+      await createFile(join(tempDir, "agents", "nested", "worker.yaml"), `
+name: worker
+working_directory: ../..
+`);
+
+      const result = await loadConfig(tempDir);
+
+      // Agent at /temp/agents/nested, workspace ../.. resolves to /temp
+      expect(result.agents[0].working_directory).toBe(tempDir);
+    });
+
+    it("keeps absolute workspace path as-is", async () => {
+      await createFile(join(tempDir, "herdctl.yaml"), `
+version: 1
+agents:
+  - path: ./agents/worker.yaml
+`);
+      await createFile(join(tempDir, "agents", "worker.yaml"), `
+name: worker
+working_directory: /absolute/path/to/workspace
+`);
+
+      const result = await loadConfig(tempDir);
+
+      expect(result.agents[0].working_directory).toBe("/absolute/path/to/workspace");
+    });
+
+    it("resolves relative workspace root in object form", async () => {
+      await createFile(join(tempDir, "herdctl.yaml"), `
+version: 1
+agents:
+  - path: ./agents/worker.yaml
+`);
+      await createFile(join(tempDir, "agents", "worker.yaml"), `
+name: worker
+working_directory:
+  root: ..
+  auto_clone: true
+`);
+
+      const result = await loadConfig(tempDir);
+
+      expect(typeof result.agents[0].working_directory).toBe("object");
+      const working_directory = result.agents[0].working_directory as {
+        root: string;
+      };
+      expect(working_directory.root).toBe(tempDir);
+    });
+
+    it("keeps absolute workspace root in object form as-is", async () => {
+      await createFile(join(tempDir, "herdctl.yaml"), `
+version: 1
+agents:
+  - path: ./agents/worker.yaml
+`);
+      await createFile(join(tempDir, "agents", "worker.yaml"), `
+name: worker
+working_directory:
+  root: /absolute/workspace
+  auto_clone: false
+`);
+
+      const result = await loadConfig(tempDir);
+
+      expect(typeof result.agents[0].working_directory).toBe("object");
+      const working_directory = result.agents[0].working_directory as {
+        root: string;
+      };
+      expect(working_directory.root).toBe("/absolute/workspace");
+    });
+
+    it("respects workspace from fleet defaults", async () => {
+      await createFile(join(tempDir, "herdctl.yaml"), `
+version: 1
+defaults:
+  working_directory: ./default-workspace
+agents:
+  - path: ./agents/worker.yaml
+`);
+      await createFile(join(tempDir, "agents", "worker.yaml"), `
+name: worker
+`);
+
+      const result = await loadConfig(tempDir);
+
+      // Fleet default workspace gets resolved relative to fleet config dir,
+      // then used as the agent workspace default before normalization
+      expect(result.agents[0].working_directory).toBe(join(tempDir, "default-workspace"));
+    });
+
+    it("agent workspace overrides fleet default workspace", async () => {
+      await createFile(join(tempDir, "herdctl.yaml"), `
+version: 1
+defaults:
+  working_directory: ./default-workspace
+agents:
+  - path: ./agents/worker.yaml
+`);
+      await createFile(join(tempDir, "agents", "worker.yaml"), `
+name: worker
+working_directory: ./custom-workspace
+`);
+
+      const result = await loadConfig(tempDir);
+
+      // Agent's relative workspace is resolved relative to agent config directory
+      expect(result.agents[0].working_directory).toBe(join(tempDir, "agents", "custom-workspace"));
+    });
+  });
+
+  describe("backward compatibility for workspace -> working_directory", () => {
+    it("migrates agent workspace to working_directory with warning", async () => {
+      await createFile(join(tempDir, "herdctl.yaml"), `
+version: 1
+agents:
+  - path: ./agents/worker.yaml
+`);
+      await createFile(join(tempDir, "agents", "worker.yaml"), `
+name: worker
+workspace: /old/workspace/path
+`);
+
+      // Capture console.warn
+      const originalWarn = console.warn;
+      const warnings: string[] = [];
+      console.warn = (...args: unknown[]) => {
+        warnings.push(args.join(" "));
+      };
+
+      try {
+        const result = await loadConfig(tempDir);
+
+        // Should use the old workspace value
+        expect(result.agents[0].working_directory).toBe("/old/workspace/path");
+
+        // Should emit a warning
+        expect(warnings.length).toBeGreaterThan(0);
+        expect(warnings.some((w) => w.includes("deprecated"))).toBe(true);
+        expect(warnings.some((w) => w.includes("workspace"))).toBe(true);
+      } finally {
+        console.warn = originalWarn;
+      }
+    });
+
+    it("migrates fleet defaults workspace to working_directory with warning", async () => {
+      await createFile(join(tempDir, "herdctl.yaml"), `
+version: 1
+defaults:
+  workspace: ./fleet/workspace
+agents:
+  - path: ./agents/worker.yaml
+`);
+      await createFile(join(tempDir, "agents", "worker.yaml"), `
+name: worker
+`);
+
+      // Capture console.warn
+      const originalWarn = console.warn;
+      const warnings: string[] = [];
+      console.warn = (...args: unknown[]) => {
+        warnings.push(args.join(" "));
+      };
+
+      try {
+        const result = await loadConfig(tempDir);
+
+        // Should use the fleet default workspace value (resolved to absolute path)
+        expect(result.agents[0].working_directory).toBe(
+          join(tempDir, "fleet/workspace")
+        );
+
+        // Should emit a warning for defaults
+        expect(warnings.length).toBeGreaterThan(0);
+        expect(warnings.some((w) => w.includes("deprecated"))).toBe(true);
+        expect(warnings.some((w) => w.includes("workspace"))).toBe(true);
+        expect(warnings.some((w) => w.includes("defaults"))).toBe(true);
+      } finally {
+        console.warn = originalWarn;
+      }
+    });
+
+    it("prefers working_directory over workspace when both are present", async () => {
+      await createFile(join(tempDir, "herdctl.yaml"), `
+version: 1
+agents:
+  - path: ./agents/worker.yaml
+`);
+      await createFile(join(tempDir, "agents", "worker.yaml"), `
+name: worker
+workspace: /old/workspace
+working_directory: /new/directory
+`);
+
+      // Capture console.warn
+      const originalWarn = console.warn;
+      const warnings: string[] = [];
+      console.warn = (...args: unknown[]) => {
+        warnings.push(args.join(" "));
+      };
+
+      try {
+        const result = await loadConfig(tempDir);
+
+        // Should use working_directory, not workspace
+        expect(result.agents[0].working_directory).toBe("/new/directory");
+
+        // Should NOT emit a warning (working_directory takes precedence)
+        expect(
+          warnings.some(
+            (w) => w.includes("deprecated") && w.includes("workspace")
+          )
+        ).toBe(false);
+      } finally {
+        console.warn = originalWarn;
+      }
+    });
   });
 });

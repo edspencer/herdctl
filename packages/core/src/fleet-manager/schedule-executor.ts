@@ -13,18 +13,13 @@
  */
 
 import { join, dirname } from "node:path";
-import { query as claudeSdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import type { TriggerInfo } from "../scheduler/index.js";
 import type { ResolvedAgent, HookEvent } from "../config/index.js";
-import { JobExecutor, type SDKMessage, type SDKQueryFunction } from "../runner/index.js";
+import { JobExecutor, RuntimeFactory, type SDKMessage } from "../runner/index.js";
 import { getJob } from "../state/index.js";
 import type { JobMetadata } from "../state/schemas/job-metadata.js";
 import { HookExecutor, type HookContext } from "../hooks/index.js";
 import type { FleetManagerContext } from "./context.js";
-
-// Cast the SDK query function to our internal type
-// The SDK types are slightly different but runtime-compatible
-const sdkQuery = claudeSdkQuery as unknown as SDKQueryFunction;
 import type {
   JobCreatedPayload,
   JobOutputPayload,
@@ -93,8 +88,9 @@ export class ScheduleExecutor {
           `(type: ${schedule.type}, prompt: ${prompt.slice(0, 50)}...)`
       );
 
-      // Create the JobExecutor with the Claude SDK query function
-      const executor = new JobExecutor(sdkQuery, {
+      // Create the JobExecutor with the runtime
+      const runtime = RuntimeFactory.create(agent, { stateDir });
+      const executor = new JobExecutor(runtime, {
         logger,
       });
 
@@ -349,20 +345,20 @@ export class ScheduleExecutor {
   }
 
   /**
-   * Resolve the agent's workspace path
+   * Resolve the agent's working directory path
    */
   private resolveAgentWorkspace(agent: ResolvedAgent): string | undefined {
-    if (!agent.workspace) {
+    if (!agent.working_directory) {
       return undefined;
     }
 
-    // If workspace is a string, it's the path directly
-    if (typeof agent.workspace === "string") {
-      return agent.workspace;
+    // If working directory is a string, it's the path directly
+    if (typeof agent.working_directory === "string") {
+      return agent.working_directory;
     }
 
-    // If workspace is an object with root property
-    return agent.workspace.root;
+    // If working directory is an object with root property
+    return agent.working_directory.root;
   }
 
   // ===========================================================================

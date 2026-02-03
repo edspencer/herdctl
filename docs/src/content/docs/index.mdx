@@ -42,8 +42,8 @@ Think of it as **"Kubernetes for AI agents"** - declarative configuration, multi
   Every job creates a real Claude SDK session. When an agent finishes, you can `claude --resume` that exact session in your terminal. Pick up where the agent left off with full context intact.
 </Card>
 
-<Card title="Bidirectional Communication" icon="random">
-  Agents write structured data back to herdctl via metadata files. Hooks act on that data. Coming soon: agents that request schedule changes, store persistent context, and evolve their own behavior over time.
+<Card title="Docker Security Isolation" icon="seti:lock">
+  Run agents in isolated Docker containers with kernel-level network namespaces, resource limits, and domain whitelisting. Protect your system and credentials from malicious prompts or compromised skills.
 </Card>
 
 ## Why herdctl?

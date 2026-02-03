@@ -1,0 +1,27 @@
+name: sdk-developer
+
+description: |
+  Development agent using SDK runtime.
+  Best for: Local development, API-only deployments.
+  Requires: ANTHROPIC_API_KEY environment variable.
+
+# SDK runtime is the default (can be omitted)
+runtime: sdk
+
+max_turns: 20
+default_prompt: "Review the codebase and suggest improvements."
+
+system_prompt: |
+  You are a code reviewer. Analyze code for:
+  - Code quality and best practices
+  - Potential bugs or issues
+  - Performance improvements
+
+  Focus on actionable feedback that improves the codebase.
+
+permissions:
+  mode: acceptEdits
+  allowed_tools:
+    - Read
+    - Glob
+    - Grep

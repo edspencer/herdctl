@@ -38,3 +38,8 @@ coverage/
 # Misc
 *.tsbuildinfo
 .ralph-tui
+
+# Working notes (not for commit)
+agent-distribution.md
+docker.md
+docs/MANUAL-QA-TEST-PLAN.md

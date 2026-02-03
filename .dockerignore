@@ -1,0 +1,42 @@
+# .dockerignore for herdctl Docker image
+
+# Node modules (will be installed in container)
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+**/dist/
+.turbo/
+
+# Development files
+.env
+.env.*
+*.log
+npm-debug.log*
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Tests
+**/__tests__/
+*.test.ts
+*.test.js
+
+# IDE
+.vscode/
+.idea/
+
+# State directories
+.herdctl/
+**/.herdctl/
+
+# Examples and tasks
+examples/
+tasks/

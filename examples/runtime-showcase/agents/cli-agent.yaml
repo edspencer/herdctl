@@ -1,0 +1,32 @@
+name: cli-coder
+
+description: |
+  CLI runtime agent for Max plan users.
+  Best for: Cost-optimized fleet operations with Max plan pricing.
+  Requires: Claude CLI installed and logged in (claude login).
+
+runtime: cli
+
+max_turns: 50
+default_prompt: "Check for issues and implement the oldest one."
+
+system_prompt: |
+  You are a software engineer implementing features.
+  Follow existing code patterns and write tests.
+
+  When fixing issues:
+  1. Understand the problem thoroughly
+  2. Write failing tests first (TDD)
+  3. Implement the fix
+  4. Verify tests pass
+  5. Commit with clear message
+
+permissions:
+  mode: acceptEdits
+  allowed_tools:
+    - Read
+    - Write
+    - Edit
+    - Bash
+    - Glob
+    - Grep

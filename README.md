@@ -42,6 +42,8 @@ herdctl allows you to interact with all of your existing Claude Code projects vi
 
 - **Full Claude Code Power** — If Claude Code can do it, your herdctl agent can do it. Same tools, same MCP servers, same capabilities. herdctl is a thin orchestration layer, not a sandbox.
 
+- **Two Runtimes** — CLI runtime uses your Claude Max subscription (much cheaper per token). SDK runtime uses API pricing. Both support Docker isolation with resource limits and network controls.
+
 - **Chat From Anywhere** — Connect agents to Discord (Slack coming soon). Message your agents from your phone, get responses, and they continue working based on your conversation. Your PR reviewer bot becomes a team member you can @ mention.
 
 - **Session Continuity** — Every job creates a real Claude SDK session. When an agent finishes, you can `claude --resume` that exact session in your terminal. Pick up where the agent left off with full context intact.
@@ -76,6 +78,27 @@ Your agents are now running. Check their status:
 
 ```bash
 herdctl status
+```
+
+## Runtime & Isolation
+
+**CLI Runtime (default)**: Uses Claude CLI. Can authenticate with Claude Max subscription tokens (much cheaper) or API key.
+
+**SDK Runtime**: Uses Claude Agent SDK. API key only (more expensive per token).
+
+```yaml
+# Use SDK runtime
+runtime: sdk
+```
+
+**Docker Isolation (opt-in)**: Run agents in containers with resource limits and network controls.
+
+```yaml
+docker:
+  enabled: true
+  memory: 2g
+  env:
+    GITHUB_TOKEN: "${GITHUB_TOKEN}"  # Auto-configures git auth
 ```
 
 ## Core Concepts

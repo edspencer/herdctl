@@ -491,15 +491,15 @@ describe("FleetManager Coverage Tests", () => {
   // Config Change Detection Edge Cases
   // ===========================================================================
   describe("Config change detection edge cases", () => {
-    it("detects workspace changes between string and object forms", async () => {
-      await createAgentConfig("workspace-agent", {
-        name: "workspace-agent",
-        workspace: "/simple/path",
+    it("detects working directory changes between string and object forms", async () => {
+      await createAgentConfig("working-directory-agent", {
+        name: "working-directory-agent",
+        working_directory: "/simple/path",
       });
 
       const configPath = await createConfig({
         version: 1,
-        agents: [{ path: "./agents/workspace-agent.yaml" }],
+        agents: [{ path: "./agents/working-directory-agent.yaml" }],
       });
 
       const manager = new FleetManager({
@@ -510,10 +510,10 @@ describe("FleetManager Coverage Tests", () => {
 
       await manager.initialize();
 
-      // Modify to object workspace
-      await createAgentConfig("workspace-agent", {
-        name: "workspace-agent",
-        workspace: {
+      // Modify to object working directory
+      await createAgentConfig("working-directory-agent", {
+        name: "working-directory-agent",
+        working_directory: {
           root: "/object/path",
         },
       });
@@ -524,7 +524,7 @@ describe("FleetManager Coverage Tests", () => {
         expect.objectContaining({
           type: "modified",
           category: "agent",
-          name: "workspace-agent",
+          name: "working-directory-agent",
         })
       );
     });
@@ -1740,7 +1740,7 @@ describe("FleetManager Coverage Tests", () => {
         name: "full-agent",
         description: "Full test agent",
         model: "claude-3",
-        workspace: "/path/to/workspace",
+        working_directory: "/path/to/workspace",
         instances: { max_concurrent: 3 },
         schedules: {
           hourly: { type: "interval", interval: "1h" },
@@ -1767,24 +1767,24 @@ describe("FleetManager Coverage Tests", () => {
       expect(agent.name).toBe("full-agent");
       expect(agent.description).toBe("Full test agent");
       expect(agent.model).toBe("claude-3");
-      expect(agent.workspace).toBe("/path/to/workspace");
+      expect(agent.working_directory).toBe("/path/to/workspace");
       expect(agent.maxConcurrent).toBe(3);
       expect(agent.scheduleCount).toBe(1);
       expect(agent.schedules).toHaveLength(1);
       expect(agent.schedules[0].name).toBe("hourly");
     });
 
-    it("returns agent info with workspace object", async () => {
-      await createAgentConfig("workspace-obj-agent", {
-        name: "workspace-obj-agent",
-        workspace: {
+    it("returns agent info with working directory object", async () => {
+      await createAgentConfig("working-directory-obj-agent", {
+        name: "working-directory-obj-agent",
+        working_directory: {
           root: "/object/workspace/path",
         },
       });
 
       const configPath = await createConfig({
         version: 1,
-        agents: [{ path: "./agents/workspace-obj-agent.yaml" }],
+        agents: [{ path: "./agents/working-directory-obj-agent.yaml" }],
       });
 
       const manager = new FleetManager({
@@ -1796,7 +1796,7 @@ describe("FleetManager Coverage Tests", () => {
       await manager.initialize();
 
       const agents = await manager.getAgentInfo();
-      expect(agents[0].workspace).toBe("/object/workspace/path");
+      expect(agents[0].working_directory).toBe("/object/workspace/path");
     });
   });
 
@@ -1822,17 +1822,17 @@ describe("FleetManager Coverage Tests", () => {
   });
 
   // ===========================================================================
-  // Multiple workspace format tests
+  // Multiple working directory format tests
   // ===========================================================================
   describe("Workspace handling", () => {
-    it("handles agent with no workspace", async () => {
-      await createAgentConfig("no-workspace-agent", {
-        name: "no-workspace-agent",
+    it("handles agent with no working directory", async () => {
+      await createAgentConfig("no-working-directory-agent", {
+        name: "no-working-directory-agent",
       });
 
       const configPath = await createConfig({
         version: 1,
-        agents: [{ path: "./agents/no-workspace-agent.yaml" }],
+        agents: [{ path: "./agents/no-working-directory-agent.yaml" }],
       });
 
       const manager = new FleetManager({
@@ -1844,7 +1844,8 @@ describe("FleetManager Coverage Tests", () => {
       await manager.initialize();
 
       const agents = await manager.getAgentInfo();
-      expect(agents[0].workspace).toBeUndefined();
+      // With no explicit working directory, defaults to agent config directory
+      expect(agents[0].working_directory).toBe(join(configDir, "agents"));
     });
   });
 

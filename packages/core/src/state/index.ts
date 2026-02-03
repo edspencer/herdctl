@@ -78,3 +78,18 @@ export {
   type SessionLogger,
   type SessionInfoUpdates,
 } from "./session.js";
+
+// Re-export session validation functions
+export {
+  validateSession,
+  validateSessionWithFileCheck,
+  validateRuntimeContext,
+  cliSessionFileExists,
+  isSessionExpiredError,
+} from "./session-validation.js";
+
+// Re-export working directory validation functions
+export {
+  validateWorkingDirectory,
+  type WorkingDirectoryValidation,
+} from "./working-directory-validation.js";

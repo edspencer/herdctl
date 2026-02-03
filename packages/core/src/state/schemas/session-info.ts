@@ -25,6 +25,11 @@ export const SessionModeSchema = z.enum([
 // =============================================================================
 
 /**
+ * Runtime type for session tracking
+ */
+export const RuntimeTypeSchema = z.enum(["sdk", "cli"]);
+
+/**
  * Session info schema for individual agent session files
  *
  * Each session is stored as .herdctl/sessions/<agent-name>.json
@@ -47,6 +52,24 @@ export const SessionInfoSchema = z.object({
 
   /** Current operational mode of the session */
   mode: SessionModeSchema,
+
+  /**
+   * Working directory (cwd) when the session was created
+   * Used to detect working directory changes that would make the session invalid
+   */
+  working_directory: z.string().optional(),
+
+  /**
+   * Runtime type used when the session was created
+   * Defaults to "sdk" for legacy sessions
+   */
+  runtime_type: RuntimeTypeSchema.optional().default("sdk"),
+
+  /**
+   * Whether Docker was enabled when the session was created
+   * Defaults to false for legacy sessions
+   */
+  docker_enabled: z.boolean().optional().default(false),
 });
 
 // =============================================================================
@@ -54,6 +77,7 @@ export const SessionInfoSchema = z.object({
 // =============================================================================
 
 export type SessionMode = z.infer<typeof SessionModeSchema>;
+export type RuntimeType = z.infer<typeof RuntimeTypeSchema>;
 export type SessionInfo = z.infer<typeof SessionInfoSchema>;
 
 // =============================================================================
@@ -70,6 +94,12 @@ export interface CreateSessionOptions {
   session_id: string;
   /** Operational mode (defaults to 'autonomous') */
   mode?: SessionMode;
+  /** Working directory (cwd) for the session */
+  working_directory?: string;
+  /** Runtime type (defaults to 'sdk') */
+  runtime_type?: RuntimeType;
+  /** Whether Docker is enabled (defaults to false) */
+  docker_enabled?: boolean;
 }
 
 /**
@@ -88,5 +118,8 @@ export function createSessionInfo(options: CreateSessionOptions): SessionInfo {
     last_used_at: now,
     job_count: 0,
     mode: options.mode ?? "autonomous",
+    working_directory: options.working_directory,
+    runtime_type: options.runtime_type ?? "sdk",
+    docker_enabled: options.docker_enabled ?? false,
   };
 }

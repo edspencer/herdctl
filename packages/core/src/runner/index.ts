@@ -55,3 +55,7 @@ export {
   type JobExecutorOptions,
   type SDKQueryFunction,
 } from "./job-executor.js";
+
+// Export runtime types and factory
+export type { RuntimeInterface, RuntimeExecuteOptions } from "./runtime/index.js";
+export { SDKRuntime, RuntimeFactory, type RuntimeType } from "./runtime/index.js";

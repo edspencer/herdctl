@@ -49,6 +49,7 @@ function createDiscordAgent(
   return {
     name,
     model: "sonnet",
+    runtime: "sdk", // Explicitly set runtime for session validation
     schedules: {},
     chat: {
       discord: discordConfig,
@@ -2650,9 +2651,15 @@ describe("DiscordManager lifecycle", () => {
 
   it("sends default response when job produces no output", async () => {
     const eventEmitter = new EventEmitter();
-    // Trigger that returns but doesn't call onMessage
+    // Trigger that returns a successful result but doesn't send any messages
     const triggerMock = vi.fn().mockImplementation(async () => {
-      return { jobId: "job-789" };
+      return {
+        jobId: "job-789",
+        agentName: "test-agent",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+      };
     });
     const emitterWithTrigger = Object.assign(eventEmitter, {
       trigger: triggerMock,

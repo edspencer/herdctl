@@ -28,6 +28,18 @@ import { StateFileError } from "./errors.js";
 export interface SessionOptions {
   /** Logger for warnings */
   logger?: SessionLogger;
+  /**
+   * Session expiry timeout string (e.g., "24h", "30m").
+   * If provided, expired sessions will be treated as non-existent and automatically cleared.
+   * This prevents stale session IDs from being used for resume attempts.
+   */
+  timeout?: string;
+  /**
+   * Runtime type ("cli" or "sdk").
+   * If "cli", validates that CLI session files exist on disk.
+   * If "sdk" or undefined, only validates expiration (no file check).
+   */
+  runtime?: "cli" | "sdk";
 }
 
 /**
@@ -62,21 +74,29 @@ function getSessionFilePath(sessionsDir: string, agentName: string): string {
 /**
  * Get session info for an agent
  *
- * Returns null if no session exists (handles missing file gracefully).
+ * Returns null if no session exists, is corrupted, or has expired.
+ * When a timeout is provided, expired sessions are automatically cleared
+ * to prevent stale session IDs from being used for resume attempts.
  *
  * @param sessionsDir - Path to the sessions directory
  * @param agentName - Name of the agent
- * @param options - Optional operation options
- * @returns The session info, or null if not found
+ * @param options - Optional operation options including timeout for expiry validation
+ * @returns The session info, or null if not found/expired
  *
  * @example
  * ```typescript
+ * // Get session without expiry validation
  * const session = await getSessionInfo('/path/to/.herdctl/sessions', 'my-agent');
  * if (session) {
  *   console.log(`Session ${session.session_id} has ${session.job_count} jobs`);
  * } else {
  *   console.log('No existing session');
  * }
+ *
+ * // Get session with 24-hour expiry validation (prevents unexpected logouts)
+ * const session = await getSessionInfo('/path/to/.herdctl/sessions', 'my-agent', {
+ *   timeout: '24h'  // Sessions older than 24 hours will be treated as expired
+ * });
  * ```
  */
 export async function getSessionInfo(
@@ -84,7 +104,7 @@ export async function getSessionInfo(
   agentName: string,
   options: SessionOptions = {}
 ): Promise<SessionInfo | null> {
-  const { logger = console } = options;
+  const { logger = console, timeout } = options;
   const filePath = getSessionFilePath(sessionsDir, agentName);
 
   const result = await safeReadJson<unknown>(filePath);
@@ -102,7 +122,7 @@ export async function getSessionInfo(
     return null;
   }
 
-  // Parse and validate
+  // Parse and validate schema
   const parseResult = SessionInfoSchema.safeParse(result.data);
   if (!parseResult.success) {
     logger.warn(
@@ -111,7 +131,40 @@ export async function getSessionInfo(
     return null;
   }
 
-  return parseResult.data;
+  const session = parseResult.data;
+
+  // If timeout is provided, validate session expiry and optionally file existence
+  // Dynamic import to avoid circular dependency with session-validation.ts
+  if (timeout) {
+    const { validateSession, validateSessionWithFileCheck } = await import("./session-validation.js");
+
+    // For CLI runtime, check both expiration and file existence
+    // For SDK runtime (or unspecified), only check expiration
+    const validation = options.runtime === "cli"
+      ? await validateSessionWithFileCheck(session, timeout)
+      : validateSession(session, timeout);
+
+    if (!validation.valid) {
+      if (validation.reason === "expired" || validation.reason === "file_not_found") {
+        logger.warn(
+          `Session for ${agentName} is invalid: ${validation.message}. Clearing stale session.`
+        );
+        // Clear the invalid session to prevent stale session IDs from being used
+        await clearSession(sessionsDir, agentName).catch(() => {
+          // Ignore errors during cleanup - session is already treated as invalid
+        });
+      } else if (validation.reason === "invalid_timeout") {
+        logger.warn(
+          `Invalid timeout format for session validation: ${validation.message}`
+        );
+        // Still return session if timeout format is invalid - don't fail the operation
+        return session;
+      }
+      return null;
+    }
+  }
+
+  return session;
 }
 
 /**
@@ -184,6 +237,7 @@ export async function updateSessionInfo(
       agent_name: agentName,
       session_id: updates.session_id,
       mode: updates.mode,
+      working_directory: updates.working_directory,
     });
 
     updatedSession = {

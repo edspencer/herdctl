@@ -381,6 +381,11 @@ describe("mergeAgentConfig", () => {
       const defaults: ExtendedDefaults = {
         docker: {
           enabled: true,
+          ephemeral: false,
+          network: "bridge" as const,
+          memory: "2g",
+          max_containers: 5,
+          workspace_mode: "rw" as const,
           base_image: "herdctl-base:latest",
         },
       };
@@ -394,6 +399,11 @@ describe("mergeAgentConfig", () => {
       const defaults: ExtendedDefaults = {
         docker: {
           enabled: true,
+          ephemeral: false,
+          network: "bridge" as const,
+          memory: "2g",
+          max_containers: 5,
+          workspace_mode: "rw" as const,
           base_image: "herdctl-base:latest",
         },
       };
@@ -401,6 +411,11 @@ describe("mergeAgentConfig", () => {
         name: "test-agent",
         docker: {
           enabled: false,
+          ephemeral: false,
+          network: "bridge" as const,
+          memory: "2g",
+          max_containers: 5,
+          workspace_mode: "rw" as const,
         },
       };
       const result = mergeAgentConfig(defaults, agent);
@@ -530,14 +545,14 @@ describe("mergeAgentConfig", () => {
       expect(result.description).toBe("A test agent");
     });
 
-    it("preserves agent workspace", () => {
+    it("preserves agent working directory", () => {
       const defaults: ExtendedDefaults = { model: "default-model" };
       const agent: AgentConfig = {
         name: "my-agent",
-        workspace: "/path/to/workspace",
+        working_directory: "/path/to/workspace",
       };
       const result = mergeAgentConfig(defaults, agent);
-      expect(result.workspace).toBe("/path/to/workspace");
+      expect(result.working_directory).toBe("/path/to/workspace");
     });
 
     it("preserves agent identity", () => {
@@ -556,7 +571,12 @@ describe("mergeAgentConfig", () => {
       const agent: AgentConfig = {
         name: "my-agent",
         schedules: {
-          main: { type: "interval", interval: "5m", enabled: true },
+          main: {
+            type: "interval",
+            interval: "5m",
+            enabled: true,
+            resume_session: true,
+          },
         },
       };
       const result = mergeAgentConfig(defaults, agent);
@@ -619,6 +639,11 @@ describe("mergeAgentConfig", () => {
       const defaults: ExtendedDefaults = {
         docker: {
           enabled: false,
+          ephemeral: false,
+          network: "bridge" as const,
+          memory: "2g",
+          max_containers: 5,
+          workspace_mode: "rw" as const,
         },
         permissions: {
           mode: "acceptEdits",

@@ -299,9 +299,9 @@ export interface AgentInfo {
   model?: string;
 
   /**
-   * Workspace path for this agent
+   * Working directory path for this agent
    */
-  workspace?: string;
+  working_directory?: string;
 
   /**
    * Discord connector status (if Discord is configured for this agent)
@@ -558,6 +558,16 @@ export interface TriggerResult {
    * Failed jobs may return session IDs that are invalid.
    */
   sessionId?: string;
+
+  /**
+   * Error if the job failed
+   */
+  error?: Error;
+
+  /**
+   * Detailed error information for programmatic access
+   */
+  errorDetails?: import("../runner/types.js").RunnerErrorDetails;
 }
 
 // =============================================================================

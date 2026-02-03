@@ -98,6 +98,10 @@ export default defineConfig({
 					link: '/',
 				},
 				{
+					label: 'Security',
+					slug: 'security',
+				},
+				{
 					label: 'Getting Started',
 					slug: 'getting-started',
 				},
@@ -121,6 +125,8 @@ export default defineConfig({
 					items: [
 						{ label: 'Fleet Config', slug: 'configuration/fleet-config' },
 						{ label: 'Agent Config', slug: 'configuration/agent-config' },
+						{ label: 'Runtime', slug: 'configuration/runtime' },
+						{ label: 'Docker', slug: 'configuration/docker' },
 						{ label: 'GitHub Work Source', slug: 'configuration/github-work-source' },
 						{ label: 'Permissions', slug: 'configuration/permissions' },
 						{ label: 'MCP Servers', slug: 'configuration/mcp-servers' },
