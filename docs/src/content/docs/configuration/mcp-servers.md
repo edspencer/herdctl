@@ -94,13 +94,12 @@ Use `allowed_tools` and `denied_tools` to control which MCP tools an agent can u
 Allow all tools from a specific server using wildcards:
 
 ```yaml
-permissions:
-  allowed_tools:
-    - Read
-    - Write
-    - Edit
-    - mcp__github__*      # All GitHub MCP tools
-    - mcp__posthog__*     # All PostHog MCP tools
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - mcp__github__*      # All GitHub MCP tools
+  - mcp__posthog__*     # All PostHog MCP tools
 ```
 
 ### Specific Tools Only
@@ -108,13 +107,12 @@ permissions:
 For tighter security, allow only specific tools:
 
 ```yaml
-permissions:
-  allowed_tools:
-    - Read
-    - Write
-    - mcp__github__list_issues
-    - mcp__github__create_pull_request
-    # Other GitHub tools are blocked
+allowed_tools:
+  - Read
+  - Write
+  - mcp__github__list_issues
+  - mcp__github__create_pull_request
+  # Other GitHub tools are blocked
 ```
 
 ### Denying Specific MCP Tools
@@ -122,11 +120,10 @@ permissions:
 Block specific tools while allowing others:
 
 ```yaml
-permissions:
-  allowed_tools:
-    - mcp__github__*
-  denied_tools:
-    - mcp__github__delete_repository  # Block dangerous operations
+allowed_tools:
+  - mcp__github__*
+denied_tools:
+  - mcp__github__delete_repository  # Block dangerous operations
 ```
 
 :::tip
@@ -265,21 +262,16 @@ mcp_servers:
     env:
       GITHUB_TOKEN: ${GITHUB_TOKEN}
 
-permissions:
-  mode: acceptEdits
-  allowed_tools:
-    - Read
-    - Write
-    - Edit
-    - Bash
-    - Glob
-    - Grep
-    - mcp__github__*
-  bash:
-    allowed_commands:
-      - "git *"
-      - "npm *"
-      - "pnpm *"
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - mcp__github__*
+  - "Bash(git *)"
+  - "Bash(npm *)"
+  - "Bash(pnpm *)"
 ```
 
 ### Analytics Agent with PostHog
@@ -298,19 +290,17 @@ mcp_servers:
       POSTHOG_API_KEY: ${POSTHOG_API_KEY}
       POSTHOG_PROJECT_ID: ${POSTHOG_PROJECT_ID}
 
-permissions:
-  mode: acceptEdits
-  allowed_tools:
-    - Read
-    - Glob
-    - Grep
-    - mcp__posthog__query-run
-    - mcp__posthog__insights-get-all
-    - mcp__posthog__feature-flag-get-all
-    - mcp__posthog__experiment-get-all
-  denied_tools:
-    - mcp__posthog__delete-feature-flag  # Block destructive operations
-    - mcp__posthog__experiment-delete
+allowed_tools:
+  - Read
+  - Glob
+  - Grep
+  - mcp__posthog__query-run
+  - mcp__posthog__insights-get-all
+  - mcp__posthog__feature-flag-get-all
+  - mcp__posthog__experiment-get-all
+denied_tools:
+  - mcp__posthog__delete-feature-flag  # Block destructive operations
+  - mcp__posthog__experiment-delete
 ```
 
 ### Multi-Server Agent
@@ -338,19 +328,16 @@ mcp_servers:
     env:
       DATABASE_URL: ${DATABASE_URL}
 
-permissions:
-  mode: acceptEdits
-  allowed_tools:
-    - Read
-    - Write
-    - Edit
-    - Bash
-    - mcp__github__*
-    - mcp__filesystem__*
-    - mcp__postgres__query
-    - mcp__postgres__list_tables
-  denied_tools:
-    - mcp__postgres__*  # Then allow specific ones above
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - mcp__github__*
+  - mcp__filesystem__*
+  - mcp__postgres__query
+  - mcp__postgres__list_tables
+denied_tools:
+  - mcp__postgres__*  # Then allow specific ones above
 ```
 
 ### Custom MCP Server
@@ -406,15 +393,13 @@ Only grant access to tools an agent actually needs:
 
 ```yaml
 # Good: Specific tools
-permissions:
-  allowed_tools:
-    - mcp__github__list_issues
-    - mcp__github__create_pull_request
+allowed_tools:
+  - mcp__github__list_issues
+  - mcp__github__create_pull_request
 
 # Risky: All tools
-permissions:
-  allowed_tools:
-    - mcp__github__*
+allowed_tools:
+  - mcp__github__*
 ```
 
 ### Protect Sensitive Tokens
@@ -448,12 +433,11 @@ mcp_servers:
 Block dangerous tools even when using wildcards:
 
 ```yaml
-permissions:
-  allowed_tools:
-    - mcp__github__*
-  denied_tools:
-    - mcp__github__delete_repository
-    - mcp__github__delete_branch
+allowed_tools:
+  - mcp__github__*
+denied_tools:
+  - mcp__github__delete_repository
+  - mcp__github__delete_branch
 ```
 
 ---

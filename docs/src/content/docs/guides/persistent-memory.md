@@ -42,12 +42,11 @@ system_prompt: |
   1. Update context.md with the results of this run
   2. Include timestamp and relevant data
 
-permissions:
-  allowed_tools:
-    - Read
-    - Write
-    - Edit
-    # Add other tools your agent needs
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  # Add other tools your agent needs
 ```
 
 ### Context File Structure
@@ -188,13 +187,12 @@ system_prompt: |
 
   Keep history to last 10 entries.
 
-permissions:
-  allowed_tools:
-    - WebSearch
-    - WebFetch
-    - Read
-    - Write
-    - Edit
+allowed_tools:
+  - WebSearch
+  - WebFetch
+  - Read
+  - Write
+  - Edit
 ```
 
 ## Excluding Context from Git
@@ -277,11 +275,10 @@ system_prompt: |
 Ensure Read tool is allowed:
 
 ```yaml
-permissions:
-  allowed_tools:
-    - Read  # Required for reading context
-    - Write
-    - Edit
+allowed_tools:
+  - Read  # Required for reading context
+  - Write
+  - Edit
 ```
 
 ### Agent creates inconsistent format

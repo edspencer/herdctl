@@ -74,13 +74,12 @@ schedules:
       Keep your response brief.
 
 # Permissions - what the agent can do
-permissions:
-  allowed_tools:
-    - Read
-    - Glob
-    - Grep
-    - Edit
-    - Write
+allowed_tools:
+  - Read
+  - Glob
+  - Grep
+  - Edit
+  - Write
 `,
     agentFilename: "example-agent.yaml",
   },
@@ -164,16 +163,15 @@ schedules:
       claim_label: in-progress
       complete_action: close
 
-permissions:
-  allowed_tools:
-    - Read
-    - Glob
-    - Grep
-    - Edit
-    - Write
-    - Bash(git *)
-    - Bash(npm *)
-    - Bash(pnpm *)
+allowed_tools:
+  - Read
+  - Glob
+  - Grep
+  - Edit
+  - Write
+  - "Bash(git *)"
+  - "Bash(npm *)"
+  - "Bash(pnpm *)"
 `,
     agentFilename: "github-agent.yaml",
   },

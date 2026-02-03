@@ -56,19 +56,18 @@ system_prompt: |
   End with a brief text summary that includes the URL to buy:
   "**Price Check Complete**: Staples Hyken at $159.99 (best deal, meets $200 target). IKEA MARKUS at $299.99. Buy here: https://www.staples.com/..."
 
-permissions:
-  allowed_tools:
-    - WebSearch
-    - WebFetch
-    - Read
-    - Write
-    - Edit
-  denied_tools:
-    - Bash
-    - TodoWrite
-    - Task
-    - Glob
-    - Grep
+allowed_tools:
+  - WebSearch
+  - WebFetch
+  - Read
+  - Write
+  - Edit
+denied_tools:
+  - Bash
+  - TodoWrite
+  - Task
+  - Glob
+  - Grep
 
 schedules:
   check:

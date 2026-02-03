@@ -19,9 +19,8 @@ system_prompt: |
 
   Focus on actionable feedback that improves the codebase.
 
-permissions:
-  mode: acceptEdits
-  allowed_tools:
-    - Read
-    - Glob
-    - Grep
+permission_mode: acceptEdits
+allowed_tools:
+  - Read
+  - Glob
+  - Grep

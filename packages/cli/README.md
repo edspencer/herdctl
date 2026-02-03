@@ -65,12 +65,11 @@ schedules:
     cron: "0 9 * * *"
     prompt: "Review open PRs and provide feedback"
 
-permissions:
-  mode: bypassPermissions
-  allowed_tools:
-    - Read
-    - Glob
-    - Grep
+permission_mode: bypassPermissions
+allowed_tools:
+  - Read
+  - Glob
+  - Grep
 ```
 
 ## Features

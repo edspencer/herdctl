@@ -39,13 +39,12 @@ session:
   timeout: 2h
   model: claude-sonnet-4-20250514
 
-permissions:
-  mode: acceptEdits
-  allowed_tools:
-    - Read
-    - Write
-    - Edit
-    - Bash
+permission_mode: acceptEdits
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - Bash
 
 mcp_servers:
   github:
@@ -77,14 +76,15 @@ permission_mode: acceptEdits
 | `hooks` | object | No | Post-job actions (notifications, webhooks) |
 | `instances` | object | No | Concurrency and instance settings |
 | `session` | object | No | Session runtime settings |
-| `permissions` | object | No | Permission controls |
+| `permission_mode` | string | No | Permission mode setting |
+| `allowed_tools` | string[] | No | Tools the agent can use |
+| `denied_tools` | string[] | No | Tools explicitly denied |
 | `mcp_servers` | object | No | MCP server configurations |
 | `chat` | object | No | Chat integration settings |
 | `docker` | object | No | Docker execution settings |
 | `runtime` | string | No | Runtime type: `"sdk"` (default) or `"cli"` |
 | `model` | string | No | Claude model to use |
 | `max_turns` | integer | No | Maximum conversation turns |
-| `permission_mode` | string | No | Quick permission mode setting |
 | `metadata_file` | string | No | Path to agent metadata file for hooks |
 
 ---
@@ -478,40 +478,32 @@ session:
 | `timeout` | string | Session timeout (e.g., "30m", "2h") |
 | `model` | string | Claude model for this session |
 
-### permissions
+### permission_mode, allowed_tools, denied_tools
 
 Control what the agent can do. See [Permissions](/configuration/permissions/) for full details.
 
 ```yaml
-permissions:
-  mode: acceptEdits
-  allowed_tools:
-    - Read
-    - Write
-    - Edit
-    - Bash
-    - Glob
-    - Grep
-  denied_tools:
-    - WebFetch
-  bash:
-    allowed_commands:
-      - "git *"
-      - "npm *"
-      - "pnpm *"
-    denied_patterns:
-      - "rm -rf *"
-      - "sudo *"
+permission_mode: acceptEdits
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - "Bash(git *)"
+  - "Bash(npm *)"
+  - "Bash(pnpm *)"
+denied_tools:
+  - WebFetch
+  - "Bash(rm -rf *)"
+  - "Bash(sudo *)"
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `mode` | string | Permission mode (see below) |
-| `allowed_tools` | string[] | Tools the agent can use |
-| `denied_tools` | string[] | Tools explicitly denied |
-| `bash` | object | Bash command restrictions |
-| `bash.allowed_commands` | string[] | Allowed bash patterns |
-| `bash.denied_patterns` | string[] | Denied bash patterns |
+| `permission_mode` | string | Permission mode (see below) |
+| `allowed_tools` | string[] | Tools the agent can use (use `Bash(pattern)` for bash commands) |
+| `denied_tools` | string[] | Tools explicitly denied (use `Bash(pattern)` for bash commands) |
 
 #### Permission Modes
 
@@ -668,7 +660,7 @@ max_turns: 100
 
 ### permission_mode
 
-Shorthand for `permissions.mode`. Sets the permission mode directly.
+Sets the permission mode for the agent. See [permission_mode, allowed_tools, denied_tools](#permission_mode-allowed_tools-denied_tools) for the full permissions reference.
 
 ```yaml
 permission_mode: acceptEdits
@@ -727,26 +719,22 @@ session:
   timeout: 4h
   model: claude-sonnet-4-20250514
 
-permissions:
-  mode: acceptEdits
-  allowed_tools:
-    - Read
-    - Write
-    - Edit
-    - Bash
-    - Glob
-    - Grep
-    - Task
-  bash:
-    allowed_commands:
-      - "git *"
-      - "npm *"
-      - "pnpm *"
-      - "node *"
-      - "npx *"
-    denied_patterns:
-      - "rm -rf /"
-      - "sudo *"
+permission_mode: acceptEdits
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - Task
+  - "Bash(git *)"
+  - "Bash(npm *)"
+  - "Bash(pnpm *)"
+  - "Bash(node *)"
+  - "Bash(npx *)"
+denied_tools:
+  - "Bash(rm -rf /)"
+  - "Bash(sudo *)"
 
 mcp_servers:
   github:
@@ -810,16 +798,15 @@ session:
   max_turns: 50
   timeout: 2h
 
-permissions:
-  mode: acceptEdits
-  allowed_tools:
-    - Read
-    - Write
-    - Edit
-    - Glob
-    - Grep
-    - WebFetch
-    - WebSearch
+permission_mode: acceptEdits
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - WebFetch
+  - WebSearch
 
 chat:
   discord:
@@ -874,17 +861,16 @@ session:
   timeout: 8h
   model: claude-sonnet-4-20250514
 
-permissions:
-  mode: default
-  allowed_tools:
-    - Read
-    - Glob
-    - Grep
-    - WebFetch
-  denied_tools:
-    - Write
-    - Edit
-    - Bash
+permission_mode: default
+allowed_tools:
+  - Read
+  - Glob
+  - Grep
+  - WebFetch
+denied_tools:
+  - Write
+  - Edit
+  - Bash
 
 mcp_servers:
   knowledge-base:

@@ -21,12 +21,11 @@ system_prompt: |
   4. Verify tests pass
   5. Commit with clear message
 
-permissions:
-  mode: acceptEdits
-  allowed_tools:
-    - Read
-    - Write
-    - Edit
-    - Bash
-    - Glob
-    - Grep
+permission_mode: acceptEdits
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - Bash
+  - Glob
+  - Grep

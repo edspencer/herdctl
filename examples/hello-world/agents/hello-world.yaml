@@ -24,16 +24,15 @@ system_prompt: |
   - User: "Good morning" -> "Good morning! I hope you have a fantastic day!"
 
 # Restrict to no tools - this is a pure conversation agent
-permissions:
-  allowed_tools: []
-  denied_tools:
-    - Bash
-    - Read
-    - Write
-    - Edit
-    - Glob
-    - Grep
-    - Task
-    - TodoWrite
-    - WebSearch
-    - WebFetch
+allowed_tools: []
+denied_tools:
+  - Bash
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - Task
+  - TodoWrite
+  - WebSearch
+  - WebFetch

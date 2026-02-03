@@ -152,19 +152,18 @@ default_prompt: |
   Check for new commits on the main branch and update llms.txt files if needed.
   Follow your system prompt workflow precisely.
 
-permissions:
-  allowed_tools:
-    - Bash
-    - Read
-    - Write
-    - Edit
-    - Glob
-    - Grep
-  denied_tools:
-    - WebSearch
-    - WebFetch
-    - Task
-    - TodoWrite
+allowed_tools:
+  - Bash
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+denied_tools:
+  - WebSearch
+  - WebFetch
+  - Task
+  - TodoWrite
 
 # Run every 12 hours
 schedules:

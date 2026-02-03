@@ -151,48 +151,16 @@ export class CLIRuntime implements RuntimeInterface {
       args.push("--system-prompt", options.agent.system_prompt);
     }
 
-    // Collect all allowed tools into a single array to avoid multiple --allowedTools flags
-    const allAllowedTools: string[] = [];
-
-    // Add allowed tools if specified
-    if (options.agent.permissions?.allowed_tools?.length) {
-      allAllowedTools.push(...options.agent.permissions.allowed_tools);
-    }
-
-    // Add bash allowed commands as Bash(command *) patterns
-    if (options.agent.permissions?.bash?.allowed_commands?.length) {
-      const bashPatterns = options.agent.permissions.bash.allowed_commands.map(
-        (cmd) => `Bash(${cmd} *)`
-      );
-      allAllowedTools.push(...bashPatterns);
-    }
-
-    // Add all allowed tools as comma-separated string to prevent consuming subsequent args
+    // Add allowed tools if specified (direct passthrough to CLI)
     // Note: --allowedTools accepts "comma or space-separated" but space-separated consumes
     // all following args, so we must use comma-separated
-    if (allAllowedTools.length > 0) {
-      args.push("--allowedTools", allAllowedTools.join(","));
+    if (options.agent.allowed_tools?.length) {
+      args.push("--allowedTools", options.agent.allowed_tools.join(","));
     }
 
-    // Collect all denied tools into a single array
-    const allDeniedTools: string[] = [];
-
-    // Add denied tools if specified
-    if (options.agent.permissions?.denied_tools?.length) {
-      allDeniedTools.push(...options.agent.permissions.denied_tools);
-    }
-
-    // Add bash denied patterns as Bash(pattern) patterns
-    if (options.agent.permissions?.bash?.denied_patterns?.length) {
-      const bashDeniedPatterns = options.agent.permissions.bash.denied_patterns.map(
-        (pattern) => `Bash(${pattern})`
-      );
-      allDeniedTools.push(...bashDeniedPatterns);
-    }
-
-    // Add all denied tools as comma-separated string
-    if (allDeniedTools.length > 0) {
-      args.push("--disallowedTools", allDeniedTools.join(","));
+    // Add denied tools if specified (direct passthrough to CLI)
+    if (options.agent.denied_tools?.length) {
+      args.push("--disallowedTools", options.agent.denied_tools.join(","));
     }
 
     // Add setting sources if specified (comma-separated)

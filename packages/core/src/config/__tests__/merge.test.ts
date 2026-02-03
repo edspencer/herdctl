@@ -5,7 +5,7 @@ import {
   mergeAllAgentConfigs,
 } from "../merge.js";
 import type { AgentConfig } from "../schema.js";
-import type { ExtendedDefaults, PermissionsInput } from "../merge.js";
+import type { ExtendedDefaults } from "../merge.js";
 
 describe("deepMerge", () => {
   describe("basic behavior", () => {
@@ -54,17 +54,17 @@ describe("deepMerge", () => {
 
     it("replaces nested arrays", () => {
       const base = {
-        permissions: {
-          allowed_tools: ["Read", "Write"],
+        config: {
+          tools: ["Read", "Write"],
         },
       };
       const override = {
-        permissions: {
-          allowed_tools: ["Bash", "Grep"],
+        config: {
+          tools: ["Bash", "Grep"],
         },
       };
       const result = deepMerge(base, override);
-      expect(result?.permissions?.allowed_tools).toEqual(["Bash", "Grep"]);
+      expect(result?.config?.tools).toEqual(["Bash", "Grep"]);
     });
 
     it("replaces base array with empty override array", () => {
@@ -229,81 +229,50 @@ describe("mergeAgentConfig", () => {
     });
   });
 
-  describe("permissions merging", () => {
-    it("uses defaults permissions when agent has none", () => {
+  describe("tool permissions merging", () => {
+    it("uses defaults allowed_tools when agent has none", () => {
       const defaults: ExtendedDefaults = {
-        permissions: {
-          mode: "acceptEdits",
-          allowed_tools: ["Read", "Write"],
-        },
+        permission_mode: "acceptEdits",
+        allowed_tools: ["Read", "Write"],
       };
       const agent: AgentConfig = { name: "test-agent" };
       const result = mergeAgentConfig(defaults, agent);
-      expect(result.permissions?.mode).toBe("acceptEdits");
-      expect(result.permissions?.allowed_tools).toEqual(["Read", "Write"]);
+      expect(result.permission_mode).toBe("acceptEdits");
+      expect(result.allowed_tools).toEqual(["Read", "Write"]);
     });
 
-    it("agent permissions override defaults", () => {
+    it("agent allowed_tools replaces defaults", () => {
       const defaults: ExtendedDefaults = {
-        permissions: {
-          mode: "acceptEdits",
-          allowed_tools: ["Read", "Write"],
-        },
+        allowed_tools: ["Read", "Write", "Edit"],
       };
       const agent: AgentConfig = {
         name: "test-agent",
-        permissions: {
-          mode: "bypassPermissions",
-        },
+        allowed_tools: ["Bash(git *)"],
       };
       const result = mergeAgentConfig(defaults, agent);
-      expect(result.permissions?.mode).toBe("bypassPermissions");
-      // allowed_tools should still come from defaults since agent didn't specify
-      expect(result.permissions?.allowed_tools).toEqual(["Read", "Write"]);
+      // Agent's allowed_tools should completely replace defaults (arrays are not merged)
+      expect(result.allowed_tools).toEqual(["Bash(git *)"]);
     });
 
-    it("agent allowed_tools replaces default allowed_tools", () => {
+    it("uses defaults denied_tools when agent has none", () => {
       const defaults: ExtendedDefaults = {
-        permissions: {
-          mode: "acceptEdits",
-          allowed_tools: ["Read", "Write", "Edit", "Glob", "Grep"],
-        },
+        denied_tools: ["WebFetch", "Bash(rm *)"],
+      };
+      const agent: AgentConfig = { name: "test-agent" };
+      const result = mergeAgentConfig(defaults, agent);
+      expect(result.denied_tools).toEqual(["WebFetch", "Bash(rm *)"]);
+    });
+
+    it("agent denied_tools replaces defaults", () => {
+      const defaults: ExtendedDefaults = {
+        denied_tools: ["WebFetch"],
       };
       const agent: AgentConfig = {
         name: "test-agent",
-        permissions: {
-          mode: "acceptEdits",
-          allowed_tools: ["Bash"],
-        },
+        denied_tools: ["Bash(sudo *)"],
       };
       const result = mergeAgentConfig(defaults, agent);
-      expect(result.permissions?.allowed_tools).toEqual(["Bash"]);
-    });
-
-    it("merges bash permissions deeply", () => {
-      const defaults: ExtendedDefaults = {
-        permissions: {
-          mode: "acceptEdits",
-          bash: {
-            allowed_commands: ["git", "npm"],
-            denied_patterns: ["rm -rf /"],
-          },
-        },
-      };
-      const agent: AgentConfig = {
-        name: "test-agent",
-        permissions: {
-          mode: "acceptEdits",
-          bash: {
-            allowed_commands: ["pnpm"],
-          },
-        },
-      };
-      const result = mergeAgentConfig(defaults, agent);
-      // allowed_commands should be replaced
-      expect(result.permissions?.bash?.allowed_commands).toEqual(["pnpm"]);
-      // denied_patterns should be kept from defaults
-      expect(result.permissions?.bash?.denied_patterns).toEqual(["rm -rf /"]);
+      expect(result.denied_tools).toEqual(["Bash(sudo *)"]);
     });
   });
 
@@ -648,14 +617,9 @@ describe("mergeAgentConfig", () => {
           max_containers: 5,
           workspace_mode: "rw" as const,
         },
-        permissions: {
-          mode: "acceptEdits",
-          allowed_tools: ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
-          bash: {
-            allowed_commands: ["git", "npm", "pnpm"],
-            denied_patterns: ["rm -rf /", "sudo *"],
-          },
-        },
+        permission_mode: "acceptEdits",
+        allowed_tools: ["Read", "Edit", "Write", "Bash(git *)", "Glob", "Grep"],
+        denied_tools: ["Bash(rm -rf *)", "Bash(sudo *)"],
         work_source: {
           type: "github",
           labels: {
@@ -670,16 +634,12 @@ describe("mergeAgentConfig", () => {
         },
         model: "claude-sonnet-4-20250514",
         max_turns: 100,
-        permission_mode: "acceptEdits",
       };
 
       const agent: AgentConfig = {
         name: "specialized-agent",
         description: "An agent with specific overrides",
-        permissions: {
-          mode: "acceptEdits",
-          allowed_tools: ["Bash", "Read"],
-        },
+        allowed_tools: ["Bash(git *)", "Read"],
         work_source: {
           type: "github",
           labels: {
@@ -696,14 +656,10 @@ describe("mergeAgentConfig", () => {
       expect(result.description).toBe("An agent with specific overrides");
       expect(result.model).toBe("claude-opus-4-20250514");
 
-      // Check permissions merged correctly
-      expect(result.permissions?.mode).toBe("acceptEdits"); // from defaults
-      expect(result.permissions?.allowed_tools).toEqual(["Bash", "Read"]); // replaced by agent
-      expect(result.permissions?.bash?.allowed_commands).toEqual([
-        "git",
-        "npm",
-        "pnpm",
-      ]); // from defaults
+      // Check tool permissions merged correctly
+      expect(result.permission_mode).toBe("acceptEdits"); // from defaults
+      expect(result.allowed_tools).toEqual(["Bash(git *)", "Read"]); // replaced by agent
+      expect(result.denied_tools).toEqual(["Bash(rm -rf *)", "Bash(sudo *)"]); // from defaults
 
       // Check work_source merged correctly
       expect(result.work_source?.type).toBe("github");
@@ -717,7 +673,6 @@ describe("mergeAgentConfig", () => {
 
       // Check scalar values
       expect(result.max_turns).toBe(100); // from defaults (agent didn't override)
-      expect(result.permission_mode).toBe("acceptEdits"); // from defaults
     });
   });
 });

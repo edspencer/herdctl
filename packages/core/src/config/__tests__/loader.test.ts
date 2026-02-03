@@ -392,23 +392,21 @@ max_turns: 50
       expect(result.agents[0].max_turns).toBe(50);
     });
 
-    it("deep merges nested objects", async () => {
+    it("merges tool permissions (arrays are replaced, not merged)", async () => {
       const fleetConfig = `
 version: 1
 defaults:
-  permissions:
-    mode: acceptEdits
-    allowed_tools:
-      - Read
-      - Write
+  permission_mode: acceptEdits
+  allowed_tools:
+    - Read
+    - Write
 agents:
   - path: ./agents/test.yaml
 `;
       const agentConfig = `
 name: test-agent
-permissions:
-  allowed_tools:
-    - Bash
+allowed_tools:
+  - "Bash(git *)"
 `;
       await createFile(join(tempDir, "herdctl.yaml"), fleetConfig);
       await createFile(join(tempDir, "agents", "test.yaml"), agentConfig);
@@ -416,9 +414,9 @@ permissions:
       const result = await loadConfig(tempDir);
 
       // Mode should come from defaults
-      expect(result.agents[0].permissions?.mode).toBe("acceptEdits");
+      expect(result.agents[0].permission_mode).toBe("acceptEdits");
       // Arrays are replaced, not merged
-      expect(result.agents[0].permissions?.allowed_tools).toEqual(["Bash"]);
+      expect(result.agents[0].allowed_tools).toEqual(["Bash(git *)"]);
     });
 
     it("skips merging when mergeDefaults is false", async () => {
@@ -682,14 +680,13 @@ defaults:
   model: claude-sonnet-4-20250514
   max_turns: 50
   permission_mode: acceptEdits
-  permissions:
-    allowed_tools:
-      - Read
-      - Edit
-      - Write
-      - Bash
-      - Glob
-      - Grep
+  allowed_tools:
+    - Read
+    - Edit
+    - Write
+    - "Bash(git *)"
+    - Glob
+    - Grep
 
 working_directory:
   root: ./workspace
@@ -712,12 +709,11 @@ description: Writes code based on issues
 system_prompt: |
   You are a coding assistant.
   Write clean, maintainable code.
-permissions:
-  allowed_tools:
-    - Read
-    - Edit
-    - Write
-    - Bash
+allowed_tools:
+  - Read
+  - Edit
+  - Write
+  - "Bash(git *)"
 `;
 
     const reviewerAgent = `
@@ -753,7 +749,7 @@ system_prompt: |
     expect(coder!.model).toBe("claude-sonnet-4-20250514"); // from defaults
     expect(coder!.max_turns).toBe(50); // from defaults
     expect(coder!.permission_mode).toBe("acceptEdits"); // from defaults
-    expect(coder!.permissions?.allowed_tools).toEqual(["Read", "Edit", "Write", "Bash"]); // agent override
+    expect(coder!.allowed_tools).toEqual(["Read", "Edit", "Write", "Bash(git *)"]); // agent override
 
     // Reviewer agent - overrides defaults
     const reviewer = result.agents.find(a => a.name === "reviewer");

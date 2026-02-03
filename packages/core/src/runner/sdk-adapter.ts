@@ -158,35 +158,15 @@ export function toSDKOptions(
   const result: SDKQueryOptions = {};
 
   // Permission mode (defaults to acceptEdits)
-  result.permissionMode =
-    agent.permissions?.mode ??
-    agent.permission_mode ??
-    DEFAULT_PERMISSION_MODE;
+  result.permissionMode = agent.permission_mode ?? DEFAULT_PERMISSION_MODE;
 
-  // Allowed and denied tools
-  if (agent.permissions?.allowed_tools?.length) {
-    result.allowedTools = agent.permissions.allowed_tools;
+  // Allowed and denied tools (direct passthrough to SDK)
+  if (agent.allowed_tools?.length) {
+    result.allowedTools = agent.allowed_tools;
   }
 
-  if (agent.permissions?.denied_tools?.length) {
-    result.deniedTools = agent.permissions.denied_tools;
-  }
-
-  // Bash permissions - transform to Bash() patterns
-  // Transform allowed_commands into Bash(command *) patterns
-  if (agent.permissions?.bash?.allowed_commands?.length) {
-    const bashPatterns = agent.permissions.bash.allowed_commands.map(
-      (cmd) => `Bash(${cmd} *)`
-    );
-    result.allowedTools = [...(result.allowedTools || []), ...bashPatterns];
-  }
-
-  // Transform denied_patterns into Bash(pattern) patterns
-  if (agent.permissions?.bash?.denied_patterns?.length) {
-    const bashDeniedPatterns = agent.permissions.bash.denied_patterns.map(
-      (pattern) => `Bash(${pattern})`
-    );
-    result.deniedTools = [...(result.deniedTools || []), ...bashDeniedPatterns];
+  if (agent.denied_tools?.length) {
+    result.deniedTools = agent.denied_tools;
   }
 
   // System prompt

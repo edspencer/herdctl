@@ -49,17 +49,15 @@ system_prompt: |
   - Follow principle of least privilege
   - Log security-relevant events
 
-permissions:
-  mode: acceptEdits
-  allowed_tools:
-    - Read
-    - Write
-    - Edit
-    - Bash
-    - Glob
-    - Grep
-  bash:
-    denied_patterns:
-      - "sudo *"
-      - "rm -rf /"
-      - "chmod 777 *"
+permission_mode: acceptEdits
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - Bash
+  - Glob
+  - Grep
+denied_tools:
+  - "Bash(sudo *)"
+  - "Bash(rm -rf /)"
+  - "Bash(chmod 777 *)"

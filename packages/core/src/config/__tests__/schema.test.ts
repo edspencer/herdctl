@@ -3,7 +3,6 @@ import {
   FleetConfigSchema,
   DefaultsSchema,
   WorkingDirectorySchema,
-  PermissionsSchema,
   PermissionModeSchema,
   WorkSourceSchema,
   GitHubWorkSourceSchema,
@@ -75,7 +74,7 @@ describe("DefaultsSchema", () => {
   it("parses complete defaults", () => {
     const defaults = {
       docker: { enabled: true },
-      permissions: { mode: "acceptEdits" },
+      permission_mode: "acceptEdits",
       work_source: { type: "github" },
       instances: { max_concurrent: 2 },
     };
@@ -83,7 +82,7 @@ describe("DefaultsSchema", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.docker?.enabled).toBe(true);
-      expect(result.data.permissions?.mode).toBe("acceptEdits");
+      expect(result.data.permission_mode).toBe("acceptEdits");
       expect(result.data.work_source?.type).toBe("github");
       expect(result.data.instances?.max_concurrent).toBe(2);
     }
@@ -142,10 +141,9 @@ describe("DefaultsSchema", () => {
   it("parses complete extended defaults", () => {
     const defaults = {
       docker: { enabled: false },
-      permissions: {
-        mode: "acceptEdits",
-        allowed_tools: ["Read", "Write"],
-      },
+      permission_mode: "acceptEdits",
+      allowed_tools: ["Read", "Write"],
+      denied_tools: ["WebSearch"],
       work_source: {
         type: "github",
         labels: { ready: "ready" },
@@ -157,7 +155,6 @@ describe("DefaultsSchema", () => {
       },
       model: "claude-sonnet-4-20250514",
       max_turns: 100,
-      permission_mode: "acceptEdits",
     };
     const result = DefaultsSchema.safeParse(defaults);
     expect(result.success).toBe(true);
@@ -166,6 +163,8 @@ describe("DefaultsSchema", () => {
       expect(result.data.model).toBe("claude-sonnet-4-20250514");
       expect(result.data.max_turns).toBe(100);
       expect(result.data.permission_mode).toBe("acceptEdits");
+      expect(result.data.allowed_tools).toEqual(["Read", "Write"]);
+      expect(result.data.denied_tools).toEqual(["WebSearch"]);
     }
   });
 
@@ -246,36 +245,6 @@ describe("WorkingDirectorySchema", () => {
   it("rejects zero clone_depth", () => {
     const result = WorkingDirectorySchema.safeParse({ root: "/tmp", clone_depth: 0 });
     expect(result.success).toBe(false);
-  });
-});
-
-describe("PermissionsSchema", () => {
-  it("applies default mode", () => {
-    const result = PermissionsSchema.safeParse({});
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.mode).toBe("acceptEdits");
-    }
-  });
-
-  it("parses all fields", () => {
-    const permissions = {
-      mode: "bypassPermissions",
-      allowed_tools: ["Read", "Edit"],
-      denied_tools: ["WebSearch"],
-      bash: {
-        allowed_commands: ["git", "npm"],
-        denied_patterns: ["rm -rf /"],
-      },
-    };
-    const result = PermissionsSchema.safeParse(permissions);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.mode).toBe("bypassPermissions");
-      expect(result.data.allowed_tools).toEqual(["Read", "Edit"]);
-      expect(result.data.denied_tools).toEqual(["WebSearch"]);
-      expect(result.data.bash?.allowed_commands).toEqual(["git", "npm"]);
-    }
   });
 });
 

@@ -60,19 +60,18 @@ system_prompt: |
   - Focus on weather monitoring and context management only
   - If the user specifies a location in their prompt, update your monitored location
 
-permissions:
-  allowed_tools:
-    - WebSearch
-    - WebFetch
-    - Read
-    - Write
-    - Edit
-  denied_tools:
-    - Bash
-    - Glob
-    - Grep
-    - Task
-    - TodoWrite
+allowed_tools:
+  - WebSearch
+  - WebFetch
+  - Read
+  - Write
+  - Edit
+denied_tools:
+  - Bash
+  - Glob
+  - Grep
+  - Task
+  - TodoWrite
 
 # Scheduled check every 6 hours (for production use)
 schedules:
