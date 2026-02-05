@@ -40,6 +40,10 @@ chat:
       mode: auto
 
 # Permissions - this agent has full access to the codebase
+# IMPORTANT: Software developer agents need bypassPermissions to work effectively,
+# but this bypasses ALL Claude Code safety checks. Always run agents with
+# bypassPermissions inside Docker for isolation - this limits blast radius if
+# something goes wrong.
 permission_mode: bypassPermissions
 allowed_tools:
   - Read
@@ -49,3 +53,14 @@ allowed_tools:
   - Grep
   - Bash
   - WebFetch
+
+# Docker isolation - STRONGLY RECOMMENDED when using bypassPermissions
+# This ensures the agent can only affect files in the workspace, not your whole system.
+# The agent still has full permissions inside the container, but the container itself
+# is isolated from the host.
+docker:
+  enabled: true
+  # Memory limit prevents runaway processes
+  memory: "4g"
+  # CPU shares for fair scheduling
+  cpu_shares: 1024

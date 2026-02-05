@@ -161,6 +161,9 @@ function checkNetworkMode(projectRoot: string): Finding[] {
   for (const match of noneMatches) {
     if (shouldSkipFile(match.file)) continue;
 
+    // Skip YAML comments (lines starting with #)
+    if (match.content.trim().startsWith("#")) continue;
+
     // Skip documentation that warns against this
     if (match.content.includes("NEVER") || match.content.includes("don't")) {
       continue;
@@ -188,6 +191,9 @@ function checkNetworkMode(projectRoot: string): Finding[] {
 
   for (const match of hostMatches) {
     if (shouldSkipFile(match.file)) continue;
+
+    // Skip YAML comments
+    if (match.content.trim().startsWith("#")) continue;
 
     if (
       match.content.includes('network: "host"') ||

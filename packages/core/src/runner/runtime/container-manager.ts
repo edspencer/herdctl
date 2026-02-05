@@ -130,7 +130,15 @@ export class ContainerManager {
       AutoRemove: config.ephemeral,
     };
 
-    // Merge with hostConfigOverride - override values take precedence
+    // SECURITY: hostConfigOverride allows fleet operators to customize Docker
+    // host config beyond the safe defaults above. This can override security
+    // settings like CapDrop and SecurityOpt if needed for specific use cases.
+    //
+    // This is intentionally only available at fleet-level config (not agent-level)
+    // to prevent untrusted agent configs from weakening container security.
+    // Fleet operators are trusted to understand the security implications.
+    //
+    // See .security/THREAT-MODEL.md for full security analysis.
     const finalHostConfig: HostConfig = config.hostConfigOverride
       ? { ...translatedHostConfig, ...config.hostConfigOverride }
       : translatedHostConfig;

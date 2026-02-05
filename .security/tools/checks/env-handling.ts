@@ -74,6 +74,8 @@ function checkSecretsInLogs(projectRoot: string): Finding[] {
   const findings: Finding[] = [];
 
   // Check for logging statements that might include secrets
+  // We only care about actual interpolation of secret values, not string literals
+  // mentioning secret names (like "set GITHUB_TOKEN env var")
   const logPatterns = ["console.log", "console.error", "logger.info", "logger.error"];
   const sensitiveVars = ["token", "secret", "password", "apiKey", "api_key", "credentials"];
 
@@ -85,24 +87,40 @@ function checkSecretsInLogs(projectRoot: string): Finding[] {
     for (const match of matches) {
       if (shouldSkipFile(match.file)) continue;
 
-      // Check if any sensitive variable is being logged
+      // Skip comments
+      if (match.content.trim().startsWith("//") || match.content.trim().startsWith("*")) {
+        continue;
+      }
+
+      // Check if any sensitive variable is being INTERPOLATED (not just mentioned)
       for (const sensitiveVar of sensitiveVars) {
-        // More precise check - look for the variable in the log content
-        const lowerContent = match.content.toLowerCase();
-        if (
-          lowerContent.includes(sensitiveVar.toLowerCase()) &&
-          !match.content.includes("redact") &&
-          !match.content.includes("mask") &&
-          !match.content.includes("***") &&
-          // Skip comments
-          !match.content.trim().startsWith("//") &&
-          !match.content.trim().startsWith("*")
-        ) {
-          // Skip if it's just checking for the variable's existence
+        // Check for actual variable interpolation patterns:
+        // - Template literals: ${token}, ${apiKey}
+        // - String concatenation: + token +, + token)
+        // - Direct variable: console.log(token)
+
+        const interpolationPatterns = [
+          // Template literal interpolation: ${token} or ${ token }
+          new RegExp(`\\$\\{\\s*${sensitiveVar}\\s*\\}`, "i"),
+          // String concatenation: + token, token +
+          new RegExp(`\\+\\s*${sensitiveVar}[\\s,)]`, "i"),
+          new RegExp(`[\\s(]${sensitiveVar}\\s*\\+`, "i"),
+          // Direct variable in function call (but not in a string)
+          new RegExp(`\\(\\s*${sensitiveVar}\\s*[,)]`, "i"),
+          // Object property access that might be a secret
+          new RegExp(`\\.${sensitiveVar}[\\s,)\\]]`, "i"),
+        ];
+
+        const isInterpolated = interpolationPatterns.some((pattern) =>
+          pattern.test(match.content)
+        );
+
+        if (isInterpolated) {
+          // Skip if it's redacted
           if (
-            match.content.includes("!") &&
-            match.content.includes(sensitiveVar) &&
-            match.content.includes("Missing")
+            match.content.includes("redact") ||
+            match.content.includes("mask") ||
+            match.content.includes("***")
           ) {
             continue;
           }
@@ -110,7 +128,7 @@ function checkSecretsInLogs(projectRoot: string): Finding[] {
           findings.push({
             severity: "high",
             location: `${match.file}:${match.line}`,
-            description: `Potential secret '${sensitiveVar}' in log statement`,
+            description: `Potential secret '${sensitiveVar}' interpolated in log statement`,
             recommendation:
               "Redact sensitive values before logging or remove from log",
           });
