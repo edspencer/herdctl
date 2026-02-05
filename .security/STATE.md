@@ -90,3 +90,100 @@ Ordered by urgency for next audit session:
 2. **MEDIUM:** Q1, Q4, Q5, Q7, Q8 (investigate during normal audit flow)
 3. **LOW:** #009 (fix when convenient), Q3 (minor defense-in-depth)
 
+---
+
+## Accumulated Context
+
+Context that persists across audit sessions, enabling continuity and avoiding repeated analysis.
+
+### Recent Decisions
+
+Decisions made during security reviews. Keep to last 10-15 entries; archive older decisions to CODEBASE-UNDERSTANDING.md.
+
+| Date | Decision | Rationale |
+|------|----------|-----------|
+| 2026-02-05 | Accepted hostConfigOverride as documented risk | Required for advanced Docker configuration at fleet level |
+| 2026-02-05 | Added path-safety utility for all state file operations | Defense-in-depth after fixing path traversal vulnerability |
+| 2026-02-05 | Identified shell escaping as tech debt, low priority (#009) | Container isolation provides security boundary |
+| 2026-02-05 | Confirmed 2 scanner findings as false positives (#003, #004) | Help text mentioning env vars, not actual secrets |
+
+### Known Gaps
+
+Security capabilities not yet implemented or areas needing investigation:
+
+- No secret detection in logs (output could leak sensitive data)
+- No rate limiting on triggers (DoS vector for scheduled jobs)
+- Webhook signature verification status unknown (Q1)
+- Other path traversal vectors not fully audited (Q2)
+- Container user configuration unknown (Q7)
+
+### Session Continuity
+
+Information for resuming work in future sessions.
+
+- **Last session:** 2026-02-05 - Baseline security audit established
+- **Completed:** Path traversal fix, initial scan, manual review of findings
+- **Resume from:** Phase 1 - State infrastructure creation (this document)
+- **Next priority:** Complete Phase 1, then begin codebase mapping (Phase 2)
+
+---
+
+## Update Protocol
+
+This section documents how STATE.md should be maintained. Automated update will be implemented in Phase 7 (/security-audit orchestrator).
+
+### At Audit Start
+
+1. Read STATE.md to understand current position
+2. Check `commits_since_audit` in frontmatter - has anything changed?
+3. Check `status` - was previous audit incomplete?
+4. Load Active Investigations as priority list
+
+### At Audit End
+
+**1. Update YAML frontmatter:**
+
+```yaml
+last_updated: [current ISO timestamp]
+last_audit: [today's date]
+commits_since_audit: 0
+open_findings: [count from FINDINGS-INDEX.md]
+open_questions: [count open questions from CODEBASE-UNDERSTANDING.md]
+status: "complete" or "partial" with notes
+```
+
+**2. Update Coverage Status table:**
+
+- Set today's date for areas verified this session
+- Update "Commits Since" for all areas
+- Recalculate staleness indicators based on thresholds
+
+**3. Update Active Investigations:**
+
+- Remove completed items (moved to resolved in source files)
+- Add new findings/questions discovered
+- Re-prioritize based on findings
+
+**4. Update Accumulated Context:**
+
+- Add new decisions to Recent Decisions table (prune if >15 entries)
+- Update Known Gaps if gaps closed or new gaps found
+- Set Session Continuity for next session
+
+### Between Audits
+
+When commits occur to the codebase:
+
+1. Increment `commits_since_audit` in frontmatter
+2. Increment "Commits Since" for each coverage area
+3. Update staleness indicators if thresholds exceeded
+
+*Note: This can be automated via git hooks or CI.*
+
+### Size Limit
+
+Keep STATE.md under 300 lines. If approaching limit:
+
+- Archive old decisions to CODEBASE-UNDERSTANDING.md
+- Summarize resolved investigations
+- Reference detailed reports instead of inline content
