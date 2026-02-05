@@ -31,6 +31,46 @@ describe("AgentConfigSchema", () => {
     }
   });
 
+  describe("agent name validation (path traversal protection)", () => {
+    const validNames = [
+      "agent",
+      "my-agent",
+      "my_agent",
+      "agent123",
+      "Agent",
+      "AGENT",
+      "a",
+      "1agent",
+      "job-2024-01-15-abc123",
+    ];
+
+    it.each(validNames)("accepts valid name: %s", (name) => {
+      const result = AgentConfigSchema.safeParse({ name });
+      expect(result.success).toBe(true);
+    });
+
+    const invalidNames = [
+      ["../parent", "path traversal"],
+      ["/absolute/path", "absolute path"],
+      ["with/slash", "forward slash"],
+      ["with\\backslash", "backslash"],
+      ["with space", "space"],
+      ["-starts-hyphen", "starts with hyphen"],
+      ["_starts-underscore", "starts with underscore"],
+      ["", "empty string"],
+      ["has.dot", "dot character"],
+      ["has@symbol", "at symbol"],
+    ];
+
+    it.each(invalidNames)("rejects invalid name: %s (%s)", (name) => {
+      const result = AgentConfigSchema.safeParse({ name });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0].path).toContain("name");
+      }
+    });
+  });
+
   it("validates complete agent config with all fields", () => {
     const config = {
       name: "bragdoc-coder",
