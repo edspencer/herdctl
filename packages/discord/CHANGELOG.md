@@ -1,5 +1,12 @@
 # @herdctl/discord
 
+## 0.1.9
+
+### Patch Changes
+
+- Updated dependencies [[`5cdfe8e`](https://github.com/edspencer/herdctl/commit/5cdfe8ec44dec4d27c78dd0107f14bb1d8b62f29)]:
+  - @herdctl/core@3.0.1
+
 ## 0.1.8
 
 ### Patch Changes
