@@ -1,12 +1,12 @@
 ---
-last_updated: 2026-02-05T00:00:00Z
-last_mapping: null
+last_updated: 2026-02-06T00:12:50Z
+last_mapping: 2026-02-06
 last_audit: 2026-02-05
 commits_since_audit: 0
-commits_since_mapping: null
+commits_since_mapping: 0
 open_findings: 5
 open_questions: 7
-status: baseline_established
+status: mapping_complete
 ---
 
 # Security Audit State
@@ -21,13 +21,13 @@ This document provides persistent state for security audits, enabling incrementa
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Last full mapping | Not yet performed | Awaiting Phase 2-3 |
+| Last full mapping | 2026-02-06 | All 4 areas mapped |
 | Last incremental audit | 2026-02-05 | Baseline established |
 | Commits since last audit | 0 | Freshly established baseline |
 | Open findings | 5 | See [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
 | Open questions | 7 | See [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
 
-**Status:** Baseline security audit complete. State infrastructure being established.
+**Status:** Security codebase mapping complete. All 4 mapping documents created.
 
 ### Finding Breakdown
 
@@ -50,10 +50,10 @@ Security coverage by area with staleness tracking.
 
 | Area | Last Checked | Commits Since | Status | Notes |
 |------|--------------|---------------|--------|-------|
-| Attack surface | - | - | Not mapped | Awaiting Phase 2 |
-| Data flows | - | - | Not mapped | Awaiting Phase 2 |
-| Security controls | - | - | Not mapped | Awaiting Phase 2 |
-| Threat vectors | - | - | Not mapped | Awaiting Phase 2 |
+| Attack surface | 2026-02-06 | 0 | Current | 270 lines, 22+ entry points |
+| Data flows | 2026-02-06 | 0 | Current | 346 lines, 9 flows traced |
+| Security controls | 2026-02-06 | 0 | Current | 241 lines, 12+ controls |
+| Threat vectors | 2026-02-06 | 0 | Current | 190 lines, T1-T5 analyzed |
 | Hot spots | 2026-02-05 | 0 | Current | Baseline verified |
 | Code patterns | 2026-02-05 | 0 | Current | Grep patterns run |
 
@@ -121,10 +121,10 @@ Security capabilities not yet implemented or areas needing investigation:
 
 Information for resuming work in future sessions.
 
-- **Last session:** 2026-02-05 - Baseline security audit established
-- **Completed:** Path traversal fix, initial scan, manual review of findings
-- **Resume from:** Phase 1 - State infrastructure creation (this document)
-- **Next priority:** Complete Phase 1, then begin codebase mapping (Phase 2)
+- **Last session:** 2026-02-06 - Security codebase mapping complete
+- **Completed:** Created 4 mapping documents in `.security/codebase-map/`
+- **Resume from:** Phase 3 complete, ready for investigator agents (Phase 4-5)
+- **Next priority:** Create finding-investigator and question-investigator agents
 
 ---
 
