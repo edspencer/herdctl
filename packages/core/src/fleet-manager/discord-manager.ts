@@ -664,7 +664,7 @@ export class DiscordManager {
           options?: {
             prompt?: string;
             resume?: string;
-            onMessage?: (message: { type: string; content?: string; message?: { content?: unknown } }) => void | Promise<void>;
+            onMessage?: (message: { type: string; content?: string; message?: { content?: unknown }; tool_use_result?: unknown }) => void | Promise<void>;
           }
         ) => Promise<import("./types.js").TriggerResult>;
       };
@@ -682,6 +682,26 @@ export class DiscordManager {
             if (content) {
               // Each assistant message is a complete turn - send immediately
               await streamer.addMessageAndSend(content);
+            }
+
+            // Extract tool_use blocks from assistant messages to show what tool is being called
+            const toolUseBlocks = this.extractToolUseBlocks(message);
+            for (const block of toolUseBlocks) {
+              const formatted = this.formatToolUse(block);
+              if (formatted) {
+                await streamer.addMessageAndSend(formatted);
+              }
+            }
+          }
+
+          // Extract tool results from user messages and stream to Discord
+          if (message.type === "user") {
+            const toolResults = this.extractToolResults(message);
+            for (const result of toolResults) {
+              const formatted = this.formatToolResult(result);
+              if (formatted) {
+                await streamer.addMessageAndSend(formatted);
+              }
             }
           }
         },
@@ -807,6 +827,223 @@ export class DiscordManager {
     }
 
     return undefined;
+  }
+
+  /** Maximum characters for tool output in Discord messages */
+  private static readonly TOOL_OUTPUT_MAX_CHARS = 1800;
+
+  /**
+   * Extract tool_use blocks from an assistant message's content blocks
+   *
+   * Assistant messages may contain tool_use blocks alongside text blocks
+   * when Claude decides to invoke a tool.
+   */
+  private extractToolUseBlocks(message: {
+    type: string;
+    message?: { content?: unknown };
+  }): Array<{ name: string; input?: unknown }> {
+    const apiMessage = message.message as { content?: unknown } | undefined;
+    const content = apiMessage?.content;
+
+    if (!Array.isArray(content)) return [];
+
+    const blocks: Array<{ name: string; input?: unknown }> = [];
+    for (const block of content) {
+      if (
+        block &&
+        typeof block === "object" &&
+        "type" in block &&
+        block.type === "tool_use" &&
+        "name" in block &&
+        typeof block.name === "string"
+      ) {
+        blocks.push({
+          name: block.name,
+          input: "input" in block ? block.input : undefined,
+        });
+      }
+    }
+    return blocks;
+  }
+
+  /**
+   * Format a tool_use block for display in Discord
+   *
+   * Shows the tool name and a summary of the input (e.g., the command for Bash).
+   */
+  private formatToolUse(block: { name: string; input?: unknown }): string | undefined {
+    const input = block.input as Record<string, unknown> | undefined;
+
+    // For Bash tool, show the command being executed
+    if (block.name === "Bash" || block.name === "bash") {
+      const command = input?.command;
+      if (typeof command === "string" && command.length > 0) {
+        const truncated = command.length > 200
+          ? command.substring(0, 200) + "..."
+          : command;
+        return `**\`> ${truncated}\`**`;
+      }
+    }
+
+    // For Read/Write/Edit tools, show the file path
+    if (block.name === "Read" || block.name === "Write" || block.name === "Edit") {
+      const path = input?.file_path ?? input?.path;
+      if (typeof path === "string") {
+        return `**${block.name}:** \`${path}\``;
+      }
+    }
+
+    // For other tools, just show the tool name
+    return undefined;
+  }
+
+  /**
+   * Extract tool results from a user message
+   *
+   * User messages from the SDK contain tool results when Claude has
+   * invoked tools and received their output. The results can be in
+   * the message's content blocks as tool_result types.
+   */
+  private extractToolResults(message: {
+    type: string;
+    message?: { content?: unknown };
+    tool_use_result?: unknown;
+  }): Array<{ output: string; isError: boolean }> {
+    const results: Array<{ output: string; isError: boolean }> = [];
+
+    // Check for top-level tool_use_result (direct SDK format)
+    if (message.tool_use_result !== undefined) {
+      const extracted = this.extractToolResultContent(message.tool_use_result);
+      if (extracted) {
+        results.push(extracted);
+      }
+      return results;
+    }
+
+    // Check for content blocks in nested message
+    const apiMessage = message.message as { content?: unknown } | undefined;
+    const content = apiMessage?.content;
+
+    if (!Array.isArray(content)) return results;
+
+    for (const block of content) {
+      if (!block || typeof block !== "object" || !("type" in block)) continue;
+
+      if (block.type === "tool_result") {
+        const toolResultBlock = block as {
+          content?: unknown;
+          is_error?: boolean;
+        };
+        const isError = toolResultBlock.is_error === true;
+
+        // Content can be a string or an array of content blocks
+        const blockContent = toolResultBlock.content;
+        if (typeof blockContent === "string" && blockContent.length > 0) {
+          results.push({ output: blockContent, isError });
+        } else if (Array.isArray(blockContent)) {
+          const textParts: string[] = [];
+          for (const part of blockContent) {
+            if (
+              part &&
+              typeof part === "object" &&
+              "type" in part &&
+              part.type === "text" &&
+              "text" in part &&
+              typeof part.text === "string"
+            ) {
+              textParts.push(part.text);
+            }
+          }
+          if (textParts.length > 0) {
+            results.push({ output: textParts.join("\n"), isError });
+          }
+        }
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Extract content from a tool_use_result value
+   */
+  private extractToolResultContent(
+    result: unknown
+  ): { output: string; isError: boolean } | undefined {
+    if (typeof result === "string" && result.length > 0) {
+      return { output: result, isError: false };
+    }
+
+    if (result && typeof result === "object") {
+      const obj = result as Record<string, unknown>;
+
+      // Check for content field
+      if (typeof obj.content === "string" && obj.content.length > 0) {
+        return {
+          output: obj.content,
+          isError: obj.is_error === true,
+        };
+      }
+
+      // Check for content blocks array
+      if (Array.isArray(obj.content)) {
+        const textParts: string[] = [];
+        for (const block of obj.content) {
+          if (
+            block &&
+            typeof block === "object" &&
+            "type" in block &&
+            (block as Record<string, unknown>).type === "text" &&
+            "text" in block &&
+            typeof (block as Record<string, unknown>).text === "string"
+          ) {
+            textParts.push((block as Record<string, unknown>).text as string);
+          }
+        }
+        if (textParts.length > 0) {
+          return {
+            output: textParts.join("\n"),
+            isError: obj.is_error === true,
+          };
+        }
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Format a tool result for display in Discord
+   *
+   * Wraps tool output in a code block and truncates if needed.
+   * Error results get distinct formatting.
+   */
+  private formatToolResult(result: {
+    output: string;
+    isError: boolean;
+  }): string | undefined {
+    const { output, isError } = result;
+
+    if (!output || output.trim().length === 0) {
+      return undefined;
+    }
+
+    const maxChars = DiscordManager.TOOL_OUTPUT_MAX_CHARS;
+    let truncated = output;
+    let wasTruncated = false;
+
+    if (truncated.length > maxChars) {
+      truncated = truncated.substring(0, maxChars);
+      wasTruncated = true;
+    }
+
+    // Wrap in code block
+    const suffix = wasTruncated ? "\n... (truncated)" : "";
+    if (isError) {
+      return `\`\`\`\n${truncated}${suffix}\n\`\`\``;
+    }
+
+    return `\`\`\`\n${truncated}${suffix}\n\`\`\``;
   }
 
   /**

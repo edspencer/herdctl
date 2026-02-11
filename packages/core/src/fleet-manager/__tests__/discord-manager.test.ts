@@ -1084,6 +1084,286 @@ describe("DiscordManager message handling", () => {
       expect(replyMock).toHaveBeenCalledTimes(2);
     });
 
+    it("streams tool results from user messages to Discord", async () => {
+      // Create trigger mock that sends assistant message with tool_use, then user message with tool_result
+      const customTriggerMock = vi.fn().mockImplementation(async (_agentName, _scheduleName, options) => {
+        if (options?.onMessage) {
+          // Claude decides to use Bash tool
+          await options.onMessage({
+            type: "assistant",
+            message: {
+              content: [
+                { type: "text", text: "Let me check that for you." },
+                { type: "tool_use", name: "Bash", id: "tool-1", input: { command: "ls -la /tmp" } },
+              ],
+            },
+          });
+          // Tool result comes back as a user message
+          await options.onMessage({
+            type: "user",
+            message: {
+              content: [
+                {
+                  type: "tool_result",
+                  tool_use_id: "tool-1",
+                  content: "total 48\ndrwxr-xr-x  5 user  staff  160 Jan 20 10:00 .",
+                },
+              ],
+            },
+          });
+          // Claude sends final response
+          await options.onMessage({
+            type: "assistant",
+            message: {
+              content: [
+                { type: "text", text: "Here are the files in /tmp." },
+              ],
+            },
+          });
+        }
+        return { jobId: "tool-job-123", success: true };
+      });
+
+      const streamingEmitter = Object.assign(new EventEmitter(), {
+        trigger: customTriggerMock,
+      });
+
+      const streamingConfig: ResolvedConfig = {
+        fleet: { name: "test-fleet" } as unknown as ResolvedConfig["fleet"],
+        agents: [
+          createDiscordAgent("tool-agent", {
+            bot_token_env: "TEST_BOT_TOKEN",
+            session_expiry_hours: 24,
+            log_level: "standard",
+            guilds: [],
+          }),
+        ],
+        configPath: "/test/herdctl.yaml",
+        configDir: "/test",
+      };
+
+      const streamingContext: FleetManagerContext = {
+        getConfig: () => streamingConfig,
+        getStateDir: () => "/tmp/test-state",
+        getStateDirInfo: () => null,
+        getLogger: () => mockLogger,
+        getScheduler: () => null,
+        getStatus: () => "running",
+        getInitializedAt: () => "2024-01-01T00:00:00.000Z",
+        getStartedAt: () => "2024-01-01T00:00:01.000Z",
+        getStoppedAt: () => null,
+        getLastError: () => null,
+        getCheckInterval: () => 1000,
+        emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
+        getEmitter: () => streamingEmitter,
+      };
+
+      const streamingManager = new DiscordManager(streamingContext);
+
+      const mockConnector = new EventEmitter() as EventEmitter & {
+        connect: ReturnType<typeof vi.fn>;
+        disconnect: ReturnType<typeof vi.fn>;
+        isConnected: ReturnType<typeof vi.fn>;
+        getState: ReturnType<typeof vi.fn>;
+        agentName: string;
+        sessionManager: {
+          getOrCreateSession: ReturnType<typeof vi.fn>;
+          getSession: ReturnType<typeof vi.fn>;
+          setSession: ReturnType<typeof vi.fn>;
+          touchSession: ReturnType<typeof vi.fn>;
+          getActiveSessionCount: ReturnType<typeof vi.fn>;
+        };
+      };
+      mockConnector.connect = vi.fn().mockResolvedValue(undefined);
+      mockConnector.disconnect = vi.fn().mockResolvedValue(undefined);
+      mockConnector.isConnected = vi.fn().mockReturnValue(true);
+      mockConnector.getState = vi.fn().mockReturnValue({
+        status: "connected",
+        connectedAt: "2024-01-01T00:00:00.000Z",
+        disconnectedAt: null,
+        reconnectAttempts: 0,
+        lastError: null,
+        botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
+        rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+        messageStats: { received: 0, sent: 0, ignored: 0 },
+      } satisfies DiscordConnectorState);
+      mockConnector.agentName = "tool-agent";
+      mockConnector.sessionManager = {
+        getOrCreateSession: vi.fn().mockResolvedValue({ sessionId: "s1", isNew: false }),
+        getSession: vi.fn().mockResolvedValue(null),
+        setSession: vi.fn().mockResolvedValue(undefined),
+        touchSession: vi.fn().mockResolvedValue(undefined),
+        getActiveSessionCount: vi.fn().mockResolvedValue(0),
+      };
+
+      // @ts-expect-error - accessing private property for testing
+      streamingManager.connectors.set("tool-agent", mockConnector);
+      // @ts-expect-error - accessing private property for testing
+      streamingManager.initialized = true;
+
+      await streamingManager.start();
+
+      const replyMock = vi.fn().mockResolvedValue(undefined);
+      const messageEvent: DiscordMessageEvent = {
+        agentName: "tool-agent",
+        prompt: "List files in /tmp",
+        context: {
+          messages: [],
+          wasMentioned: true,
+          prompt: "List files in /tmp",
+        },
+        metadata: {
+          guildId: "guild1",
+          channelId: "channel1",
+          messageId: "msg1",
+          userId: "user1",
+          username: "TestUser",
+          wasMentioned: true,
+          mode: "mention",
+        },
+        reply: replyMock,
+        startTyping: () => () => {},
+      };
+
+      mockConnector.emit("message", messageEvent);
+
+      // Wait for async processing (includes rate limiting delays)
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
+      // Should have sent: text response, tool use header, tool result, final text response
+      expect(replyMock).toHaveBeenCalledTimes(4);
+      // First: the text part of the assistant message
+      expect(replyMock).toHaveBeenNthCalledWith(1, "Let me check that for you.");
+      // Second: the tool use display (Bash command)
+      expect(replyMock).toHaveBeenNthCalledWith(2, "**`> ls -la /tmp`**");
+      // Third: the tool result in a code block
+      expect(replyMock).toHaveBeenNthCalledWith(3, "```\ntotal 48\ndrwxr-xr-x  5 user  staff  160 Jan 20 10:00 .\n```");
+      // Fourth: final assistant response
+      expect(replyMock).toHaveBeenNthCalledWith(4, "Here are the files in /tmp.");
+    }, 10000);
+
+    it("streams tool results from top-level tool_use_result", async () => {
+      // Test the alternative SDK format where tool_use_result is at the top level
+      const customTriggerMock = vi.fn().mockImplementation(async (_agentName, _scheduleName, options) => {
+        if (options?.onMessage) {
+          await options.onMessage({
+            type: "user",
+            tool_use_result: "output from tool execution",
+          });
+        }
+        return { jobId: "tool-job-456", success: true };
+      });
+
+      const streamingEmitter = Object.assign(new EventEmitter(), {
+        trigger: customTriggerMock,
+      });
+
+      const streamingConfig: ResolvedConfig = {
+        fleet: { name: "test-fleet" } as unknown as ResolvedConfig["fleet"],
+        agents: [
+          createDiscordAgent("tool-agent-2", {
+            bot_token_env: "TEST_BOT_TOKEN",
+            session_expiry_hours: 24,
+            log_level: "standard",
+            guilds: [],
+          }),
+        ],
+        configPath: "/test/herdctl.yaml",
+        configDir: "/test",
+      };
+
+      const streamingContext: FleetManagerContext = {
+        getConfig: () => streamingConfig,
+        getStateDir: () => "/tmp/test-state",
+        getStateDirInfo: () => null,
+        getLogger: () => mockLogger,
+        getScheduler: () => null,
+        getStatus: () => "running",
+        getInitializedAt: () => "2024-01-01T00:00:00.000Z",
+        getStartedAt: () => "2024-01-01T00:00:01.000Z",
+        getStoppedAt: () => null,
+        getLastError: () => null,
+        getCheckInterval: () => 1000,
+        emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
+        getEmitter: () => streamingEmitter,
+      };
+
+      const streamingManager = new DiscordManager(streamingContext);
+
+      const mockConnector = new EventEmitter() as EventEmitter & {
+        connect: ReturnType<typeof vi.fn>;
+        disconnect: ReturnType<typeof vi.fn>;
+        isConnected: ReturnType<typeof vi.fn>;
+        getState: ReturnType<typeof vi.fn>;
+        agentName: string;
+        sessionManager: {
+          getOrCreateSession: ReturnType<typeof vi.fn>;
+          getSession: ReturnType<typeof vi.fn>;
+          setSession: ReturnType<typeof vi.fn>;
+          touchSession: ReturnType<typeof vi.fn>;
+          getActiveSessionCount: ReturnType<typeof vi.fn>;
+        };
+      };
+      mockConnector.connect = vi.fn().mockResolvedValue(undefined);
+      mockConnector.disconnect = vi.fn().mockResolvedValue(undefined);
+      mockConnector.isConnected = vi.fn().mockReturnValue(true);
+      mockConnector.getState = vi.fn().mockReturnValue({
+        status: "connected",
+        connectedAt: "2024-01-01T00:00:00.000Z",
+        disconnectedAt: null,
+        reconnectAttempts: 0,
+        lastError: null,
+        botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
+        rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+        messageStats: { received: 0, sent: 0, ignored: 0 },
+      } satisfies DiscordConnectorState);
+      mockConnector.agentName = "tool-agent-2";
+      mockConnector.sessionManager = {
+        getOrCreateSession: vi.fn().mockResolvedValue({ sessionId: "s1", isNew: false }),
+        getSession: vi.fn().mockResolvedValue(null),
+        setSession: vi.fn().mockResolvedValue(undefined),
+        touchSession: vi.fn().mockResolvedValue(undefined),
+        getActiveSessionCount: vi.fn().mockResolvedValue(0),
+      };
+
+      // @ts-expect-error - accessing private property for testing
+      streamingManager.connectors.set("tool-agent-2", mockConnector);
+      // @ts-expect-error - accessing private property for testing
+      streamingManager.initialized = true;
+
+      await streamingManager.start();
+
+      const replyMock = vi.fn().mockResolvedValue(undefined);
+      const messageEvent: DiscordMessageEvent = {
+        agentName: "tool-agent-2",
+        prompt: "Run something",
+        context: {
+          messages: [],
+          wasMentioned: true,
+          prompt: "Run something",
+        },
+        metadata: {
+          guildId: "guild1",
+          channelId: "channel1",
+          messageId: "msg1",
+          userId: "user1",
+          username: "TestUser",
+          wasMentioned: true,
+          mode: "mention",
+        },
+        reply: replyMock,
+        startTyping: () => () => {},
+      };
+
+      mockConnector.emit("message", messageEvent);
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // Should have sent the tool result
+      expect(replyMock).toHaveBeenCalledTimes(1);
+      expect(replyMock).toHaveBeenCalledWith("```\noutput from tool execution\n```");
+    });
+
     it("handles message handler rejection via catch handler", async () => {
       // This tests the .catch(error => this.handleError()) path in start()
       // when handleMessage throws an error that propagates to the catch handler
@@ -1570,6 +1850,334 @@ describe("DiscordManager message handling", () => {
             { type: "text", text: 123 }, // Non-string text
           ],
         },
+      });
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe("extractToolUseBlocks", () => {
+    it("extracts tool_use blocks from assistant message content", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.extractToolUseBlocks({
+        type: "assistant",
+        message: {
+          content: [
+            { type: "text", text: "Let me run that command." },
+            { type: "tool_use", name: "Bash", id: "tool-1", input: { command: "ls -la" } },
+          ],
+        },
+      });
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe("Bash");
+      expect(result[0].input).toEqual({ command: "ls -la" });
+    });
+
+    it("extracts multiple tool_use blocks", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.extractToolUseBlocks({
+        type: "assistant",
+        message: {
+          content: [
+            { type: "tool_use", name: "Read", id: "tool-1", input: { file_path: "/tmp/a.txt" } },
+            { type: "text", text: "Reading file..." },
+            { type: "tool_use", name: "Bash", id: "tool-2", input: { command: "cat /tmp/a.txt" } },
+          ],
+        },
+      });
+      expect(result).toHaveLength(2);
+      expect(result[0].name).toBe("Read");
+      expect(result[1].name).toBe("Bash");
+    });
+
+    it("returns empty array when no tool_use blocks", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.extractToolUseBlocks({
+        type: "assistant",
+        message: {
+          content: [
+            { type: "text", text: "Just a text response" },
+          ],
+        },
+      });
+      expect(result).toHaveLength(0);
+    });
+
+    it("returns empty array when content is not an array", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.extractToolUseBlocks({
+        type: "assistant",
+        message: { content: "string content" },
+      });
+      expect(result).toHaveLength(0);
+    });
+
+    it("returns empty array when no message field", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.extractToolUseBlocks({
+        type: "assistant",
+      });
+      expect(result).toHaveLength(0);
+    });
+  });
+
+  describe("formatToolUse", () => {
+    it("formats Bash tool with command", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.formatToolUse({
+        name: "Bash",
+        input: { command: "ls -la" },
+      });
+      expect(result).toBe("**`> ls -la`**");
+    });
+
+    it("truncates long Bash commands", () => {
+      const longCommand = "echo " + "a".repeat(250);
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.formatToolUse({
+        name: "Bash",
+        input: { command: longCommand },
+      });
+      expect(result).toContain("...");
+      // Should truncate at 200 chars + "..."
+      expect(result!.length).toBeLessThan(250);
+    });
+
+    it("formats Read tool with file path", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.formatToolUse({
+        name: "Read",
+        input: { file_path: "/src/index.ts" },
+      });
+      expect(result).toBe("**Read:** `/src/index.ts`");
+    });
+
+    it("formats Write tool with file path", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.formatToolUse({
+        name: "Write",
+        input: { file_path: "/src/output.ts" },
+      });
+      expect(result).toBe("**Write:** `/src/output.ts`");
+    });
+
+    it("formats Edit tool with file path", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.formatToolUse({
+        name: "Edit",
+        input: { file_path: "/src/utils.ts" },
+      });
+      expect(result).toBe("**Edit:** `/src/utils.ts`");
+    });
+
+    it("returns undefined for unknown tools", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.formatToolUse({
+        name: "SomeCustomTool",
+        input: { data: "value" },
+      });
+      expect(result).toBeUndefined();
+    });
+
+    it("returns undefined for Bash without command", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.formatToolUse({
+        name: "Bash",
+        input: {},
+      });
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe("extractToolResults", () => {
+    it("extracts tool result from top-level tool_use_result string", () => {
+      // @ts-expect-error - accessing private method for testing
+      const results = manager.extractToolResults({
+        type: "user",
+        tool_use_result: "file1.txt\nfile2.txt\nfile3.txt",
+      });
+      expect(results).toHaveLength(1);
+      expect(results[0].output).toBe("file1.txt\nfile2.txt\nfile3.txt");
+      expect(results[0].isError).toBe(false);
+    });
+
+    it("extracts tool result from tool_use_result object with content string", () => {
+      // @ts-expect-error - accessing private method for testing
+      const results = manager.extractToolResults({
+        type: "user",
+        tool_use_result: {
+          content: "Command output here",
+          is_error: false,
+        },
+      });
+      expect(results).toHaveLength(1);
+      expect(results[0].output).toBe("Command output here");
+      expect(results[0].isError).toBe(false);
+    });
+
+    it("extracts error tool result from tool_use_result object", () => {
+      // @ts-expect-error - accessing private method for testing
+      const results = manager.extractToolResults({
+        type: "user",
+        tool_use_result: {
+          content: "Permission denied",
+          is_error: true,
+        },
+      });
+      expect(results).toHaveLength(1);
+      expect(results[0].output).toBe("Permission denied");
+      expect(results[0].isError).toBe(true);
+    });
+
+    it("extracts tool results from content blocks in nested message", () => {
+      // @ts-expect-error - accessing private method for testing
+      const results = manager.extractToolResults({
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tool-1",
+              content: "total 48\ndrwxr-xr-x  5 user  staff  160 Jan 20 10:00 .",
+            },
+          ],
+        },
+      });
+      expect(results).toHaveLength(1);
+      expect(results[0].output).toContain("total 48");
+      expect(results[0].isError).toBe(false);
+    });
+
+    it("extracts error tool result from content blocks", () => {
+      // @ts-expect-error - accessing private method for testing
+      const results = manager.extractToolResults({
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tool-1",
+              content: "bash: command not found: foo",
+              is_error: true,
+            },
+          ],
+        },
+      });
+      expect(results).toHaveLength(1);
+      expect(results[0].isError).toBe(true);
+    });
+
+    it("extracts tool results with nested content blocks", () => {
+      // @ts-expect-error - accessing private method for testing
+      const results = manager.extractToolResults({
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tool-1",
+              content: [
+                { type: "text", text: "Line 1 of output" },
+                { type: "text", text: "Line 2 of output" },
+              ],
+            },
+          ],
+        },
+      });
+      expect(results).toHaveLength(1);
+      expect(results[0].output).toBe("Line 1 of output\nLine 2 of output");
+    });
+
+    it("extracts multiple tool results from a single message", () => {
+      // @ts-expect-error - accessing private method for testing
+      const results = manager.extractToolResults({
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tool-1",
+              content: "Result 1",
+            },
+            {
+              type: "tool_result",
+              tool_use_id: "tool-2",
+              content: "Result 2",
+            },
+          ],
+        },
+      });
+      expect(results).toHaveLength(2);
+      expect(results[0].output).toBe("Result 1");
+      expect(results[1].output).toBe("Result 2");
+    });
+
+    it("returns empty array for user message without tool results", () => {
+      // @ts-expect-error - accessing private method for testing
+      const results = manager.extractToolResults({
+        type: "user",
+        message: {
+          content: [
+            { type: "text", text: "Just a regular user message" },
+          ],
+        },
+      });
+      expect(results).toHaveLength(0);
+    });
+
+    it("returns empty array for user message without content", () => {
+      // @ts-expect-error - accessing private method for testing
+      const results = manager.extractToolResults({
+        type: "user",
+      });
+      expect(results).toHaveLength(0);
+    });
+  });
+
+  describe("formatToolResult", () => {
+    it("formats tool result as code block", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.formatToolResult({
+        output: "file1.txt\nfile2.txt",
+        isError: false,
+      });
+      expect(result).toBe("```\nfile1.txt\nfile2.txt\n```");
+    });
+
+    it("formats error tool result as code block", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.formatToolResult({
+        output: "Permission denied",
+        isError: true,
+      });
+      expect(result).toBe("```\nPermission denied\n```");
+    });
+
+    it("truncates long output", () => {
+      const longOutput = "x".repeat(2000);
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.formatToolResult({
+        output: longOutput,
+        isError: false,
+      });
+      expect(result).toContain("... (truncated)");
+      // Total should be under 2000 (1800 content + code block markers + truncated suffix)
+      expect(result!.length).toBeLessThan(2000);
+    });
+
+    it("returns undefined for empty output", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.formatToolResult({
+        output: "",
+        isError: false,
+      });
+      expect(result).toBeUndefined();
+    });
+
+    it("returns undefined for whitespace-only output", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.formatToolResult({
+        output: "   \n\n  ",
+        isError: false,
       });
       expect(result).toBeUndefined();
     });
