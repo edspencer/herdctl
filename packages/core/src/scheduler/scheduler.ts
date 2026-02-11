@@ -442,17 +442,13 @@ export class Scheduler {
       const now = new Date();
 
       if (lastRunAt) {
-        // Calculate next cron occurrence after the last run
-        const nextAfterLastRun = calculateNextCronTrigger(schedule.expression, lastRunAt);
-
-        if (nextAfterLastRun <= now) {
-          // The next scheduled time after lastRunAt is in the past (we missed it)
-          // Skip catch-up: get the next FUTURE occurrence instead
-          nextTrigger = calculateNextCronTrigger(schedule.expression, now);
-        } else {
-          // The next scheduled time is in the future, but may be due soon
-          nextTrigger = nextAfterLastRun;
-        }
+        // Calculate next cron occurrence after the last run.
+        // When this time is <= now, isScheduleDue() will trigger it.
+        // When it's in the future, the schedule waits.
+        // If multiple occurrences were missed (e.g. scheduler was down),
+        // only one catch-up trigger fires because last_run_at updates to now
+        // on trigger, making the next calculation return a future time.
+        nextTrigger = calculateNextCronTrigger(schedule.expression, lastRunAt);
       } else {
         // For NEW cron schedules (no lastRunAt), determine if we're in a "trigger window"
         // We use the previous cron time as a reference point and compare with current time

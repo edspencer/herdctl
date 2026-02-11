@@ -542,10 +542,10 @@ describe("Scheduler", () => {
       }
     });
 
-    it("does not catch up missed cron triggers", async () => {
-      // When system was down during a cron trigger time, it should skip to next occurrence
-      // We simulate this by setting last_run_at to more than 1 day ago with @hourly
-      // This means the scheduler "missed" multiple hourly triggers but should only run at the next hour
+    it("catches up with a single trigger when cron runs were missed", async () => {
+      // When the scheduler was down during a cron trigger time, it should fire once
+      // to catch up, then resume normal scheduling. It should NOT fire multiple times
+      // for each missed occurrence.
       const now = new Date();
       // Set last run to 2 hours ago (missed at least one hourly trigger)
       const lastRunAt = new Date(now.getTime() - 2 * 60 * 60 * 1000);
@@ -587,11 +587,132 @@ describe("Scheduler", () => {
       ];
 
       const startPromise = scheduler.start(agents);
+      await wait(200);
+
+      // The schedule SHOULD trigger once to catch up for the missed window.
+      // After triggering, last_run_at updates to now, so the next calculated
+      // cron time will be in the future and no additional triggers fire.
+      expect(triggers.length).toBe(1);
+      expect(triggers[0].agent.name).toBe("test-agent");
+      expect(triggers[0].scheduleName).toBe("hourly");
+
+      await scheduler.stop();
+      await startPromise;
+    });
+
+    it("triggers cron schedule on subsequent run when due time arrives", async () => {
+      // This is the core regression test for the bug where cron schedules
+      // never fire after the first trigger because nextRunAt was never
+      // correctly computed from lastRunAt.
+      //
+      // Scenario: An every-minute cron was last run at :00. At :01 the next
+      // occurrence (:01) is due and should trigger.
+
+      // Fix time to exactly 10:01:00 UTC
+      const fixedTime = new Date("2024-01-15T10:01:00.000Z").getTime();
+      const originalDateNow = Date.now;
+      Date.now = vi.fn(() => fixedTime);
+
+      try {
+        // Set last_run_at to 10:00:00 (one minute ago)
+        const stateFile = join(tempDir, "state.yaml");
+        const initialState: FleetState = {
+          fleet: {},
+          agents: {
+            "cron-agent": {
+              status: "idle",
+              schedules: {
+                everyMinute: {
+                  last_run_at: "2024-01-15T10:00:00.000Z",
+                  next_run_at: null,
+                  status: "idle",
+                  last_error: null,
+                },
+              },
+            },
+          },
+        };
+        await writeFleetState(stateFile, initialState);
+
+        const triggers: TriggerInfo[] = [];
+
+        const scheduler = new Scheduler({
+          stateDir: tempDir,
+          checkInterval: 50,
+          logger: mockLogger,
+          onTrigger: async (info) => {
+            triggers.push(info);
+          },
+        });
+
+        const agents = [
+          createTestAgent("cron-agent", {
+            everyMinute: { type: "cron", expression: "* * * * *", prompt: "test" },
+          }),
+        ];
+
+        const startPromise = scheduler.start(agents);
+        await wait(150);
+
+        // The cron should trigger because the next occurrence after 10:00:00
+        // is 10:01:00, which is exactly now.
+        expect(triggers.length).toBeGreaterThan(0);
+        expect(triggers[0].agent.name).toBe("cron-agent");
+        expect(triggers[0].scheduleName).toBe("everyMinute");
+
+        await scheduler.stop();
+        await startPromise;
+      } finally {
+        Date.now = originalDateNow;
+      }
+    });
+
+    it("does not trigger cron schedule when next occurrence is still in the future", async () => {
+      // Set last_run_at to just now. With a @daily cron, the next occurrence
+      // is tomorrow at midnight, which is definitely in the future.
+      const now = new Date();
+
+      const stateFile = join(tempDir, "state.yaml");
+      const initialState: FleetState = {
+        fleet: {},
+        agents: {
+          "cron-agent": {
+            status: "idle",
+            schedules: {
+              daily: {
+                last_run_at: now.toISOString(),
+                next_run_at: null,
+                status: "idle",
+                last_error: null,
+              },
+            },
+          },
+        },
+      };
+      await writeFleetState(stateFile, initialState);
+
+      const triggers: TriggerInfo[] = [];
+
+      const scheduler = new Scheduler({
+        stateDir: tempDir,
+        checkInterval: 50,
+        logger: mockLogger,
+        onTrigger: async (info) => {
+          triggers.push(info);
+        },
+      });
+
+      const agents = [
+        createTestAgent("cron-agent", {
+          daily: { type: "cron", expression: "@daily", prompt: "test" },
+        }),
+      ];
+
+      const startPromise = scheduler.start(agents);
       await wait(150);
 
-      // The schedule should NOT trigger even though we're 2 hours past the last run
-      // because the "missed" triggers are skipped - we wait for the next future occurrence
-      // (Next hourly trigger is at the next :00 mark, which is in the future)
+      // The next @daily occurrence after now is tomorrow at midnight,
+      // so it should NOT trigger.
       expect(triggers.length).toBe(0);
 
       await scheduler.stop();
