@@ -59,6 +59,7 @@ import { JobControl } from "./job-control.js";
 import { LogStreaming } from "./log-streaming.js";
 import { ScheduleExecutor } from "./schedule-executor.js";
 import { DiscordManager } from "./discord-manager.js";
+import { SlackManager } from "./slack-manager.js";
 
 const DEFAULT_CHECK_INTERVAL = 1000;
 
@@ -104,6 +105,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   private logStreaming!: LogStreaming;
   private scheduleExecutor!: ScheduleExecutor;
   private discordManager!: DiscordManager;
+  private slackManager!: SlackManager;
 
   constructor(options: FleetManagerOptions) {
     super();
@@ -133,6 +135,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   getCheckInterval(): number { return this.checkInterval; }
   getEmitter(): EventEmitter { return this; }
   getDiscordManager(): DiscordManager { return this.discordManager; }
+  getSlackManager(): SlackManager { return this.slackManager; }
 
   // ===========================================================================
   // Public State Accessors
@@ -182,6 +185,9 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       // Initialize Discord connectors for agents with Discord configuration
       await this.discordManager.initialize();
 
+      // Initialize Slack connector for agents with Slack configuration
+      await this.slackManager.initialize();
+
       this.status = "initialized";
       this.initializedAt = new Date().toISOString();
       this.lastError = null;
@@ -209,6 +215,9 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
 
       // Start Discord connectors
       await this.discordManager.start();
+
+      // Start Slack connector
+      await this.slackManager.start();
 
       this.status = "running";
       this.startedAt = new Date().toISOString();
@@ -238,6 +247,9 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     try {
       // Stop Discord connectors first (graceful disconnect)
       await this.discordManager.stop();
+
+      // Stop Slack connector
+      await this.slackManager.stop();
 
       if (this.scheduler) {
         try {
@@ -313,6 +325,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     this.logStreaming = new LogStreaming(this);
     this.scheduleExecutor = new ScheduleExecutor(this);
     this.discordManager = new DiscordManager(this);
+    this.slackManager = new SlackManager(this);
   }
 
   private async loadConfiguration(): Promise<ResolvedConfig> {

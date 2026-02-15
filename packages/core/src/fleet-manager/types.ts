@@ -33,6 +33,10 @@ export type {
   DiscordConnectorConnectedPayload,
   DiscordConnectorDisconnectedPayload,
   DiscordConnectorErrorPayload,
+  // Slack connector events
+  SlackConnectorConnectedPayload,
+  SlackConnectorDisconnectedPayload,
+  SlackConnectorErrorPayload,
 } from "./event-types.js";
 
 // =============================================================================
@@ -242,6 +246,31 @@ export interface AgentDiscordStatus {
   lastError?: string;
 }
 
+/**
+ * Slack connector status within AgentInfo
+ */
+export interface AgentSlackStatus {
+  /**
+   * Whether this agent has Slack configured
+   */
+  configured: boolean;
+
+  /**
+   * Connection status (only present if configured)
+   */
+  connectionStatus?: "disconnected" | "connecting" | "connected" | "reconnecting" | "disconnecting" | "error";
+
+  /**
+   * Bot username (only present if connected)
+   */
+  botUsername?: string;
+
+  /**
+   * Last error message (only present if status is 'error')
+   */
+  lastError?: string;
+}
+
 export interface AgentInfo {
   /**
    * Agent name (unique identifier)
@@ -307,6 +336,11 @@ export interface AgentInfo {
    * Discord connector status (if Discord is configured for this agent)
    */
   discord?: AgentDiscordStatus;
+
+  /**
+   * Slack connector status (if Slack is configured for this agent)
+   */
+  slack?: AgentSlackStatus;
 }
 
 /**

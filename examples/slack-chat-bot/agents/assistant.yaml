@@ -1,0 +1,45 @@
+name: assistant
+description: General-purpose assistant with Slack chat interface
+
+max_turns: 15
+
+default_prompt: "Check for new messages and respond."
+
+system_prompt: |
+  You are a helpful assistant available through Slack. When users @mention you
+  in a channel or reply in a thread, answer their questions clearly and concisely.
+
+  ## Guidelines
+  - Be helpful and friendly
+  - Use Slack formatting (bold with *text*, code with `backticks`)
+  - Keep responses concise for chat
+  - If asked to perform a task, do it and report back
+
+allowed_tools:
+  - WebSearch
+  - WebFetch
+  - Read
+  - Write
+  - Edit
+denied_tools:
+  - Bash
+  - TodoWrite
+  - Task
+
+# Slack chat integration
+# Users @mention the bot to start a conversation, replies continue in-thread
+chat:
+  slack:
+    bot_token_env: SLACK_BOT_TOKEN
+    app_token_env: SLACK_APP_TOKEN
+    session_expiry_hours: 24
+    log_level: standard
+    channels:
+      - id: "${SLACK_CHANNEL_ID}"
+
+# Post schedule results to Slack
+hooks:
+  after_run:
+    - type: slack
+      channel_id: "${SLACK_CHANNEL_ID}"
+      bot_token_env: SLACK_BOT_TOKEN

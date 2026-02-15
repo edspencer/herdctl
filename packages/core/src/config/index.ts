@@ -40,11 +40,15 @@ export {
   DiscordChannelSchema,
   DiscordGuildSchema,
   AgentChatDiscordSchema,
+  // Agent Chat Slack schemas
+  SlackChannelSchema,
+  AgentChatSlackSchema,
   // Hook schemas
   HookEventSchema,
   ShellHookConfigSchema,
   WebhookHookConfigSchema,
   DiscordHookConfigSchema,
+  SlackHookConfigSchema,
   HookConfigSchema,
   AgentHooksSchema,
   // Types
@@ -83,17 +87,22 @@ export {
   type DiscordChannel,
   type DiscordGuild,
   type AgentChatDiscord,
+  // Agent Chat Slack types
+  type SlackChannel,
+  type AgentChatSlack,
   // Hook types
   type HookEvent,
   type ShellHookConfig,
   type WebhookHookConfig,
   type DiscordHookConfig,
+  type SlackHookConfig,
   type HookConfig,
   type AgentHooks,
   // Hook input types (for construction, allow optional fields)
   type ShellHookConfigInput,
   type WebhookHookConfigInput,
   type DiscordHookConfigInput,
+  type SlackHookConfigInput,
   type HookConfigInput,
   type AgentHooksInput,
 } from "./schema.js";

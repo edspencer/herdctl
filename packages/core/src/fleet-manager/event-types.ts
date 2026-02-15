@@ -235,6 +235,42 @@ export interface DiscordConnectorErrorPayload {
 }
 
 // =============================================================================
+// Slack Connector Events
+// =============================================================================
+
+/**
+ * Payload for slack:connector:connected event
+ */
+export interface SlackConnectorConnectedPayload {
+  /** Bot username */
+  botUsername: string;
+  /** Number of channel→agent mappings */
+  channelCount: number;
+  /** ISO timestamp when the connector connected */
+  timestamp: string;
+}
+
+/**
+ * Payload for slack:connector:disconnected event
+ */
+export interface SlackConnectorDisconnectedPayload {
+  /** Reason for disconnection (if available) */
+  reason?: string;
+  /** ISO timestamp when the connector disconnected */
+  timestamp: string;
+}
+
+/**
+ * Payload for slack:connector:error event
+ */
+export interface SlackConnectorErrorPayload {
+  /** Error message */
+  error: string;
+  /** ISO timestamp when the error occurred */
+  timestamp: string;
+}
+
+// =============================================================================
 // Fleet Manager Event Map
 // =============================================================================
 
@@ -380,6 +416,25 @@ export interface FleetManagerEventMap {
    * Emitted when a Discord connector encounters an error.
    */
   "discord:connector:error": [payload: DiscordConnectorErrorPayload];
+
+  // ===========================================================================
+  // Slack Events
+  // ===========================================================================
+
+  /**
+   * Emitted when the Slack connector successfully connects.
+   */
+  "slack:connector:connected": [payload: SlackConnectorConnectedPayload];
+
+  /**
+   * Emitted when the Slack connector disconnects.
+   */
+  "slack:connector:disconnected": [payload: SlackConnectorDisconnectedPayload];
+
+  /**
+   * Emitted when the Slack connector encounters an error.
+   */
+  "slack:connector:error": [payload: SlackConnectorErrorPayload];
 
   // ===========================================================================
   // Error Events

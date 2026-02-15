@@ -21,6 +21,7 @@ export type {
   ShellHookConfigInput,
   WebhookHookConfigInput,
   DiscordHookConfigInput,
+  SlackHookConfigInput,
   HookConfigInput,
 } from "./types.js";
 
@@ -52,3 +53,10 @@ export {
   type DiscordHookRunnerOptions,
   type DiscordHookRunnerLogger,
 } from "./runners/discord.js";
+
+// Slack Hook Runner
+export {
+  SlackHookRunner,
+  type SlackHookRunnerOptions,
+  type SlackHookRunnerLogger,
+} from "./runners/slack.js";

@@ -15,12 +15,14 @@ import type {
   FleetStatus,
   AgentInfo,
   AgentDiscordStatus,
+  AgentSlackStatus,
   ScheduleInfo,
   FleetCounts,
 } from "./types.js";
 import type { FleetManagerContext } from "./context.js";
 import { AgentNotFoundError } from "./errors.js";
 import type { DiscordManager } from "./discord-manager.js";
+import type { SlackManager } from "./slack-manager.js";
 
 // =============================================================================
 // Fleet State Snapshot Type
@@ -143,9 +145,12 @@ export class StatusQueries {
     // Get Discord manager for connection status
     const discordManager = this.ctx.getDiscordManager?.() as DiscordManager | undefined;
 
+    // Get Slack manager for connection status
+    const slackManager = this.ctx.getSlackManager?.() as SlackManager | undefined;
+
     return agents.map((agent) => {
       const agentState = fleetState.agents[agent.name];
-      return buildAgentInfo(agent, agentState, this.ctx.getScheduler(), discordManager);
+      return buildAgentInfo(agent, agentState, this.ctx.getScheduler(), discordManager, slackManager);
     });
   }
 
@@ -180,7 +185,10 @@ export class StatusQueries {
     // Get Discord manager for connection status
     const discordManager = this.ctx.getDiscordManager?.() as DiscordManager | undefined;
 
-    return buildAgentInfo(agent, agentState, this.ctx.getScheduler(), discordManager);
+    // Get Slack manager for connection status
+    const slackManager = this.ctx.getSlackManager?.() as SlackManager | undefined;
+
+    return buildAgentInfo(agent, agentState, this.ctx.getScheduler(), discordManager, slackManager);
   }
 }
 
@@ -201,7 +209,8 @@ export function buildAgentInfo(
   agent: ResolvedAgent,
   agentState?: AgentState,
   scheduler?: Scheduler | null,
-  discordManager?: DiscordManager
+  discordManager?: DiscordManager,
+  slackManager?: SlackManager
 ): AgentInfo {
   // Build schedule info
   const schedules = buildScheduleInfoList(agent, agentState);
@@ -220,6 +229,9 @@ export function buildAgentInfo(
   // Build Discord status
   const discord = buildDiscordStatus(agent, discordManager);
 
+  // Build Slack status
+  const slack = buildSlackStatus(agent, slackManager);
+
   return {
     name: agent.name,
     description: agent.description,
@@ -234,6 +246,7 @@ export function buildAgentInfo(
     model: agent.model,
     working_directory,
     discord,
+    slack,
   };
 }
 
@@ -265,6 +278,46 @@ function buildDiscordStatus(
   }
 
   const state = connector.getState();
+  return {
+    configured: true,
+    connectionStatus: state.status,
+    botUsername: state.botUser?.username,
+    lastError: state.lastError ?? undefined,
+  };
+}
+
+/**
+ * Build Slack status for an agent
+ *
+ * @param agent - Resolved agent configuration
+ * @param slackManager - Slack manager instance (optional)
+ * @returns AgentSlackStatus object
+ */
+function buildSlackStatus(
+  agent: ResolvedAgent,
+  slackManager?: SlackManager
+): AgentSlackStatus | undefined {
+  const hasSlackConfig = agent.chat?.slack !== undefined;
+
+  if (!hasSlackConfig) {
+    return undefined;
+  }
+
+  if (!slackManager || !slackManager.hasAgent(agent.name)) {
+    return {
+      configured: true,
+      connectionStatus: "disconnected",
+    };
+  }
+
+  const state = slackManager.getState();
+  if (!state) {
+    return {
+      configured: true,
+      connectionStatus: "disconnected",
+    };
+  }
+
   return {
     configured: true,
     connectionStatus: state.status,
