@@ -8,10 +8,71 @@
  * agent configuration to SDK options using the existing toSDKOptions adapter.
  */
 
-import { query } from "@anthropic-ai/claude-agent-sdk";
+import { query, tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
+import { z } from "zod";
 import { toSDKOptions } from "../sdk-adapter.js";
 import type { RuntimeInterface, RuntimeExecuteOptions } from "./interface.js";
-import type { SDKMessage } from "../types.js";
+import type { SDKMessage, InjectedMcpServerDef } from "../types.js";
+
+/**
+ * Convert a JSON Schema property to a Zod schema.
+ *
+ * Handles the property types used by injected MCP tools (string, number, boolean).
+ * Falls back to z.unknown() for unrecognized types.
+ */
+function jsonPropertyToZod(prop: Record<string, unknown>, isRequired: boolean) {
+  let schema: z.ZodTypeAny;
+  const description = prop.description as string | undefined;
+
+  switch (prop.type) {
+    case "string":
+      schema = description ? z.string().describe(description) : z.string();
+      break;
+    case "number":
+    case "integer":
+      schema = description ? z.number().describe(description) : z.number();
+      break;
+    case "boolean":
+      schema = description ? z.boolean().describe(description) : z.boolean();
+      break;
+    default:
+      schema = description ? z.unknown().describe(description) : z.unknown();
+  }
+
+  return isRequired ? schema : schema.optional();
+}
+
+/**
+ * Convert an InjectedMcpServerDef to an in-process SDK MCP server.
+ *
+ * Uses the Claude Agent SDK's tool() + createSdkMcpServer() to build
+ * a real MCP server from the transport-agnostic definition.
+ */
+function defToSdkMcpServer(def: InjectedMcpServerDef) {
+  const sdkTools = def.tools.map((toolDef) => {
+    const properties = (toolDef.inputSchema.properties ?? {}) as Record<string, Record<string, unknown>>;
+    const requiredFields = (toolDef.inputSchema.required ?? []) as string[];
+
+    // Build Zod shape from JSON Schema properties
+    const zodShape: Record<string, z.ZodTypeAny> = {};
+    for (const [key, prop] of Object.entries(properties)) {
+      zodShape[key] = jsonPropertyToZod(prop, requiredFields.includes(key));
+    }
+
+    return tool(
+      toolDef.name,
+      toolDef.description,
+      zodShape,
+      toolDef.handler,
+    );
+  });
+
+  return createSdkMcpServer({
+    name: def.name,
+    version: def.version,
+    tools: sdkTools,
+  });
+}
 
 /**
  * SDK runtime implementation
@@ -51,6 +112,27 @@ export class SDKRuntime implements RuntimeInterface {
       resume: options.resume,
       fork: options.fork,
     });
+
+    // Convert injected MCP server defs to in-process SDK MCP servers
+    if (options.injectedMcpServers && Object.keys(options.injectedMcpServers).length > 0) {
+      const configServers = sdkOptions.mcpServers ?? {};
+      const injectedServers: Record<string, unknown> = {};
+
+      for (const [name, def] of Object.entries(options.injectedMcpServers)) {
+        injectedServers[name] = defToSdkMcpServer(def);
+      }
+
+      // SDK accepts both plain configs and McpSdkServerConfigWithInstance objects.
+      // The latter contains a live McpServer instance which doesn't match SDKMcpServerConfig.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      sdkOptions.mcpServers = { ...configServers, ...injectedServers } as any;
+
+      // File uploads via MCP tools can take longer than the default 60s timeout.
+      // Set a safe default if not already configured by the user.
+      if (options.injectedMcpServers["herdctl-file-sender"] && !process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT) {
+        process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT = "120000";
+      }
+    }
 
     // Execute via SDK query()
     // Note: SDK does not currently support AbortController for cancellation

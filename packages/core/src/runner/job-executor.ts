@@ -334,6 +334,7 @@ export class JobExecutor {
             resume: resumeSessionId,
             fork: options.fork ? true : undefined,
             abortController: options.abortController,
+            injectedMcpServers: options.injectedMcpServers,
           });
         } catch (initError) {
           // Wrap initialization errors with context

@@ -548,6 +548,18 @@ export interface TriggerOptions {
    * ```
    */
   onMessage?: (message: import("../runner/types.js").SDKMessage) => void | Promise<void>;
+
+  /**
+   * MCP servers to inject into the agent's runtime session
+   *
+   * These servers are merged with the agent's config-declared MCP servers
+   * at execution time. Used for runtime tool injection (e.g., file sending).
+   *
+   * Each runtime handles transport conversion:
+   * - SDKRuntime: in-process MCP via createSdkMcpServer()
+   * - ContainerRunner: HTTP MCP bridge over Docker network
+   */
+  injectedMcpServers?: Record<string, import("../runner/types.js").InjectedMcpServerDef>;
 }
 
 /**

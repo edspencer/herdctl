@@ -45,3 +45,6 @@ export {
   buildContainerMounts,
   buildContainerEnv,
 } from "./container-manager.js";
+
+// MCP HTTP bridge for Docker
+export { startMcpHttpBridge, type McpHttpBridge } from "./mcp-http-bridge.js";

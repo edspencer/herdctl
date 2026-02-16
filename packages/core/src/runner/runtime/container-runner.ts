@@ -22,8 +22,9 @@ import * as fs from "node:fs/promises";
 import { PassThrough } from "node:stream";
 import { createInterface } from "node:readline";
 import type { RuntimeInterface, RuntimeExecuteOptions } from "./interface.js";
-import type { SDKMessage } from "../types.js";
+import type { SDKMessage, InjectedMcpServerDef } from "../types.js";
 import type { DockerConfig } from "./docker-config.js";
+import { startMcpHttpBridge, type McpHttpBridge } from "./mcp-http-bridge.js";
 import {
   ContainerManager,
   buildContainerMounts,
@@ -181,101 +182,145 @@ export class ContainerRunner implements RuntimeInterface {
    * Execute SDK runtime inside Docker container
    *
    * Runs docker-sdk-wrapper.js script which imports SDK and streams messages as JSONL.
+   * If injected MCP servers are present, starts HTTP bridges on the Docker network
+   * so the agent container can access them via `http://herdctl:<port>/mcp`.
    */
   private async *executeSDKRuntime(
     container: import("dockerode").Container,
     options: RuntimeExecuteOptions
   ): AsyncIterable<SDKMessage> {
-    // Build SDK options
-    const sdkOptions = toSDKOptions(options.agent, {
-      resume: options.resume,
-      fork: options.fork,
-    });
+    // Start HTTP bridges for injected MCP servers
+    const bridges: McpHttpBridge[] = [];
 
-    // Override cwd for Docker - workspace is always mounted at /workspace
-    sdkOptions.cwd = "/workspace";
+    try {
+      // Build SDK options
+      const sdkOptions = toSDKOptions(options.agent, {
+        resume: options.resume,
+        fork: options.fork,
+      });
 
-    // Prepare options JSON for wrapper script
-    const wrapperOptions = {
-      prompt: options.prompt,
-      sdkOptions,
-    };
+      // Override cwd for Docker - workspace is always mounted at /workspace
+      sdkOptions.cwd = "/workspace";
 
-    // Create exec with environment variable
-    // Use bash login shell to get full environment including PATH
-    const optionsJson = JSON.stringify(wrapperOptions).replace(/'/g, "'\\''");
-    const command = `export HERDCTL_SDK_OPTIONS='${optionsJson}' && node /usr/local/lib/docker-sdk-wrapper.js`;
+      // Start HTTP bridges for injected MCP servers and inject as HTTP configs
+      if (options.injectedMcpServers && Object.keys(options.injectedMcpServers).length > 0) {
+        const mcpServers = sdkOptions.mcpServers ?? {};
 
-    console.log("[ContainerRunner] SDK exec command:", command);
-    console.log("[ContainerRunner] Options JSON length:", optionsJson.length);
+        for (const [name, def] of Object.entries(options.injectedMcpServers)) {
+          const bridge = await startMcpHttpBridge(def);
+          bridges.push(bridge);
 
-    const exec = await container.exec({
-      Cmd: [
-        "bash",
-        "-l",
-        "-c",
-        command,
-      ],
-      AttachStdout: true,
-      AttachStderr: true,
-      AttachStdin: false,
-      Tty: false,
-      WorkingDir: "/workspace",
-    });
+          // Agent container connects via Docker DNS: herdctl is the hostname
+          // of the herdctl container on the shared Docker network (herdctl-net)
+          mcpServers[name] = {
+            type: "http",
+            url: `http://herdctl:${bridge.port}/mcp`,
+          };
 
-    // Start exec and get stream
-    const stream = await exec.start({ hijack: true, stdin: false });
+          console.log(`[ContainerRunner] Started MCP HTTP bridge for '${name}' on port ${bridge.port}`);
+        }
 
-    // Demultiplex stdout/stderr
-    const stdout = new PassThrough();
-    const stderr = new PassThrough();
-    const modem = new Dockerode().modem;
-    modem.demuxStream(stream, stdout, stderr);
+        sdkOptions.mcpServers = mcpServers;
 
-    // Collect stderr for error diagnosis
-    const stderrLines: string[] = [];
-    const stderrRl = createInterface({
-      input: stderr,
-      crlfDelay: Infinity,
-    });
-
-    stderrRl.on("line", (line) => {
-      const trimmed = line.trim();
-      if (trimmed) {
-        console.error("[ContainerRunner] SDK stderr:", trimmed);
-        stderrLines.push(trimmed);
+        // File uploads via MCP tools can take longer than the default 60s timeout
+        if (options.injectedMcpServers["herdctl-file-sender"]) {
+          if (!process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT) {
+            process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT = "120000";
+          }
+        }
       }
-    });
 
-    // Parse stdout line-by-line as JSONL
-    const rl = createInterface({
-      input: stdout,
-      crlfDelay: Infinity,
-    });
+      // Prepare options JSON for wrapper script
+      const wrapperOptions = {
+        prompt: options.prompt,
+        sdkOptions,
+      };
 
-    for await (const line of rl) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
+      // Create exec with environment variable
+      // Use bash login shell to get full environment including PATH
+      const optionsJson = JSON.stringify(wrapperOptions).replace(/'/g, "'\\''");
+      const command = `export HERDCTL_SDK_OPTIONS='${optionsJson}' && node /usr/local/lib/docker-sdk-wrapper.js`;
 
-      try {
-        const message = JSON.parse(trimmed) as SDKMessage;
-        yield message;
-      } catch (error) {
-        console.warn(
-          `[ContainerRunner] Failed to parse SDK output: ${error instanceof Error ? error.message : String(error)}`
-        );
+      console.log("[ContainerRunner] SDK exec command:", command);
+      console.log("[ContainerRunner] Options JSON length:", optionsJson.length);
+
+      const exec = await container.exec({
+        Cmd: [
+          "bash",
+          "-l",
+          "-c",
+          command,
+        ],
+        AttachStdout: true,
+        AttachStderr: true,
+        AttachStdin: false,
+        Tty: false,
+        WorkingDir: "/workspace",
+      });
+
+      // Start exec and get stream
+      const stream = await exec.start({ hijack: true, stdin: false });
+
+      // Demultiplex stdout/stderr
+      const stdout = new PassThrough();
+      const stderr = new PassThrough();
+      const modem = new Dockerode().modem;
+      modem.demuxStream(stream, stdout, stderr);
+
+      // Collect stderr for error diagnosis
+      const stderrLines: string[] = [];
+      const stderrRl = createInterface({
+        input: stderr,
+        crlfDelay: Infinity,
+      });
+
+      stderrRl.on("line", (line) => {
+        const trimmed = line.trim();
+        if (trimmed) {
+          console.error("[ContainerRunner] SDK stderr:", trimmed);
+          stderrLines.push(trimmed);
+        }
+      });
+
+      // Parse stdout line-by-line as JSONL
+      const rl = createInterface({
+        input: stdout,
+        crlfDelay: Infinity,
+      });
+
+      for await (const line of rl) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        try {
+          const message = JSON.parse(trimmed) as SDKMessage;
+          yield message;
+        } catch (error) {
+          console.warn(
+            `[ContainerRunner] Failed to parse SDK output: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
       }
-    }
 
-    // Check exec exit code
-    const inspectData = await exec.inspect();
-    const exitCode = inspectData.ExitCode ?? 0;
-    if (exitCode !== 0) {
-      const stderr = stderrLines.join("\n");
-      yield {
-        type: "error",
-        message: `SDK wrapper exited with code ${exitCode}${stderr ? `\n\nStderr:\n${stderr}` : ""}`,
-      } as SDKMessage;
+      // Check exec exit code
+      const inspectData = await exec.inspect();
+      const exitCode = inspectData.ExitCode ?? 0;
+      if (exitCode !== 0) {
+        const stderr = stderrLines.join("\n");
+        yield {
+          type: "error",
+          message: `SDK wrapper exited with code ${exitCode}${stderr ? `\n\nStderr:\n${stderr}` : ""}`,
+        } as SDKMessage;
+      }
+    } finally {
+      // Always close HTTP bridges to prevent port leaks
+      for (const bridge of bridges) {
+        try {
+          await bridge.close();
+        } catch (err) {
+          console.error("[ContainerRunner] Failed to close MCP HTTP bridge:", err);
+        }
+      }
     }
   }
 }

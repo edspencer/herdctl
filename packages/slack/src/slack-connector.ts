@@ -19,6 +19,7 @@ import type {
   SlackConnectorLogger,
   SlackMessageEvent,
   SlackChannelConfig,
+  SlackFileUploadParams,
   ISlackConnector,
   ISlackSessionManager,
   SlackConnectorEventMap,
@@ -233,6 +234,36 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
         ignored: this.messagesIgnored,
       },
     };
+  }
+
+  // ===========================================================================
+  // File Upload
+  // ===========================================================================
+
+  async uploadFile(params: SlackFileUploadParams): Promise<{ fileId: string }> {
+    if (!this.app?.client) {
+      throw new Error("Cannot upload file: not connected to Slack");
+    }
+
+    const response = await this.app.client.files.uploadV2({
+      channel_id: params.channelId,
+      file: params.fileBuffer,
+      filename: params.filename,
+      initial_comment: params.message ?? "",
+      thread_ts: params.threadTs,
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fileId = (response as any).files?.[0]?.id ?? "unknown";
+    this.logger.info("File uploaded to Slack", {
+      fileId,
+      filename: params.filename,
+      channelId: params.channelId,
+      threadTs: params.threadTs,
+      size: params.fileBuffer.length,
+    });
+
+    return { fileId };
   }
 
   // ===========================================================================

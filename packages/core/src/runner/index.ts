@@ -59,3 +59,11 @@ export {
 // Export runtime types and factory
 export type { RuntimeInterface, RuntimeExecuteOptions } from "./runtime/index.js";
 export { SDKRuntime, RuntimeFactory, type RuntimeType } from "./runtime/index.js";
+
+// Export file sender MCP
+export {
+  createFileSenderDef,
+  type FileSenderContext,
+  type FileUploadParams,
+  type FileUploadResult,
+} from "./file-sender-mcp.js";

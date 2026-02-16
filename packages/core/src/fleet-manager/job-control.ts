@@ -171,6 +171,7 @@ export class JobControl {
       outputToFile: schedule?.outputToFile ?? false,
       onMessage: options?.onMessage,
       resume: sessionId,
+      injectedMcpServers: options?.injectedMcpServers,
     });
 
     // Emit job:created event

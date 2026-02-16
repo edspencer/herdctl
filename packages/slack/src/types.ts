@@ -170,6 +170,22 @@ export interface SlackErrorEvent {
 /**
  * Interface for the Slack connector
  */
+/**
+ * Parameters for uploading a file to Slack
+ */
+export interface SlackFileUploadParams {
+  /** Channel ID to upload to */
+  channelId: string;
+  /** Thread timestamp to upload into */
+  threadTs: string;
+  /** File contents */
+  fileBuffer: Buffer;
+  /** Filename for the upload */
+  filename: string;
+  /** Optional message to accompany the file */
+  message?: string;
+}
+
 export interface ISlackConnector extends EventEmitter {
   /** Connect to Slack via Socket Mode */
   connect(): Promise<void>;
@@ -182,6 +198,9 @@ export interface ISlackConnector extends EventEmitter {
 
   /** Get current state */
   getState(): SlackConnectorState;
+
+  /** Upload a file to a Slack channel/thread */
+  uploadFile(params: SlackFileUploadParams): Promise<{ fileId: string }>;
 
   /** Type-safe event subscription */
   on<K extends SlackConnectorEventName>(

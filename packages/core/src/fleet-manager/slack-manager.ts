@@ -19,6 +19,9 @@
 
 import type { FleetManagerContext } from "./context.js";
 import type { ResolvedAgent } from "../config/index.js";
+import { createFileSenderDef, type FileSenderContext } from "../runner/file-sender-mcp.js";
+import type { InjectedMcpServerDef } from "../runner/types.js";
+import { resolveWorkingDirectory } from "./working-directory-helper.js";
 
 // =============================================================================
 // Local Type Definitions
@@ -99,6 +102,13 @@ interface ISlackConnector {
   disconnect(): Promise<void>;
   isConnected(): boolean;
   getState(): SlackConnectorState;
+  uploadFile(params: {
+    channelId: string;
+    threadTs: string;
+    fileBuffer: Buffer;
+    filename: string;
+    message?: string;
+  }): Promise<{ fileId: string }>;
   on(event: "message", listener: (payload: SlackMessageEvent) => void): this;
   on(event: "error", listener: (payload: SlackErrorEvent) => void): this;
   on(event: "ready", listener: (payload: { botUser: { id: string; username: string } }) => void): this;
@@ -572,6 +582,27 @@ export class SlackManager {
       }
     }
 
+    // Create file sender definition for this message context
+    let injectedMcpServers: Record<string, InjectedMcpServerDef> | undefined;
+    const workingDir = resolveWorkingDirectory(agent);
+    if (this.connector && workingDir) {
+      const connector = this.connector;
+      const fileSenderContext: FileSenderContext = {
+        workingDirectory: workingDir,
+        uploadFile: async (params) => {
+          return connector.uploadFile({
+            channelId: event.metadata.channelId,
+            threadTs: event.metadata.threadTs,
+            fileBuffer: params.fileBuffer,
+            filename: params.filename,
+            message: params.message,
+          });
+        },
+      };
+      const fileSenderDef = createFileSenderDef(fileSenderContext);
+      injectedMcpServers = { [fileSenderDef.name]: fileSenderDef };
+    }
+
     // Create streaming responder
     const streamer = new StreamingResponder({
       reply: event.reply,
@@ -592,6 +623,7 @@ export class SlackManager {
           options?: {
             prompt?: string;
             resume?: string | null;
+            injectedMcpServers?: Record<string, InjectedMcpServerDef>;
             onMessage?: (message: { type: string; content?: string; message?: { content?: unknown } }) => void | Promise<void>;
           }
         ) => Promise<import("./types.js").TriggerResult>;
@@ -600,6 +632,7 @@ export class SlackManager {
       const result = await fleetManager.trigger(agentName, undefined, {
         prompt: event.prompt,
         resume: existingSessionId,
+        injectedMcpServers,
         onMessage: async (message) => {
           if (message.type === "assistant") {
             const content = this.extractMessageContent(message);
