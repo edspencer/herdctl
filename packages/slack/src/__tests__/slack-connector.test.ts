@@ -117,7 +117,7 @@ describe("SlackConnector registerEventHandlers", () => {
       expect(messages[0].agentName).toBe(AGENT_NAME);
       expect(messages[0].prompt).toBe("help me");
       expect(messages[0].metadata.wasMentioned).toBe(true);
-      expect(messages[0].metadata.threadTs).toBe("1707930001.000001");
+      expect(messages[0].metadata.channelId).toBe(CHANNEL_ID);
     });
 
     it("ignores @mention in unconfigured channel", async () => {
@@ -137,148 +137,10 @@ describe("SlackConnector registerEventHandlers", () => {
 
       expect(messages).toHaveLength(0);
     });
-
-    it("uses existing thread_ts when mention is inside a thread", async () => {
-      const { connector, handlers, say } = createTestConnector();
-      const messages = captureMessages(connector);
-
-      await handlers["event:app_mention"]({
-        event: {
-          type: "app_mention",
-          user: "UUSER1",
-          text: `<@${BOT_USER_ID}> help`,
-          ts: "1707930002.000001",
-          channel: CHANNEL_ID,
-          thread_ts: "1707930001.000001",
-        },
-        say,
-      });
-
-      expect(messages).toHaveLength(1);
-      expect(messages[0].metadata.threadTs).toBe("1707930001.000001");
-    });
   });
 
-  describe("message handler — thread replies (WEA-13)", () => {
-    it("routes thread reply to agent when thread is tracked in activeThreads", async () => {
-      const { connector, handlers, say } = createTestConnector();
-      const messages = captureMessages(connector);
-
-      // First: @mention creates the thread tracking
-      await handlers["event:app_mention"]({
-        event: {
-          type: "app_mention",
-          user: "UUSER1",
-          text: `<@${BOT_USER_ID}> start`,
-          ts: "1707930001.000001",
-          channel: CHANNEL_ID,
-        },
-        say,
-      });
-
-      // Second: thread reply without mention
-      await handlers["event:message"]({
-        event: {
-          type: "message",
-          user: "UUSER1",
-          text: "follow up question",
-          ts: "1707930002.000001",
-          channel: CHANNEL_ID,
-          thread_ts: "1707930001.000001",
-        },
-        say,
-      });
-
-      expect(messages).toHaveLength(2);
-      expect(messages[1].agentName).toBe(AGENT_NAME);
-      expect(messages[1].prompt).toBe("follow up question");
-      expect(messages[1].metadata.wasMentioned).toBe(false);
-      expect(messages[1].metadata.threadTs).toBe("1707930001.000001");
-    });
-
-    it("recovers thread from session manager after restart (WEA-13)", async () => {
-      const sessionManager = createMockSessionManager({
-        getSession: vi.fn().mockResolvedValue({
-          sessionId: "recovered-session",
-          lastMessageAt: new Date().toISOString(),
-          channelId: CHANNEL_ID,
-        }),
-      });
-
-      const { connector, handlers, say } = createTestConnector({
-        sessionManagers: new Map([[AGENT_NAME, sessionManager]]),
-      });
-      const messages = captureMessages(connector);
-
-      // Thread reply without prior @mention (simulates restart)
-      await handlers["event:message"]({
-        event: {
-          type: "message",
-          user: "UUSER1",
-          text: "continuing after restart",
-          ts: "1707930002.000001",
-          channel: CHANNEL_ID,
-          thread_ts: "1707930001.000001",
-        },
-        say,
-      });
-
-      expect(sessionManager.getSession).toHaveBeenCalledWith(
-        "1707930001.000001"
-      );
-      expect(messages).toHaveLength(1);
-      expect(messages[0].agentName).toBe(AGENT_NAME);
-      expect(messages[0].prompt).toBe("continuing after restart");
-    });
-
-    it("ignores thread reply in unconfigured channel with no session", async () => {
-      const { connector, handlers, say } = createTestConnector();
-      const messages = captureMessages(connector);
-
-      await handlers["event:message"]({
-        event: {
-          type: "message",
-          user: "UUSER1",
-          text: "hello",
-          ts: "1707930002.000001",
-          channel: "C_UNKNOWN",
-          thread_ts: "1707930001.000001",
-        },
-        say,
-      });
-
-      expect(messages).toHaveLength(0);
-    });
-
-    it("ignores thread reply when session manager has no session", async () => {
-      const sessionManager = createMockSessionManager({
-        getSession: vi.fn().mockResolvedValue(null),
-      });
-
-      const { connector, handlers, say } = createTestConnector({
-        sessionManagers: new Map([[AGENT_NAME, sessionManager]]),
-      });
-      const messages = captureMessages(connector);
-
-      // Thread reply for an unknown thread (not tracked, no session)
-      await handlers["event:message"]({
-        event: {
-          type: "message",
-          user: "UUSER1",
-          text: "random thread reply",
-          ts: "1707930002.000001",
-          channel: CHANNEL_ID,
-          thread_ts: "1707930099.000001",
-        },
-        say,
-      });
-
-      expect(messages).toHaveLength(0);
-    });
-  });
-
-  describe("message handler — top-level channel messages (WEA-12)", () => {
-    it("routes top-level message in auto-mode channel to agent", async () => {
+  describe("message handler — channel routing", () => {
+    it("routes message in configured channel to agent", async () => {
       const { connector, handlers, say } = createTestConnector({
         channelConfigs: new Map([[CHANNEL_ID, { mode: "auto", contextMessages: 10 }]]),
       });
@@ -299,8 +161,31 @@ describe("SlackConnector registerEventHandlers", () => {
       expect(messages[0].agentName).toBe(AGENT_NAME);
       expect(messages[0].prompt).toBe("hello bot");
       expect(messages[0].metadata.wasMentioned).toBe(false);
-      // threadTs should be the message's own ts (creates a new thread)
-      expect(messages[0].metadata.threadTs).toBe("1707930001.000001");
+      expect(messages[0].metadata.channelId).toBe(CHANNEL_ID);
+    });
+
+    it("routes thread reply in configured channel to agent", async () => {
+      const { connector, handlers, say } = createTestConnector({
+        channelConfigs: new Map([[CHANNEL_ID, { mode: "auto", contextMessages: 10 }]]),
+      });
+      const messages = captureMessages(connector);
+
+      // Thread reply — should still route via channel
+      await handlers["event:message"]({
+        event: {
+          type: "message",
+          user: "UUSER1",
+          text: "follow up in thread",
+          ts: "1707930002.000001",
+          channel: CHANNEL_ID,
+          thread_ts: "1707930001.000001",
+        },
+        say,
+      });
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].agentName).toBe(AGENT_NAME);
+      expect(messages[0].prompt).toBe("follow up in thread");
     });
 
     it("ignores top-level message in mention-mode channel (default)", async () => {
@@ -321,7 +206,7 @@ describe("SlackConnector registerEventHandlers", () => {
       expect(messages).toHaveLength(0);
     });
 
-    it("ignores top-level message in unconfigured channel", async () => {
+    it("ignores message in unconfigured channel", async () => {
       const { connector, handlers, say } = createTestConnector();
       const messages = captureMessages(connector);
 
@@ -454,7 +339,7 @@ describe("SlackConnector registerEventHandlers", () => {
     it("increments received and ignored counts correctly", async () => {
       const { connector, handlers, say } = createTestConnector();
 
-      // Bot message → received + ignored
+      // Bot message -> received + ignored
       await handlers["event:message"]({
         event: {
           type: "message",
@@ -466,7 +351,7 @@ describe("SlackConnector registerEventHandlers", () => {
         say,
       });
 
-      // Unknown channel → received + ignored
+      // Unknown channel -> received + ignored
       await handlers["event:message"]({
         event: {
           type: "message",
@@ -478,7 +363,7 @@ describe("SlackConnector registerEventHandlers", () => {
         say,
       });
 
-      // Top-level in configured channel with default mention mode → also ignored
+      // Top-level in configured channel with default mention mode -> also ignored
       await handlers["event:message"]({
         event: {
           type: "message",
@@ -497,7 +382,7 @@ describe("SlackConnector registerEventHandlers", () => {
   });
 
   describe("reply function", () => {
-    it("sends reply in the correct thread", async () => {
+    it("sends reply in the channel (no thread_ts)", async () => {
       const { connector, handlers, say } = createTestConnector({
         channelConfigs: new Map([[CHANNEL_ID, { mode: "auto", contextMessages: 10 }]]),
       });
@@ -520,7 +405,6 @@ describe("SlackConnector registerEventHandlers", () => {
 
       expect(say).toHaveBeenCalledWith({
         text: "hi back!",
-        thread_ts: "1707930001.000001",
       });
     });
   });

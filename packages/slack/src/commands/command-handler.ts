@@ -19,16 +19,13 @@ export interface CommandContext {
   /** Name of the agent handling this command */
   agentName: string;
 
-  /** Thread timestamp */
-  threadTs: string;
-
   /** Channel ID */
   channelId: string;
 
   /** User who sent the command */
   userId: string;
 
-  /** Function to reply in the thread */
+  /** Function to reply in the channel */
   reply: (content: string) => Promise<void>;
 
   /** Session manager for the agent */
@@ -125,7 +122,7 @@ export class CommandHandler {
 
     this.logger.info(`Executing command: !${commandName}`, {
       agentName: context.agentName,
-      threadTs: context.threadTs,
+      channelId: context.channelId,
     });
 
     try {

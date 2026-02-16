@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { SessionManager } from "../session-manager/session-manager.js";
 import {
   createInitialSessionState,
-  createThreadSession,
+  createChannelSession,
 } from "../session-manager/types.js";
 import {
   SessionManagerError,
@@ -43,79 +43,64 @@ describe("SessionManager", () => {
   };
 
   describe("getOrCreateSession", () => {
-    it("creates a new session for unknown thread", async () => {
+    it("creates a new session for unknown channel", async () => {
       const manager = createManager();
 
-      const result = await manager.getOrCreateSession(
-        "1707930000.123456",
-        "C0123456789"
-      );
+      const result = await manager.getOrCreateSession("C0123456789");
 
       expect(result.isNew).toBe(true);
       expect(result.sessionId).toMatch(/^slack-test-agent-/);
     });
 
-    it("returns existing session for known thread", async () => {
+    it("returns existing session for known channel", async () => {
       const manager = createManager();
 
-      const first = await manager.getOrCreateSession(
-        "1707930000.123456",
-        "C0123456789"
-      );
-      const second = await manager.getOrCreateSession(
-        "1707930000.123456",
-        "C0123456789"
-      );
+      const first = await manager.getOrCreateSession("C0123456789");
+      const second = await manager.getOrCreateSession("C0123456789");
 
       expect(second.isNew).toBe(false);
       expect(second.sessionId).toBe(first.sessionId);
     });
 
-    it("creates different sessions for different threads", async () => {
+    it("creates different sessions for different channels", async () => {
       const manager = createManager();
 
-      const first = await manager.getOrCreateSession(
-        "1707930000.111111",
-        "C0123456789"
-      );
-      const second = await manager.getOrCreateSession(
-        "1707930000.222222",
-        "C0123456789"
-      );
+      const first = await manager.getOrCreateSession("C0123456789");
+      const second = await manager.getOrCreateSession("C9876543210");
 
       expect(first.sessionId).not.toBe(second.sessionId);
     });
   });
 
   describe("getSession", () => {
-    it("returns null for unknown thread", async () => {
+    it("returns null for unknown channel", async () => {
       const manager = createManager();
 
-      const session = await manager.getSession("unknown-thread");
+      const session = await manager.getSession("C_UNKNOWN");
 
       expect(session).toBeNull();
     });
 
-    it("returns session for known thread", async () => {
+    it("returns session for known channel", async () => {
       const manager = createManager();
 
-      await manager.getOrCreateSession("1707930000.123456", "C0123456789");
-      const session = await manager.getSession("1707930000.123456");
+      await manager.getOrCreateSession("C0123456789");
+      const session = await manager.getSession("C0123456789");
 
       expect(session).not.toBeNull();
-      expect(session!.channelId).toBe("C0123456789");
+      expect(session!.sessionId).toMatch(/^slack-test-agent-/);
     });
 
     it("returns null for expired sessions", async () => {
       // 0 hours expiry = immediately expired
       const manager = createManager("test-agent", 0);
 
-      await manager.getOrCreateSession("1707930000.123456", "C0123456789");
+      await manager.getOrCreateSession("C0123456789");
 
       // Wait a tick so the session is expired
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      const session = await manager.getSession("1707930000.123456");
+      const session = await manager.getSession("C0123456789");
       expect(session).toBeNull();
     });
   });
@@ -124,25 +109,25 @@ describe("SessionManager", () => {
     it("updates last message timestamp", async () => {
       const manager = createManager();
 
-      await manager.getOrCreateSession("1707930000.123456", "C0123456789");
-      const before = await manager.getSession("1707930000.123456");
+      await manager.getOrCreateSession("C0123456789");
+      const before = await manager.getSession("C0123456789");
       const beforeTime = new Date(before!.lastMessageAt).getTime();
 
       // Wait enough for a distinct timestamp
       await new Promise((resolve) => setTimeout(resolve, 50));
-      await manager.touchSession("1707930000.123456");
+      await manager.touchSession("C0123456789");
 
-      const after = await manager.getSession("1707930000.123456");
+      const after = await manager.getSession("C0123456789");
       const afterTime = new Date(after!.lastMessageAt).getTime();
 
       expect(afterTime).toBeGreaterThanOrEqual(beforeTime);
     });
 
-    it("does not throw for unknown thread", async () => {
+    it("does not throw for unknown channel", async () => {
       const manager = createManager();
 
       await expect(
-        manager.touchSession("unknown-thread")
+        manager.touchSession("C_UNKNOWN")
       ).resolves.toBeUndefined();
     });
   });
@@ -151,13 +136,9 @@ describe("SessionManager", () => {
     it("creates or updates a session", async () => {
       const manager = createManager();
 
-      await manager.setSession(
-        "1707930000.123456",
-        "custom-session-id",
-        "C0123456789"
-      );
+      await manager.setSession("C0123456789", "custom-session-id");
 
-      const session = await manager.getSession("1707930000.123456");
+      const session = await manager.getSession("C0123456789");
       expect(session).not.toBeNull();
       expect(session!.sessionId).toBe("custom-session-id");
     });
@@ -165,14 +146,10 @@ describe("SessionManager", () => {
     it("overwrites existing session", async () => {
       const manager = createManager();
 
-      await manager.getOrCreateSession("1707930000.123456", "C0123456789");
-      await manager.setSession(
-        "1707930000.123456",
-        "new-session-id",
-        "C0123456789"
-      );
+      await manager.getOrCreateSession("C0123456789");
+      await manager.setSession("C0123456789", "new-session-id");
 
-      const session = await manager.getSession("1707930000.123456");
+      const session = await manager.getSession("C0123456789");
       expect(session!.sessionId).toBe("new-session-id");
     });
   });
@@ -181,19 +158,19 @@ describe("SessionManager", () => {
     it("removes a session and returns true", async () => {
       const manager = createManager();
 
-      await manager.getOrCreateSession("1707930000.123456", "C0123456789");
-      const result = await manager.clearSession("1707930000.123456");
+      await manager.getOrCreateSession("C0123456789");
+      const result = await manager.clearSession("C0123456789");
 
       expect(result).toBe(true);
 
-      const session = await manager.getSession("1707930000.123456");
+      const session = await manager.getSession("C0123456789");
       expect(session).toBeNull();
     });
 
-    it("returns false for unknown thread", async () => {
+    it("returns false for unknown channel", async () => {
       const manager = createManager();
 
-      const result = await manager.clearSession("unknown-thread");
+      const result = await manager.clearSession("C_UNKNOWN");
 
       expect(result).toBe(false);
     });
@@ -203,8 +180,8 @@ describe("SessionManager", () => {
     it("removes expired sessions", async () => {
       const manager = createManager("test-agent", 0);
 
-      await manager.getOrCreateSession("thread-1", "C0123456789");
-      await manager.getOrCreateSession("thread-2", "C0123456789");
+      await manager.getOrCreateSession("C001");
+      await manager.getOrCreateSession("C002");
 
       await new Promise((resolve) => setTimeout(resolve, 10));
 
@@ -216,7 +193,7 @@ describe("SessionManager", () => {
     it("keeps active sessions", async () => {
       const manager = createManager("test-agent", 24);
 
-      await manager.getOrCreateSession("thread-1", "C0123456789");
+      await manager.getOrCreateSession("C001");
 
       const count = await manager.cleanupExpiredSessions();
 
@@ -234,8 +211,8 @@ describe("SessionManager", () => {
     it("counts active sessions", async () => {
       const manager = createManager();
 
-      await manager.getOrCreateSession("thread-1", "C0123456789");
-      await manager.getOrCreateSession("thread-2", "C0123456789");
+      await manager.getOrCreateSession("C001");
+      await manager.getOrCreateSession("C002");
 
       expect(await manager.getActiveSessionCount()).toBe(2);
     });
@@ -245,7 +222,7 @@ describe("SessionManager", () => {
     it("persists state to YAML file", async () => {
       const manager = createManager();
 
-      await manager.getOrCreateSession("1707930000.123456", "C0123456789");
+      await manager.getOrCreateSession("C0123456789");
 
       const filePath = join(
         tempDir,
@@ -254,24 +231,18 @@ describe("SessionManager", () => {
       );
       const content = await readFile(filePath, "utf-8");
 
-      expect(content).toContain("version: 1");
+      expect(content).toContain("version: 2");
       expect(content).toContain("agentName: test-agent");
-      expect(content).toContain("1707930000.123456");
+      expect(content).toContain("C0123456789");
     });
 
     it("survives recreation with same state dir", async () => {
       const manager1 = createManager();
-      const result1 = await manager1.getOrCreateSession(
-        "1707930000.123456",
-        "C0123456789"
-      );
+      const result1 = await manager1.getOrCreateSession("C0123456789");
 
       // Create new manager pointing to same dir
       const manager2 = createManager();
-      const result2 = await manager2.getOrCreateSession(
-        "1707930000.123456",
-        "C0123456789"
-      );
+      const result2 = await manager2.getOrCreateSession("C0123456789");
 
       expect(result2.isNew).toBe(false);
       expect(result2.sessionId).toBe(result1.sessionId);
@@ -281,21 +252,20 @@ describe("SessionManager", () => {
 
 describe("Session manager types", () => {
   describe("createInitialSessionState", () => {
-    it("creates state with empty threads", () => {
+    it("creates state with empty channels", () => {
       const state = createInitialSessionState("my-agent");
 
-      expect(state.version).toBe(1);
+      expect(state.version).toBe(2);
       expect(state.agentName).toBe("my-agent");
-      expect(state.threads).toEqual({});
+      expect(state.channels).toEqual({});
     });
   });
 
-  describe("createThreadSession", () => {
-    it("creates thread session", () => {
-      const session = createThreadSession("session-123", "C0123456789");
+  describe("createChannelSession", () => {
+    it("creates channel session", () => {
+      const session = createChannelSession("session-123");
 
       expect(session.sessionId).toBe("session-123");
-      expect(session.channelId).toBe("C0123456789");
       expect(session.lastMessageAt).toBeDefined();
     });
   });

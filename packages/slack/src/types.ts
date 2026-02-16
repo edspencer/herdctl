@@ -135,9 +135,6 @@ export interface SlackMessageEvent {
     /** Channel ID where the message was sent */
     channelId: string;
 
-    /** Thread timestamp (conversation key) */
-    threadTs: string;
-
     /** Message timestamp */
     messageTs: string;
 
@@ -176,8 +173,6 @@ export interface SlackErrorEvent {
 export interface SlackFileUploadParams {
   /** Channel ID to upload to */
   channelId: string;
-  /** Thread timestamp to upload into */
-  threadTs: string;
   /** File contents */
   fileBuffer: Buffer;
   /** Filename for the upload */
@@ -224,29 +219,24 @@ export interface ISlackConnector extends EventEmitter {
 /**
  * Session manager interface for Slack
  *
- * Keyed by threadTs instead of channelId (unlike Discord).
+ * Keyed by channelId (matching Discord's approach).
  */
 export interface ISlackSessionManager {
   readonly agentName: string;
 
   getOrCreateSession(
-    threadTs: string,
     channelId: string
   ): Promise<{ sessionId: string; isNew: boolean }>;
 
   getSession(
-    threadTs: string
-  ): Promise<{ sessionId: string; lastMessageAt: string; channelId: string } | null>;
-
-  setSession(
-    threadTs: string,
-    sessionId: string,
     channelId: string
-  ): Promise<void>;
+  ): Promise<{ sessionId: string; lastMessageAt: string } | null>;
 
-  touchSession(threadTs: string): Promise<void>;
+  setSession(channelId: string, sessionId: string): Promise<void>;
 
-  clearSession(threadTs: string): Promise<boolean>;
+  touchSession(channelId: string): Promise<void>;
+
+  clearSession(channelId: string): Promise<boolean>;
 
   cleanupExpiredSessions(): Promise<number>;
 
@@ -305,7 +295,6 @@ export interface SlackConnectorEventMap {
     agentName: string;
     event: "created" | "resumed" | "expired" | "cleared";
     channelId: string;
-    threadTs: string;
     sessionId: string;
   };
 }

@@ -1,17 +1,17 @@
 /**
  * Session manager module for Slack
  *
- * Provides per-thread session management for Claude conversations.
+ * Provides per-channel session management for Claude conversations.
  */
 
 export { SessionManager } from "./session-manager.js";
 
 export {
   // Schemas
-  ThreadSessionSchema,
+  ChannelSessionSchema,
   SlackSessionStateSchema,
   // Types
-  type ThreadSession,
+  type ChannelSession,
   type SlackSessionState,
   type SessionManagerLogger,
   type SessionManagerOptions,
@@ -19,7 +19,7 @@ export {
   type ISessionManager,
   // Factory functions
   createInitialSessionState,
-  createThreadSession,
+  createChannelSession,
 } from "./types.js";
 
 export {

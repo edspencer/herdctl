@@ -1,8 +1,8 @@
 /**
  * Type definitions for Slack session management
  *
- * Provides interfaces for per-thread session state tracking,
- * enabling conversation context preservation across Slack threads.
+ * Provides interfaces for per-channel session state tracking,
+ * enabling conversation context preservation across Slack channels.
  */
 
 import { z } from "zod";
@@ -12,9 +12,9 @@ import { z } from "zod";
 // =============================================================================
 
 /**
- * Schema for individual thread session mapping
+ * Schema for individual channel session mapping
  */
-export const ThreadSessionSchema = z.object({
+export const ChannelSessionSchema = z.object({
   /** Claude session ID for resuming conversations */
   sessionId: z.string().min(1, "Session ID cannot be empty"),
 
@@ -22,9 +22,6 @@ export const ThreadSessionSchema = z.object({
   lastMessageAt: z.string().datetime({
     message: "lastMessageAt must be a valid ISO datetime string",
   }),
-
-  /** Channel ID where the thread exists */
-  channelId: z.string().min(1, "Channel ID cannot be empty"),
 });
 
 /**
@@ -34,20 +31,20 @@ export const ThreadSessionSchema = z.object({
  */
 export const SlackSessionStateSchema = z.object({
   /** Version for future schema migrations */
-  version: z.literal(1),
+  version: z.literal(2),
 
   /** Agent name this session state belongs to */
   agentName: z.string().min(1, "Agent name cannot be empty"),
 
-  /** Map of thread timestamp to session info */
-  threads: z.record(z.string(), ThreadSessionSchema),
+  /** Map of channel ID to session info */
+  channels: z.record(z.string(), ChannelSessionSchema),
 });
 
 // =============================================================================
 // Type Exports
 // =============================================================================
 
-export type ThreadSession = z.infer<typeof ThreadSessionSchema>;
+export type ChannelSession = z.infer<typeof ChannelSessionSchema>;
 export type SlackSessionState = z.infer<typeof SlackSessionStateSchema>;
 
 // =============================================================================
@@ -99,55 +96,46 @@ export interface SessionResult {
 /**
  * Interface that all Slack session managers must implement
  *
- * Keyed by threadTs (unlike Discord which keys by channelId)
+ * Keyed by channelId (matching Discord's approach)
  */
 export interface ISessionManager {
   /**
-   * Get or create a session for a thread
+   * Get or create a session for a channel
    *
-   * @param threadTs - Slack thread timestamp (conversation key)
-   * @param channelId - Channel where the thread exists
+   * @param channelId - Slack channel ID (conversation key)
    */
-  getOrCreateSession(
-    threadTs: string,
-    channelId: string
-  ): Promise<SessionResult>;
+  getOrCreateSession(channelId: string): Promise<SessionResult>;
 
   /**
    * Update the last message timestamp for a session
    *
-   * @param threadTs - Slack thread timestamp
+   * @param channelId - Slack channel ID
    */
-  touchSession(threadTs: string): Promise<void>;
+  touchSession(channelId: string): Promise<void>;
 
   /**
    * Get an existing session without creating one
    *
-   * @param threadTs - Slack thread timestamp
+   * @param channelId - Slack channel ID
    * @returns Session if it exists and is not expired, null otherwise
    */
-  getSession(threadTs: string): Promise<ThreadSession | null>;
+  getSession(channelId: string): Promise<ChannelSession | null>;
 
   /**
-   * Store or update the session ID for a thread
+   * Store or update the session ID for a channel
    *
-   * @param threadTs - Slack thread timestamp
+   * @param channelId - Slack channel ID
    * @param sessionId - The Claude Agent SDK session ID
-   * @param channelId - Channel where the thread exists
    */
-  setSession(
-    threadTs: string,
-    sessionId: string,
-    channelId: string
-  ): Promise<void>;
+  setSession(channelId: string, sessionId: string): Promise<void>;
 
   /**
    * Clear a specific session
    *
-   * @param threadTs - Slack thread timestamp
+   * @param channelId - Slack channel ID
    * @returns true if cleared, false if it didn't exist
    */
-  clearSession(threadTs: string): Promise<boolean>;
+  clearSession(channelId: string): Promise<boolean>;
 
   /**
    * Clean up all expired sessions
@@ -176,22 +164,18 @@ export function createInitialSessionState(
   agentName: string
 ): SlackSessionState {
   return {
-    version: 1,
+    version: 2,
     agentName,
-    threads: {},
+    channels: {},
   };
 }
 
 /**
- * Create a new thread session
+ * Create a new channel session
  */
-export function createThreadSession(
-  sessionId: string,
-  channelId: string
-): ThreadSession {
+export function createChannelSession(sessionId: string): ChannelSession {
   return {
     sessionId,
     lastMessageAt: new Date().toISOString(),
-    channelId,
   };
 }

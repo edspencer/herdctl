@@ -6,9 +6,9 @@
  * This package provides:
  * - SlackConnector class for connecting agents to Slack via Socket Mode
  * - Single Bolt App shared across all agents (one bot token per workspace)
- * - Channel→agent routing for multi-agent support
- * - Thread-based conversation management
- * - SessionManager for per-thread conversation context
+ * - Channel->agent routing for multi-agent support
+ * - Channel-based conversation management
+ * - SessionManager for per-channel conversation context
  */
 
 export const VERSION = "0.1.0";
@@ -52,15 +52,15 @@ export type {
   SessionManagerLogger,
   ISessionManager,
   SessionResult,
-  ThreadSession,
+  ChannelSession,
   SlackSessionState,
 } from "./session-manager/index.js";
 
 export {
   SlackSessionStateSchema,
-  ThreadSessionSchema,
+  ChannelSessionSchema,
   createInitialSessionState,
-  createThreadSession,
+  createChannelSession,
 } from "./session-manager/index.js";
 
 // Errors

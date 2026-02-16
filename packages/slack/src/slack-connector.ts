@@ -1,13 +1,13 @@
 /**
  * Slack Connector
  *
- * Single Bolt App instance with channel→agent routing.
+ * Single Bolt App instance with channel->agent routing.
  * Uses Socket Mode for connection (no public URL needed).
  *
- * Key design differences from Discord:
+ * Key design:
  * - ONE connector shared across all agents (not N connectors)
- * - Channel→agent routing via channelAgentMap
- * - Thread-based conversations (threadTs as session key)
+ * - Channel->agent routing via channelAgentMap
+ * - Channel-based conversations (channelId as session key, matching Discord)
  * - Hourglass emoji reaction as typing indicator
  */
 
@@ -71,9 +71,6 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
   private messagesReceived: number = 0;
   private messagesSent: number = 0;
   private messagesIgnored: number = 0;
-
-  // Track active threads (threadTs → agentName) for reply routing
-  private activeThreads: Map<string, string> = new Map();
 
   constructor(options: SlackConnectorOptions) {
     super();
@@ -250,7 +247,6 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
       file: params.fileBuffer,
       filename: params.filename,
       initial_comment: params.message ?? "",
-      thread_ts: params.threadTs,
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -259,7 +255,6 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
       fileId,
       filename: params.filename,
       channelId: params.channelId,
-      threadTs: params.threadTs,
       size: params.fileBuffer.length,
     });
 
@@ -273,7 +268,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
   private registerEventHandlers(): void {
     if (!this.app) return;
 
-    // Handle @mentions — starts new thread conversations
+    // Handle @mentions
     this.app.event("app_mention", async ({ event, say }: { event: AppMentionEvent; say: SayFn }) => {
       this.messagesReceived++;
 
@@ -307,23 +302,16 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
         return;
       }
 
-      // Thread timestamp: use existing thread or create from this message
-      const threadTs = event.thread_ts ?? event.ts;
-
       // Check for prefix commands before processing as a message
       const wasCommand = await this.tryExecuteCommand(
-        prompt, agentName, event.channel, threadTs, event.user, say
+        prompt, agentName, event.channel, event.user, say
       );
       if (wasCommand) return;
-
-      // Track this thread for future reply routing
-      this.activeThreads.set(threadTs, agentName);
 
       const messageEvent = this.buildMessageEvent(
         agentName,
         prompt,
         event.channel,
-        threadTs,
         event.ts,
         event.user,
         true,
@@ -368,66 +356,8 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
         return;
       }
 
-      // Resolve the thread key: existing thread_ts or this message's ts for top-level
-      const threadTs = event.thread_ts ?? event.ts;
-
-      // Resolve agent for this message
-      let resolvedAgent: string | undefined;
-
-      if (event.thread_ts) {
-        // Thread reply — try activeThreads first
-        resolvedAgent = this.activeThreads.get(event.thread_ts);
-
-        if (!resolvedAgent) {
-          // Not in memory — check if channel is configured
-          const channelAgent = this.channelAgentMap.get(event.channel);
-          if (channelAgent) {
-            // Try to recover from session manager (survives restarts)
-            const sessionManager = this.sessionManagers.get(channelAgent);
-            if (sessionManager) {
-              const session = await sessionManager.getSession(event.thread_ts);
-              if (session) {
-                this.logger.debug("Recovered thread from session manager", {
-                  channel: event.channel,
-                  threadTs: event.thread_ts,
-                  agent: channelAgent,
-                });
-                resolvedAgent = channelAgent;
-              }
-            }
-          }
-        }
-      } else {
-        // Top-level channel message (no thread) — route via channel map
-        resolvedAgent = this.channelAgentMap.get(event.channel);
-        if (resolvedAgent) {
-          // Check channel mode: "mention" mode skips top-level messages
-          // (they should go through app_mention handler instead)
-          const channelConfig = this.channelConfigs.get(event.channel);
-          const mode = channelConfig?.mode ?? "mention";
-          if (mode === "mention") {
-            this.messagesIgnored++;
-            this.emit("messageIgnored", {
-              agentName: resolvedAgent,
-              reason: "not_configured",
-              channelId: event.channel,
-              messageTs: event.ts,
-            });
-            this.logger.debug("Ignoring top-level message in mention-mode channel", {
-              channel: event.channel,
-              agent: resolvedAgent,
-              mode,
-            });
-            return;
-          }
-
-          this.logger.debug("Top-level channel message (auto mode)", {
-            channel: event.channel,
-            agent: resolvedAgent,
-            ts: event.ts,
-          });
-        }
-      }
+      // Resolve agent for this channel
+      const resolvedAgent = this.channelAgentMap.get(event.channel);
 
       if (!resolvedAgent) {
         this.messagesIgnored++;
@@ -439,16 +369,36 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
         });
         this.logger.debug("No agent resolved for message", {
           channel: event.channel,
-          threadTs: event.thread_ts,
-          hasActiveThread: event.thread_ts
-            ? this.activeThreads.has(event.thread_ts)
-            : false,
         });
         return;
       }
 
-      // Track this thread for future reply routing
-      this.activeThreads.set(threadTs, resolvedAgent);
+      // For top-level messages (no thread_ts), check channel mode
+      if (!event.thread_ts) {
+        const channelConfig = this.channelConfigs.get(event.channel);
+        const mode = channelConfig?.mode ?? "mention";
+        if (mode === "mention") {
+          this.messagesIgnored++;
+          this.emit("messageIgnored", {
+            agentName: resolvedAgent,
+            reason: "not_configured",
+            channelId: event.channel,
+            messageTs: event.ts,
+          });
+          this.logger.debug("Ignoring top-level message in mention-mode channel", {
+            channel: event.channel,
+            agent: resolvedAgent,
+            mode,
+          });
+          return;
+        }
+
+        this.logger.debug("Top-level channel message (auto mode)", {
+          channel: event.channel,
+          agent: resolvedAgent,
+          ts: event.ts,
+        });
+      }
 
       const prompt = processMessage(event.text ?? "", this.botUserId);
 
@@ -465,7 +415,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
 
       // Check for prefix commands before processing as a message
       const wasCommand = await this.tryExecuteCommand(
-        prompt, resolvedAgent, event.channel, threadTs, event.user ?? "", say
+        prompt, resolvedAgent, event.channel, event.user ?? "", say
       );
       if (wasCommand) return;
 
@@ -473,7 +423,6 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
         resolvedAgent,
         prompt,
         event.channel,
-        threadTs,
         event.ts,
         event.user ?? "",
         false,
@@ -495,7 +444,6 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
     prompt: string,
     agentName: string,
     channelId: string,
-    threadTs: string,
     userId: string,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     say: any
@@ -511,11 +459,10 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
 
     const executed = await this.commandHandler.executeCommand(prompt, {
       agentName,
-      threadTs,
       channelId,
       userId,
       reply: async (content: string) => {
-        await say({ text: content, thread_ts: threadTs });
+        await say({ text: content });
       },
       sessionManager,
       connectorState: this.getState(),
@@ -547,7 +494,6 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
     agentName: string,
     prompt: string,
     channelId: string,
-    threadTs: string,
     messageTs: string,
     userId: string,
     wasMentioned: boolean,
@@ -557,7 +503,6 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
     const reply = async (content: string): Promise<void> => {
       await say({
         text: content,
-        thread_ts: threadTs,
       });
       this.messagesSent++;
     };
@@ -597,7 +542,6 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
       prompt,
       metadata: {
         channelId,
-        threadTs,
         messageTs,
         userId,
         wasMentioned,

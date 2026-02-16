@@ -68,11 +68,11 @@ export const statusCommand: PrefixCommand = {
   description: "Show agent status and connection info",
 
   async execute(context: CommandContext): Promise<void> {
-    const { agentName, threadTs, connectorState, sessionManager, reply } =
+    const { agentName, channelId, connectorState, sessionManager, reply } =
       context;
 
-    // Get session info for this thread
-    const session = await sessionManager.getSession(threadTs);
+    // Get session info for this channel
+    const session = await sessionManager.getSession(channelId);
 
     // Build status message using Slack mrkdwn
     const statusEmoji = getStatusEmoji(connectorState.status);
@@ -102,7 +102,7 @@ export const statusCommand: PrefixCommand = {
       statusMessage += `\n*Last Activity:* ${formatTimestamp(session.lastMessageAt)}`;
       statusMessage += `\n*Session Age:* ${formatDuration(session.lastMessageAt)}`;
     } else {
-      statusMessage += `\nNo active session in this thread.`;
+      statusMessage += `\nNo active session in this channel.`;
     }
 
     await reply(statusMessage);

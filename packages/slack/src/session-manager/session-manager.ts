@@ -1,8 +1,8 @@
 /**
- * Session manager for Slack thread conversations
+ * Session manager for Slack channel conversations
  *
- * Provides per-thread session management for Claude conversations,
- * enabling conversation context preservation across Slack threads.
+ * Provides per-channel session management for Claude conversations,
+ * enabling conversation context preservation across Slack channels.
  *
  * Sessions are stored at .herdctl/slack-sessions/<agent-name>.yaml
  */
@@ -18,7 +18,7 @@ import {
   type SessionManagerLogger,
   type ISessionManager,
   type SessionResult,
-  type ThreadSession,
+  type ChannelSession,
   type SlackSessionState,
   SlackSessionStateSchema,
   createInitialSessionState,
@@ -52,14 +52,12 @@ function createDefaultLogger(agentName: string): SessionManagerLogger {
 // =============================================================================
 
 /**
- * SessionManager manages per-thread Claude sessions for a Slack agent.
+ * SessionManager manages per-channel Claude sessions for a Slack agent.
  *
  * Each agent has its own SessionManager instance, storing session mappings
  * in a YAML file at .herdctl/slack-sessions/<agent-name>.yaml
  *
- * Unlike Discord's SessionManager which keys by channelId,
- * Slack's keys by threadTs (thread timestamp) since each conversation
- * is a Slack thread.
+ * Sessions are keyed by channelId (matching Discord's approach).
  */
 export class SessionManager implements ISessionManager {
   public readonly agentName: string;
@@ -92,17 +90,14 @@ export class SessionManager implements ISessionManager {
   // ===========================================================================
 
   /**
-   * Get or create a session for a thread
+   * Get or create a session for a channel
    */
-  async getOrCreateSession(
-    threadTs: string,
-    channelId: string
-  ): Promise<SessionResult> {
-    const existingSession = await this.getSession(threadTs);
+  async getOrCreateSession(channelId: string): Promise<SessionResult> {
+    const existingSession = await this.getSession(channelId);
 
     if (existingSession) {
       this.logger.info("Resuming existing session", {
-        threadTs,
+        channelId,
         sessionId: existingSession.sessionId,
       });
       return {
@@ -116,15 +111,14 @@ export class SessionManager implements ISessionManager {
     const state = await this.loadState();
     const now = new Date().toISOString();
 
-    state.threads[threadTs] = {
+    state.channels[channelId] = {
       sessionId,
       lastMessageAt: now,
-      channelId,
     };
 
     await this.saveState(state);
 
-    this.logger.info("Created new session", { threadTs, channelId, sessionId });
+    this.logger.info("Created new session", { channelId, sessionId });
 
     return {
       sessionId,
@@ -135,13 +129,13 @@ export class SessionManager implements ISessionManager {
   /**
    * Update the last message timestamp for a session
    */
-  async touchSession(threadTs: string): Promise<void> {
+  async touchSession(channelId: string): Promise<void> {
     const state = await this.loadState();
-    const session = state.threads[threadTs];
+    const session = state.channels[channelId];
 
     if (!session) {
       this.logger.warn("Attempted to touch non-existent session", {
-        threadTs,
+        channelId,
       });
       return;
     }
@@ -150,7 +144,7 @@ export class SessionManager implements ISessionManager {
     await this.saveState(state);
 
     this.logger.debug("Touched session", {
-      threadTs,
+      channelId,
       sessionId: session.sessionId,
     });
   }
@@ -158,9 +152,9 @@ export class SessionManager implements ISessionManager {
   /**
    * Get an existing session without creating one
    */
-  async getSession(threadTs: string): Promise<ThreadSession | null> {
+  async getSession(channelId: string): Promise<ChannelSession | null> {
     const state = await this.loadState();
-    const session = state.threads[threadTs];
+    const session = state.channels[channelId];
 
     if (!session) {
       return null;
@@ -169,7 +163,7 @@ export class SessionManager implements ISessionManager {
     // Check if session is expired
     if (this.isSessionExpired(session)) {
       this.logger.info("Session expired", {
-        threadTs,
+        channelId,
         sessionId: session.sessionId,
         lastMessageAt: session.lastMessageAt,
         expiryHours: this.sessionExpiryHours,
@@ -181,51 +175,46 @@ export class SessionManager implements ISessionManager {
   }
 
   /**
-   * Store or update the session ID for a thread
+   * Store or update the session ID for a channel
    */
-  async setSession(
-    threadTs: string,
-    sessionId: string,
-    channelId: string
-  ): Promise<void> {
+  async setSession(channelId: string, sessionId: string): Promise<void> {
     const state = await this.loadState();
     const now = new Date().toISOString();
-    const existingSession = state.threads[threadTs];
+    const existingSession = state.channels[channelId];
 
-    state.threads[threadTs] = {
+    state.channels[channelId] = {
       sessionId,
       lastMessageAt: now,
-      channelId,
     };
 
     await this.saveState(state);
 
     if (existingSession) {
       this.logger.info("Updated session", {
-        threadTs,
+        channelId,
         oldSessionId: existingSession.sessionId,
         newSessionId: sessionId,
       });
     } else {
-      this.logger.info("Stored new session", { threadTs, sessionId });
+      this.logger.info("Stored new session", { channelId, sessionId });
     }
   }
 
   /**
    * Clear a specific session
    */
-  async clearSession(threadTs: string): Promise<boolean> {
+  async clearSession(channelId: string): Promise<boolean> {
     const state = await this.loadState();
 
-    if (!state.threads[threadTs]) {
+    if (!state.channels[channelId]) {
       return false;
     }
 
-    const sessionId = state.threads[threadTs].sessionId;
-    delete state.threads[threadTs];
+    const sessionId = state.channels[channelId].sessionId;
+    delete state.channels[channelId];
     await this.saveState(state);
 
-    this.logger.info("Cleared session", { threadTs, sessionId });
+    this.logger.info("Cleared session", { channelId, sessionId });
     return true;
   }
 
@@ -234,18 +223,18 @@ export class SessionManager implements ISessionManager {
    */
   async cleanupExpiredSessions(): Promise<number> {
     const state = await this.loadState();
-    const threadTsKeys = Object.keys(state.threads);
+    const channelIds = Object.keys(state.channels);
     let cleanedUp = 0;
 
-    for (const threadTs of threadTsKeys) {
-      const session = state.threads[threadTs];
+    for (const channelId of channelIds) {
+      const session = state.channels[channelId];
       if (this.isSessionExpired(session)) {
         this.logger.debug("Cleaning up expired session", {
-          threadTs,
+          channelId,
           sessionId: session.sessionId,
           lastMessageAt: session.lastMessageAt,
         });
-        delete state.threads[threadTs];
+        delete state.channels[channelId];
         cleanedUp++;
       }
     }
@@ -265,8 +254,8 @@ export class SessionManager implements ISessionManager {
     const state = await this.loadState();
     let activeCount = 0;
 
-    for (const threadTs of Object.keys(state.threads)) {
-      const session = state.threads[threadTs];
+    for (const channelId of Object.keys(state.channels)) {
+      const session = state.channels[channelId];
       if (!this.isSessionExpired(session)) {
         activeCount++;
       }
@@ -283,7 +272,7 @@ export class SessionManager implements ISessionManager {
     return `slack-${this.agentName}-${randomUUID()}`;
   }
 
-  private isSessionExpired(session: ThreadSession): boolean {
+  private isSessionExpired(session: ChannelSession): boolean {
     const lastMessageAt = new Date(session.lastMessageAt);
     const now = new Date();
     const expiryMs = this.sessionExpiryHours * 60 * 60 * 1000;

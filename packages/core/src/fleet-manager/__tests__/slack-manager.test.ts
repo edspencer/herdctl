@@ -882,7 +882,6 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
         prompt: "Hello there",
         metadata: {
           channelId: "C0123456789",
-          threadTs: "1707930000.123456",
           messageTs: "1707930001.000000",
           userId: "U0123456789",
           wasMentioned: true,
@@ -931,7 +930,6 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
         prompt: "Help me with coding",
         metadata: {
           channelId: "C0123456789",
-          threadTs: "1707930000.123456",
           messageTs: "1707930001.000000",
           userId: "U0123456789",
           wasMentioned: true,
@@ -986,7 +984,6 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
         prompt: "Do something",
         metadata: {
           channelId: "C0123456789",
-          threadTs: "1707930000.123456",
           messageTs: "1707930001.000000",
           userId: "U0123456789",
           wasMentioned: true,
@@ -1031,7 +1028,6 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
         prompt: "Do something",
         metadata: {
           channelId: "C0123456789",
-          threadTs: "1707930000.123456",
           messageTs: "1707930001.000000",
           userId: "U0123456789",
           wasMentioned: true,
@@ -1070,7 +1066,6 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
         prompt: "Do something",
         metadata: {
           channelId: "C0123456789",
-          threadTs: "1707930000.123456",
           messageTs: "1707930001.000000",
           userId: "U0123456789",
           wasMentioned: true,
@@ -1101,7 +1096,6 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       mockSessionMgr.getSession.mockResolvedValue({
         sessionId: "existing-session-456",
         lastMessageAt: "2026-02-15T10:00:00Z",
-        channelId: "C0123456789",
       });
       MockSessionManager.mockImplementation(function () {
         return mockSessionMgr;
@@ -1133,7 +1127,6 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
         prompt: "Continue our conversation",
         metadata: {
           channelId: "C0123456789",
-          threadTs: "1707930000.123456",
           messageTs: "1707930001.000000",
           userId: "U0123456789",
           wasMentioned: false,
@@ -1155,9 +1148,8 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
 
       // Should store the new session
       expect(mockSessionMgr.setSession).toHaveBeenCalledWith(
-        "1707930000.123456",
-        "new-session-789",
-        "C0123456789"
+        "C0123456789",
+        "new-session-789"
       );
     });
 
@@ -1194,7 +1186,6 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
         prompt: "Say hello",
         metadata: {
           channelId: "C0123456789",
-          threadTs: "1707930000.123456",
           messageTs: "1707930001.000000",
           userId: "U0123456789",
           wasMentioned: true,
@@ -1254,7 +1245,6 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
         prompt: "Do something",
         metadata: {
           channelId: "C0123456789",
-          threadTs: "1707930000.123456",
           messageTs: "1707930001.000000",
           userId: "U0123456789",
           wasMentioned: true,
@@ -1294,7 +1284,6 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
         prompt: "Hello",
         metadata: {
           channelId: "C0123456789",
-          threadTs: "1707930000.123456",
           messageTs: "1707930001.000000",
           userId: "U0123456789",
           wasMentioned: true,
@@ -1354,7 +1343,6 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
         prompt: "Test",
         metadata: {
           channelId: "C0123456789",
-          threadTs: "1707930000.123456",
           messageTs: "1707930001.000000",
           userId: "U0123456789",
           wasMentioned: true,
@@ -1403,7 +1391,6 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
         prompt: "Test",
         metadata: {
           channelId: "C0123456789",
-          threadTs: "1707930000.123456",
           messageTs: "1707930001.000000",
           userId: "U0123456789",
           wasMentioned: true,
@@ -1450,7 +1437,6 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
         prompt: "Test",
         metadata: {
           channelId: "C0123456789",
-          threadTs: "1707930000.123456",
           messageTs: "1707930001.000000",
           userId: "U0123456789",
           wasMentioned: true,

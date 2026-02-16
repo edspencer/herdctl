@@ -66,7 +66,6 @@ export interface SlackMessageEvent {
   prompt: string;
   metadata: {
     channelId: string;
-    threadTs: string;
     messageTs: string;
     userId: string;
     wasMentioned: boolean;
@@ -104,7 +103,6 @@ interface ISlackConnector {
   getState(): SlackConnectorState;
   uploadFile(params: {
     channelId: string;
-    threadTs: string;
     fileBuffer: Buffer;
     filename: string;
     message?: string;
@@ -122,11 +120,11 @@ interface ISlackConnector {
  */
 interface ISlackSessionManager {
   readonly agentName: string;
-  getOrCreateSession(threadTs: string, channelId: string): Promise<{ sessionId: string; isNew: boolean }>;
-  getSession(threadTs: string): Promise<{ sessionId: string; lastMessageAt: string; channelId: string } | null>;
-  setSession(threadTs: string, sessionId: string, channelId: string): Promise<void>;
-  touchSession(threadTs: string): Promise<void>;
-  clearSession(threadTs: string): Promise<boolean>;
+  getOrCreateSession(channelId: string): Promise<{ sessionId: string; isNew: boolean }>;
+  getSession(channelId: string): Promise<{ sessionId: string; lastMessageAt: string } | null>;
+  setSession(channelId: string, sessionId: string): Promise<void>;
+  touchSession(channelId: string): Promise<void>;
+  clearSession(channelId: string): Promise<boolean>;
   cleanupExpiredSessions(): Promise<number>;
   getActiveSessionCount(): Promise<number>;
 }
@@ -557,24 +555,23 @@ export class SlackManager {
       return;
     }
 
-    // Get existing session for this thread
+    // Get existing session for this channel
     const sessionManager = this.sessionManagers.get(agentName);
     let existingSessionId: string | null = null;
     if (sessionManager) {
       try {
-        const existingSession = await sessionManager.getSession(event.metadata.threadTs);
+        const existingSession = await sessionManager.getSession(event.metadata.channelId);
         if (existingSession) {
           existingSessionId = existingSession.sessionId;
-          logger.debug(`Resuming session for thread ${event.metadata.threadTs}: ${existingSessionId}`);
+          logger.debug(`Resuming session for channel ${event.metadata.channelId}: ${existingSessionId}`);
           emitter.emit("slack:session:lifecycle", {
             agentName,
             event: "resumed",
             channelId: event.metadata.channelId,
-            threadTs: event.metadata.threadTs,
             sessionId: existingSessionId,
           });
         } else {
-          logger.debug(`No existing session for thread ${event.metadata.threadTs}, starting new conversation`);
+          logger.debug(`No existing session for channel ${event.metadata.channelId}, starting new conversation`);
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -592,7 +589,6 @@ export class SlackManager {
         uploadFile: async (params) => {
           return connector.uploadFile({
             channelId: event.metadata.channelId,
-            threadTs: event.metadata.threadTs,
             fileBuffer: params.fileBuffer,
             filename: params.filename,
             message: params.message,
@@ -674,18 +670,16 @@ export class SlackManager {
         const isNewSession = existingSessionId === null;
         try {
           await sessionManager.setSession(
-            event.metadata.threadTs,
-            result.sessionId,
-            event.metadata.channelId
+            event.metadata.channelId,
+            result.sessionId
           );
-          logger.debug(`Stored session ${result.sessionId} for thread ${event.metadata.threadTs}`);
+          logger.debug(`Stored session ${result.sessionId} for channel ${event.metadata.channelId}`);
 
           if (isNewSession) {
             emitter.emit("slack:session:lifecycle", {
               agentName,
               event: "created",
               channelId: event.metadata.channelId,
-              threadTs: event.metadata.threadTs,
               sessionId: result.sessionId,
             });
           }
@@ -699,7 +693,6 @@ export class SlackManager {
       emitter.emit("slack:message:handled", {
         agentName,
         channelId: event.metadata.channelId,
-        threadTs: event.metadata.threadTs,
         messageTs: event.metadata.messageTs,
         jobId: result.jobId,
         timestamp: new Date().toISOString(),
@@ -717,7 +710,6 @@ export class SlackManager {
       emitter.emit("slack:message:error", {
         agentName,
         channelId: event.metadata.channelId,
-        threadTs: event.metadata.threadTs,
         messageTs: event.metadata.messageTs,
         error: err.message,
         timestamp: new Date().toISOString(),

@@ -10,7 +10,6 @@ const createMockContext = (
   overrides: Partial<CommandContext> = {}
 ): CommandContext => ({
   agentName: "test-agent",
-  threadTs: "1707930000.123456",
   channelId: "C0123456789",
   userId: "U0123456789",
   reply: vi.fn().mockResolvedValue(undefined),
