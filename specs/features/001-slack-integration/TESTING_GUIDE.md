@@ -68,6 +68,7 @@ by service name (e.g., `http://perplexity:8080/mcp`).
    - `chat:write`
    - `channels:history`
    - `reactions:write`
+   - `files:write`
 
 ### Subscribe to Events
 
