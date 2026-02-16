@@ -222,6 +222,14 @@ export class ContainerRunner implements RuntimeInterface {
 
         sdkOptions.mcpServers = mcpServers;
 
+        // Auto-add injected MCP server tool patterns to allowedTools
+        // Without this, agents with an allowedTools list can't call injected tools
+        if (sdkOptions.allowedTools?.length) {
+          for (const name of Object.keys(options.injectedMcpServers)) {
+            sdkOptions.allowedTools.push(`mcp__${name}__*`);
+          }
+        }
+
         // File uploads via MCP tools can take longer than the default 60s timeout
         if (options.injectedMcpServers["herdctl-file-sender"]) {
           if (!process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT) {

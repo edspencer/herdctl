@@ -127,6 +127,14 @@ export class SDKRuntime implements RuntimeInterface {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       sdkOptions.mcpServers = { ...configServers, ...injectedServers } as any;
 
+      // Auto-add injected MCP server tool patterns to allowedTools
+      // Without this, agents with an allowedTools list can't call injected tools
+      if (sdkOptions.allowedTools?.length) {
+        for (const name of Object.keys(options.injectedMcpServers)) {
+          sdkOptions.allowedTools.push(`mcp__${name}__*`);
+        }
+      }
+
       // File uploads via MCP tools can take longer than the default 60s timeout.
       // Set a safe default if not already configured by the user.
       if (options.injectedMcpServers["herdctl-file-sender"] && !process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT) {
