@@ -18,7 +18,7 @@ Infrastructure set up by devops (WEA-11). herdctl is running and responding to S
 
 ### 1. Rootless Docker
 
-The dev box runs rootless Docker. The socket is at `/run/user/1000/docker.sock`, not the standard `/var/run/docker.sock`. Docker Compose and volume mounts need to reference the correct socket path.
+The dev box runs rootless Docker. The socket path differs from the standard `/var/run/docker.sock`. Docker Compose and volume mounts need to reference the correct socket path for your environment.
 
 ### 2. `@herdctl/slack` not published to npm
 

@@ -70,17 +70,11 @@ Commit `9bc1af3` — all changes committed, nothing unstaged.
 
 ### Deploy & Test
 1. **Add `files:write` scope** to Slack app at api.slack.com → OAuth & Permissions → Bot Token Scopes → Reinstall to Workspace
-2. **Deploy** via the standard tarball flow:
+2. **Deploy** via the deploy script:
    ```bash
-   pnpm build
-   cd packages/core && pnpm pack
-   cd ../cli && pnpm pack
-   cd ../slack && pnpm pack
-   cd ../discord && pnpm pack
-   # Copy tarballs to /home/dev/hetzner-dev-box-config/herdctl/tarballs/
-   cd /home/dev/hetzner-dev-box-config && docker compose build herdctl && docker compose up -d herdctl
+   deploy-herdctl
    ```
-3. **Test in Slack** (channel C0AFZKCDGRE):
+3. **Test in Slack**:
    - Ask agent: "напиши короткий текстовый файл test.txt и отправь его мне"
    - Expected: agent creates file, calls `herdctl_send_file`, file appears in Slack thread
 4. **Create PR** after successful test

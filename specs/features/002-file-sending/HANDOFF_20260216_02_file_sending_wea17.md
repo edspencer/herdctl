@@ -102,17 +102,11 @@ All changes are **unstaged** (nothing committed to this branch yet). The staged-
    - Start HTTP bridge per server
    - Inject `{ type: "http", url: "http://herdctl:<port>" }` into `sdkOptions.mcpServers`
    - Clean up bridges in `finally` block
-8. **Deploy and test in Slack** (channel C0AFZKCDGRE)
+8. **Deploy and test in Slack**
 
 ### Deploy Process
 ```bash
-pnpm build
-cd packages/core && pnpm pack
-cd ../cli && pnpm pack
-cd ../slack && pnpm pack
-cd ../discord && pnpm pack
-# Copy tarballs to /home/dev/hetzner-dev-box-config/herdctl/tarballs/
-cd /home/dev/hetzner-dev-box-config && docker compose build herdctl && docker compose up -d herdctl
+deploy-herdctl
 ```
 
 ## Relevant Files

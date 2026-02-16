@@ -96,7 +96,7 @@ Completed all code subtasks for WEA-24 (Slack connector Discord parity fixes). F
 
 ## Next Steps
 
-1. **Rebuild Docker** — run `cd ~/devops-config && docker compose build herdctl && docker compose up -d herdctl`
+1. **Rebuild Docker** — run `deploy-herdctl`
 2. **Manual testing in Slack** — verify:
    - @mention starts a thread, bot responds
    - Thread replies continue the conversation (session resumed)
@@ -121,4 +121,4 @@ Completed all code subtasks for WEA-24 (Slack connector Discord parity fixes). F
 ### Key reference files
 - `specs/issues/wea-24/prd.md` — full PRD for WEA-24
 - `packages/discord/src/discord-connector.ts` — reference implementation
-- `~/devops-config/herdctl/Dockerfile` — Docker build config
+- Docker build config (see deploy script)
