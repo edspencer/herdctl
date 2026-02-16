@@ -1,6 +1,6 @@
 # Slack Integration — Deployment Notes
 
-## Status: LIVE on dev server (2026-02-15)
+## Status: LIVE (2026-02-15)
 
 Infrastructure set up by devops (WEA-11). herdctl is running and responding to Slack @mentions.
 
@@ -8,12 +8,9 @@ Infrastructure set up by devops (WEA-11). herdctl is running and responding to S
 
 ## What's Deployed
 
-- **herdctl container** on `herdctl-net` bridge network, connected to Slack as `@herdctl`
+- **herdctl container** on `herdctl-net` bridge network, connected to Slack
 - **MCP servers** (perplexity + slack-mcp) attached to `herdctl-net` — agents reach them by service name
-- **Agent runtime image** `herdctl/runtime:latest` built from repo Dockerfile (951MB)
-- **Slack channel**: `YOUR_CHANNEL_ID`
-- **Start command**: `./start-herdctl.sh`
-- **Config repo**: `devops-config` (commit `306ad75` on `main`)
+- **Agent runtime image** `herdctl/runtime:latest` built from repo Dockerfile
 
 ---
 
@@ -59,14 +56,17 @@ This is a fundamental constraint of the sibling container pattern — the Docker
 
 ## Secrets Management
 
-Secrets are managed via **1Password CLI** (`op run`):
+Required environment variables for the herdctl container:
 
-| Secret | 1Password path |
-|--------|---------------|
-| `SLACK_BOT_TOKEN` | `op://vault/Herdctl Slack Bot Token/slack_bot_token` |
-| `SLACK_APP_TOKEN` | `op://vault/Herdctl Slack Bot Token/slack_app_token` |
+| Variable | Purpose |
+|----------|---------|
+| `SLACK_BOT_TOKEN` | Slack Bot User OAuth Token (`xoxb-...`) |
+| `SLACK_APP_TOKEN` | Slack App-Level Token for Socket Mode (`xapp-...`) |
+| `CLAUDE_CODE_OAUTH_TOKEN` | Claude OAuth access token |
+| `CLAUDE_REFRESH_TOKEN` | Claude OAuth refresh token |
+| `CLAUDE_EXPIRES_AT` | Claude OAuth expiration timestamp |
 
-Claude OAuth tokens are read from `~/.claude/.credentials.json` by `start-herdctl.sh` (not stored in 1Password).
+How secrets are injected is environment-specific (e.g., `.env` file, secret manager, CI/CD). See the devops config for the production setup.
 
 ---
 

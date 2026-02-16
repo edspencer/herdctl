@@ -367,13 +367,14 @@ Mapped channel C... → agent "assistant"
 
 ### Auth Flow
 ```
-.env (CLAUDE_CODE_OAUTH_TOKEN) → herdctl container → buildContainerEnv()
-  → agent container env var → Claude Agent SDK → Anthropic API
+env vars → herdctl container → buildContainerEnv()
+  → agent container env vars → Claude Agent SDK → Anthropic API
 ```
 
 herdctl's `buildContainerEnv()` (in `container-manager.ts`) automatically passes
-`CLAUDE_CODE_OAUTH_TOKEN` from its own environment to agent containers. No extra
-config needed — just set it in `.env` and it propagates.
+`CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_REFRESH_TOKEN`, and `CLAUDE_EXPIRES_AT` from
+its own environment to agent containers. No extra config needed — just set them
+in the herdctl container's environment and they propagate.
 
 ### MCP Server Flow
 ```

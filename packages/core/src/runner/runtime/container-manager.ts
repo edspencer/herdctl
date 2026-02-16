@@ -318,9 +318,15 @@ export function buildContainerEnv(
     env.push(`ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY}`);
   }
 
-  // Pass through OAuth token if available (for Claude Max web authentication)
+  // Pass through OAuth tokens if available (for Claude Max web authentication)
   if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
     env.push(`CLAUDE_CODE_OAUTH_TOKEN=${process.env.CLAUDE_CODE_OAUTH_TOKEN}`);
+  }
+  if (process.env.CLAUDE_REFRESH_TOKEN) {
+    env.push(`CLAUDE_REFRESH_TOKEN=${process.env.CLAUDE_REFRESH_TOKEN}`);
+  }
+  if (process.env.CLAUDE_EXPIRES_AT) {
+    env.push(`CLAUDE_EXPIRES_AT=${process.env.CLAUDE_EXPIRES_AT}`);
   }
 
   // Add custom environment variables from docker config
