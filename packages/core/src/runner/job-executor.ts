@@ -218,9 +218,17 @@ export class JobExecutor {
         runtime: agent.runtime ?? "sdk", // Pass runtime for correct validation
       });
 
-      if (existingSession?.session_id) {
-        // Validate that the working directory hasn't changed since the session was created
-        // If it changed, Claude Code will look for the session file in the wrong directory
+      if (existingSession?.session_id && existingSession.session_id !== options.resume) {
+        // Caller provided a different session ID than what's stored on disk for this agent.
+        // This happens with per-thread Slack sessions — the caller manages session IDs
+        // externally and passes the correct one for this specific thread.
+        // Trust the caller's session ID directly; the agent-level session is irrelevant.
+        effectiveResume = options.resume;
+        this.logger.info?.(
+          `Using caller-provided session for ${agent.name}: ${effectiveResume} (differs from agent-level session ${existingSession.session_id})`
+        );
+      } else if (existingSession?.session_id) {
+        // Caller's session matches the agent-level session — validate working dir and runtime
         const currentWorkingDirectory = resolveWorkingDirectory(agent);
         const wdValidation = validateWorkingDirectory(existingSession, currentWorkingDirectory);
 
