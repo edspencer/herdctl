@@ -504,9 +504,13 @@ export interface TriggerOptions {
    *
    * When provided, the Claude Agent SDK will resume the conversation
    * from this session, maintaining context from previous interactions.
-   * This is typically used for chat-based triggers like Discord.
+   * This is typically used for chat-based triggers like Discord/Slack.
+   *
+   * - `string` — resume this specific session
+   * - `null` — explicitly start a fresh session (skip agent-level fallback)
+   * - `undefined` — use agent-level session fallback (for CLI/schedule use)
    */
-  resume?: string;
+  resume?: string | null;
 
   /**
    * Work items to process during this trigger

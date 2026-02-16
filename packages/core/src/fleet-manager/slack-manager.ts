@@ -539,7 +539,7 @@ export class SlackManager {
 
     // Get existing session for this thread
     const sessionManager = this.sessionManagers.get(agentName);
-    let existingSessionId: string | undefined;
+    let existingSessionId: string | null = null;
     if (sessionManager) {
       try {
         const existingSession = await sessionManager.getSession(event.metadata.threadTs);
@@ -574,7 +574,7 @@ export class SlackManager {
           scheduleName?: string,
           options?: {
             prompt?: string;
-            resume?: string;
+            resume?: string | null;
             onMessage?: (message: { type: string; content?: string; message?: { content?: unknown } }) => void | Promise<void>;
           }
         ) => Promise<import("./types.js").TriggerResult>;

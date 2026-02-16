@@ -131,8 +131,10 @@ export class JobControl {
 
     // Get existing session for conversation continuity (unless explicitly provided)
     // This prevents unexpected logouts by automatically resuming the agent's session
-    let sessionId = options?.resume;
-    if (!sessionId) {
+    // Note: resume=null means "explicitly start fresh" (e.g. new Slack thread),
+    // while resume=undefined means "use fallback session lookup"
+    let sessionId = options?.resume ?? undefined;
+    if (sessionId === undefined && options?.resume !== null) {
       try {
         const sessionsDir = join(stateDir, "sessions");
         // Use session timeout config for expiry validation (default: 24h)
