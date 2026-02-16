@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { EventEmitter } from "node:events";
-import { DiscordManager, type DiscordConnectorState, type DiscordMessageEvent, type DiscordErrorEvent } from "../discord-manager.js";
+import { DiscordManager, type DiscordConnectorState, type DiscordMessageEvent, type DiscordErrorEvent, type DiscordReplyEmbed, type DiscordReplyEmbedField, type DiscordReplyPayload } from "../discord-manager.js";
 import type { FleetManagerContext } from "../context.js";
 import type { ResolvedConfig, ResolvedAgent, AgentChatDiscord } from "../../config/index.js";
 
@@ -379,7 +379,7 @@ describe("DiscordMessageEvent type", () => {
         wasMentioned: true,
         mode: "mention",
       },
-      reply: async (content: string) => {
+      reply: async (content) => {
         console.log("Reply:", content);
       },
       startTyping: () => () => {},
@@ -1230,16 +1230,26 @@ describe("DiscordManager message handling", () => {
       // Wait for async processing (includes rate limiting delays)
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
-      // Should have sent: text response, tool use header, tool result, final text response
-      expect(replyMock).toHaveBeenCalledTimes(4);
+      // Should have sent: text response, tool result embed, final text response
+      expect(replyMock).toHaveBeenCalledTimes(3);
       // First: the text part of the assistant message
       expect(replyMock).toHaveBeenNthCalledWith(1, "Let me check that for you.");
-      // Second: the tool use display (Bash command)
-      expect(replyMock).toHaveBeenNthCalledWith(2, "**`> ls -la /tmp`**");
-      // Third: the tool result in a code block
-      expect(replyMock).toHaveBeenNthCalledWith(3, "```\ntotal 48\ndrwxr-xr-x  5 user  staff  160 Jan 20 10:00 .\n```");
-      // Fourth: final assistant response
-      expect(replyMock).toHaveBeenNthCalledWith(4, "Here are the files in /tmp.");
+      // Second: tool result as a Discord embed
+      const embedCall = replyMock.mock.calls[1][0] as DiscordReplyPayload;
+      expect(embedCall).toHaveProperty("embeds");
+      expect(embedCall.embeds).toHaveLength(1);
+      const embed = embedCall.embeds[0];
+      expect(embed.title).toContain("Bash");
+      expect(embed.description).toContain("ls -la /tmp");
+      expect(embed.color).toBe(0x5865f2); // blurple (not error)
+      // Should have Duration and Output fields plus the Result field
+      expect(embed.fields).toBeDefined();
+      const fieldNames = embed.fields!.map((f: DiscordReplyEmbedField) => f.name);
+      expect(fieldNames).toContain("Duration");
+      expect(fieldNames).toContain("Output");
+      expect(fieldNames).toContain("Result");
+      // Third: final assistant response
+      expect(replyMock).toHaveBeenNthCalledWith(3, "Here are the files in /tmp.");
     }, 10000);
 
     it("streams tool results from top-level tool_use_result", async () => {
@@ -1359,9 +1369,19 @@ describe("DiscordManager message handling", () => {
 
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      // Should have sent the tool result
+      // Should have sent the tool result as an embed
       expect(replyMock).toHaveBeenCalledTimes(1);
-      expect(replyMock).toHaveBeenCalledWith("```\noutput from tool execution\n```");
+      const embedCall = replyMock.mock.calls[0][0] as DiscordReplyPayload;
+      expect(embedCall).toHaveProperty("embeds");
+      expect(embedCall.embeds).toHaveLength(1);
+      const embed = embedCall.embeds[0];
+      // No matching tool_use, so title falls back to "Tool"
+      expect(embed.title).toContain("Tool");
+      // Should have Output field and Result field
+      expect(embed.fields).toBeDefined();
+      const resultField = embed.fields!.find((f: DiscordReplyEmbedField) => f.name === "Result");
+      expect(resultField).toBeDefined();
+      expect(resultField!.value).toContain("output from tool execution");
     });
 
     it("handles message handler rejection via catch handler", async () => {
@@ -1856,7 +1876,7 @@ describe("DiscordManager message handling", () => {
   });
 
   describe("extractToolUseBlocks", () => {
-    it("extracts tool_use blocks from assistant message content", () => {
+    it("extracts tool_use blocks with id from assistant message content", () => {
       // @ts-expect-error - accessing private method for testing
       const result = manager.extractToolUseBlocks({
         type: "assistant",
@@ -1869,6 +1889,7 @@ describe("DiscordManager message handling", () => {
       });
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe("Bash");
+      expect(result[0].id).toBe("tool-1");
       expect(result[0].input).toEqual({ command: "ls -la" });
     });
 
@@ -1886,7 +1907,24 @@ describe("DiscordManager message handling", () => {
       });
       expect(result).toHaveLength(2);
       expect(result[0].name).toBe("Read");
+      expect(result[0].id).toBe("tool-1");
       expect(result[1].name).toBe("Bash");
+      expect(result[1].id).toBe("tool-2");
+    });
+
+    it("handles tool_use blocks without id", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.extractToolUseBlocks({
+        type: "assistant",
+        message: {
+          content: [
+            { type: "tool_use", name: "some_tool" },
+          ],
+        },
+      });
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe("some_tool");
+      expect(result[0].id).toBeUndefined();
     });
 
     it("returns empty array when no tool_use blocks", () => {
@@ -1920,70 +1958,60 @@ describe("DiscordManager message handling", () => {
     });
   });
 
-  describe("formatToolUse", () => {
-    it("formats Bash tool with command", () => {
+  describe("getToolInputSummary", () => {
+    it("returns command for Bash tool", () => {
       // @ts-expect-error - accessing private method for testing
-      const result = manager.formatToolUse({
-        name: "Bash",
-        input: { command: "ls -la" },
-      });
-      expect(result).toBe("**`> ls -la`**");
+      const result = manager.getToolInputSummary("Bash", { command: "ls -la" });
+      expect(result).toBe("ls -la");
     });
 
     it("truncates long Bash commands", () => {
       const longCommand = "echo " + "a".repeat(250);
       // @ts-expect-error - accessing private method for testing
-      const result = manager.formatToolUse({
-        name: "Bash",
-        input: { command: longCommand },
-      });
+      const result = manager.getToolInputSummary("Bash", { command: longCommand });
       expect(result).toContain("...");
-      // Should truncate at 200 chars + "..."
-      expect(result!.length).toBeLessThan(250);
+      expect(result!.length).toBeLessThanOrEqual(203); // 200 + "..."
     });
 
-    it("formats Read tool with file path", () => {
+    it("returns file path for Read tool", () => {
       // @ts-expect-error - accessing private method for testing
-      const result = manager.formatToolUse({
-        name: "Read",
-        input: { file_path: "/src/index.ts" },
-      });
-      expect(result).toBe("**Read:** `/src/index.ts`");
+      const result = manager.getToolInputSummary("Read", { file_path: "/src/index.ts" });
+      expect(result).toBe("/src/index.ts");
     });
 
-    it("formats Write tool with file path", () => {
+    it("returns file path for Write tool", () => {
       // @ts-expect-error - accessing private method for testing
-      const result = manager.formatToolUse({
-        name: "Write",
-        input: { file_path: "/src/output.ts" },
-      });
-      expect(result).toBe("**Write:** `/src/output.ts`");
+      const result = manager.getToolInputSummary("Write", { file_path: "/src/output.ts" });
+      expect(result).toBe("/src/output.ts");
     });
 
-    it("formats Edit tool with file path", () => {
+    it("returns file path for Edit tool", () => {
       // @ts-expect-error - accessing private method for testing
-      const result = manager.formatToolUse({
-        name: "Edit",
-        input: { file_path: "/src/utils.ts" },
-      });
-      expect(result).toBe("**Edit:** `/src/utils.ts`");
+      const result = manager.getToolInputSummary("Edit", { file_path: "/src/utils.ts" });
+      expect(result).toBe("/src/utils.ts");
+    });
+
+    it("returns pattern for Glob/Grep tools", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.getToolInputSummary("Grep", { pattern: "TODO" });
+      expect(result).toBe("TODO");
+    });
+
+    it("returns query for WebSearch", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.getToolInputSummary("WebSearch", { query: "discord embeds" });
+      expect(result).toBe("discord embeds");
     });
 
     it("returns undefined for unknown tools", () => {
       // @ts-expect-error - accessing private method for testing
-      const result = manager.formatToolUse({
-        name: "SomeCustomTool",
-        input: { data: "value" },
-      });
+      const result = manager.getToolInputSummary("SomeCustomTool", { data: "value" });
       expect(result).toBeUndefined();
     });
 
     it("returns undefined for Bash without command", () => {
       // @ts-expect-error - accessing private method for testing
-      const result = manager.formatToolUse({
-        name: "Bash",
-        input: {},
-      });
+      const result = manager.getToolInputSummary("Bash", {});
       expect(result).toBeUndefined();
     });
   });
@@ -2028,7 +2056,7 @@ describe("DiscordManager message handling", () => {
       expect(results[0].isError).toBe(true);
     });
 
-    it("extracts tool results from content blocks in nested message", () => {
+    it("extracts tool results with tool_use_id from content blocks", () => {
       // @ts-expect-error - accessing private method for testing
       const results = manager.extractToolResults({
         type: "user",
@@ -2045,6 +2073,7 @@ describe("DiscordManager message handling", () => {
       expect(results).toHaveLength(1);
       expect(results[0].output).toContain("total 48");
       expect(results[0].isError).toBe(false);
+      expect(results[0].toolUseId).toBe("tool-1");
     });
 
     it("extracts error tool result from content blocks", () => {
@@ -2064,6 +2093,7 @@ describe("DiscordManager message handling", () => {
       });
       expect(results).toHaveLength(1);
       expect(results[0].isError).toBe(true);
+      expect(results[0].toolUseId).toBe("tool-1");
     });
 
     it("extracts tool results with nested content blocks", () => {
@@ -2087,7 +2117,7 @@ describe("DiscordManager message handling", () => {
       expect(results[0].output).toBe("Line 1 of output\nLine 2 of output");
     });
 
-    it("extracts multiple tool results from a single message", () => {
+    it("extracts multiple tool results with different IDs", () => {
       // @ts-expect-error - accessing private method for testing
       const results = manager.extractToolResults({
         type: "user",
@@ -2108,7 +2138,9 @@ describe("DiscordManager message handling", () => {
       });
       expect(results).toHaveLength(2);
       expect(results[0].output).toBe("Result 1");
+      expect(results[0].toolUseId).toBe("tool-1");
       expect(results[1].output).toBe("Result 2");
+      expect(results[1].toolUseId).toBe("tool-2");
     });
 
     it("returns empty array for user message without tool results", () => {
@@ -2133,53 +2165,95 @@ describe("DiscordManager message handling", () => {
     });
   });
 
-  describe("formatToolResult", () => {
-    it("formats tool result as code block", () => {
+  describe("buildToolEmbed", () => {
+    it("builds embed with tool_use info and result", () => {
       // @ts-expect-error - accessing private method for testing
-      const result = manager.formatToolResult({
-        output: "file1.txt\nfile2.txt",
-        isError: false,
-      });
-      expect(result).toBe("```\nfile1.txt\nfile2.txt\n```");
+      const embed: DiscordReplyEmbed = manager.buildToolEmbed(
+        { name: "Bash", input: { command: "ls -la" }, startTime: Date.now() - 1200 },
+        { output: "file1.txt\nfile2.txt", isError: false },
+      );
+      expect(embed.title).toContain("Bash");
+      expect(embed.description).toContain("ls -la");
+      expect(embed.color).toBe(0x5865f2);
+      expect(embed.fields).toBeDefined();
+      const fieldNames = embed.fields!.map(f => f.name);
+      expect(fieldNames).toContain("Duration");
+      expect(fieldNames).toContain("Output");
+      expect(fieldNames).toContain("Result");
+      // Result field should contain the output in a code block
+      const resultField = embed.fields!.find(f => f.name === "Result");
+      expect(resultField!.value).toContain("file1.txt");
     });
 
-    it("formats error tool result as code block", () => {
+    it("builds embed with error color for error results", () => {
       // @ts-expect-error - accessing private method for testing
-      const result = manager.formatToolResult({
-        output: "Permission denied",
-        isError: true,
-      });
-      expect(result).toBe("```\nPermission denied\n```");
+      const embed: DiscordReplyEmbed = manager.buildToolEmbed(
+        { name: "Bash", input: { command: "rm -rf /" }, startTime: Date.now() - 500 },
+        { output: "Permission denied", isError: true },
+      );
+      expect(embed.color).toBe(0xef4444);
+      const errorField = embed.fields!.find(f => f.name === "Error");
+      expect(errorField).toBeDefined();
+      expect(errorField!.value).toContain("Permission denied");
     });
 
-    it("truncates long output", () => {
+    it("builds embed without tool_use info (fallback)", () => {
+      // @ts-expect-error - accessing private method for testing
+      const embed: DiscordReplyEmbed = manager.buildToolEmbed(
+        null,
+        { output: "some output", isError: false },
+      );
+      expect(embed.title).toContain("Tool");
+      expect(embed.description).toBeUndefined();
+      // No Duration field when no tool_use info
+      const fieldNames = embed.fields!.map(f => f.name);
+      expect(fieldNames).not.toContain("Duration");
+      expect(fieldNames).toContain("Output");
+    });
+
+    it("truncates long output in embed field", () => {
       const longOutput = "x".repeat(2000);
       // @ts-expect-error - accessing private method for testing
-      const result = manager.formatToolResult({
-        output: longOutput,
-        isError: false,
-      });
-      expect(result).toContain("... (truncated)");
-      // Total should be under 2000 (1800 content + code block markers + truncated suffix)
-      expect(result!.length).toBeLessThan(2000);
+      const embed: DiscordReplyEmbed = manager.buildToolEmbed(
+        { name: "Bash", input: { command: "cat bigfile" }, startTime: Date.now() - 100 },
+        { output: longOutput, isError: false },
+      );
+      const resultField = embed.fields!.find(f => f.name === "Result");
+      expect(resultField).toBeDefined();
+      expect(resultField!.value).toContain("chars total");
+      // Total field value should fit in Discord embed field limit (1024)
+      expect(resultField!.value.length).toBeLessThanOrEqual(1024);
     });
 
-    it("returns undefined for empty output", () => {
+    it("formats output length with k suffix for large outputs", () => {
+      const output = "x".repeat(1500);
       // @ts-expect-error - accessing private method for testing
-      const result = manager.formatToolResult({
-        output: "",
-        isError: false,
-      });
-      expect(result).toBeUndefined();
+      const embed: DiscordReplyEmbed = manager.buildToolEmbed(
+        { name: "Read", input: { file_path: "/big.txt" }, startTime: Date.now() - 200 },
+        { output, isError: false },
+      );
+      const outputField = embed.fields!.find(f => f.name === "Output");
+      expect(outputField!.value).toContain("k chars");
     });
 
-    it("returns undefined for whitespace-only output", () => {
+    it("shows Read tool with file path in description", () => {
       // @ts-expect-error - accessing private method for testing
-      const result = manager.formatToolResult({
-        output: "   \n\n  ",
-        isError: false,
-      });
-      expect(result).toBeUndefined();
+      const embed: DiscordReplyEmbed = manager.buildToolEmbed(
+        { name: "Read", input: { file_path: "/src/index.ts" }, startTime: Date.now() - 50 },
+        { output: "file contents", isError: false },
+      );
+      expect(embed.title).toContain("Read");
+      expect(embed.description).toContain("/src/index.ts");
+    });
+
+    it("omits Result field for empty output", () => {
+      // @ts-expect-error - accessing private method for testing
+      const embed: DiscordReplyEmbed = manager.buildToolEmbed(
+        { name: "Bash", input: { command: "true" }, startTime: Date.now() - 10 },
+        { output: "   \n\n  ", isError: false },
+      );
+      const fieldNames = embed.fields!.map(f => f.name);
+      expect(fieldNames).not.toContain("Result");
     });
   });
 });

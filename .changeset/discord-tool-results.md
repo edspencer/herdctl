@@ -1,13 +1,16 @@
 ---
 "@herdctl/core": minor
+"@herdctl/discord": minor
 ---
 
-Stream tool results from Claude to Discord messages
+Show tool results as Discord embeds during chat conversations
 
-Previously, when Claude used tools like Bash during a Discord conversation, only text responses were shown - tool outputs were silently dropped. The `onMessage` callback in `DiscordManager.handleMessage` only processed `assistant` type messages, ignoring `user` messages that contain tool results.
+Previously, when Claude used tools like Bash during a Discord conversation, only text responses were shown - tool outputs were silently dropped. Now tool results appear as compact Discord embeds with:
 
-Now the Discord integration:
-- Shows tool invocations (e.g., the Bash command being run, file paths being read/written)
-- Streams tool output in Discord code blocks
-- Truncates long tool output at 1800 characters to respect Discord's 2000 char limit
-- Handles both content-block and top-level `tool_use_result` SDK message formats
+- Tool name and emoji (Bash, Read, Write, Edit, Grep, Glob, WebSearch, etc.)
+- Input summary (the command, file path, or search pattern)
+- Duration of the tool call
+- Output length and truncated result in a code block
+- Color coding: blurple for success, red for errors
+
+The reply function now accepts both plain text and embed payloads, allowing rich message formatting alongside streamed text responses.
