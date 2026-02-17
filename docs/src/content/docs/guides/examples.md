@@ -146,6 +146,7 @@ export DISCORD_CHANNEL_ID="your-channel-id"
 - **Scheduled + interactive**: Same agent runs on schedule AND responds to chat
 - **Session context**: Bot remembers conversation history (24h default)
 - **Slash commands**: `/help`, `/reset`, `/status` built-in
+- **Tool result embeds**: Tool usage, system status, and errors shown as Discord embeds
 
 **Key configuration:**
 
@@ -155,6 +156,12 @@ chat:
   discord:
     bot_token_env: DISCORD_BOT_TOKEN
     session_expiry_hours: 24
+    output:
+      tool_results: true           # Show tool usage as embeds
+      tool_result_max_length: 500  # Truncate long output
+      system_status: true          # Show system messages
+      result_summary: false        # Hide completion summary
+      errors: true                 # Show errors
     guilds:
       - id: "${DISCORD_GUILD_ID}"
         channels:

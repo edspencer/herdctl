@@ -259,6 +259,14 @@ chat:
     # Log level: minimal, standard, verbose (default: standard)
     log_level: standard
 
+    # Output configuration - control what SDK messages appear in Discord
+    output:
+      tool_results: true          # Show tool result embeds (default: true)
+      tool_result_max_length: 900 # Max chars in tool output (default: 900, max: 1000)
+      system_status: true         # Show system status embeds (default: true)
+      result_summary: false       # Show completion summary embed (default: false)
+      errors: true                # Show error embeds (default: true)
+
     # Bot presence/activity (optional)
     presence:
       activity_type: watching  # playing, watching, listening, competing
@@ -336,6 +344,60 @@ chat:
 | `mode` | string | `auto` | Response mode for DMs |
 | `allowlist` | string[] | — | Only allow DMs from these user IDs |
 | `blocklist` | string[] | — | Block DMs from these user IDs |
+
+#### Output Settings
+
+Control which SDK messages are surfaced in Discord. When your agent uses tools (Bash, Read, Write, etc.) or the SDK emits system/error messages, these settings determine what appears in the channel.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `output.tool_results` | boolean | `true` | Show tool result embeds when the agent uses tools |
+| `output.tool_result_max_length` | number | `900` | Maximum characters shown in tool output (max: 1000) |
+| `output.system_status` | boolean | `true` | Show system status embeds (e.g., "Compacting context...") |
+| `output.result_summary` | boolean | `false` | Show a summary embed when the agent finishes (duration, cost, tokens) |
+| `output.errors` | boolean | `true` | Show error embeds when the SDK reports errors |
+
+All output types appear as compact Discord embeds with color coding:
+
+| Message Type | Embed Color | Example Content |
+|-------------|-------------|-----------------|
+| Tool result (success) | Blurple | `🔧 Bash` — `> git status` with output preview |
+| Tool result (error) | Red | `🔧 Bash` — command output with error |
+| System status | Gray | `⚙️ System` — "Compacting context..." |
+| Result summary | Green/Red | `✅ Task Complete` — duration, turns, cost, token usage |
+| Error | Red | `❌ Error` — error description |
+
+Tool result embeds include the tool name with an emoji, the input summary (command, file path, or search pattern), execution duration, output length, and a truncated preview of the output in a code block.
+
+<Aside type="tip">
+  Set `result_summary: true` if you want to see how long each response took and how many tokens were used. This is useful during development but can be noisy in production.
+</Aside>
+
+**Minimal output (text responses only):**
+
+```yaml
+chat:
+  discord:
+    bot_token_env: DISCORD_BOT_TOKEN
+    output:
+      tool_results: false
+      system_status: false
+      errors: false
+```
+
+**Full visibility (all message types):**
+
+```yaml
+chat:
+  discord:
+    bot_token_env: DISCORD_BOT_TOKEN
+    output:
+      tool_results: true
+      tool_result_max_length: 500
+      system_status: true
+      result_summary: true
+      errors: true
+```
 
 ## Environment Variables
 

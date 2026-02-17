@@ -227,6 +227,38 @@ export interface IDiscordConnector {
 }
 
 // =============================================================================
+// Reply Payload Types
+// =============================================================================
+
+/**
+ * A Discord embed field
+ */
+export interface DiscordReplyEmbedField {
+  name: string;
+  value: string;
+  inline?: boolean;
+}
+
+/**
+ * A Discord embed for rich message formatting
+ */
+export interface DiscordReplyEmbed {
+  title: string;
+  description?: string;
+  color?: number;
+  fields?: DiscordReplyEmbedField[];
+  footer?: { text: string };
+  timestamp?: string;
+}
+
+/**
+ * Payload for sending rich messages (embeds) via the reply function
+ */
+export interface DiscordReplyPayload {
+  embeds: DiscordReplyEmbed[];
+}
+
+// =============================================================================
 // Event Types
 // =============================================================================
 
@@ -307,8 +339,8 @@ export interface DiscordConnectorEventMap {
       /** Channel mode that was applied */
       mode: "mention" | "auto";
     };
-    /** Function to send a reply in the same channel */
-    reply: (content: string) => Promise<void>;
+    /** Function to send a reply in the same channel (text or embed) */
+    reply: (content: string | DiscordReplyPayload) => Promise<void>;
     /**
      * Start showing "typing" indicator in the channel.
      * Returns a stop function that should be called when done processing.

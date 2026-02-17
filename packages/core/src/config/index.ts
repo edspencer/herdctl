@@ -39,6 +39,7 @@ export {
   DiscordDMSchema,
   DiscordChannelSchema,
   DiscordGuildSchema,
+  DiscordOutputSchema,
   AgentChatDiscordSchema,
   // Agent Chat Slack schemas
   SlackChannelSchema,
@@ -86,6 +87,7 @@ export {
   type DiscordDM,
   type DiscordChannel,
   type DiscordGuild,
+  type DiscordOutput,
   type AgentChatDiscord,
   // Agent Chat Slack types
   type SlackChannel,

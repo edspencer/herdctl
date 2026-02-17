@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { EventEmitter } from "node:events";
-import { DiscordManager, type DiscordConnectorState, type DiscordMessageEvent, type DiscordErrorEvent } from "../discord-manager.js";
+import { DiscordManager, type DiscordConnectorState, type DiscordMessageEvent, type DiscordErrorEvent, type DiscordReplyEmbed, type DiscordReplyEmbedField, type DiscordReplyPayload } from "../discord-manager.js";
 import type { FleetManagerContext } from "../context.js";
 import type { ResolvedConfig, ResolvedAgent, AgentChatDiscord } from "../../config/index.js";
 
@@ -154,6 +154,7 @@ describe("DiscordManager", () => {
         bot_token_env: "NONEXISTENT_BOT_TOKEN_VAR",
         session_expiry_hours: 24,
         log_level: "standard",
+        output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
         guilds: [],
       };
       const config: ResolvedConfig = {
@@ -379,7 +380,7 @@ describe("DiscordMessageEvent type", () => {
         wasMentioned: true,
         mode: "mention",
       },
-      reply: async (content: string) => {
+      reply: async (content) => {
         console.log("Reply:", content);
       },
       startTyping: () => () => {},
@@ -700,6 +701,7 @@ describe("DiscordManager message handling", () => {
           bot_token_env: "TEST_BOT_TOKEN",
           session_expiry_hours: 24,
           log_level: "standard",
+          output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
           guilds: [],
         }),
       ],
@@ -859,6 +861,7 @@ describe("DiscordManager message handling", () => {
             bot_token_env: "TEST_BOT_TOKEN",
             session_expiry_hours: 24,
             log_level: "standard",
+            output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
             guilds: [],
           }),
         ],
@@ -983,6 +986,7 @@ describe("DiscordManager message handling", () => {
             bot_token_env: "TEST_BOT_TOKEN",
             session_expiry_hours: 24,
             log_level: "standard",
+            output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
             guilds: [],
           }),
         ],
@@ -1082,6 +1086,308 @@ describe("DiscordManager message handling", () => {
 
       // Should have sent multiple messages (split response)
       expect(replyMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("streams tool results from user messages to Discord", async () => {
+      // Create trigger mock that sends assistant message with tool_use, then user message with tool_result
+      const customTriggerMock = vi.fn().mockImplementation(async (_agentName, _scheduleName, options) => {
+        if (options?.onMessage) {
+          // Claude decides to use Bash tool
+          await options.onMessage({
+            type: "assistant",
+            message: {
+              content: [
+                { type: "text", text: "Let me check that for you." },
+                { type: "tool_use", name: "Bash", id: "tool-1", input: { command: "ls -la /tmp" } },
+              ],
+            },
+          });
+          // Tool result comes back as a user message
+          await options.onMessage({
+            type: "user",
+            message: {
+              content: [
+                {
+                  type: "tool_result",
+                  tool_use_id: "tool-1",
+                  content: "total 48\ndrwxr-xr-x  5 user  staff  160 Jan 20 10:00 .",
+                },
+              ],
+            },
+          });
+          // Claude sends final response
+          await options.onMessage({
+            type: "assistant",
+            message: {
+              content: [
+                { type: "text", text: "Here are the files in /tmp." },
+              ],
+            },
+          });
+        }
+        return { jobId: "tool-job-123", success: true };
+      });
+
+      const streamingEmitter = Object.assign(new EventEmitter(), {
+        trigger: customTriggerMock,
+      });
+
+      const streamingConfig: ResolvedConfig = {
+        fleet: { name: "test-fleet" } as unknown as ResolvedConfig["fleet"],
+        agents: [
+          createDiscordAgent("tool-agent", {
+            bot_token_env: "TEST_BOT_TOKEN",
+            session_expiry_hours: 24,
+            log_level: "standard",
+            output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
+            guilds: [],
+          }),
+        ],
+        configPath: "/test/herdctl.yaml",
+        configDir: "/test",
+      };
+
+      const streamingContext: FleetManagerContext = {
+        getConfig: () => streamingConfig,
+        getStateDir: () => "/tmp/test-state",
+        getStateDirInfo: () => null,
+        getLogger: () => mockLogger,
+        getScheduler: () => null,
+        getStatus: () => "running",
+        getInitializedAt: () => "2024-01-01T00:00:00.000Z",
+        getStartedAt: () => "2024-01-01T00:00:01.000Z",
+        getStoppedAt: () => null,
+        getLastError: () => null,
+        getCheckInterval: () => 1000,
+        emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
+        getEmitter: () => streamingEmitter,
+      };
+
+      const streamingManager = new DiscordManager(streamingContext);
+
+      const mockConnector = new EventEmitter() as EventEmitter & {
+        connect: ReturnType<typeof vi.fn>;
+        disconnect: ReturnType<typeof vi.fn>;
+        isConnected: ReturnType<typeof vi.fn>;
+        getState: ReturnType<typeof vi.fn>;
+        agentName: string;
+        sessionManager: {
+          getOrCreateSession: ReturnType<typeof vi.fn>;
+          getSession: ReturnType<typeof vi.fn>;
+          setSession: ReturnType<typeof vi.fn>;
+          touchSession: ReturnType<typeof vi.fn>;
+          getActiveSessionCount: ReturnType<typeof vi.fn>;
+        };
+      };
+      mockConnector.connect = vi.fn().mockResolvedValue(undefined);
+      mockConnector.disconnect = vi.fn().mockResolvedValue(undefined);
+      mockConnector.isConnected = vi.fn().mockReturnValue(true);
+      mockConnector.getState = vi.fn().mockReturnValue({
+        status: "connected",
+        connectedAt: "2024-01-01T00:00:00.000Z",
+        disconnectedAt: null,
+        reconnectAttempts: 0,
+        lastError: null,
+        botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
+        rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+        messageStats: { received: 0, sent: 0, ignored: 0 },
+      } satisfies DiscordConnectorState);
+      mockConnector.agentName = "tool-agent";
+      mockConnector.sessionManager = {
+        getOrCreateSession: vi.fn().mockResolvedValue({ sessionId: "s1", isNew: false }),
+        getSession: vi.fn().mockResolvedValue(null),
+        setSession: vi.fn().mockResolvedValue(undefined),
+        touchSession: vi.fn().mockResolvedValue(undefined),
+        getActiveSessionCount: vi.fn().mockResolvedValue(0),
+      };
+
+      // @ts-expect-error - accessing private property for testing
+      streamingManager.connectors.set("tool-agent", mockConnector);
+      // @ts-expect-error - accessing private property for testing
+      streamingManager.initialized = true;
+
+      await streamingManager.start();
+
+      const replyMock = vi.fn().mockResolvedValue(undefined);
+      const messageEvent: DiscordMessageEvent = {
+        agentName: "tool-agent",
+        prompt: "List files in /tmp",
+        context: {
+          messages: [],
+          wasMentioned: true,
+          prompt: "List files in /tmp",
+        },
+        metadata: {
+          guildId: "guild1",
+          channelId: "channel1",
+          messageId: "msg1",
+          userId: "user1",
+          username: "TestUser",
+          wasMentioned: true,
+          mode: "mention",
+        },
+        reply: replyMock,
+        startTyping: () => () => {},
+      };
+
+      mockConnector.emit("message", messageEvent);
+
+      // Wait for async processing (includes rate limiting delays)
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
+      // Should have sent: text response, tool result embed, final text response
+      expect(replyMock).toHaveBeenCalledTimes(3);
+      // First: the text part of the assistant message
+      expect(replyMock).toHaveBeenNthCalledWith(1, "Let me check that for you.");
+      // Second: tool result as a Discord embed
+      const embedCall = replyMock.mock.calls[1][0] as DiscordReplyPayload;
+      expect(embedCall).toHaveProperty("embeds");
+      expect(embedCall.embeds).toHaveLength(1);
+      const embed = embedCall.embeds[0];
+      expect(embed.title).toContain("Bash");
+      expect(embed.description).toContain("ls -la /tmp");
+      expect(embed.color).toBe(0x5865f2); // blurple (not error)
+      // Should have Duration and Output fields plus the Result field
+      expect(embed.fields).toBeDefined();
+      const fieldNames = embed.fields!.map((f: DiscordReplyEmbedField) => f.name);
+      expect(fieldNames).toContain("Duration");
+      expect(fieldNames).toContain("Output");
+      expect(fieldNames).toContain("Result");
+      // Third: final assistant response
+      expect(replyMock).toHaveBeenNthCalledWith(3, "Here are the files in /tmp.");
+    }, 10000);
+
+    it("streams tool results from top-level tool_use_result", async () => {
+      // Test the alternative SDK format where tool_use_result is at the top level
+      const customTriggerMock = vi.fn().mockImplementation(async (_agentName, _scheduleName, options) => {
+        if (options?.onMessage) {
+          await options.onMessage({
+            type: "user",
+            tool_use_result: "output from tool execution",
+          });
+        }
+        return { jobId: "tool-job-456", success: true };
+      });
+
+      const streamingEmitter = Object.assign(new EventEmitter(), {
+        trigger: customTriggerMock,
+      });
+
+      const streamingConfig: ResolvedConfig = {
+        fleet: { name: "test-fleet" } as unknown as ResolvedConfig["fleet"],
+        agents: [
+          createDiscordAgent("tool-agent-2", {
+            bot_token_env: "TEST_BOT_TOKEN",
+            session_expiry_hours: 24,
+            log_level: "standard",
+            output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
+            guilds: [],
+          }),
+        ],
+        configPath: "/test/herdctl.yaml",
+        configDir: "/test",
+      };
+
+      const streamingContext: FleetManagerContext = {
+        getConfig: () => streamingConfig,
+        getStateDir: () => "/tmp/test-state",
+        getStateDirInfo: () => null,
+        getLogger: () => mockLogger,
+        getScheduler: () => null,
+        getStatus: () => "running",
+        getInitializedAt: () => "2024-01-01T00:00:00.000Z",
+        getStartedAt: () => "2024-01-01T00:00:01.000Z",
+        getStoppedAt: () => null,
+        getLastError: () => null,
+        getCheckInterval: () => 1000,
+        emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
+        getEmitter: () => streamingEmitter,
+      };
+
+      const streamingManager = new DiscordManager(streamingContext);
+
+      const mockConnector = new EventEmitter() as EventEmitter & {
+        connect: ReturnType<typeof vi.fn>;
+        disconnect: ReturnType<typeof vi.fn>;
+        isConnected: ReturnType<typeof vi.fn>;
+        getState: ReturnType<typeof vi.fn>;
+        agentName: string;
+        sessionManager: {
+          getOrCreateSession: ReturnType<typeof vi.fn>;
+          getSession: ReturnType<typeof vi.fn>;
+          setSession: ReturnType<typeof vi.fn>;
+          touchSession: ReturnType<typeof vi.fn>;
+          getActiveSessionCount: ReturnType<typeof vi.fn>;
+        };
+      };
+      mockConnector.connect = vi.fn().mockResolvedValue(undefined);
+      mockConnector.disconnect = vi.fn().mockResolvedValue(undefined);
+      mockConnector.isConnected = vi.fn().mockReturnValue(true);
+      mockConnector.getState = vi.fn().mockReturnValue({
+        status: "connected",
+        connectedAt: "2024-01-01T00:00:00.000Z",
+        disconnectedAt: null,
+        reconnectAttempts: 0,
+        lastError: null,
+        botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
+        rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+        messageStats: { received: 0, sent: 0, ignored: 0 },
+      } satisfies DiscordConnectorState);
+      mockConnector.agentName = "tool-agent-2";
+      mockConnector.sessionManager = {
+        getOrCreateSession: vi.fn().mockResolvedValue({ sessionId: "s1", isNew: false }),
+        getSession: vi.fn().mockResolvedValue(null),
+        setSession: vi.fn().mockResolvedValue(undefined),
+        touchSession: vi.fn().mockResolvedValue(undefined),
+        getActiveSessionCount: vi.fn().mockResolvedValue(0),
+      };
+
+      // @ts-expect-error - accessing private property for testing
+      streamingManager.connectors.set("tool-agent-2", mockConnector);
+      // @ts-expect-error - accessing private property for testing
+      streamingManager.initialized = true;
+
+      await streamingManager.start();
+
+      const replyMock = vi.fn().mockResolvedValue(undefined);
+      const messageEvent: DiscordMessageEvent = {
+        agentName: "tool-agent-2",
+        prompt: "Run something",
+        context: {
+          messages: [],
+          wasMentioned: true,
+          prompt: "Run something",
+        },
+        metadata: {
+          guildId: "guild1",
+          channelId: "channel1",
+          messageId: "msg1",
+          userId: "user1",
+          username: "TestUser",
+          wasMentioned: true,
+          mode: "mention",
+        },
+        reply: replyMock,
+        startTyping: () => () => {},
+      };
+
+      mockConnector.emit("message", messageEvent);
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // Should have sent the tool result as an embed
+      expect(replyMock).toHaveBeenCalledTimes(1);
+      const embedCall = replyMock.mock.calls[0][0] as DiscordReplyPayload;
+      expect(embedCall).toHaveProperty("embeds");
+      expect(embedCall.embeds).toHaveLength(1);
+      const embed = embedCall.embeds[0];
+      // No matching tool_use, so title falls back to "Tool"
+      expect(embed.title).toContain("Tool");
+      // Should have Output field and Result field
+      expect(embed.fields).toBeDefined();
+      const resultField = embed.fields!.find((f: DiscordReplyEmbedField) => f.name === "Result");
+      expect(resultField).toBeDefined();
+      expect(resultField!.value).toContain("output from tool execution");
     });
 
     it("handles message handler rejection via catch handler", async () => {
@@ -1574,6 +1880,388 @@ describe("DiscordManager message handling", () => {
       expect(result).toBeUndefined();
     });
   });
+
+  describe("extractToolUseBlocks", () => {
+    it("extracts tool_use blocks with id from assistant message content", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.extractToolUseBlocks({
+        type: "assistant",
+        message: {
+          content: [
+            { type: "text", text: "Let me run that command." },
+            { type: "tool_use", name: "Bash", id: "tool-1", input: { command: "ls -la" } },
+          ],
+        },
+      });
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe("Bash");
+      expect(result[0].id).toBe("tool-1");
+      expect(result[0].input).toEqual({ command: "ls -la" });
+    });
+
+    it("extracts multiple tool_use blocks", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.extractToolUseBlocks({
+        type: "assistant",
+        message: {
+          content: [
+            { type: "tool_use", name: "Read", id: "tool-1", input: { file_path: "/tmp/a.txt" } },
+            { type: "text", text: "Reading file..." },
+            { type: "tool_use", name: "Bash", id: "tool-2", input: { command: "cat /tmp/a.txt" } },
+          ],
+        },
+      });
+      expect(result).toHaveLength(2);
+      expect(result[0].name).toBe("Read");
+      expect(result[0].id).toBe("tool-1");
+      expect(result[1].name).toBe("Bash");
+      expect(result[1].id).toBe("tool-2");
+    });
+
+    it("handles tool_use blocks without id", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.extractToolUseBlocks({
+        type: "assistant",
+        message: {
+          content: [
+            { type: "tool_use", name: "some_tool" },
+          ],
+        },
+      });
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe("some_tool");
+      expect(result[0].id).toBeUndefined();
+    });
+
+    it("returns empty array when no tool_use blocks", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.extractToolUseBlocks({
+        type: "assistant",
+        message: {
+          content: [
+            { type: "text", text: "Just a text response" },
+          ],
+        },
+      });
+      expect(result).toHaveLength(0);
+    });
+
+    it("returns empty array when content is not an array", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.extractToolUseBlocks({
+        type: "assistant",
+        message: { content: "string content" },
+      });
+      expect(result).toHaveLength(0);
+    });
+
+    it("returns empty array when no message field", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.extractToolUseBlocks({
+        type: "assistant",
+      });
+      expect(result).toHaveLength(0);
+    });
+  });
+
+  describe("getToolInputSummary", () => {
+    it("returns command for Bash tool", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.getToolInputSummary("Bash", { command: "ls -la" });
+      expect(result).toBe("ls -la");
+    });
+
+    it("truncates long Bash commands", () => {
+      const longCommand = "echo " + "a".repeat(250);
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.getToolInputSummary("Bash", { command: longCommand });
+      expect(result).toContain("...");
+      expect(result!.length).toBeLessThanOrEqual(203); // 200 + "..."
+    });
+
+    it("returns file path for Read tool", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.getToolInputSummary("Read", { file_path: "/src/index.ts" });
+      expect(result).toBe("/src/index.ts");
+    });
+
+    it("returns file path for Write tool", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.getToolInputSummary("Write", { file_path: "/src/output.ts" });
+      expect(result).toBe("/src/output.ts");
+    });
+
+    it("returns file path for Edit tool", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.getToolInputSummary("Edit", { file_path: "/src/utils.ts" });
+      expect(result).toBe("/src/utils.ts");
+    });
+
+    it("returns pattern for Glob/Grep tools", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.getToolInputSummary("Grep", { pattern: "TODO" });
+      expect(result).toBe("TODO");
+    });
+
+    it("returns query for WebSearch", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.getToolInputSummary("WebSearch", { query: "discord embeds" });
+      expect(result).toBe("discord embeds");
+    });
+
+    it("returns undefined for unknown tools", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.getToolInputSummary("SomeCustomTool", { data: "value" });
+      expect(result).toBeUndefined();
+    });
+
+    it("returns undefined for Bash without command", () => {
+      // @ts-expect-error - accessing private method for testing
+      const result = manager.getToolInputSummary("Bash", {});
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe("extractToolResults", () => {
+    it("extracts tool result from top-level tool_use_result string", () => {
+      // @ts-expect-error - accessing private method for testing
+      const results = manager.extractToolResults({
+        type: "user",
+        tool_use_result: "file1.txt\nfile2.txt\nfile3.txt",
+      });
+      expect(results).toHaveLength(1);
+      expect(results[0].output).toBe("file1.txt\nfile2.txt\nfile3.txt");
+      expect(results[0].isError).toBe(false);
+    });
+
+    it("extracts tool result from tool_use_result object with content string", () => {
+      // @ts-expect-error - accessing private method for testing
+      const results = manager.extractToolResults({
+        type: "user",
+        tool_use_result: {
+          content: "Command output here",
+          is_error: false,
+        },
+      });
+      expect(results).toHaveLength(1);
+      expect(results[0].output).toBe("Command output here");
+      expect(results[0].isError).toBe(false);
+    });
+
+    it("extracts error tool result from tool_use_result object", () => {
+      // @ts-expect-error - accessing private method for testing
+      const results = manager.extractToolResults({
+        type: "user",
+        tool_use_result: {
+          content: "Permission denied",
+          is_error: true,
+        },
+      });
+      expect(results).toHaveLength(1);
+      expect(results[0].output).toBe("Permission denied");
+      expect(results[0].isError).toBe(true);
+    });
+
+    it("extracts tool results with tool_use_id from content blocks", () => {
+      // @ts-expect-error - accessing private method for testing
+      const results = manager.extractToolResults({
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tool-1",
+              content: "total 48\ndrwxr-xr-x  5 user  staff  160 Jan 20 10:00 .",
+            },
+          ],
+        },
+      });
+      expect(results).toHaveLength(1);
+      expect(results[0].output).toContain("total 48");
+      expect(results[0].isError).toBe(false);
+      expect(results[0].toolUseId).toBe("tool-1");
+    });
+
+    it("extracts error tool result from content blocks", () => {
+      // @ts-expect-error - accessing private method for testing
+      const results = manager.extractToolResults({
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tool-1",
+              content: "bash: command not found: foo",
+              is_error: true,
+            },
+          ],
+        },
+      });
+      expect(results).toHaveLength(1);
+      expect(results[0].isError).toBe(true);
+      expect(results[0].toolUseId).toBe("tool-1");
+    });
+
+    it("extracts tool results with nested content blocks", () => {
+      // @ts-expect-error - accessing private method for testing
+      const results = manager.extractToolResults({
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tool-1",
+              content: [
+                { type: "text", text: "Line 1 of output" },
+                { type: "text", text: "Line 2 of output" },
+              ],
+            },
+          ],
+        },
+      });
+      expect(results).toHaveLength(1);
+      expect(results[0].output).toBe("Line 1 of output\nLine 2 of output");
+    });
+
+    it("extracts multiple tool results with different IDs", () => {
+      // @ts-expect-error - accessing private method for testing
+      const results = manager.extractToolResults({
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tool-1",
+              content: "Result 1",
+            },
+            {
+              type: "tool_result",
+              tool_use_id: "tool-2",
+              content: "Result 2",
+            },
+          ],
+        },
+      });
+      expect(results).toHaveLength(2);
+      expect(results[0].output).toBe("Result 1");
+      expect(results[0].toolUseId).toBe("tool-1");
+      expect(results[1].output).toBe("Result 2");
+      expect(results[1].toolUseId).toBe("tool-2");
+    });
+
+    it("returns empty array for user message without tool results", () => {
+      // @ts-expect-error - accessing private method for testing
+      const results = manager.extractToolResults({
+        type: "user",
+        message: {
+          content: [
+            { type: "text", text: "Just a regular user message" },
+          ],
+        },
+      });
+      expect(results).toHaveLength(0);
+    });
+
+    it("returns empty array for user message without content", () => {
+      // @ts-expect-error - accessing private method for testing
+      const results = manager.extractToolResults({
+        type: "user",
+      });
+      expect(results).toHaveLength(0);
+    });
+  });
+
+  describe("buildToolEmbed", () => {
+    it("builds embed with tool_use info and result", () => {
+      // @ts-expect-error - accessing private method for testing
+      const embed: DiscordReplyEmbed = manager.buildToolEmbed(
+        { name: "Bash", input: { command: "ls -la" }, startTime: Date.now() - 1200 },
+        { output: "file1.txt\nfile2.txt", isError: false },
+      );
+      expect(embed.title).toContain("Bash");
+      expect(embed.description).toContain("ls -la");
+      expect(embed.color).toBe(0x5865f2);
+      expect(embed.fields).toBeDefined();
+      const fieldNames = embed.fields!.map(f => f.name);
+      expect(fieldNames).toContain("Duration");
+      expect(fieldNames).toContain("Output");
+      expect(fieldNames).toContain("Result");
+      // Result field should contain the output in a code block
+      const resultField = embed.fields!.find(f => f.name === "Result");
+      expect(resultField!.value).toContain("file1.txt");
+    });
+
+    it("builds embed with error color for error results", () => {
+      // @ts-expect-error - accessing private method for testing
+      const embed: DiscordReplyEmbed = manager.buildToolEmbed(
+        { name: "Bash", input: { command: "rm -rf /" }, startTime: Date.now() - 500 },
+        { output: "Permission denied", isError: true },
+      );
+      expect(embed.color).toBe(0xef4444);
+      const errorField = embed.fields!.find(f => f.name === "Error");
+      expect(errorField).toBeDefined();
+      expect(errorField!.value).toContain("Permission denied");
+    });
+
+    it("builds embed without tool_use info (fallback)", () => {
+      // @ts-expect-error - accessing private method for testing
+      const embed: DiscordReplyEmbed = manager.buildToolEmbed(
+        null,
+        { output: "some output", isError: false },
+      );
+      expect(embed.title).toContain("Tool");
+      expect(embed.description).toBeUndefined();
+      // No Duration field when no tool_use info
+      const fieldNames = embed.fields!.map(f => f.name);
+      expect(fieldNames).not.toContain("Duration");
+      expect(fieldNames).toContain("Output");
+    });
+
+    it("truncates long output in embed field", () => {
+      const longOutput = "x".repeat(2000);
+      // @ts-expect-error - accessing private method for testing
+      const embed: DiscordReplyEmbed = manager.buildToolEmbed(
+        { name: "Bash", input: { command: "cat bigfile" }, startTime: Date.now() - 100 },
+        { output: longOutput, isError: false },
+      );
+      const resultField = embed.fields!.find(f => f.name === "Result");
+      expect(resultField).toBeDefined();
+      expect(resultField!.value).toContain("chars total");
+      // Total field value should fit in Discord embed field limit (1024)
+      expect(resultField!.value.length).toBeLessThanOrEqual(1024);
+    });
+
+    it("formats output length with k suffix for large outputs", () => {
+      const output = "x".repeat(1500);
+      // @ts-expect-error - accessing private method for testing
+      const embed: DiscordReplyEmbed = manager.buildToolEmbed(
+        { name: "Read", input: { file_path: "/big.txt" }, startTime: Date.now() - 200 },
+        { output, isError: false },
+      );
+      const outputField = embed.fields!.find(f => f.name === "Output");
+      expect(outputField!.value).toContain("k chars");
+    });
+
+    it("shows Read tool with file path in description", () => {
+      // @ts-expect-error - accessing private method for testing
+      const embed: DiscordReplyEmbed = manager.buildToolEmbed(
+        { name: "Read", input: { file_path: "/src/index.ts" }, startTime: Date.now() - 50 },
+        { output: "file contents", isError: false },
+      );
+      expect(embed.title).toContain("Read");
+      expect(embed.description).toContain("/src/index.ts");
+    });
+
+    it("omits Result field for empty output", () => {
+      // @ts-expect-error - accessing private method for testing
+      const embed: DiscordReplyEmbed = manager.buildToolEmbed(
+        { name: "Bash", input: { command: "true" }, startTime: Date.now() - 10 },
+        { output: "   \n\n  ", isError: false },
+      );
+      const fieldNames = embed.fields!.map(f => f.name);
+      expect(fieldNames).not.toContain("Result");
+    });
+  });
 });
 
 describe("DiscordManager session integration", () => {
@@ -1620,6 +2308,7 @@ describe("DiscordManager session integration", () => {
           bot_token_env: "TEST_BOT_TOKEN",
           session_expiry_hours: 24,
           log_level: "standard",
+          output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
           guilds: [],
         }),
       ],
@@ -2240,6 +2929,7 @@ describe("DiscordManager lifecycle", () => {
           bot_token_env: "TEST_BOT_TOKEN",
           session_expiry_hours: 24,
           log_level: "standard",
+          output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
           guilds: [],
         }),
       ],
@@ -2365,6 +3055,7 @@ describe("DiscordManager lifecycle", () => {
           bot_token_env: "TEST_BOT_TOKEN",
           session_expiry_hours: 24,
           log_level: "standard",
+          output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
           guilds: [],
         }),
       ],
@@ -2672,6 +3363,7 @@ describe("DiscordManager lifecycle", () => {
           bot_token_env: "TEST_BOT_TOKEN",
           session_expiry_hours: 24,
           log_level: "standard",
+          output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
           guilds: [],
         }),
       ],
@@ -2769,5 +3461,899 @@ describe("DiscordManager lifecycle", () => {
     expect(replyMock).toHaveBeenCalledWith(
       "I've completed the task, but I don't have a specific response to share."
     );
+  });
+});
+
+describe("DiscordManager output configuration", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("does not send tool result embeds when tool_results is disabled", async () => {
+    const customTriggerMock = vi.fn().mockImplementation(async (_agentName: string, _scheduleName: string | undefined, options: { onMessage?: (msg: unknown) => Promise<void> }) => {
+      if (options?.onMessage) {
+        // Claude decides to use Bash tool
+        await options.onMessage({
+          type: "assistant",
+          message: {
+            content: [
+              { type: "text", text: "Let me run that." },
+              { type: "tool_use", name: "Bash", id: "tool-1", input: { command: "ls" } },
+            ],
+          },
+        });
+        // Tool result
+        await options.onMessage({
+          type: "user",
+          message: {
+            content: [
+              { type: "tool_result", tool_use_id: "tool-1", content: "file1.txt\nfile2.txt" },
+            ],
+          },
+        });
+        // Final response
+        await options.onMessage({
+          type: "assistant",
+          message: {
+            content: [{ type: "text", text: "Done!" }],
+          },
+        });
+      }
+      return { jobId: "job-123", success: true };
+    });
+
+    const streamingEmitter = Object.assign(new EventEmitter(), {
+      trigger: customTriggerMock,
+    });
+
+    // Agent with tool_results disabled
+    const config: ResolvedConfig = {
+      fleet: { name: "test-fleet" } as unknown as ResolvedConfig["fleet"],
+      agents: [
+        {
+          name: "no-tool-results-agent",
+          model: "sonnet",
+          runtime: "sdk",
+          schedules: {},
+          chat: {
+            discord: {
+              bot_token_env: "TEST_TOKEN",
+              session_expiry_hours: 24,
+              log_level: "standard",
+              output: {
+                tool_results: false,
+                tool_result_max_length: 900,
+                system_status: true,
+                result_summary: false,
+                errors: true,
+              },
+              guilds: [],
+            },
+          },
+          configPath: "/test/herdctl.yaml",
+        } as ResolvedAgent,
+      ],
+      configPath: "/test/herdctl.yaml",
+      configDir: "/test",
+    };
+
+    const mockContext: FleetManagerContext = {
+      getConfig: () => config,
+      getStateDir: () => "/tmp/test-state",
+      getStateDirInfo: () => null,
+      getLogger: () => mockLogger,
+      getScheduler: () => null,
+      getStatus: () => "running",
+      getInitializedAt: () => "2024-01-01T00:00:00.000Z",
+      getStartedAt: () => "2024-01-01T00:00:01.000Z",
+      getStoppedAt: () => null,
+      getLastError: () => null,
+      getCheckInterval: () => 1000,
+      emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
+      getEmitter: () => streamingEmitter,
+    };
+
+    const manager = new DiscordManager(mockContext);
+
+    const mockConnector = new EventEmitter() as EventEmitter & {
+      connect: ReturnType<typeof vi.fn>;
+      disconnect: ReturnType<typeof vi.fn>;
+      isConnected: ReturnType<typeof vi.fn>;
+      getState: ReturnType<typeof vi.fn>;
+      agentName: string;
+      sessionManager: {
+        getOrCreateSession: ReturnType<typeof vi.fn>;
+        getSession: ReturnType<typeof vi.fn>;
+        setSession: ReturnType<typeof vi.fn>;
+        touchSession: ReturnType<typeof vi.fn>;
+        getActiveSessionCount: ReturnType<typeof vi.fn>;
+      };
+    };
+    mockConnector.connect = vi.fn().mockResolvedValue(undefined);
+    mockConnector.disconnect = vi.fn().mockResolvedValue(undefined);
+    mockConnector.isConnected = vi.fn().mockReturnValue(true);
+    mockConnector.getState = vi.fn().mockReturnValue({
+      status: "connected",
+      connectedAt: "2024-01-01T00:00:00.000Z",
+      disconnectedAt: null,
+      reconnectAttempts: 0,
+      lastError: null,
+      botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
+      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      messageStats: { received: 0, sent: 0, ignored: 0 },
+    } satisfies DiscordConnectorState);
+    mockConnector.agentName = "no-tool-results-agent";
+    mockConnector.sessionManager = {
+      getOrCreateSession: vi.fn().mockResolvedValue({ sessionId: "s1", isNew: false }),
+      getSession: vi.fn().mockResolvedValue(null),
+      setSession: vi.fn().mockResolvedValue(undefined),
+      touchSession: vi.fn().mockResolvedValue(undefined),
+      getActiveSessionCount: vi.fn().mockResolvedValue(0),
+    };
+
+    // @ts-expect-error - accessing private property for testing
+    manager.connectors.set("no-tool-results-agent", mockConnector);
+    // @ts-expect-error - accessing private property for testing
+    manager.initialized = true;
+
+    await manager.start();
+
+    const replyMock = vi.fn().mockResolvedValue(undefined);
+    const messageEvent: DiscordMessageEvent = {
+      agentName: "no-tool-results-agent",
+      prompt: "List files",
+      context: { messages: [], wasMentioned: true, prompt: "List files" },
+      metadata: {
+        guildId: "guild1",
+        channelId: "channel1",
+        messageId: "msg1",
+        userId: "user1",
+        username: "TestUser",
+        wasMentioned: true,
+        mode: "mention",
+      },
+      reply: replyMock,
+      startTyping: () => () => {},
+    };
+
+    mockConnector.emit("message", messageEvent);
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    // Should have sent text responses but NO embed payloads
+    expect(replyMock).toHaveBeenCalledWith("Let me run that.");
+    expect(replyMock).toHaveBeenCalledWith("Done!");
+    // Should NOT have sent any embeds for tool results
+    const embedCalls = replyMock.mock.calls.filter((call: unknown[]) => {
+      const payload = call[0] as DiscordReplyPayload | string;
+      return typeof payload === "object" && payload !== null && "embeds" in payload;
+    });
+    expect(embedCalls.length).toBe(0);
+  }, 10000);
+
+  it("sends system status embed when system_status is enabled", async () => {
+    const customTriggerMock = vi.fn().mockImplementation(async (_agentName: string, _scheduleName: string | undefined, options: { onMessage?: (msg: unknown) => Promise<void> }) => {
+      if (options?.onMessage) {
+        // Send a system status message
+        await options.onMessage({
+          type: "system",
+          subtype: "status",
+          status: "compacting",
+        });
+      }
+      return { jobId: "job-123", success: true };
+    });
+
+    const streamingEmitter = Object.assign(new EventEmitter(), {
+      trigger: customTriggerMock,
+    });
+
+    const config: ResolvedConfig = {
+      fleet: { name: "test-fleet" } as unknown as ResolvedConfig["fleet"],
+      agents: [
+        {
+          name: "system-status-agent",
+          model: "sonnet",
+          runtime: "sdk",
+          schedules: {},
+          chat: {
+            discord: {
+              bot_token_env: "TEST_TOKEN",
+              session_expiry_hours: 24,
+              log_level: "standard",
+              output: {
+                tool_results: true,
+                tool_result_max_length: 900,
+                system_status: true,
+                result_summary: false,
+                errors: true,
+              },
+              guilds: [],
+            },
+          },
+          configPath: "/test/herdctl.yaml",
+        } as ResolvedAgent,
+      ],
+      configPath: "/test/herdctl.yaml",
+      configDir: "/test",
+    };
+
+    const mockContext: FleetManagerContext = {
+      getConfig: () => config,
+      getStateDir: () => "/tmp/test-state",
+      getStateDirInfo: () => null,
+      getLogger: () => mockLogger,
+      getScheduler: () => null,
+      getStatus: () => "running",
+      getInitializedAt: () => "2024-01-01T00:00:00.000Z",
+      getStartedAt: () => "2024-01-01T00:00:01.000Z",
+      getStoppedAt: () => null,
+      getLastError: () => null,
+      getCheckInterval: () => 1000,
+      emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
+      getEmitter: () => streamingEmitter,
+    };
+
+    const manager = new DiscordManager(mockContext);
+
+    const mockConnector = new EventEmitter() as EventEmitter & {
+      connect: ReturnType<typeof vi.fn>;
+      disconnect: ReturnType<typeof vi.fn>;
+      isConnected: ReturnType<typeof vi.fn>;
+      getState: ReturnType<typeof vi.fn>;
+      agentName: string;
+      sessionManager: {
+        getOrCreateSession: ReturnType<typeof vi.fn>;
+        getSession: ReturnType<typeof vi.fn>;
+        setSession: ReturnType<typeof vi.fn>;
+        touchSession: ReturnType<typeof vi.fn>;
+        getActiveSessionCount: ReturnType<typeof vi.fn>;
+      };
+    };
+    mockConnector.connect = vi.fn().mockResolvedValue(undefined);
+    mockConnector.disconnect = vi.fn().mockResolvedValue(undefined);
+    mockConnector.isConnected = vi.fn().mockReturnValue(true);
+    mockConnector.getState = vi.fn().mockReturnValue({
+      status: "connected",
+      connectedAt: "2024-01-01T00:00:00.000Z",
+      disconnectedAt: null,
+      reconnectAttempts: 0,
+      lastError: null,
+      botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
+      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      messageStats: { received: 0, sent: 0, ignored: 0 },
+    } satisfies DiscordConnectorState);
+    mockConnector.agentName = "system-status-agent";
+    mockConnector.sessionManager = {
+      getOrCreateSession: vi.fn().mockResolvedValue({ sessionId: "s1", isNew: false }),
+      getSession: vi.fn().mockResolvedValue(null),
+      setSession: vi.fn().mockResolvedValue(undefined),
+      touchSession: vi.fn().mockResolvedValue(undefined),
+      getActiveSessionCount: vi.fn().mockResolvedValue(0),
+    };
+
+    // @ts-expect-error - accessing private property for testing
+    manager.connectors.set("system-status-agent", mockConnector);
+    // @ts-expect-error - accessing private property for testing
+    manager.initialized = true;
+
+    await manager.start();
+
+    const replyMock = vi.fn().mockResolvedValue(undefined);
+    const messageEvent: DiscordMessageEvent = {
+      agentName: "system-status-agent",
+      prompt: "Hello",
+      context: { messages: [], wasMentioned: true, prompt: "Hello" },
+      metadata: {
+        guildId: "guild1",
+        channelId: "channel1",
+        messageId: "msg1",
+        userId: "user1",
+        username: "TestUser",
+        wasMentioned: true,
+        mode: "mention",
+      },
+      reply: replyMock,
+      startTyping: () => () => {},
+    };
+
+    mockConnector.emit("message", messageEvent);
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Should have sent a system status embed
+    const embedCalls = replyMock.mock.calls.filter((call: unknown[]) => {
+      const payload = call[0] as DiscordReplyPayload | string;
+      return typeof payload === "object" && payload !== null && "embeds" in payload;
+    });
+    expect(embedCalls.length).toBe(1);
+    const embed = (embedCalls[0][0] as DiscordReplyPayload).embeds[0];
+    expect(embed.title).toContain("System");
+    expect(embed.description).toContain("Compacting context");
+  }, 10000);
+
+  it("does not send system status embed when system_status is disabled", async () => {
+    const customTriggerMock = vi.fn().mockImplementation(async (_agentName: string, _scheduleName: string | undefined, options: { onMessage?: (msg: unknown) => Promise<void> }) => {
+      if (options?.onMessage) {
+        await options.onMessage({
+          type: "system",
+          subtype: "status",
+          status: "compacting",
+        });
+      }
+      return { jobId: "job-123", success: true };
+    });
+
+    const streamingEmitter = Object.assign(new EventEmitter(), {
+      trigger: customTriggerMock,
+    });
+
+    const config: ResolvedConfig = {
+      fleet: { name: "test-fleet" } as unknown as ResolvedConfig["fleet"],
+      agents: [
+        {
+          name: "no-system-status-agent",
+          model: "sonnet",
+          runtime: "sdk",
+          schedules: {},
+          chat: {
+            discord: {
+              bot_token_env: "TEST_TOKEN",
+              session_expiry_hours: 24,
+              log_level: "standard",
+              output: {
+                tool_results: true,
+                tool_result_max_length: 900,
+                system_status: false,
+                result_summary: false,
+                errors: true,
+              },
+              guilds: [],
+            },
+          },
+          configPath: "/test/herdctl.yaml",
+        } as ResolvedAgent,
+      ],
+      configPath: "/test/herdctl.yaml",
+      configDir: "/test",
+    };
+
+    const mockContext: FleetManagerContext = {
+      getConfig: () => config,
+      getStateDir: () => "/tmp/test-state",
+      getStateDirInfo: () => null,
+      getLogger: () => mockLogger,
+      getScheduler: () => null,
+      getStatus: () => "running",
+      getInitializedAt: () => "2024-01-01T00:00:00.000Z",
+      getStartedAt: () => "2024-01-01T00:00:01.000Z",
+      getStoppedAt: () => null,
+      getLastError: () => null,
+      getCheckInterval: () => 1000,
+      emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
+      getEmitter: () => streamingEmitter,
+    };
+
+    const manager = new DiscordManager(mockContext);
+
+    const mockConnector = new EventEmitter() as EventEmitter & {
+      connect: ReturnType<typeof vi.fn>;
+      disconnect: ReturnType<typeof vi.fn>;
+      isConnected: ReturnType<typeof vi.fn>;
+      getState: ReturnType<typeof vi.fn>;
+      agentName: string;
+      sessionManager: {
+        getOrCreateSession: ReturnType<typeof vi.fn>;
+        getSession: ReturnType<typeof vi.fn>;
+        setSession: ReturnType<typeof vi.fn>;
+        touchSession: ReturnType<typeof vi.fn>;
+        getActiveSessionCount: ReturnType<typeof vi.fn>;
+      };
+    };
+    mockConnector.connect = vi.fn().mockResolvedValue(undefined);
+    mockConnector.disconnect = vi.fn().mockResolvedValue(undefined);
+    mockConnector.isConnected = vi.fn().mockReturnValue(true);
+    mockConnector.getState = vi.fn().mockReturnValue({
+      status: "connected",
+      connectedAt: "2024-01-01T00:00:00.000Z",
+      disconnectedAt: null,
+      reconnectAttempts: 0,
+      lastError: null,
+      botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
+      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      messageStats: { received: 0, sent: 0, ignored: 0 },
+    } satisfies DiscordConnectorState);
+    mockConnector.agentName = "no-system-status-agent";
+    mockConnector.sessionManager = {
+      getOrCreateSession: vi.fn().mockResolvedValue({ sessionId: "s1", isNew: false }),
+      getSession: vi.fn().mockResolvedValue(null),
+      setSession: vi.fn().mockResolvedValue(undefined),
+      touchSession: vi.fn().mockResolvedValue(undefined),
+      getActiveSessionCount: vi.fn().mockResolvedValue(0),
+    };
+
+    // @ts-expect-error - accessing private property for testing
+    manager.connectors.set("no-system-status-agent", mockConnector);
+    // @ts-expect-error - accessing private property for testing
+    manager.initialized = true;
+
+    await manager.start();
+
+    const replyMock = vi.fn().mockResolvedValue(undefined);
+    const messageEvent: DiscordMessageEvent = {
+      agentName: "no-system-status-agent",
+      prompt: "Hello",
+      context: { messages: [], wasMentioned: true, prompt: "Hello" },
+      metadata: {
+        guildId: "guild1",
+        channelId: "channel1",
+        messageId: "msg1",
+        userId: "user1",
+        username: "TestUser",
+        wasMentioned: true,
+        mode: "mention",
+      },
+      reply: replyMock,
+      startTyping: () => () => {},
+    };
+
+    mockConnector.emit("message", messageEvent);
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Should NOT have sent any embeds
+    const embedCalls = replyMock.mock.calls.filter((call: unknown[]) => {
+      const payload = call[0] as DiscordReplyPayload | string;
+      return typeof payload === "object" && payload !== null && "embeds" in payload;
+    });
+    expect(embedCalls.length).toBe(0);
+  }, 10000);
+
+  it("sends result summary embed when result_summary is enabled", async () => {
+    const customTriggerMock = vi.fn().mockImplementation(async (_agentName: string, _scheduleName: string | undefined, options: { onMessage?: (msg: unknown) => Promise<void> }) => {
+      if (options?.onMessage) {
+        await options.onMessage({
+          type: "result",
+          subtype: "success",
+          is_error: false,
+          duration_ms: 5000,
+          total_cost_usd: 0.0123,
+          num_turns: 3,
+          usage: { input_tokens: 1000, output_tokens: 500 },
+        });
+      }
+      return { jobId: "job-123", success: true };
+    });
+
+    const streamingEmitter = Object.assign(new EventEmitter(), {
+      trigger: customTriggerMock,
+    });
+
+    const config: ResolvedConfig = {
+      fleet: { name: "test-fleet" } as unknown as ResolvedConfig["fleet"],
+      agents: [
+        {
+          name: "result-summary-agent",
+          model: "sonnet",
+          runtime: "sdk",
+          schedules: {},
+          chat: {
+            discord: {
+              bot_token_env: "TEST_TOKEN",
+              session_expiry_hours: 24,
+              log_level: "standard",
+              output: {
+                tool_results: true,
+                tool_result_max_length: 900,
+                system_status: true,
+                result_summary: true,
+                errors: true,
+              },
+              guilds: [],
+            },
+          },
+          configPath: "/test/herdctl.yaml",
+        } as ResolvedAgent,
+      ],
+      configPath: "/test/herdctl.yaml",
+      configDir: "/test",
+    };
+
+    const mockContext: FleetManagerContext = {
+      getConfig: () => config,
+      getStateDir: () => "/tmp/test-state",
+      getStateDirInfo: () => null,
+      getLogger: () => mockLogger,
+      getScheduler: () => null,
+      getStatus: () => "running",
+      getInitializedAt: () => "2024-01-01T00:00:00.000Z",
+      getStartedAt: () => "2024-01-01T00:00:01.000Z",
+      getStoppedAt: () => null,
+      getLastError: () => null,
+      getCheckInterval: () => 1000,
+      emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
+      getEmitter: () => streamingEmitter,
+    };
+
+    const manager = new DiscordManager(mockContext);
+
+    const mockConnector = new EventEmitter() as EventEmitter & {
+      connect: ReturnType<typeof vi.fn>;
+      disconnect: ReturnType<typeof vi.fn>;
+      isConnected: ReturnType<typeof vi.fn>;
+      getState: ReturnType<typeof vi.fn>;
+      agentName: string;
+      sessionManager: {
+        getOrCreateSession: ReturnType<typeof vi.fn>;
+        getSession: ReturnType<typeof vi.fn>;
+        setSession: ReturnType<typeof vi.fn>;
+        touchSession: ReturnType<typeof vi.fn>;
+        getActiveSessionCount: ReturnType<typeof vi.fn>;
+      };
+    };
+    mockConnector.connect = vi.fn().mockResolvedValue(undefined);
+    mockConnector.disconnect = vi.fn().mockResolvedValue(undefined);
+    mockConnector.isConnected = vi.fn().mockReturnValue(true);
+    mockConnector.getState = vi.fn().mockReturnValue({
+      status: "connected",
+      connectedAt: "2024-01-01T00:00:00.000Z",
+      disconnectedAt: null,
+      reconnectAttempts: 0,
+      lastError: null,
+      botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
+      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      messageStats: { received: 0, sent: 0, ignored: 0 },
+    } satisfies DiscordConnectorState);
+    mockConnector.agentName = "result-summary-agent";
+    mockConnector.sessionManager = {
+      getOrCreateSession: vi.fn().mockResolvedValue({ sessionId: "s1", isNew: false }),
+      getSession: vi.fn().mockResolvedValue(null),
+      setSession: vi.fn().mockResolvedValue(undefined),
+      touchSession: vi.fn().mockResolvedValue(undefined),
+      getActiveSessionCount: vi.fn().mockResolvedValue(0),
+    };
+
+    // @ts-expect-error - accessing private property for testing
+    manager.connectors.set("result-summary-agent", mockConnector);
+    // @ts-expect-error - accessing private property for testing
+    manager.initialized = true;
+
+    await manager.start();
+
+    const replyMock = vi.fn().mockResolvedValue(undefined);
+    const messageEvent: DiscordMessageEvent = {
+      agentName: "result-summary-agent",
+      prompt: "Hello",
+      context: { messages: [], wasMentioned: true, prompt: "Hello" },
+      metadata: {
+        guildId: "guild1",
+        channelId: "channel1",
+        messageId: "msg1",
+        userId: "user1",
+        username: "TestUser",
+        wasMentioned: true,
+        mode: "mention",
+      },
+      reply: replyMock,
+      startTyping: () => () => {},
+    };
+
+    mockConnector.emit("message", messageEvent);
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Should have sent a result summary embed
+    const embedCalls = replyMock.mock.calls.filter((call: unknown[]) => {
+      const payload = call[0] as DiscordReplyPayload | string;
+      return typeof payload === "object" && payload !== null && "embeds" in payload;
+    });
+    expect(embedCalls.length).toBe(1);
+    const embed = (embedCalls[0][0] as DiscordReplyPayload).embeds[0];
+    expect(embed.title).toContain("Task Complete");
+    expect(embed.fields).toBeDefined();
+    const fieldNames = embed.fields!.map((f: DiscordReplyEmbedField) => f.name);
+    expect(fieldNames).toContain("Duration");
+    expect(fieldNames).toContain("Turns");
+    expect(fieldNames).toContain("Cost");
+    expect(fieldNames).toContain("Tokens");
+  }, 10000);
+
+  it("sends error embed for SDK error messages", async () => {
+    const customTriggerMock = vi.fn().mockImplementation(async (_agentName: string, _scheduleName: string | undefined, options: { onMessage?: (msg: unknown) => Promise<void> }) => {
+      if (options?.onMessage) {
+        await options.onMessage({
+          type: "error",
+          content: "Something went wrong",
+        });
+      }
+      return { jobId: "job-123", success: false };
+    });
+
+    const streamingEmitter = Object.assign(new EventEmitter(), {
+      trigger: customTriggerMock,
+    });
+
+    const config: ResolvedConfig = {
+      fleet: { name: "test-fleet" } as unknown as ResolvedConfig["fleet"],
+      agents: [
+        {
+          name: "error-agent",
+          model: "sonnet",
+          runtime: "sdk",
+          schedules: {},
+          chat: {
+            discord: {
+              bot_token_env: "TEST_TOKEN",
+              session_expiry_hours: 24,
+              log_level: "standard",
+              output: {
+                tool_results: true,
+                tool_result_max_length: 900,
+                system_status: true,
+                result_summary: false,
+                errors: true,
+              },
+              guilds: [],
+            },
+          },
+          configPath: "/test/herdctl.yaml",
+        } as ResolvedAgent,
+      ],
+      configPath: "/test/herdctl.yaml",
+      configDir: "/test",
+    };
+
+    const mockContext: FleetManagerContext = {
+      getConfig: () => config,
+      getStateDir: () => "/tmp/test-state",
+      getStateDirInfo: () => null,
+      getLogger: () => mockLogger,
+      getScheduler: () => null,
+      getStatus: () => "running",
+      getInitializedAt: () => "2024-01-01T00:00:00.000Z",
+      getStartedAt: () => "2024-01-01T00:00:01.000Z",
+      getStoppedAt: () => null,
+      getLastError: () => null,
+      getCheckInterval: () => 1000,
+      emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
+      getEmitter: () => streamingEmitter,
+    };
+
+    const manager = new DiscordManager(mockContext);
+
+    const mockConnector = new EventEmitter() as EventEmitter & {
+      connect: ReturnType<typeof vi.fn>;
+      disconnect: ReturnType<typeof vi.fn>;
+      isConnected: ReturnType<typeof vi.fn>;
+      getState: ReturnType<typeof vi.fn>;
+      agentName: string;
+      sessionManager: {
+        getOrCreateSession: ReturnType<typeof vi.fn>;
+        getSession: ReturnType<typeof vi.fn>;
+        setSession: ReturnType<typeof vi.fn>;
+        touchSession: ReturnType<typeof vi.fn>;
+        getActiveSessionCount: ReturnType<typeof vi.fn>;
+      };
+    };
+    mockConnector.connect = vi.fn().mockResolvedValue(undefined);
+    mockConnector.disconnect = vi.fn().mockResolvedValue(undefined);
+    mockConnector.isConnected = vi.fn().mockReturnValue(true);
+    mockConnector.getState = vi.fn().mockReturnValue({
+      status: "connected",
+      connectedAt: "2024-01-01T00:00:00.000Z",
+      disconnectedAt: null,
+      reconnectAttempts: 0,
+      lastError: null,
+      botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
+      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      messageStats: { received: 0, sent: 0, ignored: 0 },
+    } satisfies DiscordConnectorState);
+    mockConnector.agentName = "error-agent";
+    mockConnector.sessionManager = {
+      getOrCreateSession: vi.fn().mockResolvedValue({ sessionId: "s1", isNew: false }),
+      getSession: vi.fn().mockResolvedValue(null),
+      setSession: vi.fn().mockResolvedValue(undefined),
+      touchSession: vi.fn().mockResolvedValue(undefined),
+      getActiveSessionCount: vi.fn().mockResolvedValue(0),
+    };
+
+    // @ts-expect-error - accessing private property for testing
+    manager.connectors.set("error-agent", mockConnector);
+    // @ts-expect-error - accessing private property for testing
+    manager.initialized = true;
+
+    await manager.start();
+
+    const replyMock = vi.fn().mockResolvedValue(undefined);
+    const messageEvent: DiscordMessageEvent = {
+      agentName: "error-agent",
+      prompt: "Hello",
+      context: { messages: [], wasMentioned: true, prompt: "Hello" },
+      metadata: {
+        guildId: "guild1",
+        channelId: "channel1",
+        messageId: "msg1",
+        userId: "user1",
+        username: "TestUser",
+        wasMentioned: true,
+        mode: "mention",
+      },
+      reply: replyMock,
+      startTyping: () => () => {},
+    };
+
+    mockConnector.emit("message", messageEvent);
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Should have sent an error embed
+    const embedCalls = replyMock.mock.calls.filter((call: unknown[]) => {
+      const payload = call[0] as DiscordReplyPayload | string;
+      return typeof payload === "object" && payload !== null && "embeds" in payload;
+    });
+    expect(embedCalls.length).toBe(1);
+    const embed = (embedCalls[0][0] as DiscordReplyPayload).embeds[0];
+    expect(embed.title).toContain("Error");
+    expect(embed.description).toBe("Something went wrong");
+  }, 10000);
+
+  it("does not send error embed when errors is disabled", async () => {
+    const customTriggerMock = vi.fn().mockImplementation(async (_agentName: string, _scheduleName: string | undefined, options: { onMessage?: (msg: unknown) => Promise<void> }) => {
+      if (options?.onMessage) {
+        await options.onMessage({
+          type: "error",
+          content: "Something went wrong",
+        });
+      }
+      return { jobId: "job-123", success: false };
+    });
+
+    const streamingEmitter = Object.assign(new EventEmitter(), {
+      trigger: customTriggerMock,
+    });
+
+    const config: ResolvedConfig = {
+      fleet: { name: "test-fleet" } as unknown as ResolvedConfig["fleet"],
+      agents: [
+        {
+          name: "no-errors-agent",
+          model: "sonnet",
+          runtime: "sdk",
+          schedules: {},
+          chat: {
+            discord: {
+              bot_token_env: "TEST_TOKEN",
+              session_expiry_hours: 24,
+              log_level: "standard",
+              output: {
+                tool_results: true,
+                tool_result_max_length: 900,
+                system_status: true,
+                result_summary: false,
+                errors: false,
+              },
+              guilds: [],
+            },
+          },
+          configPath: "/test/herdctl.yaml",
+        } as ResolvedAgent,
+      ],
+      configPath: "/test/herdctl.yaml",
+      configDir: "/test",
+    };
+
+    const mockContext: FleetManagerContext = {
+      getConfig: () => config,
+      getStateDir: () => "/tmp/test-state",
+      getStateDirInfo: () => null,
+      getLogger: () => mockLogger,
+      getScheduler: () => null,
+      getStatus: () => "running",
+      getInitializedAt: () => "2024-01-01T00:00:00.000Z",
+      getStartedAt: () => "2024-01-01T00:00:01.000Z",
+      getStoppedAt: () => null,
+      getLastError: () => null,
+      getCheckInterval: () => 1000,
+      emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
+      getEmitter: () => streamingEmitter,
+    };
+
+    const manager = new DiscordManager(mockContext);
+
+    const mockConnector = new EventEmitter() as EventEmitter & {
+      connect: ReturnType<typeof vi.fn>;
+      disconnect: ReturnType<typeof vi.fn>;
+      isConnected: ReturnType<typeof vi.fn>;
+      getState: ReturnType<typeof vi.fn>;
+      agentName: string;
+      sessionManager: {
+        getOrCreateSession: ReturnType<typeof vi.fn>;
+        getSession: ReturnType<typeof vi.fn>;
+        setSession: ReturnType<typeof vi.fn>;
+        touchSession: ReturnType<typeof vi.fn>;
+        getActiveSessionCount: ReturnType<typeof vi.fn>;
+      };
+    };
+    mockConnector.connect = vi.fn().mockResolvedValue(undefined);
+    mockConnector.disconnect = vi.fn().mockResolvedValue(undefined);
+    mockConnector.isConnected = vi.fn().mockReturnValue(true);
+    mockConnector.getState = vi.fn().mockReturnValue({
+      status: "connected",
+      connectedAt: "2024-01-01T00:00:00.000Z",
+      disconnectedAt: null,
+      reconnectAttempts: 0,
+      lastError: null,
+      botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
+      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      messageStats: { received: 0, sent: 0, ignored: 0 },
+    } satisfies DiscordConnectorState);
+    mockConnector.agentName = "no-errors-agent";
+    mockConnector.sessionManager = {
+      getOrCreateSession: vi.fn().mockResolvedValue({ sessionId: "s1", isNew: false }),
+      getSession: vi.fn().mockResolvedValue(null),
+      setSession: vi.fn().mockResolvedValue(undefined),
+      touchSession: vi.fn().mockResolvedValue(undefined),
+      getActiveSessionCount: vi.fn().mockResolvedValue(0),
+    };
+
+    // @ts-expect-error - accessing private property for testing
+    manager.connectors.set("no-errors-agent", mockConnector);
+    // @ts-expect-error - accessing private property for testing
+    manager.initialized = true;
+
+    await manager.start();
+
+    const replyMock = vi.fn().mockResolvedValue(undefined);
+    const messageEvent: DiscordMessageEvent = {
+      agentName: "no-errors-agent",
+      prompt: "Hello",
+      context: { messages: [], wasMentioned: true, prompt: "Hello" },
+      metadata: {
+        guildId: "guild1",
+        channelId: "channel1",
+        messageId: "msg1",
+        userId: "user1",
+        username: "TestUser",
+        wasMentioned: true,
+        mode: "mention",
+      },
+      reply: replyMock,
+      startTyping: () => () => {},
+    };
+
+    mockConnector.emit("message", messageEvent);
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Should NOT have sent any embeds
+    const embedCalls = replyMock.mock.calls.filter((call: unknown[]) => {
+      const payload = call[0] as DiscordReplyPayload | string;
+      return typeof payload === "object" && payload !== null && "embeds" in payload;
+    });
+    expect(embedCalls.length).toBe(0);
+  }, 10000);
+
+  describe("buildToolEmbed with custom maxOutputChars", () => {
+    it("respects custom maxOutputChars parameter", () => {
+      const ctx = createMockContext(null);
+      const manager = new DiscordManager(ctx);
+
+      // Long output that exceeds both custom and default limits
+      const longOutput = "x".repeat(600);
+
+      // @ts-expect-error - accessing private method for testing
+      const embed: DiscordReplyEmbed = manager.buildToolEmbed(
+        { name: "Bash", input: { command: "cat bigfile" }, startTime: Date.now() - 100 },
+        { output: longOutput, isError: false },
+        400 // Custom max length
+      );
+
+      const resultField = embed.fields!.find((f: DiscordReplyEmbedField) => f.name === "Result");
+      expect(resultField).toBeDefined();
+      // The result should be truncated, showing "chars total" suffix
+      expect(resultField!.value).toContain("chars total");
+      // Verify the output starts with the truncated content (400 x's)
+      expect(resultField!.value).toContain("x".repeat(400));
+      // Verify it does NOT contain the full output (600 x's)
+      expect(resultField!.value).not.toContain("x".repeat(600));
+    });
   });
 });

@@ -127,6 +127,7 @@ function createMockDiscordConfig(): AgentChatDiscord {
     bot_token_env: "TEST_BOT_TOKEN",
     session_expiry_hours: 24,
     log_level: "standard",
+    output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
     guilds: [
       {
         id: "guild-123",

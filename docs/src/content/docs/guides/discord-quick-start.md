@@ -100,3 +100,4 @@ Your bot automatically supports:
 - See the [Discord Chat Bot example](/guides/examples/#discord-chat-bot) for a complete working example
 - Read the [full Discord reference](/integrations/discord/) for advanced configuration
 - Learn about [session management](/integrations/discord/#session-management) for conversation context
+- Configure [output settings](/integrations/discord/#output-settings) to control which tool results, system messages, and errors appear in Discord

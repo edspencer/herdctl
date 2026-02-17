@@ -59,6 +59,34 @@ export interface DiscordConnectorState {
 }
 
 /**
+ * Discord embed field (mirrors @herdctl/discord types)
+ */
+export interface DiscordReplyEmbedField {
+  name: string;
+  value: string;
+  inline?: boolean;
+}
+
+/**
+ * Discord embed for rich message formatting (mirrors @herdctl/discord types)
+ */
+export interface DiscordReplyEmbed {
+  title: string;
+  description?: string;
+  color?: number;
+  fields?: DiscordReplyEmbedField[];
+  footer?: { text: string };
+  timestamp?: string;
+}
+
+/**
+ * Payload for sending rich messages via reply (mirrors @herdctl/discord types)
+ */
+export interface DiscordReplyPayload {
+  embeds: DiscordReplyEmbed[];
+}
+
+/**
  * Message event payload from DiscordConnector
  */
 export interface DiscordMessageEvent {
@@ -93,8 +121,8 @@ export interface DiscordMessageEvent {
     /** Channel mode that was applied */
     mode: "mention" | "auto";
   };
-  /** Function to send a reply in the same channel */
-  reply: (content: string) => Promise<void>;
+  /** Function to send a reply in the same channel (text or embed payload) */
+  reply: (content: string | DiscordReplyPayload) => Promise<void>;
   /** Start typing indicator, returns stop function */
   startTyping: () => () => void;
 }
@@ -621,6 +649,15 @@ export class DiscordManager {
       return;
     }
 
+    // Get output configuration (with defaults)
+    const outputConfig = agent.chat?.discord?.output ?? {
+      tool_results: true,
+      tool_result_max_length: 900,
+      system_status: true,
+      result_summary: false,
+      errors: true,
+    };
+
     // Get existing session for this channel (for conversation continuity)
     const connector = this.connectors.get(agentName);
     let existingSessionId: string | undefined;
@@ -641,8 +678,9 @@ export class DiscordManager {
     }
 
     // Create streaming responder for incremental message delivery
+    // StreamingResponder only sends text, so narrow the reply type
     const streamer = new StreamingResponder({
-      reply: event.reply,
+      reply: (content: string) => event.reply(content),
       splitResponse: (text) => this.splitResponse(text),
       logger,
       agentName,
@@ -664,10 +702,29 @@ export class DiscordManager {
           options?: {
             prompt?: string;
             resume?: string;
-            onMessage?: (message: { type: string; content?: string; message?: { content?: unknown } }) => void | Promise<void>;
+            onMessage?: (message: {
+              type: string;
+              content?: string;
+              message?: { content?: unknown };
+              tool_use_result?: unknown;
+              // System message fields
+              subtype?: string;
+              status?: string | null;
+              // Result message fields
+              is_error?: boolean;
+              duration_ms?: number;
+              total_cost_usd?: number;
+              num_turns?: number;
+              usage?: { input_tokens?: number; output_tokens?: number };
+              result?: string;
+            }) => void | Promise<void>;
           }
         ) => Promise<import("./types.js").TriggerResult>;
       };
+
+      // Track pending tool_use blocks so we can pair them with results
+      const pendingToolUses = new Map<string, { name: string; input?: unknown; startTime: number }>();
+      let embedsSent = 0;
 
       // Execute job via FleetManager.trigger()
       // Pass resume option for conversation continuity
@@ -683,6 +740,127 @@ export class DiscordManager {
               // Each assistant message is a complete turn - send immediately
               await streamer.addMessageAndSend(content);
             }
+
+            // Track tool_use blocks for pairing with results later
+            const toolUseBlocks = this.extractToolUseBlocks(message);
+            for (const block of toolUseBlocks) {
+              if (block.id) {
+                pendingToolUses.set(block.id, {
+                  name: block.name,
+                  input: block.input,
+                  startTime: Date.now(),
+                });
+              }
+            }
+          }
+
+          // Build and send embeds for tool results
+          if (message.type === "user" && outputConfig.tool_results) {
+            const toolResults = this.extractToolResults(message);
+            for (const toolResult of toolResults) {
+              // Look up the matching tool_use for name, input, and timing
+              const toolUse = toolResult.toolUseId
+                ? pendingToolUses.get(toolResult.toolUseId)
+                : undefined;
+              if (toolResult.toolUseId) {
+                pendingToolUses.delete(toolResult.toolUseId);
+              }
+
+              const embed = this.buildToolEmbed(
+                toolUse ?? null,
+                toolResult,
+                outputConfig.tool_result_max_length,
+              );
+
+              // Flush any buffered text before sending embed to preserve ordering
+              await streamer.flush();
+              await event.reply({ embeds: [embed] });
+              embedsSent++;
+            }
+          }
+
+          // Show system status messages (e.g., "compacting context...")
+          if (message.type === "system" && outputConfig.system_status) {
+            if (message.subtype === "status" && message.status) {
+              const statusText = message.status === "compacting"
+                ? "Compacting context..."
+                : `Status: ${message.status}`;
+              await streamer.flush();
+              await event.reply({
+                embeds: [{
+                  title: "\u2699\uFE0F System",
+                  description: statusText,
+                  color: DiscordManager.EMBED_COLOR_SYSTEM,
+                }],
+              });
+              embedsSent++;
+            }
+          }
+
+          // Show result summary embed (cost, tokens, turns)
+          if (message.type === "result" && outputConfig.result_summary) {
+            const fields: DiscordReplyEmbedField[] = [];
+
+            if (message.duration_ms !== undefined) {
+              fields.push({
+                name: "Duration",
+                value: DiscordManager.formatDuration(message.duration_ms),
+                inline: true,
+              });
+            }
+
+            if (message.num_turns !== undefined) {
+              fields.push({
+                name: "Turns",
+                value: String(message.num_turns),
+                inline: true,
+              });
+            }
+
+            if (message.total_cost_usd !== undefined) {
+              fields.push({
+                name: "Cost",
+                value: `$${message.total_cost_usd.toFixed(4)}`,
+                inline: true,
+              });
+            }
+
+            if (message.usage) {
+              const inputTokens = message.usage.input_tokens ?? 0;
+              const outputTokens = message.usage.output_tokens ?? 0;
+              fields.push({
+                name: "Tokens",
+                value: `${inputTokens.toLocaleString()} in / ${outputTokens.toLocaleString()} out`,
+                inline: true,
+              });
+            }
+
+            const isError = message.is_error === true;
+            await streamer.flush();
+            await event.reply({
+              embeds: [{
+                title: isError ? "\u274C Task Failed" : "\u2705 Task Complete",
+                color: isError ? DiscordManager.EMBED_COLOR_ERROR : DiscordManager.EMBED_COLOR_SUCCESS,
+                fields,
+              }],
+            });
+            embedsSent++;
+          }
+
+          // Show SDK error messages
+          if (message.type === "error" && outputConfig.errors) {
+            const errorText = typeof message.content === "string"
+              ? message.content
+              : "An unknown error occurred";
+            await streamer.flush();
+            await event.reply({
+              embeds: [{
+                title: "\u274C Error",
+                description: errorText.length > 4000 ? errorText.substring(0, 4000) + "..." : errorText,
+                color: DiscordManager.EMBED_COLOR_ERROR,
+              }],
+            });
+            embedsSent++;
           }
         },
       });
@@ -699,8 +877,8 @@ export class DiscordManager {
 
       logger.info(`Discord job completed: ${result.jobId} for agent '${agentName}'${result.sessionId ? ` (session: ${result.sessionId})` : ""}`);
 
-      // If no messages were sent, send an appropriate message based on success/failure
-      if (!streamer.hasSentMessages()) {
+      // If no messages were sent (text or embeds), send an appropriate fallback
+      if (!streamer.hasSentMessages() && embedsSent === 0) {
         if (result.success) {
           await event.reply("I've completed the task, but I don't have a specific response to share.");
         } else {
@@ -807,6 +985,306 @@ export class DiscordManager {
     }
 
     return undefined;
+  }
+
+  // =============================================================================
+  // Tool Embed Support
+  // =============================================================================
+
+  /** Maximum characters for tool output in Discord embed fields */
+  private static readonly TOOL_OUTPUT_MAX_CHARS = 900;
+
+  /** Embed colors */
+  private static readonly EMBED_COLOR_DEFAULT = 0x5865f2; // Discord blurple
+  private static readonly EMBED_COLOR_ERROR = 0xef4444; // Red
+  private static readonly EMBED_COLOR_SYSTEM = 0x95a5a6; // Gray
+  private static readonly EMBED_COLOR_SUCCESS = 0x57f287; // Green
+
+  /** Tool title emojis */
+  private static readonly TOOL_EMOJIS: Record<string, string> = {
+    Bash: "\u{1F4BB}",      // laptop
+    bash: "\u{1F4BB}",
+    Read: "\u{1F4C4}",      // page
+    Write: "\u{270F}\u{FE0F}",  // pencil
+    Edit: "\u{270F}\u{FE0F}",
+    Glob: "\u{1F50D}",      // magnifying glass
+    Grep: "\u{1F50D}",
+    WebFetch: "\u{1F310}",  // globe
+    WebSearch: "\u{1F310}",
+  };
+
+  /**
+   * Extract tool_use blocks from an assistant message's content blocks
+   *
+   * Returns id, name, and input for each tool_use block so we can
+   * track pending calls and pair them with results.
+   */
+  private extractToolUseBlocks(message: {
+    type: string;
+    message?: { content?: unknown };
+  }): Array<{ id?: string; name: string; input?: unknown }> {
+    const apiMessage = message.message as { content?: unknown } | undefined;
+    const content = apiMessage?.content;
+
+    if (!Array.isArray(content)) return [];
+
+    const blocks: Array<{ id?: string; name: string; input?: unknown }> = [];
+    for (const block of content) {
+      if (
+        block &&
+        typeof block === "object" &&
+        "type" in block &&
+        block.type === "tool_use" &&
+        "name" in block &&
+        typeof block.name === "string"
+      ) {
+        blocks.push({
+          id: "id" in block && typeof block.id === "string" ? block.id : undefined,
+          name: block.name,
+          input: "input" in block ? block.input : undefined,
+        });
+      }
+    }
+    return blocks;
+  }
+
+  /**
+   * Get a human-readable summary of tool input
+   */
+  private getToolInputSummary(name: string, input?: unknown): string | undefined {
+    const inputObj = input as Record<string, unknown> | undefined;
+
+    if (name === "Bash" || name === "bash") {
+      const command = inputObj?.command;
+      if (typeof command === "string" && command.length > 0) {
+        return command.length > 200 ? command.substring(0, 200) + "..." : command;
+      }
+    }
+
+    if (name === "Read" || name === "Write" || name === "Edit") {
+      const path = inputObj?.file_path ?? inputObj?.path;
+      if (typeof path === "string") return path;
+    }
+
+    if (name === "Glob" || name === "Grep") {
+      const pattern = inputObj?.pattern;
+      if (typeof pattern === "string") return pattern;
+    }
+
+    if (name === "WebFetch" || name === "WebSearch") {
+      const url = inputObj?.url;
+      const query = inputObj?.query;
+      if (typeof url === "string") return url;
+      if (typeof query === "string") return query;
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Extract tool results from a user message
+   *
+   * Returns output, error status, and the tool_use_id for matching
+   * to the pending tool_use that produced this result.
+   */
+  private extractToolResults(message: {
+    type: string;
+    message?: { content?: unknown };
+    tool_use_result?: unknown;
+  }): Array<{ output: string; isError: boolean; toolUseId?: string }> {
+    const results: Array<{ output: string; isError: boolean; toolUseId?: string }> = [];
+
+    // Check for top-level tool_use_result (direct SDK format)
+    if (message.tool_use_result !== undefined) {
+      const extracted = this.extractToolResultContent(message.tool_use_result);
+      if (extracted) {
+        results.push(extracted);
+      }
+      return results;
+    }
+
+    // Check for content blocks in nested message
+    const apiMessage = message.message as { content?: unknown } | undefined;
+    const content = apiMessage?.content;
+
+    if (!Array.isArray(content)) return results;
+
+    for (const block of content) {
+      if (!block || typeof block !== "object" || !("type" in block)) continue;
+
+      if (block.type === "tool_result") {
+        const toolResultBlock = block as {
+          content?: unknown;
+          is_error?: boolean;
+          tool_use_id?: string;
+        };
+        const isError = toolResultBlock.is_error === true;
+        const toolUseId = typeof toolResultBlock.tool_use_id === "string"
+          ? toolResultBlock.tool_use_id
+          : undefined;
+
+        // Content can be a string or an array of content blocks
+        const blockContent = toolResultBlock.content;
+        if (typeof blockContent === "string" && blockContent.length > 0) {
+          results.push({ output: blockContent, isError, toolUseId });
+        } else if (Array.isArray(blockContent)) {
+          const textParts: string[] = [];
+          for (const part of blockContent) {
+            if (
+              part &&
+              typeof part === "object" &&
+              "type" in part &&
+              part.type === "text" &&
+              "text" in part &&
+              typeof part.text === "string"
+            ) {
+              textParts.push(part.text);
+            }
+          }
+          if (textParts.length > 0) {
+            results.push({ output: textParts.join("\n"), isError, toolUseId });
+          }
+        }
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Extract content from a top-level tool_use_result value
+   */
+  private extractToolResultContent(
+    result: unknown
+  ): { output: string; isError: boolean; toolUseId?: string } | undefined {
+    if (typeof result === "string" && result.length > 0) {
+      return { output: result, isError: false };
+    }
+
+    if (result && typeof result === "object") {
+      const obj = result as Record<string, unknown>;
+
+      // Check for content field
+      if (typeof obj.content === "string" && obj.content.length > 0) {
+        return {
+          output: obj.content,
+          isError: obj.is_error === true,
+          toolUseId: typeof obj.tool_use_id === "string" ? obj.tool_use_id : undefined,
+        };
+      }
+
+      // Check for content blocks array
+      if (Array.isArray(obj.content)) {
+        const textParts: string[] = [];
+        for (const block of obj.content) {
+          if (
+            block &&
+            typeof block === "object" &&
+            "type" in block &&
+            (block as Record<string, unknown>).type === "text" &&
+            "text" in block &&
+            typeof (block as Record<string, unknown>).text === "string"
+          ) {
+            textParts.push((block as Record<string, unknown>).text as string);
+          }
+        }
+        if (textParts.length > 0) {
+          return {
+            output: textParts.join("\n"),
+            isError: obj.is_error === true,
+            toolUseId: typeof obj.tool_use_id === "string" ? obj.tool_use_id : undefined,
+          };
+        }
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Format duration in milliseconds to a human-readable string
+   */
+  private static formatDuration(ms: number): string {
+    if (ms < 1000) return `${ms}ms`;
+    const seconds = Math.floor(ms / 1000);
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+  }
+
+  /**
+   * Build a Discord embed for a tool call result
+   *
+   * Combines the tool_use info (name, input) with the tool_result
+   * (output, error status) into a compact Discord embed.
+   *
+   * @param toolUse - The tool_use block info (name, input, startTime)
+   * @param toolResult - The tool result (output, isError)
+   * @param maxOutputChars - Maximum characters for output (defaults to TOOL_OUTPUT_MAX_CHARS)
+   */
+  private buildToolEmbed(
+    toolUse: { name: string; input?: unknown; startTime: number } | null,
+    toolResult: { output: string; isError: boolean },
+    maxOutputChars?: number,
+  ): DiscordReplyEmbed {
+    const toolName = toolUse?.name ?? "Tool";
+    const emoji = DiscordManager.TOOL_EMOJIS[toolName] ?? "\u{1F527}"; // wrench fallback
+    const isError = toolResult.isError;
+
+    // Build description from input summary
+    const inputSummary = toolUse ? this.getToolInputSummary(toolUse.name, toolUse.input) : undefined;
+    let description: string | undefined;
+    if (inputSummary) {
+      if (toolName === "Bash" || toolName === "bash") {
+        description = `\`> ${inputSummary}\``;
+      } else {
+        description = `\`${inputSummary}\``;
+      }
+    }
+
+    // Build inline fields
+    const fields: DiscordReplyEmbedField[] = [];
+
+    if (toolUse) {
+      const durationMs = Date.now() - toolUse.startTime;
+      fields.push({
+        name: "Duration",
+        value: DiscordManager.formatDuration(durationMs),
+        inline: true,
+      });
+    }
+
+    const outputLength = toolResult.output.length;
+    fields.push({
+      name: "Output",
+      value: outputLength >= 1000
+        ? `${(outputLength / 1000).toFixed(1)}k chars`
+        : `${outputLength} chars`,
+      inline: true,
+    });
+
+    // Add truncated output as a field if non-empty
+    const trimmedOutput = toolResult.output.trim();
+    if (trimmedOutput.length > 0) {
+      const maxChars = maxOutputChars ?? DiscordManager.TOOL_OUTPUT_MAX_CHARS;
+      let outputText = trimmedOutput;
+      if (outputText.length > maxChars) {
+        outputText = outputText.substring(0, maxChars) + `\n... (${outputLength.toLocaleString()} chars total)`;
+      }
+      fields.push({
+        name: isError ? "Error" : "Result",
+        value: `\`\`\`\n${outputText}\n\`\`\``,
+        inline: false,
+      });
+    }
+
+    return {
+      title: `${emoji} ${toolName}`,
+      description,
+      color: isError ? DiscordManager.EMBED_COLOR_ERROR : DiscordManager.EMBED_COLOR_DEFAULT,
+      fields,
+    };
   }
 
   /**

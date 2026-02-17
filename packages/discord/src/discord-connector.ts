@@ -30,6 +30,7 @@ import type {
   IDiscordConnector,
   DiscordConnectorEventMap,
   DiscordConnectorEventName,
+  DiscordReplyPayload,
 } from "./types.js";
 import {
   DiscordConnectionError,
@@ -673,10 +674,13 @@ export class DiscordConnector
     });
 
     // Create reply function for this channel that tracks sent messages
-    const reply = async (content: string): Promise<void> => {
+    // Accepts plain text or a payload with embeds
+    const reply = async (content: string | DiscordReplyPayload): Promise<void> => {
       // TextBasedChannel is a union type that includes channels with send() method
       const textChannel = channel as TextChannel | DMChannel | NewsChannel | ThreadChannel;
-      await textChannel.send(content);
+      // discord.js send() accepts string or MessageCreateOptions (which includes embeds)
+      // Our DiscordReplyPayload is structurally compatible at runtime
+      await textChannel.send(content as Parameters<typeof textChannel.send>[0]);
       this._messagesSent++;
       this._logger.info("Message sent", {
         channelId: message.channel.id,
