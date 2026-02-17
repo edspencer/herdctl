@@ -1,19 +1,13 @@
 /**
- * @herdctl/chat - Shared chat infrastructure for herdctl connectors
+ * Session manager module for chat platforms
  *
- * This package provides shared components for chat platform integrations:
- * - Session manager for conversation context preservation
- * - Message splitting utilities
- * - Streaming responder
- * - DM filtering
- * - Error handling utilities
- * - Status formatting
+ * Provides per-channel session management for Claude conversations.
+ * This module is shared between Discord, Slack, and other chat platforms.
  */
 
-// Session Manager
+export { ChatSessionManager } from "./session-manager.js";
+
 export {
-  // Class
-  ChatSessionManager,
   // Schemas
   ChannelSessionSchema,
   ChatSessionStateSchema,
@@ -27,11 +21,13 @@ export {
   // Factory functions
   createInitialSessionState,
   createChannelSession,
-  // Errors
+} from "./types.js";
+
+export {
   SessionErrorCode,
   SessionManagerError,
   SessionStateReadError,
   SessionStateWriteError,
   SessionDirectoryCreateError,
   isSessionManagerError,
-} from "./session-manager/index.js";
+} from "./errors.js";
