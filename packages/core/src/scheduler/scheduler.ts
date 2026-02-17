@@ -392,6 +392,8 @@ export class Scheduler {
     }
 
     // Calculate next trigger time based on schedule type
+    // Use Date.now() so tests can mock the clock via Date.now override
+    const now = new Date(Date.now());
     const lastRunAt = scheduleState.last_run_at
       ? new Date(scheduleState.last_run_at)
       : null;
@@ -435,8 +437,6 @@ export class Scheduler {
         };
       }
 
-      const now = new Date();
-
       if (lastRunAt) {
         // Calculate next cron occurrence after the last run.
         // When this time is <= now, isScheduleDue() will trigger it.
@@ -448,8 +448,8 @@ export class Scheduler {
       } else {
         // For NEW cron schedules (no lastRunAt), determine if we're in a "trigger window"
         // We use the previous cron time as a reference point and compare with current time
-        const previousTrigger = calculatePreviousCronTrigger(schedule.expression);
-        const nextFutureTrigger = calculateNextCronTrigger(schedule.expression);
+        const previousTrigger = calculatePreviousCronTrigger(schedule.expression, now);
+        const nextFutureTrigger = calculateNextCronTrigger(schedule.expression, now);
 
         // Calculate the cron interval (time between previous and next)
         const intervalMs = nextFutureTrigger.getTime() - previousTrigger.getTime();
@@ -475,7 +475,7 @@ export class Scheduler {
     }
 
     // Check if schedule is due
-    if (!isScheduleDue(nextTrigger)) {
+    if (!isScheduleDue(nextTrigger, now)) {
       return {
         ...baseResult,
         shouldTrigger: false,
