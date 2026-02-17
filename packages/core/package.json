@@ -26,18 +26,6 @@
     "yaml": "^2.3.0",
     "zod": "^3.22.0"
   },
-  "peerDependencies": {
-    "@herdctl/discord": "workspace:*",
-    "@herdctl/slack": "workspace:*"
-  },
-  "peerDependenciesMeta": {
-    "@herdctl/discord": {
-      "optional": true
-    },
-    "@herdctl/slack": {
-      "optional": true
-    }
-  },
   "devDependencies": {
     "@types/dockerode": "^4.0.1",
     "@vitest/coverage-v8": "^4.0.17",
