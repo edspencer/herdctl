@@ -11,7 +11,7 @@ Hooks enable powerful automation workflows:
 
 | Use Case | Hook Type | Example |
 |----------|-----------|---------|
-| Send alerts | Discord | Notify a channel when a price drops |
+| Send alerts | Discord / Slack | Notify a channel when a price drops |
 | Trigger pipelines | Webhook | POST to CI/CD when code is ready |
 | Log results | Shell | Pipe output to a logging system |
 | Conditional actions | Any | Only notify when `metadata.shouldNotify` is true |
@@ -205,6 +205,44 @@ The notification includes:
 Discord hooks require a Discord bot with permission to send messages in the target channel. See [Discord Integration](/integrations/discord/#creating-a-discord-application) for setup instructions.
 :::
 
+### Slack Hooks
+
+Send a formatted notification to a Slack channel. This is different from the [Slack chat integration](/integrations/slack/)—hooks send one-way notifications rather than enabling interactive chat.
+
+```yaml
+hooks:
+  after_run:
+    - type: slack
+      name: "Job notification"
+      channel_id: "C0123456789"
+      bot_token_env: SLACK_BOT_TOKEN
+```
+
+**Configuration:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `type` | `"slack"` | — | **Required.** Hook type |
+| `channel_id` | string | — | **Required.** Slack channel ID |
+| `bot_token_env` | string | — | **Required.** Environment variable containing bot token (`xoxb-`) |
+| `name` | string | — | Human-readable name for logs |
+| `continue_on_error` | boolean | `true` | Continue if hook fails |
+| `on_events` | array | all | Filter to specific events |
+| `when` | string | — | Conditional execution path |
+
+**Slack notification format:**
+
+The notification includes:
+- **Title**: Agent name and job ID
+- **Color**: Green (success), Red (failure), Yellow (timeout/cancelled)
+- **Fields**: Duration, event type
+- **Metadata**: Displayed if provided by agent
+- **Output**: Agent's text output (truncated if long)
+
+:::note[Bot Setup Required]
+Slack hooks require a Slack bot with the `chat:write` scope and membership in the target channel. See [Slack Integration](/integrations/slack/#creating-a-slack-app) for setup instructions. Note: hooks only need the Bot User OAuth Token (`xoxb-`), not the App-Level Token.
+:::
+
 ## Conditional Execution
 
 Use the `when` field to run hooks only when specific conditions are met. The value is a dot-notation path to a boolean field in the [HookContext](#hook-context).
@@ -214,11 +252,17 @@ Use the `when` field to run hooks only when specific conditions are met. The val
 ```yaml
 hooks:
   after_run:
-    # Only when agent sets shouldNotify: true in metadata
+    # Only when agent sets shouldNotify: true in metadata (Discord)
     - type: discord
       when: "metadata.shouldNotify"
       channel_id: "..."
       bot_token_env: DISCORD_BOT_TOKEN
+
+    # Same pattern works with Slack
+    - type: slack
+      when: "metadata.shouldNotify"
+      channel_id: "C0123456789"
+      bot_token_env: SLACK_BOT_TOKEN
 
     # Only when job succeeded
     - type: webhook
@@ -471,6 +515,7 @@ hooks:
 ## Related Pages
 
 - [Agent Configuration](/configuration/agent-config/) — Where hooks are configured
-- [Discord Integration](/integrations/discord/) — Interactive chat (different from notification hooks)
+- [Discord Integration](/integrations/discord/) — Interactive Discord chat (different from notification hooks)
+- [Slack Integration](/integrations/slack/) — Interactive Slack chat (different from notification hooks)
 - [Jobs](/concepts/jobs/) — Job lifecycle that triggers hooks
 - [Triggers](/concepts/triggers/) — What starts jobs

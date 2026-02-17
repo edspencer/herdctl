@@ -186,6 +186,55 @@ Bot: Checking Staples and IKEA... [performs live price check]
 - Discord bot with Message Content Intent enabled
 - See [Discord Quick Start](/guides/discord-quick-start/) for setup
 
+### slack-chat-bot
+
+**Difficulty:** Advanced
+**Features:** Slack chat integration, Socket Mode, prefix commands, session context
+
+An assistant agent that combines Slack chat with scheduled automation. Uses Slack's Socket Mode for real-time messaging without needing a public URL:
+
+```bash
+cd examples/slack-chat-bot
+export SLACK_BOT_TOKEN="xoxb-your-bot-token"
+export SLACK_APP_TOKEN="xapp-your-app-token"
+export SLACK_CHANNEL_ID="C0123456789"
+../../packages/cli/bin/herdctl.js start
+```
+
+**What you'll learn:**
+- **Slack chat**: Two-way conversations via @mentions and threads
+- **Socket Mode**: WebSocket-based connection — no public URL needed
+- **Session context**: Bot remembers conversation history (24h default)
+- **Prefix commands**: `!help`, `!reset`, `!status` built-in
+- **Slack hooks**: Send notification messages after scheduled runs
+
+**Key configuration:**
+
+```yaml
+# Slack chat integration - users @mention the bot to start a conversation
+chat:
+  slack:
+    bot_token_env: SLACK_BOT_TOKEN
+    app_token_env: SLACK_APP_TOKEN
+    session_expiry_hours: 24
+    log_level: standard
+    channels:
+      - id: "${SLACK_CHANNEL_ID}"
+
+# Post schedule results to Slack
+hooks:
+  after_run:
+    - type: slack
+      channel_id: "${SLACK_CHANNEL_ID}"
+      bot_token_env: SLACK_BOT_TOKEN
+```
+
+**Prerequisites:**
+- Slack App with Socket Mode enabled
+- Bot Token Scopes: `app_mentions:read`, `chat:write`, `channels:history`, `files:write`
+- Event Subscriptions: `app_mention`, `message.channels`
+- See [Slack Quick Start](/guides/slack-quick-start/) for setup
+
 ## Pattern Reference
 
 ### Persistent Memory Pattern
@@ -261,7 +310,8 @@ All examples require:
 - `ANTHROPIC_API_KEY` environment variable
 
 Some examples require additional setup:
-- **Discord hooks**: `DISCORD_BOT_TOKEN` and `DISCORD_CHANNEL_ID`
+- **Discord hooks/chat**: `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID`, and `DISCORD_CHANNEL_ID`
+- **Slack chat**: `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, and `SLACK_CHANNEL_ID`
 - **Webhook hooks**: External webhook endpoint
 
 ### From Source

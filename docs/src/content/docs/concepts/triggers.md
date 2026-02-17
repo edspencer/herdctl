@@ -308,15 +308,17 @@ schedules:
 
 ## Chat Triggers
 
-Chat triggers execute in response to messages in Discord. This enables interactive agents that respond to user questions, commands, or mentions. Unlike schedules that run automatically, chat triggers fire when a user messages or @mentions your bot.
+Chat triggers execute in response to messages in Discord or Slack. This enables interactive agents that respond to user questions, commands, or mentions. Unlike schedules that run automatically, chat triggers fire when a user messages or @mentions your bot.
 
 :::tip
-See the [Discord Quick Start](/guides/discord-quick-start/) for a 5-minute setup guide, or the [full Discord reference](/integrations/discord/) for advanced configuration.
+See the [Discord Quick Start](/guides/discord-quick-start/) or [Slack Quick Start](/guides/slack-quick-start/) for 5-minute setup guides, or the full [Discord](/integrations/discord/) and [Slack](/integrations/slack/) references for advanced configuration.
 :::
 
 ### Configuration
 
 Chat triggers are configured in the `chat` section of your agent config, not in `schedules`:
+
+**Discord:**
 
 ```yaml
 name: support-agent
@@ -334,6 +336,20 @@ chat:
       mode: auto           # Always respond to DMs
 ```
 
+**Slack:**
+
+```yaml
+name: support-agent
+
+chat:
+  slack:
+    bot_token_env: SLACK_BOT_TOKEN
+    app_token_env: SLACK_APP_TOKEN
+    channels:
+      - id: "C0123456789"
+        mode: mention    # Only respond to @mentions
+```
+
 ### Response Modes
 
 | Mode | Behavior | Use Case |
@@ -344,24 +360,24 @@ chat:
 ### How Chat Triggers Work
 
 1. User sends a message (or @mentions the bot)
-2. herdctl receives the message via Discord gateway
+2. herdctl receives the message via Discord gateway or Slack Socket Mode
 3. The agent's session is loaded (or created)
 4. The message becomes the prompt for a Claude session
-5. The response is sent back to Discord
+5. The response is sent back to the chat platform
 6. Session context is preserved for follow-up messages
 
 ### Session Management
 
-Discord chat maintains conversation context per channel:
+Chat integrations maintain conversation context per channel:
 
 - **Session Expiry**: Default 24 hours (configurable via `session_expiry_hours`)
 - **Scope**: Sessions are per-channel, not per-user
-- **Reset**: Users can clear context with the `/reset` slash command
+- **Reset**: Users can clear context with commands (see below)
 - **Memory**: Agents "remember" recent messages within a session
 
-### Built-in Slash Commands
+### Built-in Commands
 
-Every Discord-enabled agent automatically supports:
+**Discord** uses slash commands:
 
 | Command | Description |
 |---------|-------------|
@@ -369,9 +385,19 @@ Every Discord-enabled agent automatically supports:
 | `/reset` | Clear conversation context |
 | `/status` | Show connection status and stats |
 
+**Slack** uses prefix commands (typed as regular messages):
+
+| Command | Description |
+|---------|-------------|
+| `!help` | Show available commands and bot info |
+| `!reset` | Clear conversation context |
+| `!status` | Show connection status and stats |
+
 ### Combining Chat with Schedules
 
 A single agent can have both scheduled runs AND respond to chat:
+
+**Discord:**
 
 ```yaml
 name: price-bot
@@ -391,6 +417,27 @@ chat:
         channels:
           - id: "${DISCORD_CHANNEL_ID}"
             mode: mention
+```
+
+**Slack:**
+
+```yaml
+name: price-bot
+
+# Scheduled price checks
+schedules:
+  check:
+    type: interval
+    interval: 4h
+
+# Interactive Slack chat
+chat:
+  slack:
+    bot_token_env: SLACK_BOT_TOKEN
+    app_token_env: SLACK_APP_TOKEN
+    channels:
+      - id: "${SLACK_CHANNEL_ID}"
+        mode: mention
 ```
 
 Users can ask the bot questions like "What's the current price?" between scheduled runs.
