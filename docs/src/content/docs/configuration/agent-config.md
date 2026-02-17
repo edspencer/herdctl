@@ -551,6 +551,12 @@ Configure chat integrations for the agent. Each chat-enabled agent has its own b
 chat:
   discord:
     bot_token_env: SUPPORT_DISCORD_TOKEN
+    output:
+      tool_results: true
+      tool_result_max_length: 900
+      system_status: true
+      result_summary: false
+      errors: true
     guilds:
       - id: "123456789012345678"
         channels:
@@ -568,6 +574,7 @@ chat:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `bot_token_env` | string | — | **Required.** Environment variable name containing this agent's Discord bot token |
+| `output` | object | — | Control which SDK messages appear as Discord embeds (tool results, system status, errors, result summary). See [Discord Output Settings](/integrations/discord/#output-settings) |
 | `guilds` | array | — | Discord servers (guilds) this bot participates in |
 | `guilds[].id` | string | — | Discord guild ID |
 | `guilds[].channels` | array | — | Channels to monitor in this guild |
