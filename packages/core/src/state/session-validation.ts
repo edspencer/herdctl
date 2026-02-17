@@ -470,6 +470,48 @@ export function isSessionExpiredError(error: Error): boolean {
 }
 
 /**
+ * Check if an error indicates an expired or invalid OAuth token
+ *
+ * When the Claude OAuth access token expires mid-session, the SDK/CLI
+ * returns authentication errors. Detecting these allows the job executor
+ * to retry with a fresh token (refreshed by buildContainerEnv on next spawn).
+ */
+export function isTokenExpiredError(error: Error): boolean {
+  const message = error.message.toLowerCase();
+
+  const errorCode = (error as NodeJS.ErrnoException).code?.toLowerCase() ?? "";
+  if (
+    errorCode === "unauthorized" ||
+    errorCode === "token_expired" ||
+    errorCode === "invalid_token" ||
+    errorCode === "auth_error"
+  ) {
+    return true;
+  }
+
+  return (
+    // OAuth token expiry
+    message.includes("token expired") ||
+    message.includes("token has expired") ||
+    message.includes("invalid token") ||
+    message.includes("token is invalid") ||
+    message.includes("expired token") ||
+    // HTTP 401/403 auth errors
+    message.includes("unauthorized") ||
+    message.includes("401") ||
+    message.includes("authentication failed") ||
+    message.includes("authentication required") ||
+    message.includes("not authenticated") ||
+    // Claude-specific auth messages
+    message.includes("oauth") && message.includes("expired") ||
+    message.includes("login required") ||
+    message.includes("please log in") ||
+    message.includes("re-authenticate") ||
+    message.includes("reauthenticate")
+  );
+}
+
+/**
  * Result of cleaning up expired sessions
  */
 export interface CleanupResult {

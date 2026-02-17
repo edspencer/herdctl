@@ -79,7 +79,7 @@ export class ContainerRunner implements RuntimeInterface {
 
     // Build mounts and environment
     const mounts = buildContainerMounts(agent, this.config, this.stateDir);
-    const env = buildContainerEnv(agent, this.config);
+    const env = await buildContainerEnv(agent, this.config);
 
     // Get or create container
     const container = await this.manager.getOrCreateContainer(

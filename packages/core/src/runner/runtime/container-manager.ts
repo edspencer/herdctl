@@ -8,6 +8,7 @@
 import type { Container, ContainerCreateOptions, Exec, HostConfig } from "dockerode";
 import Dockerode from "dockerode";
 import * as path from "node:path";
+import * as fs from "node:fs";
 import * as os from "node:os";
 import type { DockerConfig, PathMapping } from "./docker-config.js";
 import type { ResolvedAgent } from "../../config/index.js";
@@ -286,7 +287,6 @@ export function buildContainerMounts(
   // Claude CLI writes sessions to ~/.claude/projects/<encoded-workspace>/
   // Inside container, working dir is /workspace → encoded as "-workspace"
   // Mount docker-sessions to this location so we can watch files from host
-  // Note: Authentication uses ANTHROPIC_API_KEY env var, so no auth mount needed
   const dockerSessionsDir = path.join(stateDir, "docker-sessions");
   mounts.push({
     hostPath: dockerSessionsDir,
@@ -300,17 +300,105 @@ export function buildContainerMounts(
   return mounts;
 }
 
+const CLAUDE_OAUTH_TOKEN_URL = "https://console.anthropic.com/v1/oauth/token";
+const CLAUDE_OAUTH_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
+// Refresh 5 minutes before expiry to avoid race conditions
+const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
+
+/**
+ * Read Claude OAuth credentials from the mounted credentials file.
+ * Returns the parsed claudeAiOauth object or null if unavailable.
+ */
+function readCredentialsFile(): { accessToken: string; refreshToken: string; expiresAt: number; [key: string]: unknown } | null {
+  const credsPath = path.join(os.homedir(), ".claude", ".credentials.json");
+  try {
+    const creds = JSON.parse(fs.readFileSync(credsPath, "utf-8"));
+    return creds.claudeAiOauth ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Write updated OAuth tokens back to the credentials file.
+ */
+function writeCredentialsFile(oauth: Record<string, unknown>): void {
+  const credsPath = path.join(os.homedir(), ".claude", ".credentials.json");
+  try {
+    let creds: Record<string, unknown> = {};
+    try {
+      creds = JSON.parse(fs.readFileSync(credsPath, "utf-8"));
+    } catch {
+      // File doesn't exist or is invalid — start fresh
+    }
+    creds.claudeAiOauth = oauth;
+    fs.writeFileSync(credsPath, JSON.stringify(creds, null, 2));
+  } catch (err) {
+    console.error("[buildContainerEnv] Failed to write credentials file:", err);
+  }
+}
+
+/**
+ * Refresh the Claude OAuth access token using the refresh token.
+ * Updates the credentials file with the new tokens.
+ * Returns the updated oauth object, or null on failure.
+ */
+async function refreshClaudeOAuthToken(
+  refreshToken: string
+): Promise<{ accessToken: string; refreshToken: string; expiresAt: number } | null> {
+  try {
+    console.log("[buildContainerEnv] Refreshing Claude OAuth token...");
+    const response = await fetch(CLAUDE_OAUTH_TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+        client_id: CLAUDE_OAUTH_CLIENT_ID,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(`[buildContainerEnv] Token refresh failed: HTTP ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json() as {
+      access_token: string;
+      refresh_token: string;
+      expires_in: number;
+    };
+
+    const oauth = {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      expiresAt: Date.now() + data.expires_in * 1000,
+    };
+
+    writeCredentialsFile(oauth);
+    console.log(`[buildContainerEnv] Token refreshed, expires in ${Math.round(data.expires_in / 3600)}h`);
+    return oauth;
+  } catch (err) {
+    console.error("[buildContainerEnv] Token refresh error:", err);
+    return null;
+  }
+}
+
 /**
  * Build environment variables for container
+ *
+ * Reads OAuth tokens from the mounted credentials file and refreshes
+ * them if expired. This ensures agents always get valid tokens without
+ * requiring manual herdctl restarts.
  *
  * @param agent - Resolved agent configuration
  * @param config - Docker configuration (for custom env vars)
  * @returns Array of "KEY=value" strings
  */
-export function buildContainerEnv(
+export async function buildContainerEnv(
   agent: ResolvedAgent,
   config?: DockerConfig
-): string[] {
+): Promise<string[]> {
   const env: string[] = [];
 
   // Pass through API key if available (preferred over mounted auth)
@@ -318,15 +406,41 @@ export function buildContainerEnv(
     env.push(`ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY}`);
   }
 
-  // Pass through OAuth tokens if available (for Claude Max web authentication)
-  if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
-    env.push(`CLAUDE_CODE_OAUTH_TOKEN=${process.env.CLAUDE_CODE_OAUTH_TOKEN}`);
+  // Read fresh OAuth tokens from mounted credentials file on each spawn.
+  let oauth = readCredentialsFile();
+
+  // Refresh if token is expired or about to expire
+  if (oauth?.refreshToken && oauth?.expiresAt) {
+    const now = Date.now();
+    if (now >= oauth.expiresAt - TOKEN_REFRESH_BUFFER_MS) {
+      const refreshed = await refreshClaudeOAuthToken(oauth.refreshToken);
+      if (refreshed) {
+        oauth = refreshed;
+      }
+    }
   }
-  if (process.env.CLAUDE_REFRESH_TOKEN) {
-    env.push(`CLAUDE_REFRESH_TOKEN=${process.env.CLAUDE_REFRESH_TOKEN}`);
-  }
-  if (process.env.CLAUDE_EXPIRES_AT) {
-    env.push(`CLAUDE_EXPIRES_AT=${process.env.CLAUDE_EXPIRES_AT}`);
+
+  if (oauth) {
+    if (oauth.accessToken) {
+      env.push(`CLAUDE_CODE_OAUTH_TOKEN=${oauth.accessToken}`);
+    }
+    if (oauth.refreshToken) {
+      env.push(`CLAUDE_REFRESH_TOKEN=${oauth.refreshToken}`);
+    }
+    if (oauth.expiresAt) {
+      env.push(`CLAUDE_EXPIRES_AT=${oauth.expiresAt}`);
+    }
+  } else {
+    // Fall back to env vars if credentials file not available
+    if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+      env.push(`CLAUDE_CODE_OAUTH_TOKEN=${process.env.CLAUDE_CODE_OAUTH_TOKEN}`);
+    }
+    if (process.env.CLAUDE_REFRESH_TOKEN) {
+      env.push(`CLAUDE_REFRESH_TOKEN=${process.env.CLAUDE_REFRESH_TOKEN}`);
+    }
+    if (process.env.CLAUDE_EXPIRES_AT) {
+      env.push(`CLAUDE_EXPIRES_AT=${process.env.CLAUDE_EXPIRES_AT}`);
+    }
   }
 
   // Add custom environment variables from docker config

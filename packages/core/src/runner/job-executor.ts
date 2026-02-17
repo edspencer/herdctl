@@ -40,6 +40,7 @@ import {
   getSessionInfo,
   clearSession,
   isSessionExpiredError,
+  isTokenExpiredError,
   validateWorkingDirectory,
   validateRuntimeContext,
   type JobMetadata,
@@ -319,8 +320,9 @@ export class JobExecutor {
     }
 
     // Step 4: Execute agent and stream output
-    // Track whether we've already retried after a session expiration
+    // Track whether we've already retried after a session expiration or token expiry
     let retriedAfterSessionExpiry = false;
+    let retriedAfterTokenExpiry = false;
 
     const executeWithRetry = async (resumeSessionId: string | undefined): Promise<void> => {
       try {
@@ -496,6 +498,31 @@ export class JobExecutor {
           // Retry with a fresh session (no resume)
           retriedAfterSessionExpiry = true;
           messagesReceived = 0; // Reset for fresh session
+          await executeWithRetry(undefined);
+          return;
+        }
+
+        // Check if this is an OAuth token expiry error
+        // When the access token expires mid-session, retry triggers buildContainerEnv()
+        // which reads the credentials file and refreshes the token automatically.
+        if (isTokenExpiredError(error as Error) && !retriedAfterTokenExpiry) {
+          this.logger.warn(
+            `OAuth token expired for ${agent.name}. Retrying with fresh token.`
+          );
+
+          // Write info to job output about the retry
+          try {
+            await appendJobOutput(jobsDir, job.id, {
+              type: "system",
+              content: `OAuth token expired. Refreshing token and retrying.`,
+            });
+          } catch {
+            // Ignore output write failures
+          }
+
+          // Retry — buildContainerEnv() will refresh the token from the credentials file
+          retriedAfterTokenExpiry = true;
+          messagesReceived = 0;
           await executeWithRetry(undefined);
           return;
         }

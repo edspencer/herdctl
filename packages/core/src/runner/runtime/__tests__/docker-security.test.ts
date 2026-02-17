@@ -200,27 +200,27 @@ describeDocker("Docker Security Hardening", () => {
   });
 
   describe("buildContainerEnv", () => {
-    it("includes HOME environment variable", () => {
+    it("includes HOME environment variable", async () => {
       const agent = createTestAgent();
-      const env = buildContainerEnv(agent);
+      const env = await buildContainerEnv(agent);
 
       expect(env).toContain("HOME=/home/claude");
     });
 
-    it("includes TERM environment variable", () => {
+    it("includes TERM environment variable", async () => {
       const agent = createTestAgent();
-      const env = buildContainerEnv(agent);
+      const env = await buildContainerEnv(agent);
 
       const termEnv = env.find((e) => e.startsWith("TERM="));
       expect(termEnv).toBeDefined();
     });
 
-    it("includes ANTHROPIC_API_KEY if set in process.env", () => {
+    it("includes ANTHROPIC_API_KEY if set in process.env", async () => {
       const originalKey = process.env.ANTHROPIC_API_KEY;
       process.env.ANTHROPIC_API_KEY = "test-key-123";
 
       const agent = createTestAgent();
-      const env = buildContainerEnv(agent);
+      const env = await buildContainerEnv(agent);
 
       expect(env).toContain("ANTHROPIC_API_KEY=test-key-123");
 
@@ -232,12 +232,12 @@ describeDocker("Docker Security Hardening", () => {
       }
     });
 
-    it("does not include ANTHROPIC_API_KEY if not set", () => {
+    it("does not include ANTHROPIC_API_KEY if not set", async () => {
       const originalKey = process.env.ANTHROPIC_API_KEY;
       delete process.env.ANTHROPIC_API_KEY;
 
       const agent = createTestAgent();
-      const env = buildContainerEnv(agent);
+      const env = await buildContainerEnv(agent);
 
       const apiKeyEnv = env.find((e) => e.startsWith("ANTHROPIC_API_KEY="));
       expect(apiKeyEnv).toBeUndefined();
@@ -248,7 +248,7 @@ describeDocker("Docker Security Hardening", () => {
       }
     });
 
-    it("includes custom env vars from docker config", () => {
+    it("includes custom env vars from docker config", async () => {
       const agent = createTestAgent();
       const dockerConfig = resolveDockerConfig({
         enabled: true,
@@ -258,15 +258,15 @@ describeDocker("Docker Security Hardening", () => {
         },
       });
 
-      const env = buildContainerEnv(agent, dockerConfig);
+      const env = await buildContainerEnv(agent, dockerConfig);
 
       expect(env).toContain("GITHUB_TOKEN=ghp_test123");
       expect(env).toContain("CUSTOM_VAR=custom_value");
     });
 
-    it("works without docker config (backwards compatible)", () => {
+    it("works without docker config (backwards compatible)", async () => {
       const agent = createTestAgent();
-      const env = buildContainerEnv(agent);
+      const env = await buildContainerEnv(agent);
 
       // Should still include basic env vars
       expect(env).toContain("HOME=/home/claude");
