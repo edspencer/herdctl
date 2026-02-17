@@ -138,6 +138,7 @@ export default defineConfig({
 					collapsed: true,
 					items: [
 						{ label: 'Discord', slug: 'integrations/discord' },
+						{ label: 'Slack', slug: 'integrations/slack' },
 					],
 				},
 				{
@@ -145,6 +146,7 @@ export default defineConfig({
 					collapsed: true,
 					items: [
 						{ label: 'Discord Chat Quick Start', slug: 'guides/discord-quick-start' },
+						{ label: 'Slack Chat Quick Start', slug: 'guides/slack-quick-start' },
 						{ label: 'Example Projects', slug: 'guides/examples' },
 						{ label: 'Persistent Memory', slug: 'guides/persistent-memory' },
 						{ label: 'Recipes & Patterns', slug: 'guides/recipes' },

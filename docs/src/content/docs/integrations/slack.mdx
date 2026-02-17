@@ -1,0 +1,856 @@
+---
+title: Slack Integration
+description: Connect your herdctl agents to Slack with Socket Mode
+---
+
+import { Tabs, TabItem, Steps, Aside, Card, CardGrid } from '@astrojs/starlight/components';
+
+Connect your herdctl agents to Slack, allowing users to interact with AI agents through channel messages, @mentions, and threaded conversations. herdctl uses Slack's **Socket Mode** so no public URL or reverse proxy is needed.
+
+## Overview
+
+herdctl uses a **shared-connector architecture** for Slack. A single Slack App (one bot token) serves your entire workspace, with individual channels routed to specific agents. This is different from the [Discord integration](/integrations/discord/) where each agent has its own bot.
+
+<CardGrid>
+  <Card title="Single Bot" icon="rocket">
+    One Slack App handles all agents — no need to create multiple bots
+  </Card>
+  <Card title="Channel Routing" icon="setting">
+    Each channel maps to a specific agent, so users talk to the right agent automatically
+  </Card>
+  <Card title="Socket Mode" icon="approve-check">
+    Connects via WebSocket — no public URL, domain, or reverse proxy required
+  </Card>
+  <Card title="Threaded Replies" icon="comment">
+    Responses appear in threads, keeping channels organized
+  </Card>
+</CardGrid>
+
+### How It Works
+
+```
+Slack Workspace (single bot)
+├── #support
+│   └── @HerdBot → routed to support-agent
+├── #dev-help
+│   └── @HerdBot → routed to coder-agent
+└── #general
+    └── @HerdBot → routed to general-agent
+```
+
+All channels use the same bot identity. When a user messages or @mentions the bot in a channel, herdctl routes the message to the agent assigned to that channel and triggers a Claude session to respond.
+
+### Slack vs Discord Architecture
+
+| Aspect | Slack | Discord |
+|--------|-------|---------|
+| **Bots per workspace** | 1 shared bot | 1 bot per agent |
+| **Token model** | Bot token + App token (shared) | Separate bot token per agent |
+| **Connection** | Socket Mode (WebSocket) | Gateway (WebSocket) |
+| **Channel structure** | Flat channels | Guild → Channels |
+| **Commands** | Prefix commands (`!help`) | Slash commands (`/help`) |
+| **DM support** | Not supported | Supported |
+| **Public URL needed** | No | No |
+
+### Response Modes
+
+| Mode | Behavior | Best For |
+|------|----------|----------|
+| `mention` | Responds only when @mentioned | Shared channels where you want explicit interaction |
+| `auto` | Responds to all messages | Dedicated channels for a specific agent |
+
+## Chat vs Notification Hooks
+
+herdctl supports two different Slack integrations:
+
+| Integration | Type | Purpose | Configuration |
+|------------|------|---------|---------------|
+| **Chat** | Two-way | Interactive conversations | `chat.slack` |
+| **Notification Hooks** | One-way | Job completion alerts | `hooks.after_run` |
+
+### Chat Integration (This Page)
+
+The chat integration documented on this page enables **interactive, two-way conversations**:
+- Bot responds to user messages and mentions
+- Maintains conversation context in threads
+- Users can ask questions and get responses
+- Configured in the `chat.slack` section of agent config
+
+### Notification Hooks
+
+[Notification hooks](/concepts/hooks/) send **one-way alerts** when jobs complete:
+- Post job results to a channel
+- Conditional notifications (e.g., only when a price drops)
+- No user interaction — just announcements
+- Configured in the `hooks.after_run` section
+
+**Example notification hook:**
+
+```yaml
+hooks:
+  after_run:
+    - type: slack
+      channel_id: "${SLACK_CHANNEL_ID}"
+      bot_token_env: SLACK_BOT_TOKEN
+      when: "metadata.shouldNotify"
+```
+
+<Aside type="tip">
+  Use **chat** when you want users to interact with your agent. Use **notification hooks** when you want to announce job results or alerts.
+</Aside>
+
+## Prerequisites
+
+Before setting up Slack integration, ensure you have:
+
+- A [Slack](https://slack.com/) account
+- **Admin** permissions on the target Slack workspace (or permission to install apps)
+- Access to the [Slack API portal](https://api.slack.com/apps)
+- herdctl installed and configured
+- Your agent configuration file ready
+
+## Creating a Slack App
+
+<Steps>
+
+1. **Open the Slack API Portal**
+
+   Navigate to [https://api.slack.com/apps](https://api.slack.com/apps) and sign in with your Slack account.
+
+2. **Create a New App**
+
+   Click **Create New App** and choose **From scratch**.
+
+   Enter a name for your app (e.g., "HerdBot" or "My Fleet Bot") and select the workspace where you want to install it.
+
+   <Aside type="tip">
+     The app name becomes the bot's display name in Slack. Choose something descriptive like "Support Bot" or "Code Assistant".
+   </Aside>
+
+3. **Enable Socket Mode**
+
+   In the left sidebar, go to **Settings** > **Socket Mode**.
+
+   Toggle **Enable Socket Mode** on.
+
+   You'll be prompted to generate an **App-Level Token**:
+   - Give it a name (e.g., "socket-mode-token")
+   - Add the `connections:write` scope
+   - Click **Generate**
+   - Copy the token (starts with `xapp-`)
+
+   <Aside type="danger">
+     **Save this token immediately!** You won't be able to see it again. Store it securely in environment variables. Never commit tokens to version control.
+   </Aside>
+
+4. **Add Bot Token Scopes**
+
+   In the left sidebar, go to **Features** > **OAuth & Permissions**.
+
+   Scroll to **Bot Token Scopes** and add:
+
+   | Scope | Purpose |
+   |-------|---------|
+   | `app_mentions:read` | Detect when users @mention the bot |
+   | `chat:write` | Send messages and replies |
+   | `channels:history` | Read channel messages for context |
+   | `files:write` | Upload files (for long responses) |
+
+5. **Subscribe to Events**
+
+   In the left sidebar, go to **Features** > **Event Subscriptions**.
+
+   Toggle **Enable Events** on.
+
+   Under **Subscribe to bot events**, add:
+
+   | Event | Purpose |
+   |-------|---------|
+   | `app_mention` | Triggers when the bot is @mentioned |
+   | `message.channels` | Triggers on all channel messages (for `auto` mode) |
+
+   Click **Save Changes**.
+
+6. **Install the App to Your Workspace**
+
+   In the left sidebar, go to **Settings** > **Install App**.
+
+   Click **Install to Workspace** and authorize the app.
+
+   Copy the **Bot User OAuth Token** (starts with `xoxb-`).
+
+   <Aside type="danger">
+     **Never share your bot token or commit it to version control!** The token provides full access to your bot. Store it securely in environment variables.
+   </Aside>
+
+7. **Add the Bot to Channels**
+
+   In Slack, go to each channel where you want the bot to operate:
+   - Type `@YourBotName` and send the message, then click **Invite to Channel** when prompted
+   - Or open channel settings > **Integrations** > **Add an App**
+
+   The bot must be a member of a channel to receive messages from it.
+
+</Steps>
+
+## Getting Slack Channel IDs
+
+You'll need channel IDs to configure which channels route to which agents.
+
+### Finding Channel IDs
+
+<Steps>
+
+1. Open Slack (desktop or web app)
+
+2. Right-click on a channel name in the sidebar
+
+3. Select **View channel details** (or **Open channel details**)
+
+4. The channel ID is shown at the bottom of the details panel — click to copy
+
+</Steps>
+
+Alternatively, you can find the channel ID in the URL when viewing a channel in the Slack web app:
+
+```
+https://app.slack.com/client/T01234567/C0123456789
+                                       ^^^^^^^^^^^
+                                       This is the channel ID
+```
+
+### Example IDs
+
+```yaml
+channels:
+  - id: "C0123456789"   # Channel ID (starts with C)
+    name: "#support"
+```
+
+<Aside type="note">
+  Slack channel IDs always start with `C` for public channels or `G` for private channels. IDs should be quoted as strings in YAML.
+</Aside>
+
+## Agent Configuration
+
+Configure Slack in your agent's YAML file under the `chat.slack` section.
+
+### Basic Configuration
+
+```yaml
+name: support-agent
+description: "Customer support agent"
+
+chat:
+  slack:
+    bot_token_env: SLACK_BOT_TOKEN
+    app_token_env: SLACK_APP_TOKEN
+    channels:
+      - id: "C0123456789"
+        name: "#support"
+        mode: mention
+```
+
+### Complete Configuration Reference
+
+```yaml
+chat:
+  slack:
+    # Environment variable containing the Bot User OAuth Token (required)
+    # Token starts with xoxb-
+    bot_token_env: SLACK_BOT_TOKEN
+
+    # Environment variable containing the App-Level Token for Socket Mode (required)
+    # Token starts with xapp-
+    app_token_env: SLACK_APP_TOKEN
+
+    # Session expiry in hours (default: 24)
+    session_expiry_hours: 24
+
+    # Log level: minimal, standard, verbose (default: standard)
+    log_level: standard
+
+    # Channel configurations
+    channels:
+      - id: "C0123456789"          # Slack channel ID (required)
+        name: "#support"            # Human-readable name (optional)
+        mode: mention               # mention or auto (default: mention)
+        context_messages: 10        # Messages to include as context (default: 10)
+
+      - id: "C9876543210"
+        name: "#dev-help"
+        mode: auto
+        context_messages: 5
+```
+
+### Configuration Options
+
+#### Top-Level Slack Settings
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `bot_token_env` | string | — | **Required.** Environment variable name containing the Bot User OAuth Token (`xoxb-`) |
+| `app_token_env` | string | — | **Required.** Environment variable name containing the App-Level Token (`xapp-`) for Socket Mode |
+| `session_expiry_hours` | number | `24` | Hours before a conversation session expires |
+| `log_level` | string | `standard` | Logging verbosity: `minimal`, `standard`, `verbose` |
+| `channels` | array | — | List of Slack channels to operate in |
+
+#### Channel Settings
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `id` | string | — | **Required.** Slack channel ID (starts with `C` or `G`) |
+| `name` | string | — | Human-readable name (for documentation only) |
+| `mode` | string | `mention` | Response mode: `mention` or `auto` |
+| `context_messages` | number | `10` | Number of recent messages to include as context |
+
+<Aside type="note">
+  Unlike Discord, Slack does not have guild (server) hierarchy, DM configuration, presence settings, or output formatting options. The configuration is simpler — just list your channels directly.
+</Aside>
+
+## Environment Variables
+
+herdctl uses environment variables for Slack tokens to keep secrets out of configuration files.
+
+### Required Tokens
+
+Slack requires **two** tokens (compared to Discord's one):
+
+```bash
+# Bot User OAuth Token — authenticates as the bot user
+# Found at: Slack App > OAuth & Permissions > Bot User OAuth Token
+export SLACK_BOT_TOKEN="xoxb-your-bot-token-here"
+
+# App-Level Token — enables Socket Mode connection
+# Found at: Slack App > Settings > Basic Information > App-Level Tokens
+export SLACK_APP_TOKEN="xapp-your-app-token-here"
+```
+
+### Token Naming Convention
+
+If you have multiple workspaces or want descriptive names:
+
+```bash
+# Pattern: {PURPOSE}_SLACK_BOT_TOKEN / {PURPOSE}_SLACK_APP_TOKEN
+export SUPPORT_SLACK_BOT_TOKEN="xoxb-..."
+export SUPPORT_SLACK_APP_TOKEN="xapp-..."
+```
+
+### Setting Up Environment Variables
+
+<Tabs>
+<TabItem label=".env File">
+Create a `.env` file in your project root (next to `herdctl.yaml`):
+
+```bash
+# .env
+SLACK_BOT_TOKEN=xoxb-your-bot-token-here
+SLACK_APP_TOKEN=xapp-your-app-token-here
+SLACK_CHANNEL_ID=C0123456789
+```
+
+herdctl automatically loads `.env` files when you run `herdctl start`.
+
+<Aside type="caution">
+  Add `.env` to your `.gitignore` to prevent committing tokens!
+</Aside>
+</TabItem>
+
+<TabItem label="Shell Profile">
+Add to `~/.bashrc`, `~/.zshrc`, or equivalent:
+
+```bash
+export SLACK_BOT_TOKEN="xoxb-your-bot-token-here"
+export SLACK_APP_TOKEN="xapp-your-app-token-here"
+```
+
+Then reload:
+```bash
+source ~/.bashrc  # or ~/.zshrc
+```
+</TabItem>
+
+<TabItem label="System Environment">
+On macOS/Linux:
+```bash
+export SLACK_BOT_TOKEN="xoxb-your-bot-token-here"
+export SLACK_APP_TOKEN="xapp-your-app-token-here"
+```
+
+On Windows (PowerShell):
+```powershell
+$env:SLACK_BOT_TOKEN="xoxb-your-bot-token-here"
+$env:SLACK_APP_TOKEN="xapp-your-app-token-here"
+```
+</TabItem>
+</Tabs>
+
+### Referencing in Configuration
+
+In your agent YAML, reference the environment variable names (not the values):
+
+```yaml
+chat:
+  slack:
+    bot_token_env: SLACK_BOT_TOKEN    # The variable NAME, not the token
+    app_token_env: SLACK_APP_TOKEN    # The variable NAME, not the token
+```
+
+herdctl reads the tokens from `process.env.SLACK_BOT_TOKEN` and `process.env.SLACK_APP_TOKEN` at runtime. You can also use `${VAR_NAME}` substitution in channel IDs for flexibility:
+
+```yaml
+channels:
+  - id: "${SLACK_CHANNEL_ID}"
+```
+
+## Socket Mode
+
+Slack's **Socket Mode** is a key advantage of the herdctl Slack integration. Instead of requiring a public URL to receive webhook events, Socket Mode uses a WebSocket connection initiated by the bot.
+
+### How It Works
+
+```
+Traditional Webhooks:
+  Slack ──HTTP POST──→ https://your-server.com/slack/events
+  (Requires public URL, domain, SSL, reverse proxy)
+
+Socket Mode:
+  Your Bot ──WebSocket──→ Slack
+  (Works behind NAT, firewalls, on localhost)
+```
+
+### Benefits
+
+- **No public URL needed** — Run agents on your laptop, behind a firewall, or on a private server
+- **No domain or SSL setup** — No need to configure DNS, certificates, or reverse proxies
+- **Instant setup** — Just set tokens and go
+- **Firewall friendly** — Outbound WebSocket connections work through most firewalls
+
+The App-Level Token (`xapp-`) is specifically for establishing this Socket Mode connection. The Bot User OAuth Token (`xoxb-`) is used for API calls (sending messages, reading history, etc.).
+
+## Testing the Integration
+
+### 1. Start the Fleet
+
+```bash
+herdctl start
+```
+
+Look for connection messages in the logs:
+
+```
+[slack] Connecting to Slack via Socket Mode...
+[slack] Connected to Slack: HerdBot
+[slack] Listening in channels: #support (C0123456789), #dev-help (C9876543210)
+```
+
+### 2. Verify Bot Status
+
+The bot should appear as active in the channels you configured. You can check with:
+
+```
+!status
+```
+
+### 3. Test Mention Mode
+
+In a channel configured with `mode: mention`:
+
+```
+You: @HerdBot How do I reset my password?
+HerdBot: To reset your password, follow these steps...
+```
+
+### 4. Test Auto Mode
+
+In a channel configured with `mode: auto`:
+
+```
+You: How do I reset my password?
+HerdBot: To reset your password, follow these steps...
+```
+
+### 5. Test Commands
+
+herdctl provides built-in prefix commands for every Slack-enabled agent:
+
+| Command | Description |
+|---------|-------------|
+| `!help` | Show available commands and usage |
+| `!status` | Show bot connection status and session info |
+| `!reset` | Clear conversation context and start fresh |
+
+Try them in any channel where the bot is active:
+
+```
+!status
+```
+
+<Aside type="note">
+  Slack uses **prefix commands** (`!help`, `!reset`, `!status`) rather than Discord's slash commands (`/help`, `/reset`, `/status`). This is because Slack slash commands require additional app configuration and a request URL. Prefix commands work immediately with Socket Mode.
+</Aside>
+
+#### !help Command
+
+Shows available commands and basic usage information:
+
+```
+!help
+```
+
+**Example output:**
+```
+Available commands:
+  !help   - Show this help message
+  !status - Show bot status
+  !reset  - Reset conversation context
+
+Chat with me:
+  @HerdBot your question — in channels
+```
+
+#### !status Command
+
+Shows connection status and session information:
+
+```
+!status
+```
+
+**Example output:**
+```
+Bot Status
+  Connected: Yes
+  Uptime: 2h 34m
+  Session: Active (expires in 21h)
+  Channel: #support
+```
+
+#### !reset Command
+
+Clears the conversation context for the current channel:
+
+```
+!reset
+```
+
+**Example output:**
+```
+Conversation reset! Starting fresh.
+```
+
+Use `!reset` when:
+- The bot seems confused or stuck on a previous topic
+- You want to start a completely new conversation
+- The session has accumulated too much irrelevant context
+
+## Multiple Agents in One Workspace
+
+Unlike Discord (where each agent has its own bot), Slack uses a **single bot** for all agents. Different agents are assigned to different channels.
+
+### Channel-to-Agent Routing
+
+Each channel maps to exactly one agent. When a message arrives, herdctl looks up which agent owns that channel and routes the message accordingly.
+
+```yaml
+# agents/support-agent.yaml
+name: support-agent
+chat:
+  slack:
+    bot_token_env: SLACK_BOT_TOKEN
+    app_token_env: SLACK_APP_TOKEN
+    channels:
+      - id: "C111111111"
+        name: "#support"
+        mode: mention
+
+# agents/coder-agent.yaml
+name: coder-agent
+chat:
+  slack:
+    bot_token_env: SLACK_BOT_TOKEN      # Same tokens!
+    app_token_env: SLACK_APP_TOKEN      # Same tokens!
+    channels:
+      - id: "C222222222"
+        name: "#dev-help"
+        mode: auto
+```
+
+Both agents share the same bot tokens because they use the same Slack App. The routing is determined by channel ID:
+- Messages in `#support` go to `support-agent`
+- Messages in `#dev-help` go to `coder-agent`
+
+### Best Practices for Multiple Agents
+
+1. **Use distinct channels** — Each agent should have its own dedicated channel(s). Since all agents share the same bot identity, channel separation is how users interact with different agents.
+
+2. **Name channels clearly** — Use descriptive channel names like `#support-bot`, `#code-review`, `#dev-help` so users know which agent they're talking to.
+
+3. **Set channel topics** — Add the agent's purpose to the channel topic (e.g., "Ask me about code reviews — powered by herdctl").
+
+4. **Use mention mode in shared channels** — If a channel must be monitored by multiple agents (not recommended), use `mention` mode.
+
+### Avoiding Conflicts
+
+<Aside type="caution">
+  Never assign the same channel to two different agents. herdctl routes each channel to exactly one agent. If a channel ID appears in multiple agent configs, behavior is undefined.
+</Aside>
+
+| Scenario | Recommendation |
+|----------|----------------|
+| Two agents need separate channels | Assign different channels to each agent |
+| One agent needs multiple channels | List multiple channels in that agent's config |
+| Shared discussion channel | Don't assign it to an agent, or use `mention` mode |
+
+## Session Management
+
+Slack chat integration maintains conversation context so your agent can have multi-turn conversations and "remember" what was discussed.
+
+### How Sessions Work
+
+- **Scope**: Sessions are per-channel
+- **Identity**: Session ID is based on channel ID
+- **Expiry**: Sessions expire after `session_expiry_hours` (default: 24 hours)
+- **Persistence**: Sessions are stored as YAML files in `.herdctl/slack-sessions/` and survive bot restarts within the expiry window
+
+### Session Context
+
+When a user sends a message, the agent receives:
+1. The current message as the prompt
+2. Recent conversation history from the session
+3. The channel context
+
+This allows natural conversations:
+
+```
+User: What's the current price of the Hyken chair?
+Bot: The Hyken chair is currently $189 at Staples.
+
+User: When did you last check?
+Bot: I checked prices 2 hours ago at 10:30 AM.
+
+User: Is that below my target?
+Bot: Yes! Your target is $200, so $189 is $11 below target.
+```
+
+The bot remembers the chair and target price from earlier in the conversation.
+
+### Configuring Session Expiry
+
+```yaml
+chat:
+  slack:
+    bot_token_env: SLACK_BOT_TOKEN
+    app_token_env: SLACK_APP_TOKEN
+    session_expiry_hours: 24  # Default: 24 hours
+```
+
+Choose expiry based on your use case:
+
+| Use Case | Recommended Expiry |
+|----------|-------------------|
+| Support bot | 24-48 hours |
+| Quick Q&A | 1-4 hours |
+| Long-running projects | 72+ hours |
+| Stateless responses | 1 hour |
+
+### Clearing Sessions
+
+Users can clear their session context using `!reset`:
+
+```
+!reset
+```
+
+This is useful when:
+- The bot is confused about context from earlier
+- Starting a completely new topic
+- Testing fresh conversation flows
+
+### Context Messages
+
+Control how many recent messages are included as context:
+
+```yaml
+channels:
+  - id: "C0123456789"
+    mode: mention
+    context_messages: 10  # Include last 10 messages
+```
+
+More context = better continuity but higher token usage.
+
+## Formatting
+
+Slack uses its own markup format called **mrkdwn** (not standard Markdown). herdctl automatically converts the agent's Markdown output to Slack's mrkdwn format, so you don't need to worry about formatting differences.
+
+| Markdown | Slack mrkdwn | Rendered |
+|----------|-------------|----------|
+| `**bold**` | `*bold*` | **bold** |
+| `*italic*` | `_italic_` | *italic* |
+| `` `code` `` | `` `code` `` | `code` |
+| `~~strike~~` | `~strike~` | ~~strike~~ |
+| `[link](url)` | `<url\|link>` | link |
+
+Code blocks, lists, and blockquotes are also converted automatically.
+
+### Long Messages
+
+Slack has a message length limit of approximately 4,000 characters (compared to Discord's 2,000). When a response exceeds this limit, herdctl automatically splits it into multiple messages.
+
+## Best Practices
+
+### Choosing Response Modes
+
+| Scenario | Recommended Mode |
+|----------|-----------------|
+| Dedicated agent channel | `auto` |
+| Shared team channel | `mention` |
+| High-traffic channel | `mention` |
+| Testing/development | `auto` |
+
+### Channel Organization
+
+For multiple agents in the same workspace:
+
+1. **Dedicated channels**: Give each agent its own channel with `auto` mode
+   ```
+   #support-bot → support-agent (auto)
+   #dev-help    → coder-agent (auto)
+   ```
+
+2. **Shared channels**: Use `mention` mode so users explicitly address the bot
+   ```
+   #general → general-agent (mention)
+   ```
+
+### Rate Limit Considerations
+
+Slack has rate limits on API calls. To avoid issues:
+
+1. **Don't use auto mode in high-traffic channels** — Use mention mode instead
+2. **Keep responses concise** — Avoid very long multi-paragraph responses
+3. **Reduce context_messages for busy channels** — Lower token usage means faster responses
+
+If you see rate limit warnings in logs, consider:
+- Switching busy channels to mention mode
+- Reducing session expiry to limit context size
+- Using shorter context_messages values
+
+## Troubleshooting
+
+### Common Errors
+
+#### "Bot token cannot be empty"
+
+**Cause**: The environment variable specified in `bot_token_env` is not set or is empty.
+
+**Solution**:
+```bash
+# Check if the variable is set
+echo $SLACK_BOT_TOKEN
+
+# Set it if missing
+export SLACK_BOT_TOKEN="xoxb-your-token-here"
+```
+
+#### "App token cannot be empty"
+
+**Cause**: The environment variable specified in `app_token_env` is not set or is empty.
+
+**Solution**:
+```bash
+# Check if the variable is set
+echo $SLACK_APP_TOKEN
+
+# Set it if missing — generate one at Slack App > Settings > Socket Mode
+export SLACK_APP_TOKEN="xapp-your-token-here"
+```
+
+#### "invalid_auth" or "not_authed"
+
+**Cause**: The bot token is incorrect, expired, or the app was uninstalled.
+
+**Solution**:
+1. Go to [api.slack.com/apps](https://api.slack.com/apps)
+2. Select your app
+3. Go to **OAuth & Permissions**
+4. Check that the app is installed (or reinstall it)
+5. Copy the current **Bot User OAuth Token**
+6. Update your environment variable
+
+#### Bot doesn't respond to messages
+
+**Cause**: Various configuration issues.
+
+**Checklist**:
+- Is the bot added to the channel? (Invite it with `@BotName` or via channel settings)
+- Is the channel ID correct in the config?
+- Is the mode appropriate? (`mention` requires @mention)
+- Are event subscriptions configured? (`app_mention` and `message.channels`)
+- Is Socket Mode enabled?
+- Check logs for errors
+
+#### "channel_not_found"
+
+**Cause**: The bot is not a member of the channel, or the channel ID is wrong.
+
+**Solution**:
+1. Verify the channel ID is correct (right-click channel > View channel details)
+2. Invite the bot to the channel (`@BotName` in the channel)
+3. For private channels, the bot must be explicitly invited
+
+#### Socket Mode connection fails
+
+**Cause**: App-Level Token is missing, invalid, or lacks the `connections:write` scope.
+
+**Solution**:
+1. Go to [api.slack.com/apps](https://api.slack.com/apps)
+2. Select your app > **Settings** > **Socket Mode**
+3. Verify Socket Mode is enabled
+4. Check that your App-Level Token has the `connections:write` scope
+5. If needed, generate a new App-Level Token
+
+#### "missing_scope"
+
+**Cause**: The bot lacks required OAuth scopes.
+
+**Solution**:
+1. Go to your Slack App > **OAuth & Permissions** > **Bot Token Scopes**
+2. Add the missing scope (see [required scopes](#add-bot-token-scopes))
+3. **Reinstall the app** — scope changes require reinstallation
+
+<Aside type="caution">
+  After adding new scopes, you must reinstall the app to your workspace for the changes to take effect.
+</Aside>
+
+### Debug Logging
+
+Enable verbose logging to troubleshoot issues:
+
+```yaml
+chat:
+  slack:
+    bot_token_env: SLACK_BOT_TOKEN
+    app_token_env: SLACK_APP_TOKEN
+    log_level: verbose  # Shows detailed debug information
+```
+
+Verbose logs include:
+- All received messages and whether they were processed
+- Socket Mode connection state changes
+- Channel-to-agent routing decisions
+- Rate limit events
+
+### Checking Bot State
+
+Use the `!status` command in any channel where the bot is active to check connection status and session information.
+
+## Related Pages
+
+- [Slack Chat Quick Start](/guides/slack-quick-start/) — Get started in 5 minutes
+- [Discord Integration](/integrations/discord/) — Alternative chat integration
+- [Agent Configuration](/configuration/agent-config/) — Complete agent config reference
+- [Hooks](/concepts/hooks/) — Post-job notification hooks (including Slack hooks)
+- [Sessions](/concepts/sessions/) — How conversation context works
+- [Example Projects](/guides/examples/) — Working example configurations

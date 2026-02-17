@@ -369,12 +369,13 @@ hooks:
 | `shell` | Execute a shell command with HookContext on stdin |
 | `webhook` | POST/PUT HookContext JSON to a URL |
 | `discord` | Send formatted notification to Discord channel |
+| `slack` | Send formatted notification to Slack channel |
 
 #### Common Hook Fields
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `type` | string | — | **Required.** `shell`, `webhook`, or `discord` |
+| `type` | string | — | **Required.** `shell`, `webhook`, `discord`, or `slack` |
 | `name` | string | — | Human-readable name for logs |
 | `continue_on_error` | boolean | `true` | Continue if hook fails |
 | `on_events` | array | all | Filter to specific events: `completed`, `failed`, `timeout`, `cancelled` |
@@ -545,7 +546,7 @@ Each MCP server is a named entry with these fields:
 
 ### chat
 
-Configure chat integrations for the agent. Each chat-enabled agent has its own bot - appearing as a distinct "person" in Discord/Slack with its own name, avatar, and presence.
+Configure chat integrations for the agent. Discord uses one bot per agent, while Slack uses a shared bot with channel-to-agent routing.
 
 ```yaml
 chat:
@@ -586,6 +587,34 @@ chat:
 
 :::note[Bot Setup Required]
 Each chat-enabled agent needs its own Discord Application (created in [Discord Developer Portal](https://discord.com/developers/applications)). See the [Discord integration guide](/integrations/discord/) for setup instructions.
+:::
+
+#### Slack Settings
+
+```yaml
+chat:
+  slack:
+    bot_token_env: SLACK_BOT_TOKEN
+    app_token_env: SLACK_APP_TOKEN
+    session_expiry_hours: 24
+    log_level: standard
+    channels:
+      - id: "C0123456789"
+        mode: mention
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `bot_token_env` | string | — | **Required.** Environment variable containing the Bot User OAuth Token (`xoxb-`) |
+| `app_token_env` | string | — | **Required.** Environment variable containing the App-Level Token (`xapp-`) for Socket Mode |
+| `session_expiry_hours` | number | `24` | Hours before conversation context expires |
+| `log_level` | string | `standard` | Logging level: `minimal`, `standard`, or `verbose` |
+| `channels` | array | — | Slack channels this agent monitors |
+| `channels[].id` | string | — | Slack channel ID (starts with `C`) |
+| `channels[].mode` | string | `mention` | `mention` (respond when @mentioned) or `auto` (respond to all) |
+
+:::note[Slack Bot Setup]
+Slack uses a shared bot — all agents in a workspace share one Slack App and bot token. Different channels route to different agents. See the [Slack integration guide](/integrations/slack/) for setup instructions.
 :::
 
 ### docker

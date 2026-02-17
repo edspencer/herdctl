@@ -208,7 +208,9 @@ schedules:
 
 ### The Support Agent
 
-Responds to chat messages. Each chat-enabled agent has its own Discord bot, appearing as a distinct "colleague" in chat:
+Responds to chat messages. Chat-enabled agents appear as distinct "colleagues" in your messaging platform.
+
+**Discord** — each agent has its own Discord bot:
 
 ```yaml
 name: project-support
@@ -227,6 +229,26 @@ chat:
         dm:
           enabled: true
           mode: auto
+
+session:
+  mode: per_channel  # Separate context per channel
+```
+
+**Slack** — agents share one bot, with different channels routing to different agents:
+
+```yaml
+name: project-support
+description: "Answers user questions in Slack"
+workspace: my-project
+repo: owner/my-project
+
+chat:
+  slack:
+    bot_token_env: SLACK_BOT_TOKEN
+    app_token_env: SLACK_APP_TOKEN
+    channels:
+      - id: "C0123456789"
+        mode: mention  # Responds when @mentioned
 
 session:
   mode: per_channel  # Separate context per channel

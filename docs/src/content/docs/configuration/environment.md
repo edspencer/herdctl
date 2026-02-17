@@ -293,8 +293,9 @@ While herdctl doesn't require specific environment variables, these are commonly
 | `GITHUB_TOKEN` | GitHub API token for MCP server | `ghp_...` |
 | `LINEAR_API_KEY` | Linear API key for issue tracking | `lin_api_...` |
 | `<AGENT>_DISCORD_TOKEN` | Per-agent Discord bot token (e.g., `SUPPORT_DISCORD_TOKEN`) | — |
-| `<AGENT>_SLACK_TOKEN` | Per-agent Slack bot token (e.g., `SUPPORT_SLACK_TOKEN`) | — |
-| `<AGENT>_SLACK_APP_TOKEN` | Per-agent Slack app token for Socket Mode | — |
+| `SLACK_BOT_TOKEN` | Slack Bot User OAuth Token (`xoxb-`) — shared across agents | — |
+| `SLACK_APP_TOKEN` | Slack App-Level Token (`xapp-`) for Socket Mode | — |
+| `SLACK_CHANNEL_ID` | Slack channel ID for agent routing | `C0123456789` |
 
 ---
 
@@ -338,8 +339,9 @@ mcp_servers:
     command: npx
     args: ["-y", "@modelcontextprotocol/server-filesystem", "${ALLOWED_PATHS:-/tmp}"]
 
-# Note: Chat (Discord/Slack) is configured per-agent, not at fleet level.
-# Each agent references its own token env var in its config.
+# Note: Chat is configured per-agent, not at fleet level.
+# Discord: each agent references its own bot token env var.
+# Slack: agents share one bot token, with channel-to-agent routing.
 
 webhooks:
   enabled: true
