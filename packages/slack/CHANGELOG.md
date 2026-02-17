@@ -1,5 +1,22 @@
 # @herdctl/slack
 
+## 0.2.1
+
+### Patch Changes
+
+- [#53](https://github.com/edspencer/herdctl/pull/53) [`fd8f39d`](https://github.com/edspencer/herdctl/commit/fd8f39d8f53e8d70f36d41ccbbf78a34903ce83d) Thanks [@edspencer](https://github.com/edspencer)! - Add verbose logging control and colorized output
+
+  - Add `--verbose` / `-v` flag to `herdctl start` to enable debug logging
+  - Add `HERDCTL_LOG_LEVEL` environment variable support (debug/info/warn/error)
+  - Add colorized log output in `herdctl start` matching the style of `herdctl logs`
+  - Refactor CLIRuntime and CLISessionWatcher to use centralized logger
+  - Convert Discord and Slack connector loggers to use centralized `createLogger` from core
+  - Internal debug logs are now hidden by default, reducing noise significantly
+  - Extract shared color utilities for consistent formatting across CLI commands
+
+- Updated dependencies [[`fd8f39d`](https://github.com/edspencer/herdctl/commit/fd8f39d8f53e8d70f36d41ccbbf78a34903ce83d), [`fd8f39d`](https://github.com/edspencer/herdctl/commit/fd8f39d8f53e8d70f36d41ccbbf78a34903ce83d)]:
+  - @herdctl/core@4.1.1
+
 ## 0.2.0
 
 ### Minor Changes
