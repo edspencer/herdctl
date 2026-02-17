@@ -20,8 +20,8 @@ import type {
   CommandContext,
 } from "./types.js";
 import { createLogger } from "@herdctl/core";
+import type { IChatSessionManager } from "@herdctl/chat";
 import type { DiscordConnectorState } from "../types.js";
-import type { ISessionManager } from "../session-manager/index.js";
 import { helpCommand } from "./help.js";
 import { resetCommand } from "./reset.js";
 import { statusCommand } from "./status.js";
@@ -86,7 +86,7 @@ export class CommandManager implements ICommandManager {
   private readonly agentName: string;
   private readonly client: Client;
   private readonly botToken: string;
-  private readonly sessionManager: ISessionManager;
+  private readonly sessionManager: IChatSessionManager;
   private readonly getConnectorState: () => DiscordConnectorState;
   private readonly logger: CommandManagerLogger;
   private readonly commands: Map<string, SlashCommand>;

@@ -2,9 +2,11 @@
  * Message formatting utilities for Discord
  *
  * Provides utilities for:
- * - Splitting long messages to fit Discord's 2000 character limit
- * - Maintaining message coherence when splitting (avoiding mid-sentence breaks)
  * - Managing typing indicators during message processing
+ * - Sending messages with automatic splitting
+ * - Discord-specific markdown escaping
+ *
+ * Message splitting utilities are provided by @herdctl/chat.
  */
 
 import type {
@@ -13,6 +15,10 @@ import type {
   NewsChannel,
   ThreadChannel,
 } from "discord.js";
+import {
+  splitMessage,
+  DEFAULT_MESSAGE_DELAY_MS,
+} from "@herdctl/chat";
 
 // =============================================================================
 // Constants
@@ -22,17 +28,6 @@ import type {
  * Discord's maximum message length
  */
 export const DISCORD_MAX_MESSAGE_LENGTH = 2000;
-
-/**
- * Default delay between sending split messages (in milliseconds)
- */
-export const DEFAULT_MESSAGE_DELAY_MS = 500;
-
-/**
- * Minimum chunk size when splitting messages
- * Prevents creating very small message fragments
- */
-export const MIN_CHUNK_SIZE = 100;
 
 // =============================================================================
 // Types
@@ -48,11 +43,14 @@ export type SendableChannel =
   | ThreadChannel;
 
 /**
- * Options for splitting messages
+ * Options for sending split messages
+ *
+ * All MessageSplitOptions fields are optional here since we default maxLength
+ * to DISCORD_MAX_MESSAGE_LENGTH when not provided.
  */
-export interface MessageSplitOptions {
+export interface SendSplitOptions {
   /**
-   * Maximum length for each message chunk (default: 2000)
+   * Maximum length for each message chunk (defaults to DISCORD_MAX_MESSAGE_LENGTH)
    */
   maxLength?: number;
 
@@ -62,178 +60,14 @@ export interface MessageSplitOptions {
   preserveBoundaries?: boolean;
 
   /**
-   * Characters to use as split points, in order of preference (default: ['\n\n', '\n', '. ', '! ', '? ', ', ', ' '])
+   * Characters to use as split points, in order of preference
    */
   splitPoints?: string[];
-}
 
-/**
- * Options for sending split messages
- */
-export interface SendSplitOptions extends MessageSplitOptions {
   /**
    * Delay between messages in milliseconds (default: 500)
    */
   delayMs?: number;
-}
-
-/**
- * Result from splitting a message
- */
-export interface SplitResult {
-  /**
-   * Array of message chunks
-   */
-  chunks: string[];
-
-  /**
-   * Whether the message was split
-   */
-  wasSplit: boolean;
-
-  /**
-   * Original message length
-   */
-  originalLength: number;
-}
-
-// =============================================================================
-// Message Splitting
-// =============================================================================
-
-/**
- * Default split points in order of preference
- *
- * We prefer to split at paragraph breaks, then sentences, then clauses, then words
- */
-const DEFAULT_SPLIT_POINTS = ["\n\n", "\n", ". ", "! ", "? ", ", ", " "];
-
-/**
- * Find the best split point within a text chunk
- *
- * @param text - Text to find split point in
- * @param maxLength - Maximum length for the chunk
- * @param splitPoints - Split points to search for, in order of preference
- * @returns Index to split at, or maxLength if no good split point found
- */
-export function findSplitPoint(
-  text: string,
-  maxLength: number,
-  splitPoints: string[] = DEFAULT_SPLIT_POINTS
-): number {
-  // If text fits, no split needed
-  if (text.length <= maxLength) {
-    return text.length;
-  }
-
-  // Try each split point in order of preference
-  for (const splitPoint of splitPoints) {
-    // Search backwards from maxLength to find the last occurrence of this split point
-    const searchText = text.slice(0, maxLength);
-    const lastIndex = searchText.lastIndexOf(splitPoint);
-
-    // If found and results in a reasonable chunk size
-    if (lastIndex > MIN_CHUNK_SIZE) {
-      // Include the split point in the first chunk (e.g., keep the period with the sentence)
-      return lastIndex + splitPoint.length;
-    }
-  }
-
-  // No good split point found - fall back to hard split at maxLength
-  // But try to avoid splitting in the middle of a word
-  const hardSplitIndex = text.lastIndexOf(" ", maxLength);
-  if (hardSplitIndex > MIN_CHUNK_SIZE) {
-    return hardSplitIndex + 1; // Include the space in the first chunk
-  }
-
-  // Last resort: hard split at maxLength
-  return maxLength;
-}
-
-/**
- * Split a message into chunks that fit Discord's message length limit
- *
- * @param content - Message content to split
- * @param options - Split options
- * @returns Split result with chunks array
- *
- * @example
- * ```typescript
- * const result = splitMessage(longText);
- * for (const chunk of result.chunks) {
- *   await channel.send(chunk);
- * }
- * ```
- */
-export function splitMessage(
-  content: string,
-  options: MessageSplitOptions = {}
-): SplitResult {
-  const {
-    maxLength = DISCORD_MAX_MESSAGE_LENGTH,
-    preserveBoundaries = true,
-    splitPoints = DEFAULT_SPLIT_POINTS,
-  } = options;
-
-  const originalLength = content.length;
-
-  // If content fits in one message, return as-is
-  if (content.length <= maxLength) {
-    return {
-      chunks: [content],
-      wasSplit: false,
-      originalLength,
-    };
-  }
-
-  const chunks: string[] = [];
-  let remaining = content;
-
-  while (remaining.length > 0) {
-    if (remaining.length <= maxLength) {
-      // Remaining text fits in one message
-      chunks.push(remaining.trim());
-      break;
-    }
-
-    // Find the best split point
-    let splitIndex: number;
-    if (preserveBoundaries) {
-      splitIndex = findSplitPoint(remaining, maxLength, splitPoints);
-    } else {
-      // Simple split at maxLength
-      splitIndex = maxLength;
-    }
-
-    // Extract the chunk and trim
-    const chunk = remaining.slice(0, splitIndex).trim();
-    if (chunk.length > 0) {
-      chunks.push(chunk);
-    }
-
-    // Update remaining text
-    remaining = remaining.slice(splitIndex).trim();
-  }
-
-  return {
-    chunks,
-    wasSplit: chunks.length > 1,
-    originalLength,
-  };
-}
-
-/**
- * Check if a message needs to be split
- *
- * @param content - Message content to check
- * @param maxLength - Maximum message length (default: 2000)
- * @returns true if the message exceeds the max length
- */
-export function needsSplit(
-  content: string,
-  maxLength: number = DISCORD_MAX_MESSAGE_LENGTH
-): boolean {
-  return content.length > maxLength;
 }
 
 // =============================================================================
@@ -337,20 +171,30 @@ export async function sendSplitMessage(
   content: string,
   options: SendSplitOptions = {}
 ): Promise<string[]> {
-  const { delayMs = DEFAULT_MESSAGE_DELAY_MS, ...splitOptions } = options;
+  const {
+    delayMs = DEFAULT_MESSAGE_DELAY_MS,
+    maxLength = DISCORD_MAX_MESSAGE_LENGTH,
+    preserveBoundaries,
+    splitPoints,
+  } = options;
 
-  const { chunks } = splitMessage(content, splitOptions);
+  // Use Discord's max length as default
+  const splitResult = splitMessage(content, {
+    maxLength,
+    preserveBoundaries,
+    splitPoints,
+  });
   const messageIds: string[] = [];
 
-  for (let i = 0; i < chunks.length; i++) {
-    const chunk = chunks[i];
+  for (let i = 0; i < splitResult.chunks.length; i++) {
+    const chunk = splitResult.chunks[i];
 
     // Send the message
     const message = await channel.send(chunk);
     messageIds.push(message.id);
 
     // Add delay between messages (except after the last one)
-    if (i < chunks.length - 1 && delayMs > 0) {
+    if (i < splitResult.chunks.length - 1 && delayMs > 0) {
       await sleep(delayMs);
     }
   }
@@ -402,51 +246,6 @@ export async function sendWithTyping(
  */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Truncate a message to fit within the max length, adding an ellipsis
- *
- * @param content - Message content to truncate
- * @param maxLength - Maximum length (default: 2000)
- * @param ellipsis - Ellipsis to append (default: '...')
- * @returns Truncated message
- *
- * @example
- * ```typescript
- * const short = truncateMessage(longText, 100);
- * // Returns: "This is a very long text that has been trun..."
- * ```
- */
-export function truncateMessage(
-  content: string,
-  maxLength: number = DISCORD_MAX_MESSAGE_LENGTH,
-  ellipsis: string = "..."
-): string {
-  if (content.length <= maxLength) {
-    return content;
-  }
-
-  const truncatedLength = maxLength - ellipsis.length;
-  return content.slice(0, truncatedLength) + ellipsis;
-}
-
-/**
- * Format code as a Discord code block
- *
- * @param code - Code to format
- * @param language - Optional language for syntax highlighting
- * @returns Formatted code block
- *
- * @example
- * ```typescript
- * const formatted = formatCodeBlock('const x = 1;', 'typescript');
- * // Returns: "```typescript\nconst x = 1;\n```"
- * ```
- */
-export function formatCodeBlock(code: string, language?: string): string {
-  const langTag = language ?? "";
-  return `\`\`\`${langTag}\n${code}\n\`\`\``;
 }
 
 /**

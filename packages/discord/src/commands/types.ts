@@ -6,8 +6,8 @@
  */
 
 import type { ChatInputCommandInteraction, Client, REST } from "discord.js";
+import type { IChatSessionManager } from "@herdctl/chat";
 import type { DiscordConnectorState } from "../types.js";
-import type { ISessionManager } from "../session-manager/index.js";
 
 // =============================================================================
 // Command Context
@@ -27,7 +27,7 @@ export interface CommandContext {
   agentName: string;
 
   /** Session manager for conversation context management */
-  sessionManager: ISessionManager;
+  sessionManager: IChatSessionManager;
 
   /** Current connector state */
   connectorState: DiscordConnectorState;
@@ -83,7 +83,7 @@ export interface CommandManagerOptions {
   botToken: string;
 
   /** Session manager for conversation context */
-  sessionManager: ISessionManager;
+  sessionManager: IChatSessionManager;
 
   /** Function to get current connector state */
   getConnectorState: () => DiscordConnectorState;

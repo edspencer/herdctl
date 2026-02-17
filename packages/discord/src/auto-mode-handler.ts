@@ -2,40 +2,28 @@
  * Auto mode handler for Discord DMs and dedicated channels
  *
  * Provides utilities for:
- * - Checking if DMs should be processed (auto mode by default)
- * - Filtering users via allowlist/blocklist
- * - Determining channel mode configuration
+ * - Determining channel mode configuration (Discord guild hierarchy)
+ * - Resolving channel config for a message
+ *
+ * DM filtering utilities (isDMEnabled, getDMMode, checkDMUserFilter, shouldProcessInMode)
+ * are provided by @herdctl/chat - the Discord-specific functions here use them internally
+ * while working with Discord's guild/channel hierarchy.
  */
 
 import type { DiscordDM, DiscordChannel, DiscordGuild } from "@herdctl/core";
+import {
+  isDMEnabled as chatIsDMEnabled,
+  getDMMode as chatGetDMMode,
+  checkDMUserFilter as chatCheckDMUserFilter,
+  type DMFilterResult,
+} from "@herdctl/chat";
+
+// Re-export shared types for backwards compatibility during migration
+export type { DMFilterResult };
 
 // =============================================================================
 // Types
 // =============================================================================
-
-/**
- * Result of checking if a user is allowed to DM the bot
- */
-export interface DMFilterResult {
-  /** Whether the user is allowed to send DMs */
-  allowed: boolean;
-  /** Reason for filtering decision */
-  reason: "allowed" | "dm_disabled" | "not_in_allowlist" | "in_blocklist";
-}
-
-/**
- * Configuration for DM handling
- */
-export interface DMConfig {
-  /** Whether DMs are enabled */
-  enabled: boolean;
-  /** Mode for DM processing */
-  mode: "mention" | "auto";
-  /** User IDs that are explicitly allowed (if set, only these users can DM) */
-  allowlist?: string[];
-  /** User IDs that are explicitly blocked */
-  blocklist?: string[];
-}
 
 /**
  * Result of resolving channel configuration
@@ -52,7 +40,7 @@ export interface ResolvedChannelConfig {
 }
 
 // =============================================================================
-// DM Filtering
+// DM Filtering (wrappers around @herdctl/chat functions)
 // =============================================================================
 
 /**
@@ -62,11 +50,7 @@ export interface ResolvedChannelConfig {
  * @returns true if DMs are enabled, false otherwise
  */
 export function isDMEnabled(dmConfig?: DiscordDM): boolean {
-  // If no DM config provided, DMs are enabled by default
-  if (!dmConfig) {
-    return true;
-  }
-  return dmConfig.enabled;
+  return chatIsDMEnabled(dmConfig);
 }
 
 /**
@@ -76,11 +60,7 @@ export function isDMEnabled(dmConfig?: DiscordDM): boolean {
  * @returns The mode for DM processing (defaults to "auto")
  */
 export function getDMMode(dmConfig?: DiscordDM): "mention" | "auto" {
-  // DMs default to auto mode (no mention required)
-  if (!dmConfig) {
-    return "auto";
-  }
-  return dmConfig.mode;
+  return chatGetDMMode(dmConfig);
 }
 
 /**
@@ -108,53 +88,11 @@ export function checkDMUserFilter(
   userId: string,
   dmConfig?: DiscordDM
 ): DMFilterResult {
-  // If DMs are disabled, no users are allowed
-  if (!isDMEnabled(dmConfig)) {
-    return {
-      allowed: false,
-      reason: "dm_disabled",
-    };
-  }
-
-  // If no config, all users are allowed
-  if (!dmConfig) {
-    return {
-      allowed: true,
-      reason: "allowed",
-    };
-  }
-
-  const { allowlist, blocklist } = dmConfig;
-
-  // Check blocklist first (takes precedence)
-  if (blocklist && blocklist.length > 0) {
-    if (blocklist.includes(userId)) {
-      return {
-        allowed: false,
-        reason: "in_blocklist",
-      };
-    }
-  }
-
-  // Check allowlist (if defined, only users on it are allowed)
-  if (allowlist && allowlist.length > 0) {
-    if (!allowlist.includes(userId)) {
-      return {
-        allowed: false,
-        reason: "not_in_allowlist",
-      };
-    }
-  }
-
-  // User is allowed
-  return {
-    allowed: true,
-    reason: "allowed",
-  };
+  return chatCheckDMUserFilter(userId, dmConfig);
 }
 
 // =============================================================================
-// Channel Configuration
+// Channel Configuration (Discord-specific)
 // =============================================================================
 
 /**
@@ -255,36 +193,4 @@ export function resolveChannelConfig(
     isDM: false,
     guildId,
   };
-}
-
-/**
- * Check if a message should be processed in auto mode
- *
- * In auto mode:
- * - All non-bot messages are processed
- * - No mention is required
- * - Full conversation context is maintained
- *
- * @param isBot - Whether the message author is a bot
- * @param mode - The channel mode
- * @param wasMentioned - Whether the bot was mentioned
- * @returns true if the message should be processed
- */
-export function shouldProcessInMode(
-  isBot: boolean,
-  mode: "mention" | "auto",
-  wasMentioned: boolean
-): boolean {
-  // Never process bot messages
-  if (isBot) {
-    return false;
-  }
-
-  // In auto mode, process all non-bot messages
-  if (mode === "auto") {
-    return true;
-  }
-
-  // In mention mode, only process if mentioned
-  return wasMentioned;
 }

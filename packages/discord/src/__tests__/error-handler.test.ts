@@ -20,7 +20,7 @@ import {
   SessionManagerError,
   SessionStateReadError,
   SessionErrorCode,
-} from "../session-manager/errors.js";
+} from "@herdctl/chat";
 
 // =============================================================================
 // USER_ERROR_MESSAGES Tests

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { EventEmitter } from "events";
 import type { AgentConfig, AgentChatDiscord, FleetManager } from "@herdctl/core";
-import type { ISessionManager } from "../session-manager/index.js";
+import type { IChatSessionManager } from "@herdctl/chat";
 
 // =============================================================================
 // Mock discord.js - Must be hoisted, factory cannot reference external variables
@@ -151,9 +151,10 @@ function createMockFleetManager(): FleetManager {
   } as unknown as FleetManager;
 }
 
-function createMockSessionManager(): ISessionManager {
+function createMockSessionManager(): IChatSessionManager {
   return {
     agentName: "test-agent",
+    platform: "discord",
     getOrCreateSession: vi.fn().mockResolvedValue({ sessionId: "test-session", isNew: true }),
     touchSession: vi.fn().mockResolvedValue(undefined),
     getSession: vi.fn().mockResolvedValue(null),
@@ -181,7 +182,7 @@ describe("DiscordConnector", () => {
   let agentConfig: AgentConfig;
   let discordConfig: AgentChatDiscord;
   let fleetManager: FleetManager;
-  let sessionManager: ISessionManager;
+  let sessionManager: IChatSessionManager;
   let mockLogger: ReturnType<typeof createMockLogger>;
 
   beforeEach(() => {

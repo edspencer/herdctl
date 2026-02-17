@@ -53,7 +53,7 @@ import {
   DEFAULT_DM_CONTEXT_MESSAGES,
 } from "./auto-mode-handler.js";
 import { CommandManager, type ICommandManager } from "./commands/index.js";
-import type { ISessionManager } from "./session-manager/index.js";
+import type { IChatSessionManager } from "@herdctl/chat";
 import { DiscordLogger, createLoggerFromConfig } from "./logger.js";
 
 /**
@@ -90,7 +90,7 @@ export class DiscordConnector
   private readonly _botToken: string;
   private readonly _fleetManager: FleetManager;
   private readonly _logger: DiscordConnectorLogger;
-  private readonly _sessionManager: ISessionManager;
+  private readonly _sessionManager: IChatSessionManager;
   private readonly _errorHandler: ErrorHandler;
   private _client: Client | null = null;
   private _commandManager: ICommandManager | null = null;
@@ -143,7 +143,7 @@ export class DiscordConnector
   /**
    * Get the session manager instance
    */
-  get sessionManager(): ISessionManager {
+  get sessionManager(): IChatSessionManager {
     return this._sessionManager;
   }
 

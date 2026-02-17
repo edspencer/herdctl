@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { statusCommand } from "../status.js";
 import type { CommandContext } from "../types.js";
 import type { ChatInputCommandInteraction, Client } from "discord.js";
-import type { ISessionManager, ChannelSession } from "../../session-manager/index.js";
+import type { IChatSessionManager, ChannelSession } from "@herdctl/chat";
 import type { DiscordConnectorState } from "../../types.js";
 
 // =============================================================================
@@ -30,9 +30,10 @@ function createMockClient(): Client {
   } as unknown as Client;
 }
 
-function createMockSessionManager(): ISessionManager {
+function createMockSessionManager(): IChatSessionManager {
   return {
     agentName: "test-agent",
+    platform: "discord",
     getOrCreateSession: vi.fn(),
     touchSession: vi.fn(),
     getSession: vi.fn(),

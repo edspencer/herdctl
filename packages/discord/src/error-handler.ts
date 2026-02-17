@@ -17,7 +17,7 @@ import {
 import {
   isSessionManagerError,
   type SessionManagerError,
-} from "./session-manager/errors.js";
+} from "@herdctl/chat";
 
 // =============================================================================
 // User-Friendly Error Messages

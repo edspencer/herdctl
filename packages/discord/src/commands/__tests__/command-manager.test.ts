@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ChatInputCommandInteraction, Client, REST } from "discord.js";
-import type { ISessionManager } from "../../session-manager/index.js";
+import type { IChatSessionManager } from "@herdctl/chat";
 import type { DiscordConnectorState } from "../../types.js";
 
 // =============================================================================
@@ -45,9 +45,10 @@ function createMockClient(): Client {
   } as unknown as Client;
 }
 
-function createMockSessionManager(): ISessionManager {
+function createMockSessionManager(): IChatSessionManager {
   return {
     agentName: "test-agent",
+    platform: "discord",
     getOrCreateSession: vi.fn(),
     touchSession: vi.fn(),
     getSession: vi.fn(),
@@ -116,7 +117,7 @@ function createMockLogger() {
 
 describe("CommandManager", () => {
   let client: Client;
-  let sessionManager: ISessionManager;
+  let sessionManager: IChatSessionManager;
   let connectorState: DiscordConnectorState;
   let logger: ReturnType<typeof createMockLogger>;
 

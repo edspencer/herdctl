@@ -7,8 +7,8 @@
 
 import type { AgentConfig, AgentChatDiscord } from "@herdctl/core";
 import type { FleetManager } from "@herdctl/core";
+import type { IChatSessionManager } from "@herdctl/chat";
 import type { ContextMessage, ConversationContext } from "./mention-handler.js";
-import type { ISessionManager } from "./session-manager/index.js";
 
 // =============================================================================
 // Connector Options
@@ -73,7 +73,7 @@ export interface DiscordConnectorOptions {
    *
    * Required for slash command support (/reset, /status)
    */
-  sessionManager: ISessionManager;
+  sessionManager: IChatSessionManager;
 
   /**
    * Root path for state storage (e.g., .herdctl)
