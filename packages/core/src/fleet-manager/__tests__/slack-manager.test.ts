@@ -672,7 +672,7 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       await manager.start();
 
       expect(mockConnector.connect).toHaveBeenCalledTimes(1);
-      expect(mockLogger.debug).toHaveBeenCalledWith("Slack connector started");
+      expect(mockLogger.info).toHaveBeenCalledWith("Slack connector started");
     });
 
     it("handles connection failure", async () => {

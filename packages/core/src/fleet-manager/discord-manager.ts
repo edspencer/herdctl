@@ -518,7 +518,7 @@ export class DiscordManager {
     const connectedCount = Array.from(this.connectors.values()).filter((c) =>
       c.isConnected()
     ).length;
-    logger.debug(`Discord connectors started: ${connectedCount}/${this.connectors.size} connected`);
+    logger.info(`Discord connectors started: ${connectedCount}/${this.connectors.size} connected`);
   }
 
   /**

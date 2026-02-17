@@ -451,7 +451,7 @@ export class SlackManager {
 
     try {
       await this.connector.connect();
-      logger.debug("Slack connector started");
+      logger.info("Slack connector started");
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(`Failed to connect Slack: ${errorMessage}`);
