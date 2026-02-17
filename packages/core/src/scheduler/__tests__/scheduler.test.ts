@@ -400,9 +400,10 @@ describe("Scheduler", () => {
     });
 
     it("triggers cron schedules when time is within trigger window", async () => {
-      // Mock Date.now to ensure we're exactly at a minute boundary (within trigger window)
-      // This doesn't affect setTimeout/setInterval, just time calculations
-      const fixedTime = new Date("2024-01-15T10:00:00.000Z").getTime();
+      // Mock Date.now to a time shortly after a minute boundary (within trigger window).
+      // We use 5 seconds past the boundary so cron-parser's prev() returns 10:00:00
+      // and the 5s elapsed is well within the 30s trigger window for a 1-minute cron.
+      const fixedTime = new Date("2024-01-15T10:00:05.000Z").getTime();
       const originalDateNow = Date.now;
       Date.now = vi.fn(() => fixedTime);
 
@@ -430,7 +431,7 @@ describe("Scheduler", () => {
         // Wait for the scheduler to check (using real setTimeout)
         await wait(150);
 
-        // Should have triggered since we're exactly at a minute boundary (within trigger window)
+        // Should have triggered since we're 5s past a minute boundary (within 30s trigger window)
         expect(triggers.length).toBeGreaterThan(0);
         expect(triggers[0].agent.name).toBe("cron-agent");
         expect(triggers[0].scheduleName).toBe("everyMinute");
@@ -493,8 +494,8 @@ describe("Scheduler", () => {
     });
 
     it("calculates next trigger time for cron schedule after completion", async () => {
-      // Mock Date.now to ensure we're exactly at a minute boundary (within trigger window)
-      const fixedTime = new Date("2024-01-15T10:00:00.000Z").getTime();
+      // Mock Date.now to a time shortly after a minute boundary (within trigger window)
+      const fixedTime = new Date("2024-01-15T10:00:05.000Z").getTime();
       const originalDateNow = Date.now;
       Date.now = vi.fn(() => fixedTime);
 
