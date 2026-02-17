@@ -123,6 +123,9 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
       this.botUserId = authResult.user_id as string;
       this.botUsername = authResult.user as string;
 
+      // Set bot presence to active so it appears online
+      await this.app.client.users.setPresence({ presence: "auto" });
+
       // Initialize command handler with built-in commands
       this.commandHandler = new CommandHandler({ logger: this.logger });
       this.commandHandler.registerCommand(helpCommand);
