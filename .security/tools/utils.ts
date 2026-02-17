@@ -17,6 +17,8 @@ export const SKIP_PATTERNS = [
   ".spec.",
   // Scanner itself
   ".security/",
+  // Runtime job artifacts
+  ".herdctl/",
   // Dependencies
   "node_modules",
   // Package manager files
@@ -82,6 +84,7 @@ export function grepForPattern(
       '--exclude-dir=".git"',
       '--exclude-dir="coverage"',
       '--exclude-dir=".turbo"',
+      '--exclude-dir=".herdctl"',
     ];
 
     if (!includeDistFiles) {
