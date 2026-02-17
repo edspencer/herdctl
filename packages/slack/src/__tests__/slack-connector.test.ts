@@ -34,23 +34,18 @@ const createMockSessionManager = (
  * app object, then call registerEventHandlers() via reflection.
  */
 function createTestConnector(options?: {
-  channelAgentMap?: Map<string, string>;
-  channelConfigs?: Map<string, SlackChannelConfig>;
-  sessionManagers?: Map<string, ISlackSessionManager>;
+  channels?: SlackChannelConfig[];
+  sessionManager?: ISlackSessionManager;
 }) {
-  const channelAgentMap =
-    options?.channelAgentMap ?? new Map([[CHANNEL_ID, AGENT_NAME]]);
-  const channelConfigs = options?.channelConfigs;
-  const sessionManagers =
-    options?.sessionManagers ??
-    new Map([[AGENT_NAME, createMockSessionManager()]]);
+  const channels = options?.channels ?? [{ id: CHANNEL_ID }];
+  const sessionManager = options?.sessionManager ?? createMockSessionManager();
 
   const connector = new SlackConnector({
+    agentName: AGENT_NAME,
     botToken: "xoxb-fake",
     appToken: "xapp-fake",
-    channelAgentMap,
-    channelConfigs,
-    sessionManagers,
+    channels,
+    sessionManager,
     logger: createMockLogger(),
   });
 
@@ -86,7 +81,7 @@ function createTestConnector(options?: {
 
   const say = vi.fn().mockResolvedValue(undefined);
 
-  return { connector, handlers, say, mockApp, channelAgentMap, sessionManagers };
+  return { connector, handlers, say, mockApp, sessionManager };
 }
 
 // Helper to capture emitted message events
@@ -142,7 +137,7 @@ describe("SlackConnector registerEventHandlers", () => {
   describe("message handler — channel routing", () => {
     it("routes message in configured channel to agent", async () => {
       const { connector, handlers, say } = createTestConnector({
-        channelConfigs: new Map([[CHANNEL_ID, { mode: "auto", contextMessages: 10 }]]),
+        channels: [{ id: CHANNEL_ID, mode: "auto" }],
       });
       const messages = captureMessages(connector);
 
@@ -166,7 +161,7 @@ describe("SlackConnector registerEventHandlers", () => {
 
     it("routes thread reply in configured channel to agent", async () => {
       const { connector, handlers, say } = createTestConnector({
-        channelConfigs: new Map([[CHANNEL_ID, { mode: "auto", contextMessages: 10 }]]),
+        channels: [{ id: CHANNEL_ID, mode: "auto" }],
       });
       const messages = captureMessages(connector);
 
@@ -384,7 +379,7 @@ describe("SlackConnector registerEventHandlers", () => {
   describe("reply function", () => {
     it("sends reply in the channel (no thread_ts)", async () => {
       const { connector, handlers, say } = createTestConnector({
-        channelConfigs: new Map([[CHANNEL_ID, { mode: "auto", contextMessages: 10 }]]),
+        channels: [{ id: CHANNEL_ID, mode: "auto" }],
       });
       const messages = captureMessages(connector);
 
@@ -410,7 +405,7 @@ describe("SlackConnector registerEventHandlers", () => {
 
     it("converts markdown to mrkdwn in replies", async () => {
       const { connector, handlers, say } = createTestConnector({
-        channelConfigs: new Map([[CHANNEL_ID, { mode: "auto", contextMessages: 10 }]]),
+        channels: [{ id: CHANNEL_ID, mode: "auto" }],
       });
       const messages = captureMessages(connector);
 

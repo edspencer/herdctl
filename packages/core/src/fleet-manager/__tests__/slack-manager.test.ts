@@ -1,8 +1,8 @@
 /**
  * Tests for SlackManager
  *
- * Tests the SlackManager class which manages a single Slack connector
- * shared across agents with chat.slack configured.
+ * Tests the SlackManager class which manages Slack connectors for agents
+ * with chat.slack configured (one connector per agent).
  *
  * Since @herdctl/slack is not a dependency of @herdctl/core, we mock the
  * dynamic import to test the full initialization and lifecycle paths.
@@ -101,13 +101,18 @@ function createConfigWithAgents(
 // Mock SlackConnector and SessionManager
 // ---------------------------------------------------------------------------
 
-function createMockConnector() {
+function createMockConnector(agentName: string, sessionManager: ReturnType<typeof createMockSessionManager>) {
   const connector = new EventEmitter() as EventEmitter & {
+    agentName: string;
+    sessionManager: ReturnType<typeof createMockSessionManager>;
     connect: ReturnType<typeof vi.fn>;
     disconnect: ReturnType<typeof vi.fn>;
     isConnected: ReturnType<typeof vi.fn>;
     getState: ReturnType<typeof vi.fn>;
+    uploadFile: ReturnType<typeof vi.fn>;
   };
+  connector.agentName = agentName;
+  connector.sessionManager = sessionManager;
   connector.connect = vi.fn().mockResolvedValue(undefined);
   connector.disconnect = vi.fn().mockResolvedValue(undefined);
   connector.isConnected = vi.fn().mockReturnValue(false);
@@ -120,6 +125,7 @@ function createMockConnector() {
     botUser: null,
     messageStats: { received: 0, sent: 0, ignored: 0 },
   });
+  connector.uploadFile = vi.fn().mockResolvedValue({ fileId: "file-123" });
   return connector;
 }
 
@@ -195,7 +201,7 @@ describe("SlackManager (no @herdctl/slack)", () => {
       await manager.initialize();
 
       expect(mockLogger.debug).toHaveBeenCalledWith(
-        "@herdctl/slack not installed, skipping Slack connector"
+        "@herdctl/slack not installed, skipping Slack connectors"
       );
     });
 
@@ -210,7 +216,7 @@ describe("SlackManager (no @herdctl/slack)", () => {
       await manager.initialize();
 
       expect(mockLogger.debug).toHaveBeenCalledWith(
-        "@herdctl/slack not installed, skipping Slack connector"
+        "@herdctl/slack not installed, skipping Slack connectors"
       );
     });
 
@@ -240,7 +246,7 @@ describe("SlackManager (no @herdctl/slack)", () => {
       await manager.start();
 
       expect(mockLogger.debug).toHaveBeenCalledWith(
-        "No Slack connector to start"
+        "No Slack connectors to start"
       );
     });
   });
@@ -255,7 +261,7 @@ describe("SlackManager (no @herdctl/slack)", () => {
       await manager.stop();
 
       expect(mockLogger.debug).toHaveBeenCalledWith(
-        "No Slack connector to stop"
+        "No Slack connectors to stop"
       );
     });
   });
@@ -271,42 +277,42 @@ describe("SlackManager (no @herdctl/slack)", () => {
   });
 
   describe("getState", () => {
-    it("returns null when no connector", async () => {
+    it("returns null when no connector for agent", async () => {
       const SlackManager = await getSlackManager();
       const ctx = createMockContext(null);
       const manager = new SlackManager(ctx);
 
-      expect(manager.getState()).toBeNull();
+      expect(manager.getState("test-agent")).toBeNull();
     });
   });
 
-  describe("isConnected", () => {
-    it("returns false when no connector", async () => {
+  describe("getConnectedCount", () => {
+    it("returns 0 when no connectors", async () => {
       const SlackManager = await getSlackManager();
       const ctx = createMockContext(null);
       const manager = new SlackManager(ctx);
 
-      expect(manager.isConnected()).toBe(false);
+      expect(manager.getConnectedCount()).toBe(0);
     });
   });
 
   describe("getConnector", () => {
-    it("returns null when no connector", async () => {
+    it("returns undefined when no connector for agent", async () => {
       const SlackManager = await getSlackManager();
       const ctx = createMockContext(null);
       const manager = new SlackManager(ctx);
 
-      expect(manager.getConnector()).toBeNull();
+      expect(manager.getConnector("test-agent")).toBeUndefined();
     });
   });
 
-  describe("getChannelAgentMap", () => {
-    it("returns empty map when not initialized", async () => {
+  describe("getConnectorNames", () => {
+    it("returns empty array when not initialized", async () => {
       const SlackManager = await getSlackManager();
       const ctx = createMockContext(null);
       const manager = new SlackManager(ctx);
 
-      expect(manager.getChannelAgentMap().size).toBe(0);
+      expect(manager.getConnectorNames()).toEqual([]);
     });
   });
 
@@ -399,7 +405,8 @@ describe("SlackManager (no @herdctl/slack)", () => {
 // ---------------------------------------------------------------------------
 
 describe("SlackManager (mocked @herdctl/slack)", () => {
-  let mockConnector: ReturnType<typeof createMockConnector>;
+  let mockConnectors: Map<string, ReturnType<typeof createMockConnector>>;
+  let mockSessionManagers: Map<string, ReturnType<typeof createMockSessionManager>>;
   let MockSlackConnector: ReturnType<typeof vi.fn>;
   let MockSessionManager: ReturnType<typeof vi.fn>;
   let originalEnv: NodeJS.ProcessEnv;
@@ -413,18 +420,27 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
     process.env.SLACK_BOT_TOKEN = "xoxb-test-bot-token";
     process.env.SLACK_APP_TOKEN = "xapp-test-app-token";
 
-    // Create mock implementations
-    mockConnector = createMockConnector();
+    // Create mock implementations - per-agent connectors
+    mockConnectors = new Map();
+    mockSessionManagers = new Map();
 
     // Must use function expressions (not arrows) so they work with `new`
-    MockSlackConnector = vi.fn().mockImplementation(function () {
-      return mockConnector;
-    });
     MockSessionManager = vi.fn().mockImplementation(function (
       this: unknown,
       opts: { agentName: string }
     ) {
-      return createMockSessionManager(opts.agentName);
+      const sessionMgr = createMockSessionManager(opts.agentName);
+      mockSessionManagers.set(opts.agentName, sessionMgr);
+      return sessionMgr;
+    });
+
+    MockSlackConnector = vi.fn().mockImplementation(function (
+      this: unknown,
+      opts: { agentName: string; sessionManager: ReturnType<typeof createMockSessionManager> }
+    ) {
+      const connector = createMockConnector(opts.agentName, opts.sessionManager);
+      mockConnectors.set(opts.agentName, connector);
+      return connector;
     });
   });
 
@@ -466,16 +482,17 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       );
       expect(MockSlackConnector).toHaveBeenCalledWith(
         expect.objectContaining({
+          agentName: "agent1",
           botToken: "xoxb-test-bot-token",
           appToken: "xapp-test-app-token",
-          stateDir: "/tmp/test-state",
+          channels: [{ id: "C0123456789", mode: "mention" }],
         })
       );
       expect(manager.hasAgent("agent1")).toBe(true);
-      expect(manager.getConnector()).toBe(mockConnector);
+      expect(manager.getConnector("agent1")).toBe(mockConnectors.get("agent1"));
     });
 
-    it("builds channel→agent routing map", async () => {
+    it("creates separate connectors for multiple agents", async () => {
       const SlackManager = await getSlackManagerWithMock();
       const config = createConfigWithAgents(
         createSlackAgent("agent1", {
@@ -492,35 +509,10 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
 
       await manager.initialize();
 
-      const channelMap = manager.getChannelAgentMap();
-      expect(channelMap.get("C001")).toBe("agent1");
-      expect(channelMap.get("C002")).toBe("agent1");
-      expect(channelMap.get("C003")).toBe("agent2");
-      expect(channelMap.size).toBe(3);
-    });
-
-    it("warns about overlapping channel mappings", async () => {
-      const SlackManager = await getSlackManagerWithMock();
-      const config = createConfigWithAgents(
-        createSlackAgent("agent1", {
-          ...defaultSlackConfig,
-          channels: [{ id: "C001", mode: "mention" as const, context_messages: 10 }],
-        }),
-        createSlackAgent("agent2", {
-          ...defaultSlackConfig,
-          channels: [{ id: "C001", mode: "mention" as const, context_messages: 10 }], // Same channel as agent1
-        })
-      );
-      const ctx = createMockContext(config);
-      const manager = new SlackManager(ctx);
-
-      await manager.initialize();
-
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("Channel C001 is already mapped")
-      );
-      // Second agent wins
-      expect(manager.getChannelAgentMap().get("C001")).toBe("agent2");
+      expect(manager.getConnectorNames()).toEqual(["agent1", "agent2"]);
+      expect(MockSlackConnector).toHaveBeenCalledTimes(2);
+      expect(manager.getConnector("agent1")).toBeDefined();
+      expect(manager.getConnector("agent2")).toBeDefined();
     });
 
     it("skips when no agents have Slack configured", async () => {
@@ -539,7 +531,7 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       expect(MockSlackConnector).not.toHaveBeenCalled();
     });
 
-    it("warns and skips when bot token env var is missing", async () => {
+    it("warns and skips agent when bot token env var is missing", async () => {
       delete process.env.SLACK_BOT_TOKEN;
 
       const SlackManager = await getSlackManagerWithMock();
@@ -557,7 +549,7 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       expect(MockSlackConnector).not.toHaveBeenCalled();
     });
 
-    it("warns and skips when app token env var is missing", async () => {
+    it("warns and skips agent when app token env var is missing", async () => {
       delete process.env.SLACK_APP_TOKEN;
 
       const SlackManager = await getSlackManagerWithMock();
@@ -616,12 +608,12 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       await manager.initialize();
 
       expect(mockLogger.debug).toHaveBeenCalledWith(
-        expect.stringContaining("Slack manager initialized with 1 agent(s)")
+        expect.stringContaining("Slack manager initialized with 1 connector(s)")
       );
     });
 
-    it("handles connector creation failure", async () => {
-      MockSlackConnector.mockImplementation(() => {
+    it("handles connector creation failure for one agent", async () => {
+      MockSlackConnector.mockImplementationOnce(() => {
         throw new Error("Failed to create Bolt app");
       });
 
@@ -635,12 +627,12 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       await manager.initialize();
 
       expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining("Failed to create Slack connector")
+        expect.stringContaining("Failed to create Slack connector for agent 'agent1'")
       );
-      expect(manager.getConnector()).toBeNull();
+      expect(manager.getConnector("agent1")).toBeUndefined();
     });
 
-    it("creates multiple session managers for multiple agents", async () => {
+    it("creates connectors for multiple agents", async () => {
       const SlackManager = await getSlackManagerWithMock();
       const config = createConfigWithAgents(
         createSlackAgent("agent1", {
@@ -659,6 +651,7 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       await manager.initialize();
 
       expect(MockSessionManager).toHaveBeenCalledTimes(2);
+      expect(MockSlackConnector).toHaveBeenCalledTimes(2);
       expect(manager.hasAgent("agent1")).toBe(true);
       expect(manager.hasAgent("agent2")).toBe(true);
       expect(manager.hasAgent("agent3")).toBe(false);
@@ -677,13 +670,14 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       await manager.initialize();
       await manager.start();
 
-      expect(mockConnector.connect).toHaveBeenCalledTimes(1);
-      expect(mockLogger.info).toHaveBeenCalledWith("Slack connector started");
+      const connector = mockConnectors.get("agent1");
+      expect(connector?.connect).toHaveBeenCalledTimes(1);
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.stringContaining("Slack connectors started")
+      );
     });
 
-    it("handles connection failure", async () => {
-      mockConnector.connect.mockRejectedValue(new Error("Connection refused"));
-
+    it("handles connection failure for one agent", async () => {
       const SlackManager = await getSlackManagerWithMock();
       const config = createConfigWithAgents(
         createSlackAgent("agent1", defaultSlackConfig)
@@ -692,14 +686,19 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       const manager = new SlackManager(ctx);
 
       await manager.initialize();
+
+      // Make the connector fail to connect
+      const connector = mockConnectors.get("agent1");
+      connector?.connect.mockRejectedValue(new Error("Connection refused"));
+
       await manager.start();
 
       expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining("Failed to connect Slack")
+        expect.stringContaining("Failed to connect Slack for agent 'agent1'")
       );
     });
 
-    it("logs debug message when no connector to start", async () => {
+    it("logs debug message when no connectors to start", async () => {
       const SlackManager = await getSlackManagerWithMock();
       const ctx = createMockContext(null);
       const manager = new SlackManager(ctx);
@@ -707,13 +706,13 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       await manager.start();
 
       expect(mockLogger.debug).toHaveBeenCalledWith(
-        "No Slack connector to start"
+        "No Slack connectors to start"
       );
     });
   });
 
   describe("stop", () => {
-    it("disconnects the connector", async () => {
+    it("disconnects all connectors", async () => {
       const SlackManager = await getSlackManagerWithMock();
       const config = createConfigWithAgents(
         createSlackAgent("agent1", defaultSlackConfig)
@@ -724,15 +723,12 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       await manager.initialize();
       await manager.stop();
 
-      expect(mockConnector.disconnect).toHaveBeenCalledTimes(1);
-      expect(mockLogger.debug).toHaveBeenCalledWith("Slack connector stopped");
+      const connector = mockConnectors.get("agent1");
+      expect(connector?.disconnect).toHaveBeenCalledTimes(1);
+      expect(mockLogger.debug).toHaveBeenCalledWith("All Slack connectors stopped");
     });
 
-    it("handles disconnect failure", async () => {
-      mockConnector.disconnect.mockRejectedValue(
-        new Error("Disconnect timeout")
-      );
-
+    it("handles disconnect failure for one agent", async () => {
       const SlackManager = await getSlackManagerWithMock();
       const config = createConfigWithAgents(
         createSlackAgent("agent1", defaultSlackConfig)
@@ -741,20 +737,18 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       const manager = new SlackManager(ctx);
 
       await manager.initialize();
+
+      const connector = mockConnectors.get("agent1");
+      connector?.disconnect.mockRejectedValue(new Error("Disconnect timeout"));
+
       await manager.stop();
 
       expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining("Error disconnecting Slack")
+        expect.stringContaining("Error disconnecting Slack for agent 'agent1'")
       );
     });
 
     it("logs active session counts before stopping", async () => {
-      const mockSessionMgr = createMockSessionManager("agent1");
-      mockSessionMgr.getActiveSessionCount.mockResolvedValue(3);
-      MockSessionManager.mockImplementation(function () {
-        return mockSessionMgr;
-      });
-
       const SlackManager = await getSlackManagerWithMock();
       const config = createConfigWithAgents(
         createSlackAgent("agent1", defaultSlackConfig)
@@ -763,6 +757,11 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       const manager = new SlackManager(ctx);
 
       await manager.initialize();
+
+      // Update the session manager to return 3 active sessions
+      const connector = mockConnectors.get("agent1");
+      connector?.sessionManager.getActiveSessionCount.mockResolvedValue(3);
+
       await manager.stop();
 
       expect(mockLogger.debug).toHaveBeenCalledWith(
@@ -771,14 +770,6 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
     });
 
     it("handles session count query failure gracefully", async () => {
-      const mockSessionMgr = createMockSessionManager("agent1");
-      mockSessionMgr.getActiveSessionCount.mockRejectedValue(
-        new Error("File read error")
-      );
-      MockSessionManager.mockImplementation(function () {
-        return mockSessionMgr;
-      });
-
       const SlackManager = await getSlackManagerWithMock();
       const config = createConfigWithAgents(
         createSlackAgent("agent1", defaultSlackConfig)
@@ -787,6 +778,13 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       const manager = new SlackManager(ctx);
 
       await manager.initialize();
+
+      // Make the session manager fail
+      const connector = mockConnectors.get("agent1");
+      connector?.sessionManager.getActiveSessionCount.mockRejectedValue(
+        new Error("File read error")
+      );
+
       await manager.stop();
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
@@ -795,10 +793,8 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
     });
   });
 
-  describe("isConnected", () => {
-    it("delegates to connector.isConnected()", async () => {
-      mockConnector.isConnected.mockReturnValue(true);
-
+  describe("getConnectedCount", () => {
+    it("returns count of connected connectors", async () => {
       const SlackManager = await getSlackManagerWithMock();
       const config = createConfigWithAgents(
         createSlackAgent("agent1", defaultSlackConfig)
@@ -808,12 +804,15 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
 
       await manager.initialize();
 
-      expect(manager.isConnected()).toBe(true);
+      const connector = mockConnectors.get("agent1");
+      connector?.isConnected.mockReturnValue(true);
+
+      expect(manager.getConnectedCount()).toBe(1);
     });
   });
 
   describe("getState", () => {
-    it("delegates to connector.getState()", async () => {
+    it("delegates to connector.getState() for specific agent", async () => {
       const state = {
         status: "connected" as const,
         connectedAt: "2026-01-01T00:00:00Z",
@@ -823,7 +822,6 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
         botUser: { id: "U123", username: "testbot" },
         messageStats: { received: 5, sent: 3, ignored: 1 },
       };
-      mockConnector.getState.mockReturnValue(state);
 
       const SlackManager = await getSlackManagerWithMock();
       const config = createConfigWithAgents(
@@ -834,7 +832,10 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
 
       await manager.initialize();
 
-      expect(manager.getState()).toBe(state);
+      const connector = mockConnectors.get("agent1");
+      connector?.getState.mockReturnValue(state);
+
+      expect(manager.getState("agent1")).toBe(state);
     });
   });
 
@@ -851,59 +852,22 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       await manager.initialize();
       await manager.start();
 
-      // Simulate error from connector (no agentName — connector is shared)
-      mockConnector.emit("error", {
+      // Simulate error from connector (with agentName)
+      const connector = mockConnectors.get("agent1");
+      connector?.emit("error", {
+        agentName: "agent1",
         error: new Error("Socket closed"),
       });
 
       expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining("Slack connector error for agent 'slack'")
+        expect.stringContaining("Slack connector error for agent 'agent1'")
       );
       expect(emitter.emit).toHaveBeenCalledWith(
         "slack:error",
         expect.objectContaining({
-          agentName: "slack",
+          agentName: "agent1",
           error: "Socket closed",
         })
-      );
-    });
-
-    it("handles message for unknown agent", async () => {
-      const SlackManager = await getSlackManagerWithMock();
-      const emitter = createMockEmitter();
-      const config = createConfigWithAgents(
-        createSlackAgent("agent1", defaultSlackConfig)
-      );
-      const ctx = createMockContext(config, emitter);
-      const manager = new SlackManager(ctx);
-
-      await manager.initialize();
-      await manager.start();
-
-      const replyFn = vi.fn().mockResolvedValue(undefined);
-
-      // Simulate message for an agent not in config
-      mockConnector.emit("message", {
-        agentName: "unknown-agent",
-        prompt: "Hello there",
-        metadata: {
-          channelId: "C0123456789",
-          messageTs: "1707930001.000000",
-          userId: "U0123456789",
-          wasMentioned: true,
-        },
-        reply: replyFn,
-        startProcessingIndicator: () => () => {},
-      });
-
-      // Give time for the async handler to run
-      await new Promise((r) => setTimeout(r, 50));
-
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        "Agent 'unknown-agent' not found in configuration"
-      );
-      expect(replyFn).toHaveBeenCalledWith(
-        expect.stringContaining("not properly configured")
       );
     });
 
@@ -931,7 +895,8 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       const replyFn = vi.fn().mockResolvedValue(undefined);
       const stopIndicator = vi.fn();
 
-      mockConnector.emit("message", {
+      const connector = mockConnectors.get("agent1");
+      connector?.emit("message", {
         agentName: "agent1",
         prompt: "Help me with coding",
         metadata: {
@@ -985,7 +950,8 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
 
       const replyFn = vi.fn().mockResolvedValue(undefined);
 
-      mockConnector.emit("message", {
+      const connector = mockConnectors.get("agent1");
+      connector?.emit("message", {
         agentName: "agent1",
         prompt: "Do something",
         metadata: {
@@ -1029,7 +995,8 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
 
       const replyFn = vi.fn().mockResolvedValue(undefined);
 
-      mockConnector.emit("message", {
+      const connector = mockConnectors.get("agent1");
+      connector?.emit("message", {
         agentName: "agent1",
         prompt: "Do something",
         metadata: {
@@ -1067,7 +1034,8 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
 
       const replyFn = vi.fn().mockResolvedValue(undefined);
 
-      mockConnector.emit("message", {
+      const connector = mockConnectors.get("agent1");
+      connector?.emit("message", {
         agentName: "agent1",
         prompt: "Do something",
         metadata: {
@@ -1098,15 +1066,6 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
     });
 
     it("resumes existing session when one exists", async () => {
-      const mockSessionMgr = createMockSessionManager("agent1");
-      mockSessionMgr.getSession.mockResolvedValue({
-        sessionId: "existing-session-456",
-        lastMessageAt: "2026-02-15T10:00:00Z",
-      });
-      MockSessionManager.mockImplementation(function () {
-        return mockSessionMgr;
-      });
-
       const SlackManager = await getSlackManagerWithMock();
       const emitter = createMockEmitter();
       const config = createConfigWithAgents(
@@ -1124,11 +1083,19 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       const manager = new SlackManager(ctx);
 
       await manager.initialize();
+
+      // Set up the session manager to return an existing session
+      const connector = mockConnectors.get("agent1");
+      connector?.sessionManager.getSession.mockResolvedValue({
+        sessionId: "existing-session-456",
+        lastMessageAt: "2026-02-15T10:00:00Z",
+      });
+
       await manager.start();
 
       const replyFn = vi.fn().mockResolvedValue(undefined);
 
-      mockConnector.emit("message", {
+      connector?.emit("message", {
         agentName: "agent1",
         prompt: "Continue our conversation",
         metadata: {
@@ -1153,7 +1120,7 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       );
 
       // Should store the new session
-      expect(mockSessionMgr.setSession).toHaveBeenCalledWith(
+      expect(connector?.sessionManager.setSession).toHaveBeenCalledWith(
         "C0123456789",
         "new-session-789"
       );
@@ -1187,7 +1154,8 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
 
       const replyFn = vi.fn().mockResolvedValue(undefined);
 
-      mockConnector.emit("message", {
+      const connector = mockConnectors.get("agent1");
+      connector?.emit("message", {
         agentName: "agent1",
         prompt: "Say hello",
         metadata: {
@@ -1219,12 +1187,14 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       await manager.start();
 
       // Simulate non-Error (string) error from connector
-      mockConnector.emit("error", {
+      const connector = mockConnectors.get("agent1");
+      connector?.emit("error", {
+        agentName: "agent1",
         error: "string error",
       });
 
       expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining("Slack connector error for agent 'slack': string error")
+        expect.stringContaining("Slack connector error for agent 'agent1': string error")
       );
     });
 
@@ -1246,7 +1216,8 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
 
       const replyFn = vi.fn().mockRejectedValue(new Error("Reply failed too"));
 
-      mockConnector.emit("message", {
+      const connector = mockConnectors.get("agent1");
+      connector?.emit("message", {
         agentName: "agent1",
         prompt: "Do something",
         metadata: {
@@ -1264,44 +1235,6 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       // Should log both the original error and the reply failure
       expect(mockLogger.error).toHaveBeenCalledWith(
         expect.stringContaining("Slack message handling failed")
-      );
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining("Failed to send error reply")
-      );
-    });
-
-    it("handles error from reply during agent-not-found", async () => {
-      const SlackManager = await getSlackManagerWithMock();
-      const emitter = createMockEmitter();
-      const config = createConfigWithAgents(
-        createSlackAgent("agent1", defaultSlackConfig)
-      );
-
-      const ctx = createMockContext(config, emitter);
-      const manager = new SlackManager(ctx);
-
-      await manager.initialize();
-      await manager.start();
-
-      const replyFn = vi.fn().mockRejectedValue(new Error("Reply error"));
-
-      mockConnector.emit("message", {
-        agentName: "nonexistent",
-        prompt: "Hello",
-        metadata: {
-          channelId: "C0123456789",
-          messageTs: "1707930001.000000",
-          userId: "U0123456789",
-          wasMentioned: true,
-        },
-        reply: replyFn,
-        startProcessingIndicator: () => () => {},
-      });
-
-      await new Promise((r) => setTimeout(r, 50));
-
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining("Agent 'nonexistent' not found")
       );
       expect(mockLogger.error).toHaveBeenCalledWith(
         expect.stringContaining("Failed to send error reply")
@@ -1344,7 +1277,8 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
 
       const replyFn = vi.fn().mockResolvedValue(undefined);
 
-      mockConnector.emit("message", {
+      const connector = mockConnectors.get("agent1");
+      connector?.emit("message", {
         agentName: "agent1",
         prompt: "Test",
         metadata: {
@@ -1392,7 +1326,8 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
 
       const replyFn = vi.fn().mockResolvedValue(undefined);
 
-      mockConnector.emit("message", {
+      const connector = mockConnectors.get("agent1");
+      connector?.emit("message", {
         agentName: "agent1",
         prompt: "Test",
         metadata: {
@@ -1438,7 +1373,8 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
 
       const replyFn = vi.fn().mockResolvedValue(undefined);
 
-      mockConnector.emit("message", {
+      const connector = mockConnectors.get("agent1");
+      connector?.emit("message", {
         agentName: "agent1",
         prompt: "Test",
         metadata: {

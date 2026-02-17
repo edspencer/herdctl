@@ -310,7 +310,7 @@ function buildSlackStatus(
     };
   }
 
-  const state = slackManager.getState();
+  const state = slackManager.getState(agent.name);
   if (!state) {
     return {
       configured: true,
