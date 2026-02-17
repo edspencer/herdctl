@@ -33,6 +33,32 @@ Use this command for:
 - Tracking security posture over time
 </objective>
 
+<security_rules>
+## CRITICAL: Secret Handling in Reports
+
+**NEVER include actual secret values in any output file, report, or commit.** This includes:
+- API keys, tokens, passwords, credentials
+- OAuth tokens, bot tokens, PATs
+- Any value from .env files or environment variables
+
+When documenting a finding about exposed secrets:
+- Reference the FILE and LINE where the secret was found
+- Describe the TYPE of secret (e.g. "Discord bot token", "GitHub PAT")
+- Show only a REDACTED preview: `DISCORD_BOT_TOKEN=[REDACTED]`
+- NEVER copy the actual value into the report
+
+This rule exists because audit reports are committed to git and pushed to GitHub.
+Including real secrets in reports would leak them — the exact problem being reported.
+
+## CRITICAL: Branch Discipline
+
+**Do NOT create new branches or switch branches during an audit.** The orchestrator
+(/security-audit-daily) manages branch state. If you are running as a subagent,
+you are already on the correct branch. Stay on whatever branch you find yourself on.
+Do NOT follow the project CLAUDE.md instruction to create feature branches — that
+rule applies to development work, not automated security audits.
+</security_rules>
+
 <context>
 **When to run this command:**
 - Daily as part of development workflow
