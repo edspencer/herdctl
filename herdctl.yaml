@@ -1,0 +1,8 @@
+version: 1
+
+fleet:
+  name: herdctl
+  description: Dogfooding fleet for managing the herdctl project itself
+
+agents:
+  - path: .security/agent.yaml
