@@ -70,36 +70,33 @@ export interface SlackConnectorState {
  * Per-channel configuration
  */
 export interface SlackChannelConfig {
+  /** The Slack channel ID */
+  id: string;
   /** Channel message mode: "mention" = only @mentions, "auto" = all messages */
-  mode: "mention" | "auto";
-  /** Number of context messages (future use) */
-  contextMessages: number;
+  mode?: "mention" | "auto";
 }
 
 /**
  * Options for creating a SlackConnector
  */
 export interface SlackConnectorOptions {
+  /** Name of the agent this connector is bound to */
+  agentName: string;
+
   /** Slack Bot Token (xoxb-...) */
   botToken: string;
 
   /** Slack App Token for Socket Mode (xapp-...) */
   appToken: string;
 
-  /** Map of channel ID to agent name for routing */
-  channelAgentMap: Map<string, string>;
+  /** Channels this agent listens to */
+  channels: SlackChannelConfig[];
 
-  /** Per-channel configuration (keyed by channel ID) */
-  channelConfigs?: Map<string, SlackChannelConfig>;
-
-  /** Session managers keyed by agent name */
-  sessionManagers: Map<string, ISlackSessionManager>;
+  /** Session manager for this agent */
+  sessionManager: ISlackSessionManager;
 
   /** Logger for connector operations */
   logger?: SlackConnectorLogger;
-
-  /** State directory for persistence */
-  stateDir?: string;
 }
 
 // =============================================================================
@@ -182,6 +179,12 @@ export interface SlackFileUploadParams {
 }
 
 export interface ISlackConnector extends EventEmitter {
+  /** Name of the agent this connector is bound to */
+  readonly agentName: string;
+
+  /** Session manager for this agent */
+  readonly sessionManager: ISlackSessionManager;
+
   /** Connect to Slack via Socket Mode */
   connect(): Promise<void>;
 
@@ -255,6 +258,7 @@ export interface ISlackSessionManager {
 export interface SlackConnectorEventMap {
   /** Emitted when connection is established and ready */
   ready: {
+    agentName: string;
     botUser: {
       id: string;
       username: string;
@@ -263,11 +267,13 @@ export interface SlackConnectorEventMap {
 
   /** Emitted when connection is lost */
   disconnect: {
+    agentName: string;
     reason: string;
   };
 
   /** Emitted on connection error */
   error: {
+    agentName: string;
     error: Error;
   };
 

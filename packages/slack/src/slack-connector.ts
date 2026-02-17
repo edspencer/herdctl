@@ -1,13 +1,12 @@
 /**
  * Slack Connector
  *
- * Single Bolt App instance with channel->agent routing.
+ * Single-agent Bolt App instance for Slack integration.
  * Uses Socket Mode for connection (no public URL needed).
  *
  * Key design:
- * - ONE connector shared across all agents (not N connectors)
- * - Channel->agent routing via channelAgentMap
- * - Channel-based conversations (channelId as session key, matching Discord)
+ * - ONE connector per agent (matching Discord's pattern)
+ * - Channel-based conversations (channelId as session key)
  * - Hourglass emoji reaction as typing indicator
  */
 
@@ -45,11 +44,12 @@ import { createDefaultSlackLogger } from "./logger.js";
 // =============================================================================
 
 export class SlackConnector extends EventEmitter implements ISlackConnector {
+  public readonly agentName: string;
+  public readonly sessionManager: ISlackSessionManager;
+
   private readonly botToken: string;
   private readonly appToken: string;
-  private readonly channelAgentMap: Map<string, string>;
-  private readonly channelConfigs: Map<string, SlackChannelConfig>;
-  private readonly sessionManagers: Map<string, ISlackSessionManager>;
+  private readonly channels: Map<string, SlackChannelConfig>;
   private readonly logger: SlackConnectorLogger;
 
   // Bolt App instance (dynamically imported)
@@ -76,11 +76,17 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
   constructor(options: SlackConnectorOptions) {
     super();
 
+    this.agentName = options.agentName;
+    this.sessionManager = options.sessionManager;
     this.botToken = options.botToken;
     this.appToken = options.appToken;
-    this.channelAgentMap = options.channelAgentMap;
-    this.channelConfigs = options.channelConfigs ?? new Map();
-    this.sessionManagers = options.sessionManagers;
+
+    // Build channels map from array (keyed by channel ID for fast lookup)
+    this.channels = new Map();
+    for (const channel of options.channels) {
+      this.channels.set(channel.id, channel);
+    }
+
     this.logger = options.logger ?? createDefaultSlackLogger();
   }
 
@@ -117,6 +123,11 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
       this.botUserId = authResult.user_id as string;
       this.botUsername = authResult.user as string;
 
+      // Set bot presence to active so it appears online (requires users:write scope)
+      await this.app.client.users.setPresence({ presence: "auto" }).catch(() => {
+        this.logger.debug("Could not set presence (missing users:write scope)");
+      });
+
       // Initialize command handler with built-in commands
       this.commandHandler = new CommandHandler({ logger: this.logger });
       this.commandHandler.registerCommand(helpCommand);
@@ -132,10 +143,12 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
       this.logger.info("Connected to Slack", {
         botUserId: this.botUserId,
         botUsername: this.botUsername,
-        channelCount: this.channelAgentMap.size,
+        agentName: this.agentName,
+        channelCount: this.channels.size,
       });
 
       this.emit("ready", {
+        agentName: this.agentName,
         botUser: {
           id: this.botUserId!,
           username: this.botUsername ?? "unknown",
@@ -143,17 +156,15 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
       });
 
       // Clean up expired sessions on startup (matching Discord behavior)
-      for (const [agentName, sessionManager] of this.sessionManagers) {
-        try {
-          const cleaned = await sessionManager.cleanupExpiredSessions();
-          if (cleaned > 0) {
-            this.logger.info(`Cleaned ${cleaned} expired session(s) for agent '${agentName}'`);
-          }
-        } catch (cleanupError) {
-          this.logger.warn(`Failed to cleanup sessions for agent '${agentName}'`, {
-            error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
-          });
+      try {
+        const cleaned = await this.sessionManager.cleanupExpiredSessions();
+        if (cleaned > 0) {
+          this.logger.info(`Cleaned ${cleaned} expired session(s) for agent '${this.agentName}'`);
         }
+      } catch (cleanupError) {
+        this.logger.warn(`Failed to cleanup sessions for agent '${this.agentName}'`, {
+          error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+        });
       }
     } catch (error) {
       this.status = "error";
@@ -197,7 +208,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
         messagesSent: this.messagesSent,
         messagesIgnored: this.messagesIgnored,
       });
-      this.emit("disconnect", { reason: "Intentional disconnect" });
+      this.emit("disconnect", { agentName: this.agentName, reason: "Intentional disconnect" });
     } catch (error) {
       this.status = "error";
       this.lastError =
@@ -275,12 +286,11 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
 
       if (!this.botUserId) return;
 
-      // Find which agent handles this channel
-      const agentName = this.channelAgentMap.get(event.channel);
-      if (!agentName) {
+      // Check if this channel is configured for this connector
+      if (!this.channels.has(event.channel)) {
         this.messagesIgnored++;
         this.emit("messageIgnored", {
-          agentName: "unknown",
+          agentName: this.agentName,
           reason: "not_configured",
           channelId: event.channel,
           messageTs: event.ts,
@@ -295,7 +305,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
       if (!prompt) {
         this.messagesIgnored++;
         this.emit("messageIgnored", {
-          agentName,
+          agentName: this.agentName,
           reason: "empty_prompt",
           channelId: event.channel,
           messageTs: event.ts,
@@ -305,12 +315,11 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
 
       // Check for prefix commands before processing as a message
       const wasCommand = await this.tryExecuteCommand(
-        prompt, agentName, event.channel, event.user, say
+        prompt, event.channel, event.user, say
       );
       if (wasCommand) return;
 
       const messageEvent = this.buildMessageEvent(
-        agentName,
         prompt,
         event.channel,
         event.ts,
@@ -332,7 +341,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
       if (!shouldProcessMessage(event, this.botUserId)) {
         this.messagesIgnored++;
         this.emit("messageIgnored", {
-          agentName: "unknown",
+          agentName: this.agentName,
           reason: "bot_message",
           channelId: event.channel,
           messageTs: event.ts,
@@ -357,18 +366,16 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
         return;
       }
 
-      // Resolve agent for this channel
-      const resolvedAgent = this.channelAgentMap.get(event.channel);
-
-      if (!resolvedAgent) {
+      // Check if this channel is configured for this connector
+      if (!this.channels.has(event.channel)) {
         this.messagesIgnored++;
         this.emit("messageIgnored", {
-          agentName: "unknown",
-          reason: "no_agent_resolved",
+          agentName: this.agentName,
+          reason: "not_configured",
           channelId: event.channel,
           messageTs: event.ts,
         });
-        this.logger.debug("No agent resolved for message", {
+        this.logger.debug("No channel config for message", {
           channel: event.channel,
         });
         return;
@@ -376,19 +383,19 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
 
       // For top-level messages (no thread_ts), check channel mode
       if (!event.thread_ts) {
-        const channelConfig = this.channelConfigs.get(event.channel);
+        const channelConfig = this.channels.get(event.channel);
         const mode = channelConfig?.mode ?? "mention";
         if (mode === "mention") {
           this.messagesIgnored++;
           this.emit("messageIgnored", {
-            agentName: resolvedAgent,
+            agentName: this.agentName,
             reason: "not_configured",
             channelId: event.channel,
             messageTs: event.ts,
           });
           this.logger.debug("Ignoring top-level message in mention-mode channel", {
             channel: event.channel,
-            agent: resolvedAgent,
+            agent: this.agentName,
             mode,
           });
           return;
@@ -396,7 +403,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
 
         this.logger.debug("Top-level channel message (auto mode)", {
           channel: event.channel,
-          agent: resolvedAgent,
+          agent: this.agentName,
           ts: event.ts,
         });
       }
@@ -406,7 +413,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
       if (!prompt) {
         this.messagesIgnored++;
         this.emit("messageIgnored", {
-          agentName: resolvedAgent,
+          agentName: this.agentName,
           reason: "empty_prompt",
           channelId: event.channel,
           messageTs: event.ts,
@@ -416,12 +423,11 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
 
       // Check for prefix commands before processing as a message
       const wasCommand = await this.tryExecuteCommand(
-        prompt, resolvedAgent, event.channel, event.user ?? "", say
+        prompt, event.channel, event.user ?? "", say
       );
       if (wasCommand) return;
 
       const messageEvent = this.buildMessageEvent(
-        resolvedAgent,
         prompt,
         event.channel,
         event.ts,
@@ -443,7 +449,6 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
    */
   private async tryExecuteCommand(
     prompt: string,
-    agentName: string,
     channelId: string,
     userId: string,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -453,19 +458,14 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
       return false;
     }
 
-    const sessionManager = this.sessionManagers.get(agentName);
-    if (!sessionManager) {
-      return false;
-    }
-
     const executed = await this.commandHandler.executeCommand(prompt, {
-      agentName,
+      agentName: this.agentName,
       channelId,
       userId,
       reply: async (content: string) => {
         await say({ text: content });
       },
-      sessionManager,
+      sessionManager: this.sessionManager,
       connectorState: this.getState(),
     });
 
@@ -473,11 +473,11 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
       const commandName = prompt.trim().slice(1).split(/\s+/)[0];
       this.logger.info("Command executed", {
         command: commandName,
-        agentName,
+        agentName: this.agentName,
         channelId,
       });
       this.emit("commandExecuted", {
-        agentName,
+        agentName: this.agentName,
         commandName,
         userId,
         channelId,
@@ -492,7 +492,6 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
   // ===========================================================================
 
   private buildMessageEvent(
-    agentName: string,
     prompt: string,
     channelId: string,
     messageTs: string,
@@ -539,7 +538,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
     };
 
     return {
-      agentName,
+      agentName: this.agentName,
       prompt,
       metadata: {
         channelId,

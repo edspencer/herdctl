@@ -242,9 +242,11 @@ export interface DiscordConnectorErrorPayload {
  * Payload for slack:connector:connected event
  */
 export interface SlackConnectorConnectedPayload {
+  /** Name of the agent whose Slack connector connected */
+  agentName: string;
   /** Bot username */
   botUsername: string;
-  /** Number of channel→agent mappings */
+  /** Number of channels configured for this agent */
   channelCount: number;
   /** ISO timestamp when the connector connected */
   timestamp: string;
@@ -254,6 +256,8 @@ export interface SlackConnectorConnectedPayload {
  * Payload for slack:connector:disconnected event
  */
 export interface SlackConnectorDisconnectedPayload {
+  /** Name of the agent whose Slack connector disconnected */
+  agentName: string;
   /** Reason for disconnection (if available) */
   reason?: string;
   /** ISO timestamp when the connector disconnected */
@@ -264,6 +268,8 @@ export interface SlackConnectorDisconnectedPayload {
  * Payload for slack:connector:error event
  */
 export interface SlackConnectorErrorPayload {
+  /** Name of the agent whose Slack connector had an error */
+  agentName: string;
   /** Error message */
   error: string;
   /** ISO timestamp when the error occurred */
@@ -482,17 +488,17 @@ export interface FleetManagerEventMap {
   // ===========================================================================
 
   /**
-   * Emitted when the Slack connector successfully connects.
+   * Emitted when a Slack connector successfully connects.
    */
   "slack:connector:connected": [payload: SlackConnectorConnectedPayload];
 
   /**
-   * Emitted when the Slack connector disconnects.
+   * Emitted when a Slack connector disconnects.
    */
   "slack:connector:disconnected": [payload: SlackConnectorDisconnectedPayload];
 
   /**
-   * Emitted when the Slack connector encounters an error.
+   * Emitted when a Slack connector encounters an error.
    */
   "slack:connector:error": [payload: SlackConnectorErrorPayload];
 

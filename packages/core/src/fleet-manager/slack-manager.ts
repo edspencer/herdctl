@@ -1,15 +1,11 @@
 /**
  * Slack Manager Module
  *
- * Manages a single Slack connector shared across agents that have `chat.slack` configured.
+ * Manages Slack connectors for agents that have `chat.slack` configured.
  * This module is responsible for:
- * - Creating ONE SlackConnector instance for the workspace
- * - Building channel→agent routing from agent configs
+ * - Creating one SlackConnector instance per Slack-enabled agent
  * - Managing connector lifecycle (start/stop)
- *
- * Key difference from Discord:
- * - DiscordManager has Map<string, IDiscordConnector> (N connectors, one per agent)
- * - SlackManager has one connector + Map<string, string> (channel→agent routing)
+ * - Providing access to connectors for status queries
  *
  * Note: This module dynamically imports @herdctl/slack at runtime to avoid
  * a hard dependency. The @herdctl/core package can be used without Slack support.
@@ -76,10 +72,9 @@ export interface SlackMessageEvent {
 
 /**
  * Error event payload from SlackConnector
- *
- * Note: No agentName — the connector is shared across agents.
  */
 export interface SlackErrorEvent {
+  agentName: string;
   error: Error;
 }
 
@@ -97,6 +92,8 @@ interface SlackLogger {
  * Minimal interface for a Slack connector
  */
 interface ISlackConnector {
+  readonly agentName: string;
+  readonly sessionManager: ISlackSessionManager;
   connect(): Promise<void>;
   disconnect(): Promise<void>;
   isConnected(): boolean;
@@ -109,8 +106,8 @@ interface ISlackConnector {
   }): Promise<{ fileId: string }>;
   on(event: "message", listener: (payload: SlackMessageEvent) => void): this;
   on(event: "error", listener: (payload: SlackErrorEvent) => void): this;
-  on(event: "ready", listener: (payload: { botUser: { id: string; username: string } }) => void): this;
-  on(event: "disconnect", listener: (payload: { reason: string }) => void): this;
+  on(event: "ready", listener: (payload: { agentName: string; botUser: { id: string; username: string } }) => void): this;
+  on(event: "disconnect", listener: (payload: { agentName: string; reason: string }) => void): this;
   on(event: string, listener: (...args: unknown[]) => void): this;
   off(event: string, listener: (...args: unknown[]) => void): this;
 }
@@ -134,13 +131,12 @@ interface ISlackSessionManager {
  */
 interface SlackModule {
   SlackConnector: new (options: {
+    agentName: string;
     botToken: string;
     appToken: string;
-    channelAgentMap: Map<string, string>;
-    channelConfigs?: Map<string, { mode: "mention" | "auto"; contextMessages: number }>;
-    sessionManagers: Map<string, ISlackSessionManager>;
+    channels: Array<{ id: string; mode?: "mention" | "auto" }>;
+    sessionManager: ISlackSessionManager;
     logger?: SlackLogger;
-    stateDir?: string;
   }) => ISlackConnector;
   SessionManager: new (options: {
     agentName: string;
@@ -267,21 +263,24 @@ class StreamingResponder {
 /**
  * SlackManager handles Slack connections for agents
  *
- * Unlike DiscordManager which creates N connectors (one per agent),
- * SlackManager creates ONE connector shared across all Slack-enabled agents,
- * with channel→agent routing.
+ * This class encapsulates the creation and lifecycle management of
+ * SlackConnector instances for agents that have Slack chat configured.
  */
 export class SlackManager {
-  private connector: ISlackConnector | null = null;
-  private sessionManagers: Map<string, ISlackSessionManager> = new Map();
-  private channelAgentMap: Map<string, string> = new Map();
-  private channelConfigs: Map<string, { mode: "mention" | "auto"; contextMessages: number }> = new Map();
+  private connectors: Map<string, ISlackConnector> = new Map();
   private initialized: boolean = false;
 
   constructor(private ctx: FleetManagerContext) {}
 
   /**
-   * Initialize the Slack connector for all configured agents
+   * Initialize Slack connectors for all configured agents
+   *
+   * This method:
+   * 1. Checks if @herdctl/slack package is available
+   * 2. Iterates through agents to find those with Slack configured
+   * 3. Creates a SlackConnector for each Slack-enabled agent
+   *
+   * Should be called during FleetManager initialization.
    */
   async initialize(): Promise<void> {
     if (this.initialized) {
@@ -299,7 +298,7 @@ export class SlackManager {
     // Try to import the slack package
     const slackPkg = await importSlackPackage();
     if (!slackPkg) {
-      logger.debug("@herdctl/slack not installed, skipping Slack connector");
+      logger.debug("@herdctl/slack not installed, skipping Slack connectors");
       return;
     }
 
@@ -318,214 +317,218 @@ export class SlackManager {
       return;
     }
 
-    logger.debug(`Initializing Slack connector for ${slackAgents.length} agent(s)`);
+    logger.debug(`Initializing Slack connectors for ${slackAgents.length} agent(s)`);
 
-    // All agents share the same bot + app token.
-    // Take the first agent's config for token resolution.
-    const firstSlackConfig = slackAgents[0].chat.slack;
-    if (!firstSlackConfig) {
-      this.initialized = true;
-      return;
-    }
-
-    const botToken = process.env[firstSlackConfig.bot_token_env];
-    if (!botToken) {
-      logger.warn(
-        `Slack bot token not found in environment variable '${firstSlackConfig.bot_token_env}'`
-      );
-      this.initialized = true;
-      return;
-    }
-
-    const appToken = process.env[firstSlackConfig.app_token_env];
-    if (!appToken) {
-      logger.warn(
-        `Slack app token not found in environment variable '${firstSlackConfig.app_token_env}'`
-      );
-      this.initialized = true;
-      return;
-    }
-
-    // Build channel→agent routing map and create session managers
     for (const agent of slackAgents) {
-      const slackConfig = agent.chat.slack;
-      if (!slackConfig) continue;
+      try {
+        const slackConfig = agent.chat.slack;
+        if (!slackConfig) continue;
 
-      // Create logger adapter for this agent
-      const createAgentLogger = (prefix: string): SlackLogger => ({
-        debug: (msg: string, data?: Record<string, unknown>) =>
-          logger.debug(`${prefix} ${msg}${data ? ` ${JSON.stringify(data)}` : ""}`),
-        info: (msg: string, data?: Record<string, unknown>) =>
-          logger.info(`${prefix} ${msg}${data ? ` ${JSON.stringify(data)}` : ""}`),
-        warn: (msg: string, data?: Record<string, unknown>) =>
-          logger.warn(`${prefix} ${msg}${data ? ` ${JSON.stringify(data)}` : ""}`),
-        error: (msg: string, data?: Record<string, unknown>) =>
-          logger.error(`${prefix} ${msg}${data ? ` ${JSON.stringify(data)}` : ""}`),
-      });
-
-      // Create session manager for this agent
-      const sessionManager = new SessionManager({
-        agentName: agent.name,
-        stateDir,
-        sessionExpiryHours: slackConfig.session_expiry_hours,
-        logger: createAgentLogger(`[slack:${agent.name}:session]`),
-      });
-
-      this.sessionManagers.set(agent.name, sessionManager);
-
-      // Map channels to this agent
-      for (const channel of slackConfig.channels) {
-        if (this.channelAgentMap.has(channel.id)) {
+        // Get bot token from environment variable
+        const botToken = process.env[slackConfig.bot_token_env];
+        if (!botToken) {
           logger.warn(
-            `Channel ${channel.id} is already mapped to agent '${this.channelAgentMap.get(channel.id)}', ` +
-              `overriding with agent '${agent.name}'`
+            `Slack bot token not found in environment variable '${slackConfig.bot_token_env}' for agent '${agent.name}'`
           );
+          continue;
         }
-        this.channelAgentMap.set(channel.id, agent.name);
-        this.channelConfigs.set(channel.id, {
-          mode: channel.mode ?? "mention",
-          contextMessages: channel.context_messages ?? 10,
-        });
-      }
 
-      logger.debug(`Configured Slack routing for agent '${agent.name}' with ${slackConfig.channels.length} channel(s)`);
-    }
+        // Get app token from environment variable
+        const appToken = process.env[slackConfig.app_token_env];
+        if (!appToken) {
+          logger.warn(
+            `Slack app token not found in environment variable '${slackConfig.app_token_env}' for agent '${agent.name}'`
+          );
+          continue;
+        }
 
-    // Create the single connector
-    try {
-      this.connector = new SlackConnector({
-        botToken,
-        appToken,
-        channelAgentMap: this.channelAgentMap,
-        channelConfigs: this.channelConfigs,
-        sessionManagers: this.sessionManagers,
-        stateDir,
-        logger: {
+        // Create logger adapter for this agent
+        const createAgentLogger = (prefix: string): SlackLogger => ({
           debug: (msg: string, data?: Record<string, unknown>) =>
-            logger.debug(`[slack] ${msg}${data ? ` ${JSON.stringify(data)}` : ""}`),
+            logger.debug(`${prefix} ${msg}${data ? ` ${JSON.stringify(data)}` : ""}`),
           info: (msg: string, data?: Record<string, unknown>) =>
-            logger.info(`[slack] ${msg}${data ? ` ${JSON.stringify(data)}` : ""}`),
+            logger.info(`${prefix} ${msg}${data ? ` ${JSON.stringify(data)}` : ""}`),
           warn: (msg: string, data?: Record<string, unknown>) =>
-            logger.warn(`[slack] ${msg}${data ? ` ${JSON.stringify(data)}` : ""}`),
+            logger.warn(`${prefix} ${msg}${data ? ` ${JSON.stringify(data)}` : ""}`),
           error: (msg: string, data?: Record<string, unknown>) =>
-            logger.error(`[slack] ${msg}${data ? ` ${JSON.stringify(data)}` : ""}`),
-        },
-      });
+            logger.error(`${prefix} ${msg}${data ? ` ${JSON.stringify(data)}` : ""}`),
+        });
 
-      logger.debug(`Created Slack connector with ${this.channelAgentMap.size} channel mapping(s)`);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`Failed to create Slack connector: ${errorMessage}`);
+        // Create session manager for this agent
+        const sessionManager = new SessionManager({
+          agentName: agent.name,
+          stateDir,
+          sessionExpiryHours: slackConfig.session_expiry_hours,
+          logger: createAgentLogger(`[slack:${agent.name}:session]`),
+        });
+
+        // Create the connector with per-agent options
+        const connector = new SlackConnector({
+          agentName: agent.name,
+          botToken,
+          appToken,
+          channels: slackConfig.channels.map((ch) => ({ id: ch.id, mode: ch.mode })),
+          sessionManager,
+          logger: createAgentLogger(`[slack:${agent.name}]`),
+        });
+
+        this.connectors.set(agent.name, connector);
+        logger.debug(`Created Slack connector for agent '${agent.name}'`);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error(`Failed to create Slack connector for agent '${agent.name}': ${errorMessage}`);
+        // Continue with other agents - don't fail the whole initialization
+      }
     }
 
     this.initialized = true;
-    logger.debug(
-      `Slack manager initialized with ${this.sessionManagers.size} agent(s), ` +
-        `${this.channelAgentMap.size} channel mapping(s)`
-    );
+    logger.debug(`Slack manager initialized with ${this.connectors.size} connector(s)`);
   }
 
   /**
-   * Connect the Slack connector and subscribe to events
+   * Connect all Slack connectors
+   *
+   * Connects each connector to Slack via Socket Mode and subscribes to events.
+   * Errors are logged but don't stop other connectors from connecting.
    */
   async start(): Promise<void> {
     const logger = this.ctx.getLogger();
 
-    if (!this.connector) {
-      logger.debug("No Slack connector to start");
+    if (this.connectors.size === 0) {
+      logger.debug("No Slack connectors to start");
       return;
     }
 
-    logger.debug("Starting Slack connector...");
+    logger.debug(`Starting ${this.connectors.size} Slack connector(s)...`);
 
-    // Subscribe to events before connecting
-    this.connector.on("message", (event: SlackMessageEvent) => {
-      this.handleMessage(event.agentName, event).catch((error: unknown) => {
-        this.handleError(event.agentName, error);
+    const connectPromises: Promise<void>[] = [];
+
+    for (const [agentName, connector] of this.connectors) {
+      // Subscribe to connector events before connecting
+      connector.on("message", (event: SlackMessageEvent) => {
+        this.handleMessage(agentName, event).catch((error: unknown) => {
+          this.handleError(agentName, error);
+        });
       });
-    });
 
-    this.connector.on("error", (event: SlackErrorEvent) => {
-      this.handleError("slack", event.error);
-    });
+      connector.on("error", (event: SlackErrorEvent) => {
+        this.handleError(event.agentName, event.error);
+      });
 
-    try {
-      await this.connector.connect();
-      logger.info("Slack connector started");
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`Failed to connect Slack: ${errorMessage}`);
+      connectPromises.push(
+        connector.connect().catch((error: unknown) => {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          logger.error(`Failed to connect Slack for agent '${agentName}': ${errorMessage}`);
+          // Don't re-throw - we want to continue connecting other agents
+        })
+      );
     }
+
+    await Promise.all(connectPromises);
+
+    const connectedCount = Array.from(this.connectors.values()).filter((c) =>
+      c.isConnected()
+    ).length;
+    logger.info(`Slack connectors started: ${connectedCount}/${this.connectors.size} connected`);
   }
 
   /**
-   * Disconnect the Slack connector gracefully
+   * Disconnect all Slack connectors gracefully
+   *
+   * Sessions are automatically persisted to disk on every update,
+   * so they survive bot restarts. This method logs session state
+   * before disconnecting for monitoring purposes.
+   *
+   * Errors are logged but don't prevent other connectors from disconnecting.
    */
   async stop(): Promise<void> {
     const logger = this.ctx.getLogger();
 
-    if (!this.connector) {
-      logger.debug("No Slack connector to stop");
+    if (this.connectors.size === 0) {
+      logger.debug("No Slack connectors to stop");
       return;
     }
 
-    logger.debug("Stopping Slack connector...");
+    logger.debug(`Stopping ${this.connectors.size} Slack connector(s)...`);
 
-    // Log session state before shutdown
-    for (const [agentName, sessionManager] of this.sessionManagers) {
+    // Log session state before shutdown (sessions are already persisted to disk)
+    for (const [agentName, connector] of this.connectors) {
       try {
-        const activeSessionCount = await sessionManager.getActiveSessionCount();
+        const activeSessionCount = await connector.sessionManager.getActiveSessionCount();
         if (activeSessionCount > 0) {
           logger.debug(`Preserving ${activeSessionCount} active Slack session(s) for agent '${agentName}'`);
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.warn(`Failed to get Slack session count for agent '${agentName}': ${errorMessage}`);
+        // Continue with shutdown - this is just informational logging
       }
     }
 
-    try {
-      await this.connector.disconnect();
-      logger.debug("Slack connector stopped");
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`Error disconnecting Slack: ${errorMessage}`);
+    const disconnectPromises: Promise<void>[] = [];
+
+    for (const [agentName, connector] of this.connectors) {
+      disconnectPromises.push(
+        connector.disconnect().catch((error: unknown) => {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          logger.error(`Error disconnecting Slack for agent '${agentName}': ${errorMessage}`);
+          // Don't re-throw - graceful shutdown should continue
+        })
+      );
     }
+
+    await Promise.all(disconnectPromises);
+    logger.debug("All Slack connectors stopped");
   }
 
   /**
-   * Get the connector (if any)
+   * Get a connector for a specific agent
+   *
+   * @param agentName - Name of the agent
+   * @returns The SlackConnector instance, or undefined if not found
    */
-  getConnector(): ISlackConnector | null {
-    return this.connector;
+  getConnector(agentName: string): ISlackConnector | undefined {
+    return this.connectors.get(agentName);
   }
 
   /**
-   * Check if the connector is connected
+   * Get all connector names
+   *
+   * @returns Array of agent names that have Slack connectors
    */
-  isConnected(): boolean {
-    return this.connector?.isConnected() ?? false;
+  getConnectorNames(): string[] {
+    return Array.from(this.connectors.keys());
   }
 
   /**
-   * Get the state of the connector
+   * Get the number of active connectors
+   *
+   * @returns Number of connectors that are currently connected
    */
-  getState(): SlackConnectorState | null {
-    return this.connector?.getState() ?? null;
+  getConnectedCount(): number {
+    return Array.from(this.connectors.values()).filter((c) =>
+      c.isConnected()
+    ).length;
   }
 
   /**
-   * Get the channel→agent routing map
-   */
-  getChannelAgentMap(): Map<string, string> {
-    return this.channelAgentMap;
-  }
-
-  /**
-   * Check if a specific agent has Slack configured
+   * Check if a specific agent has a Slack connector
+   *
+   * @param agentName - Name of the agent
+   * @returns true if the agent has a Slack connector
    */
   hasAgent(agentName: string): boolean {
-    return this.sessionManagers.has(agentName);
+    return this.connectors.has(agentName);
+  }
+
+  /**
+   * Get the state of a specific connector
+   *
+   * @param agentName - Name of the agent
+   * @returns The connector state, or null if not found
+   */
+  getState(agentName: string): SlackConnectorState | null {
+    return this.connectors.get(agentName)?.getState() ?? null;
   }
 
   // ===========================================================================
@@ -555,12 +558,12 @@ export class SlackManager {
       return;
     }
 
-    // Get existing session for this channel
-    const sessionManager = this.sessionManagers.get(agentName);
+    // Get existing session for this channel (for conversation continuity)
+    const connector = this.connectors.get(agentName);
     let existingSessionId: string | null = null;
-    if (sessionManager) {
+    if (connector) {
       try {
-        const existingSession = await sessionManager.getSession(event.metadata.channelId);
+        const existingSession = await connector.sessionManager.getSession(event.metadata.channelId);
         if (existingSession) {
           existingSessionId = existingSession.sessionId;
           logger.debug(`Resuming session for channel ${event.metadata.channelId}: ${existingSessionId}`);
@@ -576,18 +579,19 @@ export class SlackManager {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.warn(`Failed to get session: ${errorMessage}`);
+        // Continue processing - session failure shouldn't block message handling
       }
     }
 
     // Create file sender definition for this message context
     let injectedMcpServers: Record<string, InjectedMcpServerDef> | undefined;
     const workingDir = resolveWorkingDirectory(agent);
-    if (this.connector && workingDir) {
-      const connector = this.connector;
+    if (connector && workingDir) {
+      const agentConnector = connector;
       const fileSenderContext: FileSenderContext = {
         workingDirectory: workingDir,
         uploadFile: async (params) => {
-          return connector.uploadFile({
+          return agentConnector.uploadFile({
             channelId: event.metadata.channelId,
             fileBuffer: params.fileBuffer,
             filename: params.filename,
@@ -666,10 +670,11 @@ export class SlackManager {
       }
 
       // Store the SDK session ID for future conversation continuity
-      if (sessionManager && result.sessionId && result.success) {
+      // Only store if the job succeeded - failed jobs may return invalid session IDs
+      if (connector && result.sessionId && result.success) {
         const isNewSession = existingSessionId === null;
         try {
-          await sessionManager.setSession(
+          await connector.sessionManager.setSession(
             event.metadata.channelId,
             result.sessionId
           );
@@ -686,7 +691,10 @@ export class SlackManager {
         } catch (sessionError) {
           const errorMessage = sessionError instanceof Error ? sessionError.message : String(sessionError);
           logger.warn(`Failed to store session: ${errorMessage}`);
+          // Don't fail the message handling for session storage failure
         }
+      } else if (connector && result.sessionId && !result.success) {
+        logger.debug(`Not storing session ${result.sessionId} for channel ${event.metadata.channelId} - job failed`);
       }
 
       // Emit event for tracking
