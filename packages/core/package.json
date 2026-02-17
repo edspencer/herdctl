@@ -1,6 +1,6 @@
 {
   "name": "@herdctl/core",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "Core library for herdctl fleet management",
   "license": "MIT",
   "type": "module",
