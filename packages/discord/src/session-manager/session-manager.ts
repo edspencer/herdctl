@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 import { stringify as stringifyYaml, parse as parseYaml } from "yaml";
 import { readFile, writeFile, rename, unlink } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
+import { createLogger } from "@herdctl/core";
 import {
   type SessionManagerOptions,
   type SessionManagerLogger,
@@ -35,17 +36,7 @@ import {
 // =============================================================================
 
 function createDefaultLogger(agentName: string): SessionManagerLogger {
-  const prefix = `[session:${agentName}]`;
-  return {
-    debug: (msg, data) =>
-      console.debug(prefix, msg, data ? JSON.stringify(data) : ""),
-    info: (msg, data) =>
-      console.info(prefix, msg, data ? JSON.stringify(data) : ""),
-    warn: (msg, data) =>
-      console.warn(prefix, msg, data ? JSON.stringify(data) : ""),
-    error: (msg, data) =>
-      console.error(prefix, msg, data ? JSON.stringify(data) : ""),
-  };
+  return createLogger(`session:${agentName}`);
 }
 
 // =============================================================================

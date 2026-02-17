@@ -4,6 +4,7 @@
  * Provides configurable logging with level-based filtering.
  */
 
+import { createLogger } from "@herdctl/core";
 import type { SlackConnectorLogger } from "./types.js";
 
 // =============================================================================
@@ -64,6 +65,6 @@ export function createSlackLogger(
 export function createDefaultSlackLogger(
   agentName?: string
 ): SlackConnectorLogger {
-  const prefix = agentName ? `[slack:${agentName}]` : "[slack]";
-  return createSlackLogger({ prefix });
+  const prefix = agentName ? `slack:${agentName}` : "slack";
+  return createLogger(prefix);
 }

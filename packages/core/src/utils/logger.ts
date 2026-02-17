@@ -5,7 +5,6 @@
  * and DEBUG environment variables.
  */
 
-import type { SchedulerLogger } from "../scheduler/types.js";
 import type { LogLevel } from "../fleet-manager/types.js";
 
 // Re-export LogLevel for convenience
@@ -56,8 +55,9 @@ export function shouldLog(level: LogLevel): boolean {
 /**
  * Create a logger with a specific prefix
  *
- * Returns a SchedulerLogger-compatible object that respects
- * the HERDCTL_LOG_LEVEL environment variable.
+ * Returns a logger object that respects the HERDCTL_LOG_LEVEL
+ * environment variable. Each method accepts an optional data
+ * parameter that is JSON-serialized into the log output.
  *
  * @param prefix - The prefix to use for log messages (e.g., 'CLIRuntime')
  * @returns A logger object with debug/info/warn/error methods
@@ -67,29 +67,35 @@ export function shouldLog(level: LogLevel): boolean {
  * const logger = createLogger('CLIRuntime');
  * logger.debug('Starting process...'); // Only shown if HERDCTL_LOG_LEVEL=debug
  * logger.info('Process started');      // Shown at info level and below
+ * logger.info('Connected', { host: 'localhost' }); // With structured data
  * logger.error('Process failed');      // Always shown
  * ```
  */
-export function createLogger(prefix: string): SchedulerLogger {
+export function createLogger(prefix: string) {
+  const fmt = (message: string, data?: Record<string, unknown>) =>
+    data
+      ? `[${prefix}] ${message} ${JSON.stringify(data)}`
+      : `[${prefix}] ${message}`;
+
   return {
-    debug: (message: string) => {
+    debug: (message: string, data?: Record<string, unknown>) => {
       if (shouldLog("debug")) {
-        console.debug(`[${prefix}] ${message}`);
+        console.debug(fmt(message, data));
       }
     },
-    info: (message: string) => {
+    info: (message: string, data?: Record<string, unknown>) => {
       if (shouldLog("info")) {
-        console.info(`[${prefix}] ${message}`);
+        console.info(fmt(message, data));
       }
     },
-    warn: (message: string) => {
+    warn: (message: string, data?: Record<string, unknown>) => {
       if (shouldLog("warn")) {
-        console.warn(`[${prefix}] ${message}`);
+        console.warn(fmt(message, data));
       }
     },
-    error: (message: string) => {
+    error: (message: string, data?: Record<string, unknown>) => {
       if (shouldLog("error")) {
-        console.error(`[${prefix}] ${message}`);
+        console.error(fmt(message, data));
       }
     },
   };
