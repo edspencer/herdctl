@@ -34,7 +34,7 @@ It uses simple .yml files that are a thin wrapper around Claude Agents SDK confi
 
 herdctl can run **fleets of agents**, each with their own source-controllable configurations. Agent fleets can be run anywhere via a simple `herdctl start` command.
 
-herdctl allows you to interact with all of your existing Claude Code projects via **chat apps like Discord** (Telegram and Slack support coming soon).
+herdctl allows you to interact with all of your existing Claude Code projects via **chat apps like Discord and Slack** (Telegram support coming soon).
 
 ## Key Features
 
@@ -44,7 +44,7 @@ herdctl allows you to interact with all of your existing Claude Code projects vi
 
 - **Two Runtimes** — CLI runtime uses your Claude Max subscription (much cheaper per token). SDK runtime uses API pricing. Both support Docker isolation with resource limits and network controls.
 
-- **Chat From Anywhere** — Connect agents to Discord (Slack coming soon). Message your agents from your phone, get responses, and they continue working based on your conversation. Your PR reviewer bot becomes a team member you can @ mention.
+- **Chat From Anywhere** — Connect agents to Discord or Slack. Message your agents from your phone, get responses, and they continue working based on your conversation. Your PR reviewer bot becomes a team member you can @ mention.
 
 - **Session Continuity** — Every job creates a real Claude SDK session. When an agent finishes, you can `claude --resume` that exact session in your terminal. Pick up where the agent left off with full context intact.
 
