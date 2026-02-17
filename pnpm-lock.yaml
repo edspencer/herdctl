@@ -47,6 +47,9 @@ importers:
       '@herdctl/discord':
         specifier: workspace:*
         version: link:../discord
+      '@herdctl/slack':
+        specifier: workspace:*
+        version: link:../slack
       '@inquirer/prompts':
         specifier: ^8.2.0
         version: 8.2.0(@types/node@20.19.30)

@@ -270,6 +270,66 @@ export interface SlackConnectorErrorPayload {
   timestamp: string;
 }
 
+/**
+ * Payload for slack:message:handled event
+ */
+export interface SlackMessageHandledPayload {
+  /** Name of the agent that handled the message */
+  agentName: string;
+  /** Slack channel ID */
+  channelId: string;
+  /** Slack message timestamp */
+  messageTs: string;
+  /** Job ID created for this message */
+  jobId: string;
+  /** ISO timestamp when the message was handled */
+  timestamp: string;
+}
+
+/**
+ * Payload for slack:message:error event
+ */
+export interface SlackMessageErrorPayload {
+  /** Name of the agent that failed to handle the message */
+  agentName: string;
+  /** Slack channel ID */
+  channelId: string;
+  /** Slack message timestamp */
+  messageTs: string;
+  /** Error message */
+  error: string;
+  /** ISO timestamp when the error occurred */
+  timestamp: string;
+}
+
+/**
+ * Payload for slack:error event
+ */
+export interface SlackErrorPayload {
+  /** Name of the agent associated with the error */
+  agentName: string;
+  /** Error message */
+  error: string;
+  /** ISO timestamp when the error occurred */
+  timestamp: string;
+}
+
+/**
+ * Payload for slack:session:lifecycle event
+ */
+export interface SlackSessionLifecyclePayload {
+  /** Name of the agent */
+  agentName: string;
+  /** Lifecycle event type */
+  event: "created" | "resumed" | "reset";
+  /** Slack channel ID */
+  channelId: string;
+  /** Session ID */
+  sessionId: string;
+  /** ISO timestamp when the lifecycle event occurred */
+  timestamp?: string;
+}
+
 // =============================================================================
 // Fleet Manager Event Map
 // =============================================================================
@@ -435,6 +495,26 @@ export interface FleetManagerEventMap {
    * Emitted when the Slack connector encounters an error.
    */
   "slack:connector:error": [payload: SlackConnectorErrorPayload];
+
+  /**
+   * Emitted when a Slack message is successfully handled.
+   */
+  "slack:message:handled": [payload: SlackMessageHandledPayload];
+
+  /**
+   * Emitted when a Slack message fails to be handled.
+   */
+  "slack:message:error": [payload: SlackMessageErrorPayload];
+
+  /**
+   * Emitted when a Slack-related error occurs at the manager level.
+   */
+  "slack:error": [payload: SlackErrorPayload];
+
+  /**
+   * Emitted when a Slack session lifecycle event occurs (created, resumed, reset).
+   */
+  "slack:session:lifecycle": [payload: SlackSessionLifecyclePayload];
 
   // ===========================================================================
   // Error Events

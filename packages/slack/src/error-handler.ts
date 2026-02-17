@@ -57,7 +57,12 @@ export const USER_ERROR_MESSAGES: Record<string, string> = {
 export function classifyError(error: Error): ClassifiedError {
   const message = error.message.toLowerCase();
 
-  if (message.includes("invalid_auth") || message.includes("token")) {
+  if (
+    message.includes("invalid_auth") ||
+    message.includes("token_revoked") ||
+    message.includes("token_expired") ||
+    message.includes("not_authed")
+  ) {
     return {
       category: ErrorCategory.AUTH,
       userMessage: USER_ERROR_MESSAGES.auth,

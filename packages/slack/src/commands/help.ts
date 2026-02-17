@@ -19,8 +19,8 @@ export const helpCommand: PrefixCommand = {
 
 *Interacting with the bot:*
 \u2022 Mention the bot in a configured channel to start a conversation
-\u2022 Reply in the thread to continue the conversation
-\u2022 Each thread is a separate conversation with its own context`;
+\u2022 The bot remembers context within each channel
+\u2022 Use \`!reset\` to clear the conversation and start fresh`;
 
     await reply(helpMessage);
   },

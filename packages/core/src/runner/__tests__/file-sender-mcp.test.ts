@@ -4,10 +4,11 @@ import { resolve, join } from "node:path";
 // Mock node:fs/promises
 vi.mock("node:fs/promises", () => ({
   readFile: vi.fn(),
+  realpath: vi.fn(),
 }));
 
 import { createFileSenderDef, type FileSenderContext } from "../file-sender-mcp.js";
-import { readFile } from "node:fs/promises";
+import { readFile, realpath } from "node:fs/promises";
 
 // =============================================================================
 // Helpers
@@ -67,6 +68,8 @@ describe("createFileSenderDef", () => {
 describe("herdctl_send_file tool handler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // By default, realpath acts as identity (no symlinks)
+    vi.mocked(realpath).mockImplementation(async (p) => String(p));
   });
 
   it("uploads a file within the working directory", async () => {
@@ -149,6 +152,25 @@ describe("herdctl_send_file tool handler", () => {
     expect(context.uploadFile).not.toHaveBeenCalled();
   });
 
+  it("rejects symlinks that resolve outside the working directory", async () => {
+    const context = createTestContext();
+    const handler = getToolHandler(context);
+
+    // Simulate a symlink: /workspace/link.txt -> /etc/passwd
+    vi.mocked(realpath).mockImplementation(async (p) => {
+      const s = String(p);
+      if (s === resolve("/workspace", "link.txt")) return "/etc/passwd";
+      return s;
+    });
+
+    const result = await handler({ file_path: "link.txt" });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("escapes working directory");
+    expect(context.uploadFile).not.toHaveBeenCalled();
+    expect(readFile).not.toHaveBeenCalled();
+  });
+
   it("allows absolute paths within the working directory", async () => {
     const context = createTestContext();
     const handler = getToolHandler(context);
@@ -177,18 +199,18 @@ describe("herdctl_send_file tool handler", () => {
     );
   });
 
-  it("returns error when file does not exist", async () => {
+  it("returns error when file does not exist (realpath ENOENT)", async () => {
     const context = createTestContext();
     const handler = getToolHandler(context);
-    vi.mocked(readFile).mockRejectedValue(
+    vi.mocked(realpath).mockRejectedValue(
       new Error("ENOENT: no such file or directory")
     );
 
     const result = await handler({ file_path: "nonexistent.pdf" });
 
     expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain("Error uploading file");
-    expect(result.content[0].text).toContain("ENOENT");
+    expect(result.content[0].text).toContain("file not found");
+    expect(readFile).not.toHaveBeenCalled();
   });
 
   it("returns error when upload fails", async () => {
