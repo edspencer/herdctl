@@ -249,7 +249,7 @@ describe("Scheduler", () => {
       await wait(10);
 
       expect(scheduler.isRunning()).toBe(true);
-      expect(mockLogger.infos.some((m) => m.includes("started"))).toBe(true);
+      expect(mockLogger.debugs.some((m) => m.includes("started"))).toBe(true);
 
       await scheduler.stop();
       await startPromise;
@@ -287,7 +287,7 @@ describe("Scheduler", () => {
       await wait(10);
 
       expect(
-        mockLogger.infos.some(
+        mockLogger.debugs.some(
           (m) => m.includes("2 agents") && m.includes("500ms")
         )
       ).toBe(true);

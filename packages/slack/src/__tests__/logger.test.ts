@@ -107,12 +107,12 @@ describe("createDefaultSlackLogger", () => {
   it("creates logger with agent name prefix", () => {
     const logger = createDefaultSlackLogger("my-agent");
     logger.info("test");
-    expect(console.info).toHaveBeenCalledWith("[slack:my-agent] test", "");
+    expect(console.info).toHaveBeenCalledWith("[slack:my-agent] test");
   });
 
   it("creates logger without agent name", () => {
     const logger = createDefaultSlackLogger();
     logger.info("test");
-    expect(console.info).toHaveBeenCalledWith("[slack] test", "");
+    expect(console.info).toHaveBeenCalledWith("[slack] test");
   });
 });

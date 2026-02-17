@@ -13,6 +13,7 @@ import {
 } from "../state/schemas/fleet-state.js";
 import { readFleetState, writeFleetState } from "../state/fleet-state.js";
 import { STATE_FILE_NAME } from "../state/types.js";
+import { createLogger } from "../utils/logger.js";
 
 /**
  * Logger interface for warning messages
@@ -24,9 +25,7 @@ export interface ScheduleStateLogger {
 /**
  * Default console logger
  */
-const defaultLogger: ScheduleStateLogger = {
-  warn: (message: string) => console.warn(`[herdctl] ${message}`),
-};
+const defaultLogger: ScheduleStateLogger = createLogger("schedule-state");
 
 /**
  * Options for schedule state operations

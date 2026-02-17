@@ -19,6 +19,7 @@ import type {
   ICommandManager,
   CommandContext,
 } from "./types.js";
+import { createLogger } from "@herdctl/core";
 import type { DiscordConnectorState } from "../types.js";
 import type { ISessionManager } from "../session-manager/index.js";
 import { helpCommand } from "./help.js";
@@ -36,17 +37,7 @@ import {
 // =============================================================================
 
 function createDefaultLogger(agentName: string): CommandManagerLogger {
-  const prefix = `[commands:${agentName}]`;
-  return {
-    debug: (msg, data) =>
-      console.debug(prefix, msg, data ? JSON.stringify(data) : ""),
-    info: (msg, data) =>
-      console.info(prefix, msg, data ? JSON.stringify(data) : ""),
-    warn: (msg, data) =>
-      console.warn(prefix, msg, data ? JSON.stringify(data) : ""),
-    error: (msg, data) =>
-      console.error(prefix, msg, data ? JSON.stringify(data) : ""),
-  };
+  return createLogger(`commands:${agentName}`);
 }
 
 // =============================================================================
@@ -146,7 +137,7 @@ export class CommandManager implements ICommandManager {
       throw new Error("Client user ID not available for command registration");
     }
 
-    this.logger.info("Registering slash commands...", {
+    this.logger.debug("Registering slash commands...", {
       commandCount: commandData.length,
       commands: Array.from(this.commands.keys()),
     });
@@ -175,7 +166,7 @@ export class CommandManager implements ICommandManager {
       throw result.error ?? new Error("Failed to register commands");
     }
 
-    this.logger.info("Successfully registered slash commands");
+    this.logger.debug("Successfully registered slash commands");
   }
 
   /**

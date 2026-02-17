@@ -12,6 +12,9 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import type { DockerConfig, PathMapping } from "./docker-config.js";
 import type { ResolvedAgent } from "../../config/index.js";
+import { createLogger } from "../../utils/logger.js";
+
+const logger = createLogger("ContainerManager");
 
 /**
  * Container manager for herdctl Docker execution
@@ -334,7 +337,7 @@ function writeCredentialsFile(oauth: Record<string, unknown>): void {
     creds.claudeAiOauth = oauth;
     fs.writeFileSync(credsPath, JSON.stringify(creds, null, 2));
   } catch (err) {
-    console.error("[buildContainerEnv] Failed to write credentials file:", err);
+    logger.error(`Failed to write credentials file: ${err}`);
   }
 }
 
@@ -347,7 +350,7 @@ async function refreshClaudeOAuthToken(
   refreshToken: string
 ): Promise<{ accessToken: string; refreshToken: string; expiresAt: number } | null> {
   try {
-    console.log("[buildContainerEnv] Refreshing Claude OAuth token...");
+    logger.info("Refreshing Claude OAuth token...");
     const response = await fetch(CLAUDE_OAUTH_TOKEN_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -359,7 +362,7 @@ async function refreshClaudeOAuthToken(
     });
 
     if (!response.ok) {
-      console.error(`[buildContainerEnv] Token refresh failed: HTTP ${response.status}`);
+      logger.error(`Token refresh failed: HTTP ${response.status}`);
       return null;
     }
 
@@ -376,10 +379,10 @@ async function refreshClaudeOAuthToken(
     };
 
     writeCredentialsFile(oauth);
-    console.log(`[buildContainerEnv] Token refreshed, expires in ${Math.round(data.expires_in / 3600)}h`);
+    logger.info(`Token refreshed, expires in ${Math.round(data.expires_in / 3600)}h`);
     return oauth;
   } catch (err) {
-    console.error("[buildContainerEnv] Token refresh error:", err);
+    logger.error(`Token refresh error: ${err}`);
     return null;
   }
 }

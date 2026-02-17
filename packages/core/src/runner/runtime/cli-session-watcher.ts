@@ -8,6 +8,9 @@
 import chokidar from "chokidar";
 import { readFile } from "node:fs/promises";
 import type { SDKMessage } from "../types.js";
+import { createLogger } from "../../utils/logger.js";
+
+const logger = createLogger("CLISessionWatcher");
 
 /**
  * Watches a CLI session file and yields new messages as they're written
@@ -35,14 +38,14 @@ export class CLISessionWatcher {
       const content = await readFile(this.sessionFilePath, "utf-8");
       const lines = content.split("\n").filter((line) => line.trim() !== "");
       this.lastLineCount = lines.length;
-      console.log(`[CLISessionWatcher] Initialized at line ${this.lastLineCount}, will skip existing content`);
+      logger.debug(`Initialized at line ${this.lastLineCount}, will skip existing content`);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
         // File doesn't exist yet - that's fine for new sessions
-        console.log(`[CLISessionWatcher] File doesn't exist yet, starting from line 0`);
+        logger.debug(`File doesn't exist yet, starting from line 0`);
       } else {
-        console.warn(
-          `[CLISessionWatcher] Failed to initialize: ${error instanceof Error ? error.message : String(error)}`
+        logger.warn(
+          `Failed to initialize: ${error instanceof Error ? error.message : String(error)}`
         );
       }
     }
@@ -60,32 +63,32 @@ export class CLISessionWatcher {
       const newLines = lines.slice(this.lastLineCount);
       this.lastLineCount = lines.length;
 
-      console.log(`[CLISessionWatcher] Processing ${newLines.length} new lines`);
+      logger.debug(`Processing ${newLines.length} new lines`);
 
       // Parse and queue valid messages
       for (const line of newLines) {
         try {
           const message = JSON.parse(line) as SDKMessage;
-          console.log(`[CLISessionWatcher] Queued message type: ${message.type}`);
+          logger.debug(`Queued message type: ${message.type}`);
           this.messageQueue.push(message);
         } catch (error) {
           // Skip invalid JSON lines (CLI may output non-JSON)
-          console.warn(
-            `[CLISessionWatcher] Failed to parse line: ${error instanceof Error ? error.message : String(error)}`
+          logger.debug(
+            `Failed to parse line: ${error instanceof Error ? error.message : String(error)}`
           );
         }
       }
 
       // If someone is waiting for a message and we have one, wake them up
       if (this.pendingMessageResolve && this.messageQueue.length > 0) {
-        console.log(`[CLISessionWatcher] Waking up waiting iterator`);
+        logger.debug(`Waking up waiting iterator`);
         this.pendingMessageResolve();
         this.pendingMessageResolve = null;
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-        console.warn(
-          `[CLISessionWatcher] Error reading session file: ${error instanceof Error ? error.message : String(error)}`,
+        logger.warn(
+          `Error reading session file: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     }
@@ -108,18 +111,18 @@ export class CLISessionWatcher {
     });
 
     this.watcher.on("add", async () => {
-      console.log("[CLISessionWatcher] File 'add' event");
+      logger.debug("File 'add' event");
       await this.processFile();
     });
 
     this.watcher.on("change", async () => {
-      console.log("[CLISessionWatcher] File 'change' event");
+      logger.debug("File 'change' event");
       await this.processFile();
     });
 
     this.watcher.on("error", (error: unknown) => {
-      console.error(
-        `[CLISessionWatcher] Watcher error: ${error instanceof Error ? error.message : String(error)}`,
+      logger.error(
+        `Watcher error: ${error instanceof Error ? error.message : String(error)}`,
       );
     });
 
@@ -128,12 +131,12 @@ export class CLISessionWatcher {
         // If we have queued messages, yield them
         while (this.messageQueue.length > 0) {
           const message = this.messageQueue.shift()!;
-          console.log(`[CLISessionWatcher] Yielding message type: ${message.type}`);
+          logger.debug(`Yielding message type: ${message.type}`);
           yield message;
         }
 
         // No messages - wait for chokidar to add one
-        console.log(`[CLISessionWatcher] No messages, waiting for chokidar event`);
+        logger.debug(`No messages, waiting for chokidar event`);
         await new Promise<void>((resolve) => {
           this.pendingMessageResolve = resolve;
 
@@ -142,7 +145,7 @@ export class CLISessionWatcher {
             resolve();
           }
         });
-        console.log(`[CLISessionWatcher] Woke up (stopped: ${this.stopped}, queue: ${this.messageQueue.length})`);
+        logger.debug(`Woke up (stopped: ${this.stopped}, queue: ${this.messageQueue.length})`);
 
         // Check if we should exit
         if (this.stopped) {
@@ -150,7 +153,7 @@ export class CLISessionWatcher {
         }
       }
     } finally {
-      console.log(`[CLISessionWatcher] Generator exiting`);
+      logger.debug(`Generator exiting`);
       this.stop();
     }
   }
@@ -164,14 +167,14 @@ export class CLISessionWatcher {
    * @returns Array of any remaining messages found
    */
   async flushRemainingMessages(): Promise<SDKMessage[]> {
-    console.log(`[CLISessionWatcher] Flushing remaining messages from file`);
+    logger.debug(`Flushing remaining messages from file`);
     await this.processFile();
 
     // Return all queued messages
     const messages = [...this.messageQueue];
     this.messageQueue = [];
 
-    console.log(`[CLISessionWatcher] Flushed ${messages.length} remaining message(s)`);
+    logger.debug(`Flushed ${messages.length} remaining message(s)`);
     return messages;
   }
 
@@ -179,7 +182,7 @@ export class CLISessionWatcher {
    * Stop watching
    */
   stop(): void {
-    console.log(`[CLISessionWatcher] stop() called`);
+    logger.debug(`stop() called`);
     this.stopped = true;
     if (this.watcher) {
       this.watcher.close();

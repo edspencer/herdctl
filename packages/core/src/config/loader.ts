@@ -24,6 +24,7 @@ import {
 import { ConfigError, FileReadError, SchemaValidationError } from "./parser.js";
 import { mergeAgentConfig, deepMerge, type ExtendedDefaults } from "./merge.js";
 import { interpolateConfig, type InterpolateOptions } from "./interpolate.js";
+import { createLogger } from "../utils/logger.js";
 
 // =============================================================================
 // Constants
@@ -219,8 +220,9 @@ function handleBackwardCompatibility(
   if ("workspace" in config) {
     if (!("working_directory" in config)) {
       // Only workspace present - migrate and warn
-      console.warn(
-        `Warning: "${context}" uses deprecated "workspace" field. ` +
+      const logger = createLogger("config");
+      logger.warn(
+        `"${context}" uses deprecated "workspace" field. ` +
           'Use "working_directory" instead.'
       );
       config.working_directory = config.workspace;

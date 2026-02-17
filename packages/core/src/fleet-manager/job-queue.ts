@@ -31,6 +31,7 @@
 
 import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
+import { createLogger } from "../utils/logger.js";
 
 // =============================================================================
 // Types
@@ -297,12 +298,7 @@ export interface JobQueueEventMap {
 // =============================================================================
 
 function createDefaultLogger(): JobQueueLogger {
-  return {
-    debug: (message: string) => console.debug(`[job-queue] ${message}`),
-    info: (message: string) => console.info(`[job-queue] ${message}`),
-    warn: (message: string) => console.warn(`[job-queue] ${message}`),
-    error: (message: string) => console.error(`[job-queue] ${message}`),
-  };
+  return createLogger("job-queue");
 }
 
 // =============================================================================

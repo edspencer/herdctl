@@ -125,7 +125,7 @@ export class JobControl {
 
     const timestamp = new Date().toISOString();
 
-    logger.info(
+    logger.debug(
       `Manually triggered ${agentName}${scheduleName ? `/${scheduleName}` : ""}`
     );
 

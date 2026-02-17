@@ -8,6 +8,7 @@
  * 4. Updating schedule state and reporting outcomes
  */
 
+import { createLogger } from "../utils/logger.js";
 import type { ResolvedAgent, Schedule } from "../config/index.js";
 import type { ScheduleState } from "../state/schemas/fleet-state.js";
 import type { RunnerResult } from "../runner/index.js";
@@ -91,12 +92,7 @@ export interface ScheduleRunResult extends RunnerResult {
 // Default Logger
 // =============================================================================
 
-const defaultLogger: ScheduleRunnerLogger = {
-  debug: (message: string) => console.debug(`[schedule-runner] ${message}`),
-  info: (message: string) => console.info(`[schedule-runner] ${message}`),
-  warn: (message: string) => console.warn(`[schedule-runner] ${message}`),
-  error: (message: string) => console.error(`[schedule-runner] ${message}`),
-};
+const defaultLogger: ScheduleRunnerLogger = createLogger("schedule-runner");
 
 // =============================================================================
 // Build Schedule Prompt

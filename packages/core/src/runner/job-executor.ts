@@ -47,6 +47,7 @@ import {
   type TriggerType,
 } from "../state/index.js";
 import { resolveWorkingDirectory } from "../fleet-manager/working-directory-helper.js";
+import { createLogger } from "../utils/logger.js";
 
 // =============================================================================
 // Types
@@ -59,6 +60,7 @@ export interface JobExecutorLogger {
   warn: (message: string) => void;
   error: (message: string) => void;
   info?: (message: string) => void;
+  debug?: (message: string) => void;
 }
 
 /**
@@ -83,11 +85,7 @@ export type SDKQueryFunction = (params: {
 // Default Logger
 // =============================================================================
 
-const defaultLogger: JobExecutorLogger = {
-  warn: (message: string) => console.warn(`[herdctl] ${message}`),
-  error: (message: string) => console.error(`[herdctl] ${message}`),
-  info: (message: string) => console.info(`[herdctl] ${message}`),
-};
+const defaultLogger: JobExecutorLogger = createLogger("JobExecutor");
 
 // =============================================================================
 // Job Executor Class
@@ -225,7 +223,7 @@ export class JobExecutor {
         // externally and passes the correct one for this specific thread.
         // Trust the caller's session ID directly; the agent-level session is irrelevant.
         effectiveResume = options.resume;
-        this.logger.info?.(
+        this.logger.debug?.(
           `Using caller-provided session for ${agent.name}: ${effectiveResume} (differs from agent-level session ${existingSession.session_id})`
         );
       } else if (existingSession?.session_id) {
@@ -642,7 +640,7 @@ export class JobExecutor {
           docker_enabled: agent.docker?.enabled ?? false,
         });
 
-        this.logger.info?.(
+        this.logger.debug?.(
           `Persisted session ${sessionId} for agent ${agent.name}`
         );
       } catch (sessionError) {

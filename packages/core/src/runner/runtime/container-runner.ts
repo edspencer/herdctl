@@ -34,6 +34,9 @@ import { CLIRuntime } from "./cli-runtime.js";
 import { SDKRuntime } from "./sdk-runtime.js";
 import { toSDKOptions } from "../sdk-adapter.js";
 import Dockerode from "dockerode";
+import { createLogger } from "../../utils/logger.js";
+
+const logger = createLogger("ContainerRunner");
 
 /**
  * Container runtime decorator
@@ -124,7 +127,7 @@ export class ContainerRunner implements RuntimeInterface {
           await this.manager.stopContainer(container);
         } catch (stopError) {
           // Log but don't fail - container might already be stopped
-          console.error('[ContainerRunner] Failed to stop ephemeral container:', stopError);
+          logger.error(`Failed to stop ephemeral container: ${stopError}`);
         }
       }
 
@@ -134,7 +137,7 @@ export class ContainerRunner implements RuntimeInterface {
         await this.manager.cleanupOldContainers(agent.name, this.config.maxContainers);
       } catch (cleanupError) {
         // Log cleanup errors but don't fail the execution
-        console.error('[ContainerRunner] Failed to cleanup old containers:', cleanupError);
+        logger.error(`Failed to cleanup old containers: ${cleanupError}`);
       }
     }
   }
@@ -162,8 +165,8 @@ export class ContainerRunner implements RuntimeInterface {
         }).join(" ");
         const claudeCommand = `cd /workspace && printf %s "${escapedPrompt}" | claude ${claudeArgs}`;
 
-        console.log("[ContainerRunner] Executing docker command:", "docker", ["exec", containerId, "sh", "-c", claudeCommand]);
-        console.log("[ContainerRunner] Prompt length:", prompt.length);
+        logger.debug(`Executing docker exec in container ${containerId}`);
+        logger.debug(`Prompt length: ${prompt.length}`);
 
         // execa returns Subprocess directly (which is promise-like)
         return execa("docker", ["exec", containerId, "sh", "-c", claudeCommand], {
@@ -217,7 +220,7 @@ export class ContainerRunner implements RuntimeInterface {
             url: `http://herdctl:${bridge.port}/mcp`,
           };
 
-          console.log(`[ContainerRunner] Started MCP HTTP bridge for '${name}' on port ${bridge.port}`);
+          logger.debug(`Started MCP HTTP bridge for '${name}' on port ${bridge.port}`);
         }
 
         sdkOptions.mcpServers = mcpServers;
@@ -249,8 +252,8 @@ export class ContainerRunner implements RuntimeInterface {
       const optionsJson = JSON.stringify(wrapperOptions).replace(/'/g, "'\\''");
       const command = `export HERDCTL_SDK_OPTIONS='${optionsJson}' && node /usr/local/lib/docker-sdk-wrapper.js`;
 
-      console.log("[ContainerRunner] SDK exec command:", command);
-      console.log("[ContainerRunner] Options JSON length:", optionsJson.length);
+      logger.debug(`SDK exec command length: ${command.length}`);
+      logger.debug(`Options JSON length: ${optionsJson.length}`);
 
       const exec = await container.exec({
         Cmd: [
@@ -285,7 +288,7 @@ export class ContainerRunner implements RuntimeInterface {
       stderrRl.on("line", (line) => {
         const trimmed = line.trim();
         if (trimmed) {
-          console.error("[ContainerRunner] SDK stderr:", trimmed);
+          logger.error(`SDK stderr: ${trimmed}`);
           stderrLines.push(trimmed);
         }
       });
@@ -304,8 +307,8 @@ export class ContainerRunner implements RuntimeInterface {
           const message = JSON.parse(trimmed) as SDKMessage;
           yield message;
         } catch (error) {
-          console.warn(
-            `[ContainerRunner] Failed to parse SDK output: ${error instanceof Error ? error.message : String(error)}`
+          logger.warn(
+            `Failed to parse SDK output: ${error instanceof Error ? error.message : String(error)}`
           );
         }
       }
@@ -326,7 +329,7 @@ export class ContainerRunner implements RuntimeInterface {
         try {
           await bridge.close();
         } catch (err) {
-          console.error("[ContainerRunner] Failed to close MCP HTTP bridge:", err);
+          logger.error(`Failed to close MCP HTTP bridge: ${err}`);
         }
       }
     }

@@ -112,6 +112,15 @@ pnpm dev                # Development mode (watch)
 - Coverage thresholds: 85% lines/functions/statements, 65% branches
 - Mock external dependencies (SDK, file system, GitHub API)
 
+### Logging
+- **NEVER use raw `console.log/warn/error/debug`** for runtime logging
+- Use `createLogger(prefix)` from `packages/core/src/utils/logger.ts` (exported from `@herdctl/core`)
+- Logger respects `HERDCTL_LOG_LEVEL` env var (`debug`/`info`/`warn`/`error`, default: `info`)
+- Each method accepts an optional `data` parameter: `logger.info("message", { key: "value" })`
+- In external packages (discord, slack), import via `import { createLogger } from "@herdctl/core"`
+- In core, use relative imports: `import { createLogger } from "../utils/logger.js"`
+- Choose appropriate log levels: `debug` for internal details, `info` for significant events, `warn` for recoverable issues, `error` for failures
+
 ### Error Handling
 - Use typed error classes extending `FleetManagerError`
 - Provide type guards for error discrimination
@@ -159,6 +168,7 @@ As of December 2025, we use OIDC instead of npm tokens:
 | `packages/core/src/config/` | Configuration parsing and validation |
 | `packages/core/src/scheduler/` | Job scheduling |
 | `packages/core/src/state/` | State persistence (.herdctl/) |
+| `packages/core/src/utils/logger.ts` | Centralized logger (`createLogger`) |
 
 ## Quality Gates
 

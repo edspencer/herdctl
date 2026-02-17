@@ -73,6 +73,7 @@ program
   .description("Start the fleet")
   .option("-c, --config <path>", "Path to config file or directory")
   .option("-s, --state <path>", "Path to state directory (default: .herdctl)")
+  .option("-v, --verbose", "Enable verbose debug logging")
   .action(async (options) => {
     try {
       await startCommand(options);

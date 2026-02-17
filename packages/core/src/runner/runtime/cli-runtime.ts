@@ -24,6 +24,9 @@ import {
 } from "./cli-session-path.js";
 import { CLISessionWatcher } from "./cli-session-watcher.js";
 import { transformMcpServers } from "../sdk-adapter.js";
+import { createLogger } from "../../utils/logger.js";
+
+const logger = createLogger("CLIRuntime");
 
 /**
  * Process spawner function type
@@ -187,8 +190,8 @@ export class CLIRuntime implements RuntimeInterface {
     // Note: Prompt is NOT added to args - it's provided via stdin (see processSpawner call below)
 
     // DEBUG: Log the command being executed
-    console.log("[CLIRuntime] Executing command:", "claude", args);
-    console.log("[CLIRuntime] Prompt:", options.prompt);
+    logger.debug(`Executing command: claude ${args.join(" ")}`);
+    logger.debug(`Prompt: ${options.prompt}`);
 
     // Track process and watcher for cleanup
     let subprocess: Subprocess | undefined;
@@ -204,13 +207,13 @@ export class CLIRuntime implements RuntimeInterface {
           : working_directory.root
         : process.cwd();
 
-      console.log("[CLIRuntime] Working directory:", cwd);
-      console.log("[CLIRuntime] Agent working_directory config:", working_directory);
+      logger.debug(`Working directory: ${cwd}`);
+      logger.debug(`Agent working_directory config: ${JSON.stringify(working_directory)}`);
 
       // Get the CLI session directory where files will be written
       // Use override if provided (for Docker execution with mounted sessions)
       const sessionDir = this.sessionDirOverride ?? getCliSessionDir(cwd);
-      console.log("[CLIRuntime] Session directory:", sessionDir);
+      logger.debug(`Session directory: ${sessionDir}`);
 
       // Record start time before spawning process
       const processStartTime = Date.now();
@@ -220,14 +223,14 @@ export class CLIRuntime implements RuntimeInterface {
       // Note: processSpawner returns Subprocess directly (which is promise-like)
       subprocess = this.processSpawner(args, cwd, options.prompt, options.abortController?.signal);
 
-      console.log("[CLIRuntime] Subprocess spawned, PID:", subprocess.pid);
+      logger.debug(`Subprocess spawned, PID: ${subprocess.pid}`);
 
       // Log subprocess output for debugging
       subprocess.stdout?.on("data", (data) => {
-        console.log("[CLIRuntime] stdout:", data.toString());
+        logger.info(data.toString());
       });
       subprocess.stderr?.on("data", (data) => {
-        console.error("[CLIRuntime] stderr:", data.toString());
+        logger.warn(data.toString());
       });
 
       // Track subprocess completion for later
@@ -235,7 +238,7 @@ export class CLIRuntime implements RuntimeInterface {
         try {
           return await subprocess;
         } catch (error) {
-          console.error("[CLIRuntime] Process failed:", error);
+          logger.error(`Process failed: ${error}`);
           throw error;
         }
       })();
@@ -243,7 +246,7 @@ export class CLIRuntime implements RuntimeInterface {
       // Monitor subprocess completion in background (for logging only)
       processExitPromise.then(
         (result) => {
-          console.log("[CLIRuntime] Process completed with exit code:", result.exitCode);
+          logger.debug(`Process completed with exit code: ${result.exitCode}`);
         },
         () => {
           // Error already logged above
@@ -260,22 +263,22 @@ export class CLIRuntime implements RuntimeInterface {
         } else {
           sessionFilePath = getCliSessionFile(cwd, options.resume);
         }
-        console.log("[CLIRuntime] Resuming session, watching file:", sessionFilePath);
+        logger.debug(`Resuming session, watching file: ${sessionFilePath}`);
       } else {
         // When starting new session, wait for a NEW file created after process start
-        console.log("[CLIRuntime] Waiting for new session file (timeout: 15s)...");
+        logger.debug("Waiting for new session file...");
         sessionFilePath = await waitForNewSessionFile(sessionDir, processStartTime, {
           timeoutMs: 15000, // Increase timeout to 15 seconds for debugging
           pollIntervalMs: 200,
         });
-        console.log("[CLIRuntime] New session, watching newly created file:", sessionFilePath);
+        logger.debug(`New session, watching newly created file: ${sessionFilePath}`);
       }
 
       // Extract session ID from filename (basename without .jsonl extension)
       // For CLI runtime, the session ID is the filename - this matches SDK runtime behavior
       const sessionFileName = sessionFilePath.split("/").pop() || "";
       const extractedSessionId = sessionFileName.replace(/\.jsonl$/, "");
-      console.log("[CLIRuntime] Extracted session ID:", extractedSessionId);
+      logger.debug(`Extracted session ID: ${extractedSessionId}`);
 
       // Watch the session file for messages
       watcher = new CLISessionWatcher(sessionFilePath);
@@ -284,7 +287,7 @@ export class CLIRuntime implements RuntimeInterface {
       // This prevents replaying the entire conversation history on each message
       if (options.resume) {
         await watcher.initialize();
-        console.log("[CLIRuntime] Watcher initialized for resume, will skip existing content");
+        logger.debug("Watcher initialized for resume, will skip existing content");
       }
 
       // Set up abort handling
@@ -299,18 +302,18 @@ export class CLIRuntime implements RuntimeInterface {
       // This allows the for-await loop to exit naturally
       processExitPromise.then(
         () => {
-          console.log("[CLIRuntime] Process completed, stopping watcher to exit loop");
+          logger.debug("Process completed, stopping watcher to exit loop");
           watcher?.stop();
         },
-        (error) => {
-          console.log("[CLIRuntime] Process failed, stopping watcher");
+        () => {
+          logger.debug("Process failed, stopping watcher");
           watcher?.stop();
         }
       );
 
       // Stream messages from the session file
       // Just iterate naturally - the watcher handles all the waiting
-      console.log("[CLIRuntime] Starting to stream messages from watcher");
+      logger.debug("Starting to stream messages from watcher");
 
       // Yield synthetic system message with session ID (matches SDK runtime behavior)
       // This allows the message processor to extract the session ID for persistence
@@ -320,11 +323,11 @@ export class CLIRuntime implements RuntimeInterface {
         session_id: extractedSessionId,
         content: "CLI session initialized",
       };
-      console.log("[CLIRuntime] Yielded synthetic system message with session ID");
+      logger.debug("Yielded synthetic system message with session ID");
 
       // Stream messages from the watcher as they arrive
       for await (const message of watcher.watch()) {
-        console.log(`[CLIRuntime] Received message type: ${message.type}`);
+        logger.debug(`Received message type: ${message.type}`);
         yield message;
 
         // Track errors
@@ -334,29 +337,29 @@ export class CLIRuntime implements RuntimeInterface {
 
         // If this is a result message, we're done
         if (message.type === "result") {
-          console.log("[CLIRuntime] Got result message, stopping");
+          logger.debug("Got result message, stopping");
           break;
         }
       }
 
-      console.log("[CLIRuntime] Watcher iteration complete");
+      logger.debug("Watcher iteration complete");
 
       // Wait for process to complete
       const { exitCode } = await processExitPromise;
-      console.log("[CLIRuntime] Process completed, flushing any remaining messages");
+      logger.debug("Process completed, flushing any remaining messages");
 
       // After process exits, explicitly flush the file one more time
       // This catches any final messages that hadn't triggered chokidar events yet
       const remainingMessages = await watcher.flushRemainingMessages();
-      console.log(`[CLIRuntime] Found ${remainingMessages.length} remaining message(s) after process exit`);
+      logger.debug(`Found ${remainingMessages.length} remaining message(s) after process exit`);
 
       // Stop the watcher now - we've flushed everything we need
-      console.log("[CLIRuntime] Stopping watcher after flush");
+      logger.debug("Stopping watcher after flush");
       watcher.stop();
 
       // Yield any remaining messages
       for (const message of remainingMessages) {
-        console.log(`[CLIRuntime] Yielding remaining message type: ${message.type}`);
+        logger.debug(`Yielding remaining message type: ${message.type}`);
         yield message;
 
         // Track errors

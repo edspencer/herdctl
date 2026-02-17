@@ -15,6 +15,7 @@ import {
 import { safeReadYaml } from "./utils/reads.js";
 import { atomicWriteYaml } from "./utils/atomic.js";
 import { StateFileError } from "./errors.js";
+import { createLogger } from "../utils/logger.js";
 
 /**
  * Logger interface for warning messages
@@ -26,9 +27,7 @@ export interface StateLogger {
 /**
  * Default console logger
  */
-const defaultLogger: StateLogger = {
-  warn: (message: string) => console.warn(`[herdctl] ${message}`),
-};
+const defaultLogger: StateLogger = createLogger("fleet-state");
 
 /**
  * Options for reading fleet state

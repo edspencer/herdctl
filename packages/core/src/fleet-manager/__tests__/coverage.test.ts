@@ -128,8 +128,10 @@ describe("FleetManager Coverage Tests", () => {
 
     it("default logger debug method works", async () => {
       const originalDebug = console.debug;
+      const originalLogLevel = process.env.HERDCTL_LOG_LEVEL;
       const debugSpy = vi.fn();
       console.debug = debugSpy;
+      process.env.HERDCTL_LOG_LEVEL = "debug";
 
       try {
         await createAgentConfig("debug-agent", {
@@ -152,6 +154,11 @@ describe("FleetManager Coverage Tests", () => {
         expect(debugSpy).toHaveBeenCalled();
       } finally {
         console.debug = originalDebug;
+        if (originalLogLevel === undefined) {
+          delete process.env.HERDCTL_LOG_LEVEL;
+        } else {
+          process.env.HERDCTL_LOG_LEVEL = originalLogLevel;
+        }
       }
     });
   });

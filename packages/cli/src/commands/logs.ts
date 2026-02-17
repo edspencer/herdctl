@@ -19,9 +19,14 @@ import {
   isFleetManagerError,
   JobManager,
   type LogEntry,
-  type LogLevel,
   type JobOutputMessage,
 } from "@herdctl/core";
+
+import {
+  colorize,
+  getLevelColor,
+  getSourceColor,
+} from "../utils/colors.js";
 
 export interface LogsOptions {
   follow?: boolean;
@@ -41,104 +46,6 @@ const DEFAULT_STATE_DIR = ".herdctl";
  * Default number of log lines to show
  */
 const DEFAULT_LINES = 50;
-
-/**
- * Check if colors should be disabled
- */
-function shouldUseColor(): boolean {
-  // NO_COLOR takes precedence (https://no-color.org/)
-  if (process.env.NO_COLOR !== undefined && process.env.NO_COLOR !== "") {
-    return false;
-  }
-  // Also check FORCE_COLOR for override
-  if (process.env.FORCE_COLOR !== undefined && process.env.FORCE_COLOR !== "0") {
-    return true;
-  }
-  // Check if stdout is a TTY
-  return process.stdout.isTTY === true;
-}
-
-/**
- * ANSI color codes
- */
-const colors = {
-  reset: "\x1b[0m",
-  bold: "\x1b[1m",
-  dim: "\x1b[2m",
-  green: "\x1b[32m",
-  yellow: "\x1b[33m",
-  red: "\x1b[31m",
-  cyan: "\x1b[36m",
-  gray: "\x1b[90m",
-  blue: "\x1b[34m",
-  magenta: "\x1b[35m",
-};
-
-/**
- * Get a colored string, respecting NO_COLOR
- */
-function colorize(text: string, color: keyof typeof colors): string {
-  if (!shouldUseColor()) {
-    return text;
-  }
-  return `${colors[color]}${text}${colors.reset}`;
-}
-
-/**
- * Get color for log level
- */
-function getLevelColor(level: LogLevel): keyof typeof colors {
-  switch (level) {
-    case "error":
-      return "red";
-    case "warn":
-      return "yellow";
-    case "info":
-      return "green";
-    case "debug":
-      return "gray";
-    default:
-      return "reset";
-  }
-}
-
-/**
- * Get color for log source (output type)
- */
-function getSourceColor(source: string, data?: Record<string, unknown>): keyof typeof colors {
-  // Check if there's an outputType in the data (from job output)
-  const outputType = data?.outputType as string | undefined;
-  if (outputType) {
-    switch (outputType) {
-      case "assistant":
-        return "cyan";
-      case "tool":
-        return "magenta";
-      case "result":
-        return "blue";
-      case "error":
-        return "red";
-      case "system":
-        return "gray";
-      default:
-        return "reset";
-    }
-  }
-
-  // Fallback to source-based coloring
-  switch (source) {
-    case "agent":
-      return "cyan";
-    case "job":
-      return "blue";
-    case "scheduler":
-      return "magenta";
-    case "fleet":
-      return "green";
-    default:
-      return "reset";
-  }
-}
 
 /**
  * Format timestamp to local timezone

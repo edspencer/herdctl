@@ -2647,7 +2647,7 @@ describe("DiscordManager session integration", () => {
     // Should have queried session count
     expect(mockSessionManager.getActiveSessionCount).toHaveBeenCalled();
     // Should have logged about preserving sessions
-    expect(mockLogger.info).toHaveBeenCalledWith(
+    expect(mockLogger.debug).toHaveBeenCalledWith(
       expect.stringContaining("Preserving 5 active session(s)")
     );
   });
@@ -2731,7 +2731,7 @@ describe("DiscordManager session integration", () => {
     await manager.stop();
 
     // Should NOT have logged about preserving sessions (0 sessions)
-    expect(mockLogger.info).not.toHaveBeenCalledWith(
+    expect(mockLogger.debug).not.toHaveBeenCalledWith(
       expect.stringContaining("Preserving")
     );
   });

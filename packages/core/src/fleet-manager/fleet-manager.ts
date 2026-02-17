@@ -60,16 +60,12 @@ import { LogStreaming } from "./log-streaming.js";
 import { ScheduleExecutor } from "./schedule-executor.js";
 import { DiscordManager } from "./discord-manager.js";
 import { SlackManager } from "./slack-manager.js";
+import { createLogger } from "../utils/logger.js";
 
 const DEFAULT_CHECK_INTERVAL = 1000;
 
 function createDefaultLogger(): FleetManagerLogger {
-  return {
-    debug: (message: string) => console.debug(`[fleet-manager] ${message}`),
-    info: (message: string) => console.info(`[fleet-manager] ${message}`),
-    warn: (message: string) => console.warn(`[fleet-manager] ${message}`),
-    error: (message: string) => console.error(`[fleet-manager] ${message}`),
-  };
+  return createLogger("fleet-manager");
 }
 
 /**
@@ -163,11 +159,11 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       throw new InvalidStateError("initialize", this.status, ["uninitialized", "stopped"]);
     }
 
-    this.logger.info("Initializing fleet manager...");
+    this.logger.debug("Initializing fleet manager...");
 
     try {
       this.config = await this.loadConfiguration();
-      this.logger.info(`Loaded ${this.config.agents.length} agent(s) from config`);
+      this.logger.debug(`Loaded ${this.config.agents.length} agent(s) from config`);
 
       // Validate agent names are unique
       this.validateUniqueAgentNames(this.config.agents);
@@ -207,7 +203,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       throw new InvalidStateError("start", this.status, "initialized");
     }
 
-    this.logger.info("Starting fleet manager...");
+    this.logger.debug("Starting fleet manager...");
     this.status = "starting";
 
     try {
