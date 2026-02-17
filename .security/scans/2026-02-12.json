@@ -1,0 +1,115 @@
+{
+  "date": "2026-02-12",
+  "timestamp": "2026-02-12T17:03:50.321Z",
+  "commit": "2d6f5ba",
+  "branch": "feature/simplify-security-fleet-yaml",
+  "checks": [
+    {
+      "name": "npm-audit",
+      "status": "warn",
+      "findings": [
+        {
+          "severity": "low",
+          "description": "Could not parse pnpm audit output - manual review recommended",
+          "recommendation": "Run `pnpm audit` manually to check for vulnerabilities"
+        }
+      ],
+      "duration": 3
+    },
+    {
+      "name": "docker-config",
+      "status": "fail",
+      "findings": [
+        {
+          "severity": "high",
+          "location": "packages/core/src/runner/runtime/docker-config.ts:260",
+          "description": "hostConfigOverride can bypass Docker security hardening",
+          "recommendation": "Ensure this is only used at fleet-level config, never from agent input"
+        },
+        {
+          "severity": "high",
+          "location": "packages/core/src/runner/runtime/container-manager.ts:142",
+          "description": "hostConfigOverride can bypass Docker security hardening",
+          "recommendation": "Ensure this is only used at fleet-level config, never from agent input"
+        },
+        {
+          "severity": "high",
+          "location": "packages/core/src/runner/runtime/container-manager.ts:143",
+          "description": "hostConfigOverride can bypass Docker security hardening",
+          "recommendation": "Ensure this is only used at fleet-level config, never from agent input"
+        }
+      ],
+      "duration": 130
+    },
+    {
+      "name": "permission-modes",
+      "status": "fail",
+      "findings": [
+        {
+          "severity": "high",
+          "location": ".herdctl/jobs/job-2026-02-12-aj4aj0.yaml:51, .herdctl/jobs/job-2026-02-12-sjkgqo.yaml:83, .herdctl/jobs/job-2026-02-12-9oz7be.yaml:65, .herdctl/jobs/job-2026-02-12-pw00v4.yaml:66, .herdctl/jobs/job-2026-02-12-eq2f8e.yaml:108, .herdctl/jobs/job-2026-02-12-55049m.yaml:52, .herdctl/jobs/job-2026-02-12-55049m.yaml:113, .herdctl/jobs/job-2026-02-12-55049m.yaml:143, .herdctl/jobs/job-2026-02-12-r4gi8w.yaml:70, .herdctl/jobs/job-2026-02-12-hak8zr.yaml:46, .herdctl/jobs/job-2026-02-12-p17eg9.yaml:74, .herdctl/jobs/job-2026-02-12-p17eg9.yaml:87, .herdctl/jobs/job-2026-02-12-bx63b1.yaml:39, .herdctl/jobs/job-2026-02-12-bx63b1.yaml:70, .herdctl/jobs/job-2026-02-12-1vb8ws.yaml:65, .herdctl/jobs/job-2026-02-12-1vb8ws.yaml:102, .herdctl/jobs/job-2026-02-12-s20pip.yaml:110, .herdctl/jobs/job-2026-02-12-6ift81.yaml:78, .herdctl/jobs/job-2026-02-12-6ift81.yaml:90",
+          "description": "bypassPermissions used in 19 production config file(s)",
+          "recommendation": "bypassPermissions bypasses ALL safety checks. Review each usage carefully."
+        },
+        {
+          "severity": "low",
+          "location": "examples/bragdoc-developer/agents/developer.yaml:47",
+          "description": "bypassPermissions used in 1 example config(s) - consider adding Docker isolation",
+          "recommendation": "Example configs with bypassPermissions should demonstrate Docker isolation for security."
+        }
+      ],
+      "duration": 23
+    },
+    {
+      "name": "subprocess-patterns",
+      "status": "warn",
+      "findings": [
+        {
+          "severity": "low",
+          "location": "packages/core/src/hooks/runners/shell.ts:8",
+          "description": "Direct child_process import - consider using execa instead",
+          "recommendation": "execa provides better escaping and cross-platform support"
+        },
+        {
+          "severity": "low",
+          "location": "packages/cli/src/commands/sessions.ts:14",
+          "description": "Direct child_process import - consider using execa instead",
+          "recommendation": "execa provides better escaping and cross-platform support"
+        },
+        {
+          "severity": "medium",
+          "location": "packages/core/src/hooks/runners/shell.ts:154",
+          "description": "shell: true option enables shell interpretation",
+          "recommendation": "Avoid shell: true unless necessary - it enables shell metacharacter processing"
+        },
+        {
+          "severity": "medium",
+          "location": "packages/cli/src/commands/sessions.ts:415",
+          "description": "shell: true option enables shell interpretation",
+          "recommendation": "Avoid shell: true unless necessary - it enables shell metacharacter processing"
+        }
+      ],
+      "duration": 30
+    },
+    {
+      "name": "path-safety",
+      "status": "pass",
+      "findings": [],
+      "duration": 3
+    },
+    {
+      "name": "env-handling",
+      "status": "pass",
+      "findings": [],
+      "duration": 88
+    }
+  ],
+  "summary": {
+    "total": 6,
+    "passed": 2,
+    "warned": 2,
+    "failed": 2
+  },
+  "status": "fail",
+  "duration": 286
+}

@@ -1,0 +1,65 @@
+name: security-auditor
+description: Daily security audit of herdctl codebase
+
+max_turns: 50
+
+default_prompt: "Run /security-audit-daily"
+
+system_prompt: |
+  You are a security auditor for the herdctl project - a TypeScript system for
+  managing fleets of Claude Code agents.
+
+  ## Mode 1: Scheduled Audit (cron trigger)
+  When triggered by the schedule, run the full daily audit:
+
+  /security-audit-daily
+
+  This handles everything: scanner, analysis, reports, commits, and returns
+  a GREEN/YELLOW/RED status.
+
+  ## Mode 2: Discord Chat
+  When a user messages you on Discord, answer security questions using the
+  audit artifacts in .security/:
+
+  - "What's the current security status?" → Read latest summary
+  - "Any new vulnerabilities?" → Check recent intel reports
+  - "What are the open findings?" → Read STATE.md and FINDINGS-INDEX.md
+  - "Run an audit now" → Invoke /security-audit-daily
+  - "What changed recently?" → Summarize recent commits from intel reports
+
+  Be helpful and concise. Reference specific files when relevant.
+
+# Tools needed for security auditing
+allowed_tools:
+  - Bash
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - Task
+  - WebSearch
+  - WebFetch
+
+# Daily audit at 6am UTC
+schedules:
+  daily:
+    type: cron
+    expression: "0 6 * * *"
+    prompt: "Run /security-audit-daily"
+
+# Discord chat integration - users can ask about security status
+chat:
+  discord:
+    bot_token_env: DISCORD_BOT_TOKEN
+    session_expiry_hours: 24
+    guilds:
+      - id: "${DISCORD_GUILD_ID}"
+        channels:
+          - id: "${DISCORD_SECURITY_CHANNEL_ID}"
+            name: "#security"
+            mode: mention
+            context_messages: 10
+    dm:
+      enabled: true
+      mode: auto

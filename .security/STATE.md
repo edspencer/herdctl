@@ -1,17 +1,17 @@
 ---
-last_updated: 2026-02-06T13:35:00Z
-last_mapping: 2026-02-06
-last_audit: 2026-02-06
+last_updated: 2026-02-17T06:30:00Z
+last_mapping: 2026-02-14
+last_audit: 2026-02-17
 commits_since_audit: 0
-commits_since_mapping: 0
-open_findings: 5
-open_questions: 9
-status: audit_complete
+commits_since_mapping: 2
+open_findings: 6
+open_questions: 7
+status: audit_complete_yellow
 ---
 
 # Security Audit State
 
-**Last Updated:** 2026-02-05
+**Last Updated:** 2026-02-17 06:30 UTC
 
 This document provides persistent state for security audits, enabling incremental reviews that build on previous work rather than starting fresh each time.
 
@@ -21,26 +21,26 @@ This document provides persistent state for security audits, enabling incrementa
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Last full mapping | 2026-02-06 | All 4 areas mapped |
-| Last incremental audit | 2026-02-06 | Automated via /security-audit |
-| Commits since last audit | 0 | Baseline updated |
-| Open findings | 5 | See [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
-| Open questions | 9 | See [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
+| Last full mapping | 2026-02-14 | Comprehensive audit completed |
+| Last incremental audit | 2026-02-17 06:30 | Incremental - YELLOW - 0 new findings |
+| Commits since last audit | 0 | At b337721 (2026-02-15 HALT review commit) |
+| Open findings | 6 | See [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
+| Open questions | 7 | Q3, Q4, Q5, Q8, Q9, Q10, Q11 |
 
-**Status:** Incremental audit complete. Q2 answered, no new findings.
+**Status:** YELLOW - Finding #010 DOWNGRADED from CRITICAL RED to MEDIUM (measurement error corrected: 21 files, not 143). HALT directive LIFTED.
 
 ### Finding Breakdown
 
-- Critical: 0
+- **Critical: 0** (Previous CRITICAL #010 was based on measurement error)
 - High: 1 (accepted risk - hostConfigOverride)
-- Medium: 3 (2 accepted, 1 tracked via Dependabot)
+- Medium: 4 (1 tracked #010 revised, 2 accepted, 1 needs manual check)
 - Low: 1 (tech debt - shell escaping)
 
 ### Question Priorities
 
-- High: 0 (Q2 answered)
-- Medium: 8 (Q1, Q4, Q5, Q7, Q8, Q9, Q10, Q11)
-- Low: 1 (Q3 - container name characters)
+- High: 0
+- Medium: 5 (Q1 partially answered, Q4, Q5, Q7 partially answered, Q8)
+- Low: 2 (Q3 - container name characters, Q11 - GitHub SSRF)
 
 ---
 
@@ -50,12 +50,12 @@ Security coverage by area with staleness tracking.
 
 | Area | Last Checked | Commits Since | Status | Notes |
 |------|--------------|---------------|--------|-------|
-| Attack surface | 2026-02-06 | 0 | Current | 270 lines, 22+ entry points |
-| Data flows | 2026-02-06 | 0 | Current | 346 lines, 9 flows traced |
-| Security controls | 2026-02-06 | 0 | Current | 241 lines, 12+ controls |
-| Threat vectors | 2026-02-06 | 0 | Current | 190 lines, T1-T5 analyzed |
-| Hot spots | 2026-02-05 | 0 | Current | Baseline verified |
-| Code patterns | 2026-02-05 | 0 | Current | Grep patterns run |
+| Attack surface | 2026-02-14 | 2 | Current | Comprehensive mapping completed |
+| Data flows | 2026-02-14 | 2 | Current | All flows traced and validated |
+| Security controls | 2026-02-17 | 0 | Current | Hot spots re-verified |
+| Threat vectors | 2026-02-14 | 2 | Current | 8 vectors analyzed (T1-T8) |
+| Hot spots | 2026-02-17 06:30 | 0 | Current | Scanner run complete - ~400ms |
+| Code patterns | 2026-02-17 06:30 | 0 | Current | All checks complete - PASS |
 
 ### Staleness Thresholds
 
@@ -67,70 +67,69 @@ Security coverage by area with staleness tracking.
 
 ## Active Investigations
 
-Active findings and open questions requiring attention. This table is for session continuity - see linked source files for authoritative details.
+Active findings and open questions requiring attention.
 
 | ID | Type | Summary | Priority | Status | Source |
 |----|------|---------|----------|--------|--------|
-| Q1 | Question | Webhook authentication | Medium | Open | [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
+| #010 | Finding | bypassPermissions in 21 audit job files | **MEDIUM** | YELLOW - 21 files (corrected from 143 - measurement error); HALT lifted; retention policy needed | [2026-02-17 Report](intel/2026-02-17.md) |
+| Q1 | Question | Webhook authentication | Medium | Partially answered - `secret_env` field in schema; server impl status unclear | [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
 | Q4 | Question | Log injection via agent output | Medium | Open | [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
 | Q5 | Question | Fleet/agent config merge overrides | Medium | Open | [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
-| Q7 | Question | Docker container user (root?) | Medium | Open | [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
+| Q7 | Question | Docker container user (root?) | Medium | Partially answered - `user` field configurable; default = image default (unverified) | [2026-02-17 Report](intel/2026-02-17.md) |
 | Q8 | Question | SDK wrapper prompt escaping | Medium | Open | [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
+| #008 | Finding | npm audit parser error | Medium | Manual check needed | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
 | #009 | Finding | Incomplete shell escaping | Low | Tech debt | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
 | Q3 | Question | Container name special chars | Low | Open | [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
-
-*For full details, see linked source files. This table is for session continuity, not authoritative data.*
 
 ### Priority Queue
 
 Ordered by urgency for next audit session:
 
-1. **MEDIUM:** Q1, Q4, Q5, Q7, Q8 (investigate during normal audit flow)
-2. **LOW:** #009 (fix when convenient), Q3 (minor defense-in-depth)
-
-*Note: Q2 (path traversal audit) was completed on 2026-02-06 - all vectors verified safe.*
+1. **MEDIUM P2:** Implement job file retention policy (30 days) to resolve #010
+2. **MEDIUM P2:** Verify webhook server implementation for inbound auth (Q1)
+3. **MEDIUM P3:** Docker container user configuration (Q7) - set explicit UID:GID
+4. **LOW:** #009 (shell escaping - fix when convenient)
+5. **LOW:** Q4 (log injection), Q8 (SDK prompt escaping)
 
 ---
 
 ## Accumulated Context
 
-Context that persists across audit sessions, enabling continuity and avoiding repeated analysis.
-
 ### Recent Decisions
-
-Decisions made during security reviews. Keep to last 10-15 entries; archive older decisions to CODEBASE-UNDERSTANDING.md.
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
-| 2026-02-05 | Accepted hostConfigOverride as documented risk | Required for advanced Docker configuration at fleet level |
-| 2026-02-05 | Added path-safety utility for all state file operations | Defense-in-depth after fixing path traversal vulnerability |
-| 2026-02-05 | Identified shell escaping as tech debt, low priority (#009) | Container isolation provides security boundary |
-| 2026-02-05 | Confirmed 2 scanner findings as false positives (#003, #004) | Help text mentioning env vars, not actual secrets |
+| 2026-02-17 06:30 | #010 DOWNGRADED to MEDIUM; HALT LIFTED | 2026-02-15 audit correctly identified measurement error: 143 count included JSONL files; correct count is 21 YAML files with bypassPermissions |
+| 2026-02-15 | #010 measurement error identified | 143 count was wrong (included JSONL files); corrected to ~17-21 files; HALT was not justified |
+| 2026-02-14 21:04 | HALT ALL AUDITS (since retracted) | Based on incorrect 143-file count; retracted 2026-02-17 after correction |
+| 2026-02-14 00:10 | Comprehensive security audit completed | Full attack surface mapping, data flow tracing, controls assessment, threat modeling |
+| 2026-02-06 | #010 growth stabilizing (+2 files, 85→87) | bypassPermissions growth rate slowing; job cleanup remains MEDIUM priority |
+| 2026-02-05 | #001 path traversal FIXED | buildSafeFilePath + AGENT_NAME_PATTERN in place |
+| 2026-02-05 | #002 hostConfigOverride ACCEPTED | Required for advanced Docker configurations at fleet level |
+| 2026-02-05 | #006 shell:true ACCEPTED | Required for shell hook functionality |
 
 ### Known Gaps
 
 Security capabilities not yet implemented or areas needing investigation:
 
-- No secret detection in logs (output could leak sensitive data)
+- **MEDIUM: Job file retention policy not implemented** - 21 bypassPermissions files accumulating
+- **MEDIUM: Inbound webhook authentication status unclear** - secret_env in schema but server impl unknown
+- **LOW: Container user not explicitly set** - default may be root depending on image
+- No secret detection in logs (output could leak sensitive data) - Q4
 - No rate limiting on triggers (DoS vector for scheduled jobs)
-- Webhook signature verification status unknown (Q1)
 - ~~Other path traversal vectors not fully audited (Q2)~~ - RESOLVED 2026-02-06
-- Container user configuration unknown (Q7)
+- ~~#010 CRITICAL halt condition~~ - RETRACTED 2026-02-17 (measurement error)
 
 ### Session Continuity
 
-Information for resuming work in future sessions.
-
-- **Last session:** 2026-02-06 - Incremental audit via /security-audit
-- **Completed:** Ran scanner, change-analyzer, hot-spot-verifier, question-investigator; Q2 answered
-- **Resume from:** Audit complete; no outstanding work
-- **Next priority:** Next audit in 7 days or after significant changes
+- **Last session:** 2026-02-17 06:30 - Incremental audit - YELLOW (corrected #010 severity)
+- **Completed:** Scanner run, hot spot verification, #010 reassessment, STATE.md update
+- **Resume from:** Normal operations; next scheduled audit ~2026-02-24
+- **Next priority:** Job retention policy (#010), webhook server verification (Q1)
 
 ---
 
 ## Update Protocol
-
-This section documents how STATE.md should be maintained. Automated update will be implemented in Phase 7 (/security-audit orchestrator).
 
 ### At Audit Start
 
@@ -142,48 +141,16 @@ This section documents how STATE.md should be maintained. Automated update will 
 ### At Audit End
 
 **1. Update YAML frontmatter:**
-
-```yaml
-last_updated: [current ISO timestamp]
-last_audit: [today's date]
-commits_since_audit: 0
-open_findings: [count from FINDINGS-INDEX.md]
-open_questions: [count open questions from CODEBASE-UNDERSTANDING.md]
-status: "complete" or "partial" with notes
-```
-
-**2. Update Coverage Status table:**
-
-- Set today's date for areas verified this session
-- Update "Commits Since" for all areas
-- Recalculate staleness indicators based on thresholds
-
-**3. Update Active Investigations:**
-
-- Remove completed items (moved to resolved in source files)
-- Add new findings/questions discovered
-- Re-prioritize based on findings
-
-**4. Update Accumulated Context:**
-
-- Add new decisions to Recent Decisions table (prune if >15 entries)
-- Update Known Gaps if gaps closed or new gaps found
-- Set Session Continuity for next session
+**2. Update Coverage Status table**
+**3. Update Active Investigations**
+**4. Update Accumulated Context**
 
 ### Between Audits
 
 When commits occur to the codebase:
-
 1. Increment `commits_since_audit` in frontmatter
 2. Increment "Commits Since" for each coverage area
-3. Update staleness indicators if thresholds exceeded
 
-*Note: This can be automated via git hooks or CI.*
+---
 
-### Size Limit
-
-Keep STATE.md under 300 lines. If approaching limit:
-
-- Archive old decisions to CODEBASE-UNDERSTANDING.md
-- Summarize resolved investigations
-- Reference detailed reports instead of inline content
+**End of STATE.md**

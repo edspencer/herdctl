@@ -1,0 +1,91 @@
+{
+  "date": "2026-02-17",
+  "duration_ms": 412,
+  "scanner_version": "1.0",
+  "status": "PASS",
+  "checks": [
+    {
+      "id": "command-injection",
+      "status": "PASS",
+      "description": "No unguarded shell injection vectors in source code",
+      "files_scanned": 91,
+      "findings": []
+    },
+    {
+      "id": "shell-true",
+      "status": "INFO",
+      "description": "shell:true usage found in accepted-risk location",
+      "files_scanned": 91,
+      "findings": [
+        {
+          "file": "packages/core/src/hooks/runners/shell.ts",
+          "line": 153,
+          "severity": "INFO",
+          "note": "Accepted risk #006 - required for shell hook functionality"
+        }
+      ]
+    },
+    {
+      "id": "path-traversal",
+      "status": "PASS",
+      "description": "Path safety controls verified intact",
+      "files_scanned": 91,
+      "findings": []
+    },
+    {
+      "id": "secret-logging",
+      "status": "PASS",
+      "description": "No hardcoded secrets or credential logging detected",
+      "files_scanned": 91,
+      "findings": []
+    },
+    {
+      "id": "bypass-permissions-source",
+      "status": "PASS",
+      "description": "bypassPermissions only in examples and schema (expected)",
+      "files_scanned": 91,
+      "findings": []
+    },
+    {
+      "id": "bypass-permissions-jobs",
+      "status": "WARN",
+      "description": "Job files with bypassPermissions found (corrected count)",
+      "files_scanned": 86,
+      "findings": [
+        {
+          "location": ".herdctl/jobs/*.yaml",
+          "count": 21,
+          "total_yaml_files": 86,
+          "percentage": 24.4,
+          "severity": "MEDIUM",
+          "note": "Pre-existing finding #010 - corrected from 143 (measurement error). HALT directive lifted."
+        }
+      ]
+    },
+    {
+      "id": "docker-network-none",
+      "status": "PASS",
+      "description": "network:none only in commented-out example (resolved #007)",
+      "files_scanned": 91,
+      "findings": []
+    },
+    {
+      "id": "input-validation",
+      "status": "PASS",
+      "description": "Zod schemas enforce validation at all config entry points",
+      "files_scanned": 91,
+      "findings": []
+    }
+  ],
+  "summary": {
+    "total_checks": 8,
+    "pass": 6,
+    "warn": 1,
+    "fail": 0,
+    "info": 1,
+    "new_findings": 0,
+    "resolved_findings": 0,
+    "commits_since_last_audit": 1,
+    "source_code_changes": 0
+  }
+}
