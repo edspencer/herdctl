@@ -177,7 +177,7 @@ describe("SlackManager (no @herdctl/slack)", () => {
       );
     });
 
-    it("skips when no agents have Slack configured", async () => {
+    it("skips when @herdctl/slack is not installed (no slack agents)", async () => {
       const SlackManager = await getSlackManager();
       const config = createConfigWithAgents(
         createNonSlackAgent("agent1"),
@@ -189,11 +189,11 @@ describe("SlackManager (no @herdctl/slack)", () => {
       await manager.initialize();
 
       expect(mockLogger.debug).toHaveBeenCalledWith(
-        "No agents with Slack configured"
+        "@herdctl/slack not installed, skipping Slack connector"
       );
     });
 
-    it("skips when Slack token env vars are not set", async () => {
+    it("skips when @herdctl/slack is not installed (with slack agents)", async () => {
       const SlackManager = await getSlackManager();
       const config = createConfigWithAgents(
         createSlackAgent("agent1", defaultSlackConfig)
@@ -203,8 +203,8 @@ describe("SlackManager (no @herdctl/slack)", () => {
 
       await manager.initialize();
 
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        "Slack bot token not found in environment variable 'SLACK_BOT_TOKEN'"
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        "@herdctl/slack not installed, skipping Slack connector"
       );
     });
 
