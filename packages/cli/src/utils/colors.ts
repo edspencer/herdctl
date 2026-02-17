@@ -102,12 +102,28 @@ export function getSourceColor(source: string, data?: Record<string, unknown>): 
     case "agent":
       return "cyan";
     case "job":
+    case "job-queue":
+    case "job-executor":
       return "blue";
     case "scheduler":
+    case "schedule-runner":
+    case "schedule-state":
       return "magenta";
     case "fleet":
+    case "fleet-manager":
+    case "fleet-state":
+    case "config":
       return "green";
+    case "CLIRuntime":
+    case "CLISessionWatcher":
+    case "container-manager":
+    case "container-runner":
+      return "cyan";
     default:
+      // Prefix-based matching for connector loggers (e.g. "slack:session-manager", "discord:homelab")
+      if (source.startsWith("slack:") || source.startsWith("discord:")) {
+        return "cyan";
+      }
       return "reset";
   }
 }

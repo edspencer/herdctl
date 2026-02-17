@@ -13,6 +13,7 @@ import {
   FleetManager,
   ConfigNotFoundError,
   isFleetManagerError,
+  setLogHandler,
   shouldLog,
   type FleetStatus,
   type LogEntry,
@@ -29,24 +30,6 @@ export interface StartOptions {
   config?: string;
   state?: string;
   verbose?: boolean;
-}
-
-/**
- * Create a colorized, level-aware logger for CLI output
- */
-function createColorizedLogger(prefix: string) {
-  function log(level: LogLevel, message: string) {
-    if (!shouldLog(level)) return;
-    const levelStr = colorize(level.toUpperCase().padEnd(5), getLevelColor(level));
-    const prefixStr = colorize(`[${prefix}]`, getSourceColor("fleet"));
-    console.log(`${levelStr} ${prefixStr} ${message}`);
-  }
-  return {
-    debug: (message: string) => log("debug", message),
-    info: (message: string) => log("info", message),
-    warn: (message: string) => log("warn", message),
-    error: (message: string) => log("error", message),
-  };
 }
 
 /**
@@ -160,15 +143,23 @@ export async function startCommand(options: StartOptions): Promise<void> {
     process.env.HERDCTL_LOG_LEVEL = 'debug';
   }
 
+  // Register global colorized log handler for all createLogger instances
+  setLogHandler((level, prefix, message, data) => {
+    if (!shouldLog(level)) return;
+    const levelStr = colorize(level.toUpperCase().padEnd(5), getLevelColor(level));
+    const prefixStr = colorize(`[${prefix}]`, getSourceColor(prefix));
+    const dataStr = data ? ` ${JSON.stringify(data)}` : "";
+    console.log(`${levelStr} ${prefixStr} ${message}${dataStr}`);
+  });
+
   const stateDir = options.state || DEFAULT_STATE_DIR;
 
   console.log("Starting fleet...");
 
-  // Create FleetManager with colorized logger
+  // Create FleetManager (uses global log handler automatically)
   const manager = new FleetManager({
     configPath: options.config,
     stateDir,
-    logger: createColorizedLogger("fleet-manager"),
   });
 
   // Track if we're shutting down to prevent multiple shutdown attempts
