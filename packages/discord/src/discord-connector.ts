@@ -188,7 +188,7 @@ export class DiscordConnector
 
     this._status = "connecting";
     this._lastError = null;
-    this._logger.info("Connecting to Discord...");
+    this._logger.debug("Connecting to Discord...");
 
     try {
       // Create client with necessary intents
@@ -508,7 +508,7 @@ export class DiscordConnector
       });
 
       await this._commandManager.registerCommands();
-      this._logger.info("Slash commands registered successfully");
+      this._logger.debug("Slash commands registered successfully");
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -655,7 +655,7 @@ export class DiscordConnector
     this._messagesReceived++;
 
     // Log at info level for standard mode (message counts)
-    this._logger.info("Message received", {
+    this._logger.debug("Message received", {
       channelId: message.channel.id,
       userId: message.author.id,
       isDM,

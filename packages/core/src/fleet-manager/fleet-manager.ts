@@ -60,16 +60,12 @@ import { LogStreaming } from "./log-streaming.js";
 import { ScheduleExecutor } from "./schedule-executor.js";
 import { DiscordManager } from "./discord-manager.js";
 import { SlackManager } from "./slack-manager.js";
+import { createLogger } from "../utils/logger.js";
 
 const DEFAULT_CHECK_INTERVAL = 1000;
 
 function createDefaultLogger(): FleetManagerLogger {
-  return {
-    debug: (message: string) => console.debug(`[fleet-manager] ${message}`),
-    info: (message: string) => console.info(`[fleet-manager] ${message}`),
-    warn: (message: string) => console.warn(`[fleet-manager] ${message}`),
-    error: (message: string) => console.error(`[fleet-manager] ${message}`),
-  };
+  return createLogger("fleet-manager");
 }
 
 /**

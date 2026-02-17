@@ -94,7 +94,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
     }
 
     this.status = "connecting";
-    this.logger.info("Connecting to Slack via Socket Mode...");
+    this.logger.debug("Connecting to Slack via Socket Mode...");
 
     try {
       // Dynamically import @slack/bolt

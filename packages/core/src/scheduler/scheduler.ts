@@ -163,7 +163,7 @@ export class Scheduler {
     this.runningSchedules.clear();
     this.runningJobs.clear();
 
-    this.logger.info(
+    this.logger.debug(
       `Scheduler started with ${agents.length} agents, check interval: ${this.checkInterval}ms`
     );
 

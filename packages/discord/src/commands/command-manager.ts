@@ -146,7 +146,7 @@ export class CommandManager implements ICommandManager {
       throw new Error("Client user ID not available for command registration");
     }
 
-    this.logger.info("Registering slash commands...", {
+    this.logger.debug("Registering slash commands...", {
       commandCount: commandData.length,
       commands: Array.from(this.commands.keys()),
     });
@@ -175,7 +175,7 @@ export class CommandManager implements ICommandManager {
       throw result.error ?? new Error("Failed to register commands");
     }
 
-    this.logger.info("Successfully registered slash commands");
+    this.logger.debug("Successfully registered slash commands");
   }
 
   /**

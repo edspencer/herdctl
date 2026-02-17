@@ -13,8 +13,10 @@ import {
   FleetManager,
   ConfigNotFoundError,
   isFleetManagerError,
+  shouldLog,
   type FleetStatus,
   type LogEntry,
+  type LogLevel,
 } from "@herdctl/core";
 
 import {
@@ -27,6 +29,24 @@ export interface StartOptions {
   config?: string;
   state?: string;
   verbose?: boolean;
+}
+
+/**
+ * Create a colorized, level-aware logger for CLI output
+ */
+function createColorizedLogger(prefix: string) {
+  function log(level: LogLevel, message: string) {
+    if (!shouldLog(level)) return;
+    const levelStr = colorize(level.toUpperCase().padEnd(5), getLevelColor(level));
+    const prefixStr = colorize(`[${prefix}]`, getSourceColor("fleet"));
+    console.log(`${levelStr} ${prefixStr} ${message}`);
+  }
+  return {
+    debug: (message: string) => log("debug", message),
+    info: (message: string) => log("info", message),
+    warn: (message: string) => log("warn", message),
+    error: (message: string) => log("error", message),
+  };
 }
 
 /**
@@ -144,10 +164,11 @@ export async function startCommand(options: StartOptions): Promise<void> {
 
   console.log("Starting fleet...");
 
-  // Create FleetManager
+  // Create FleetManager with colorized logger
   const manager = new FleetManager({
     configPath: options.config,
     stateDir,
+    logger: createColorizedLogger("fleet-manager"),
   });
 
   // Track if we're shutting down to prevent multiple shutdown attempts

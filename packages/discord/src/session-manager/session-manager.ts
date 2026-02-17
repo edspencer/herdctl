@@ -220,7 +220,7 @@ export class SessionManager implements ISessionManager {
     await this.saveState(state);
 
     if (existingSession) {
-      this.logger.info("Updated session", {
+      this.logger.debug("Updated session", {
         channelId,
         oldSessionId: existingSession.sessionId,
         newSessionId: sessionId,

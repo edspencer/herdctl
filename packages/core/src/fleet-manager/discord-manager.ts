@@ -875,7 +875,7 @@ export class DiscordManager {
       // Flush any remaining buffered content
       await streamer.flush();
 
-      logger.info(`Discord job completed: ${result.jobId} for agent '${agentName}'${result.sessionId ? ` (session: ${result.sessionId})` : ""}`);
+      logger.debug(`Discord job completed: ${result.jobId} for agent '${agentName}'${result.sessionId ? ` (session: ${result.sessionId})` : ""}`);
 
       // If no messages were sent (text or embeds), send an appropriate fallback
       if (!streamer.hasSentMessages() && embedsSent === 0) {
