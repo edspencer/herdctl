@@ -163,11 +163,11 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       throw new InvalidStateError("initialize", this.status, ["uninitialized", "stopped"]);
     }
 
-    this.logger.info("Initializing fleet manager...");
+    this.logger.debug("Initializing fleet manager...");
 
     try {
       this.config = await this.loadConfiguration();
-      this.logger.info(`Loaded ${this.config.agents.length} agent(s) from config`);
+      this.logger.debug(`Loaded ${this.config.agents.length} agent(s) from config`);
 
       // Validate agent names are unique
       this.validateUniqueAgentNames(this.config.agents);
@@ -207,7 +207,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       throw new InvalidStateError("start", this.status, "initialized");
     }
 
-    this.logger.info("Starting fleet manager...");
+    this.logger.debug("Starting fleet manager...");
     this.status = "starting";
 
     try {

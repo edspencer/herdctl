@@ -609,7 +609,7 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
 
       await manager.initialize();
 
-      expect(mockLogger.info).toHaveBeenCalledWith(
+      expect(mockLogger.debug).toHaveBeenCalledWith(
         expect.stringContaining("Slack manager initialized with 1 agent(s)")
       );
     });
@@ -672,7 +672,7 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       await manager.start();
 
       expect(mockConnector.connect).toHaveBeenCalledTimes(1);
-      expect(mockLogger.info).toHaveBeenCalledWith("Slack connector started");
+      expect(mockLogger.debug).toHaveBeenCalledWith("Slack connector started");
     });
 
     it("handles connection failure", async () => {
@@ -719,7 +719,7 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       await manager.stop();
 
       expect(mockConnector.disconnect).toHaveBeenCalledTimes(1);
-      expect(mockLogger.info).toHaveBeenCalledWith("Slack connector stopped");
+      expect(mockLogger.debug).toHaveBeenCalledWith("Slack connector stopped");
     });
 
     it("handles disconnect failure", async () => {
@@ -759,7 +759,7 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       await manager.initialize();
       await manager.stop();
 
-      expect(mockLogger.info).toHaveBeenCalledWith(
+      expect(mockLogger.debug).toHaveBeenCalledWith(
         expect.stringContaining("Preserving 3 active Slack session(s)")
       );
     });

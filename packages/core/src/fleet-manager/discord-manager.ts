@@ -412,7 +412,7 @@ export class DiscordManager {
       return;
     }
 
-    logger.info(`Initializing Discord connectors for ${discordAgents.length} agent(s)`);
+    logger.debug(`Initializing Discord connectors for ${discordAgents.length} agent(s)`);
 
     for (const agent of discordAgents) {
       try {
@@ -471,7 +471,7 @@ export class DiscordManager {
     }
 
     this.initialized = true;
-    logger.info(`Discord manager initialized with ${this.connectors.size} connector(s)`);
+    logger.debug(`Discord manager initialized with ${this.connectors.size} connector(s)`);
   }
 
   /**
@@ -488,7 +488,7 @@ export class DiscordManager {
       return;
     }
 
-    logger.info(`Starting ${this.connectors.size} Discord connector(s)...`);
+    logger.debug(`Starting ${this.connectors.size} Discord connector(s)...`);
 
     const connectPromises: Promise<void>[] = [];
 
@@ -518,7 +518,7 @@ export class DiscordManager {
     const connectedCount = Array.from(this.connectors.values()).filter((c) =>
       c.isConnected()
     ).length;
-    logger.info(`Discord connectors started: ${connectedCount}/${this.connectors.size} connected`);
+    logger.debug(`Discord connectors started: ${connectedCount}/${this.connectors.size} connected`);
   }
 
   /**
@@ -538,14 +538,14 @@ export class DiscordManager {
       return;
     }
 
-    logger.info(`Stopping ${this.connectors.size} Discord connector(s)...`);
+    logger.debug(`Stopping ${this.connectors.size} Discord connector(s)...`);
 
     // Log session state before shutdown (sessions are already persisted to disk)
     for (const [agentName, connector] of this.connectors) {
       try {
         const activeSessionCount = await connector.sessionManager.getActiveSessionCount();
         if (activeSessionCount > 0) {
-          logger.info(`Preserving ${activeSessionCount} active session(s) for agent '${agentName}'`);
+          logger.debug(`Preserving ${activeSessionCount} active session(s) for agent '${agentName}'`);
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -567,7 +567,7 @@ export class DiscordManager {
     }
 
     await Promise.all(disconnectPromises);
-    logger.info("All Discord connectors stopped");
+    logger.debug("All Discord connectors stopped");
   }
 
   /**

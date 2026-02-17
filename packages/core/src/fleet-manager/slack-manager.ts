@@ -318,7 +318,7 @@ export class SlackManager {
       return;
     }
 
-    logger.info(`Initializing Slack connector for ${slackAgents.length} agent(s)`);
+    logger.debug(`Initializing Slack connector for ${slackAgents.length} agent(s)`);
 
     // All agents share the same bot + app token.
     // Take the first agent's config for token resolution.
@@ -419,7 +419,7 @@ export class SlackManager {
     }
 
     this.initialized = true;
-    logger.info(
+    logger.debug(
       `Slack manager initialized with ${this.sessionManagers.size} agent(s), ` +
         `${this.channelAgentMap.size} channel mapping(s)`
     );
@@ -436,7 +436,7 @@ export class SlackManager {
       return;
     }
 
-    logger.info("Starting Slack connector...");
+    logger.debug("Starting Slack connector...");
 
     // Subscribe to events before connecting
     this.connector.on("message", (event: SlackMessageEvent) => {
@@ -451,7 +451,7 @@ export class SlackManager {
 
     try {
       await this.connector.connect();
-      logger.info("Slack connector started");
+      logger.debug("Slack connector started");
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(`Failed to connect Slack: ${errorMessage}`);
@@ -469,14 +469,14 @@ export class SlackManager {
       return;
     }
 
-    logger.info("Stopping Slack connector...");
+    logger.debug("Stopping Slack connector...");
 
     // Log session state before shutdown
     for (const [agentName, sessionManager] of this.sessionManagers) {
       try {
         const activeSessionCount = await sessionManager.getActiveSessionCount();
         if (activeSessionCount > 0) {
-          logger.info(`Preserving ${activeSessionCount} active Slack session(s) for agent '${agentName}'`);
+          logger.debug(`Preserving ${activeSessionCount} active Slack session(s) for agent '${agentName}'`);
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -486,7 +486,7 @@ export class SlackManager {
 
     try {
       await this.connector.disconnect();
-      logger.info("Slack connector stopped");
+      logger.debug("Slack connector stopped");
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(`Error disconnecting Slack: ${errorMessage}`);
