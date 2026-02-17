@@ -55,6 +55,16 @@ subagents via Task tool, not Skill tool.
 - This orchestrator stays on security-audits branch throughout
 - All file writes happen on the correct branch automatically
 
+
+**CRITICAL — Secret Handling:**
+Subagents MUST NEVER include actual secret values (API keys, tokens, passwords) in
+any report, commit message, or output file. When reporting findings about secrets,
+use [REDACTED] placeholders. Audit reports are committed to git and pushed to GitHub —
+including real secrets in reports would leak them.
+
+**CRITICAL — Branch Discipline:**
+Only this orchestrator manages branches. Subagents must NOT create branches or run
+git checkout. They work on whatever branch they find themselves on.
 **Key outputs:**
 - `.security/scans/YYYY-MM-DD.json` - Scanner output (from security-auditor)
 - `.security/intel/YYYY-MM-DD.md` - Intelligence report (from security-auditor)
@@ -139,7 +149,9 @@ its context and can reliably continue to subsequent phases.
 Use the Task tool with:
 - subagent_type: "security-auditor"
 - run_in_background: false (we need results before proceeding)
-- prompt: "Run the /security-audit command. Execute a full incremental security audit:
+- prompt: "IMPORTANT RULES: (1) NEVER include actual secret values in reports — use [REDACTED] placeholders. (2) Do NOT create branches or run git checkout — stay on the current branch.
+
+    Run the /security-audit command. Execute a full incremental security audit:
     1. Run the security scanner (scan.ts)
     2. Spawn change-analyzer to categorize commits since last audit
     3. Conditionally spawn hot-spot-verifier if critical files changed
@@ -170,6 +182,17 @@ After the subagent completes, extract key metrics from its response:
 Store these for the executive summary in Phase 4.
 
 **Wait for subagent completion before proceeding to Phase 3.**
+
+**Re-verify branch after subagent completes:**
+Subagents may inadvertently switch branches. Always re-verify and restore:
+```bash
+CURRENT_BRANCH=$(git branch --show-current)
+if [ "$CURRENT_BRANCH" != "security-audits" ]; then
+  echo "WARN: Subagent switched to branch $CURRENT_BRANCH, restoring security-audits"
+  git checkout security-audits --quiet
+fi
+echo "Verified on branch: $(git branch --show-current)"
+```
 </step>
 
 <step name="phase_3_run_security_review">
@@ -185,7 +208,9 @@ its context and can reliably continue to subsequent phases.
 Use the Task tool with:
 - subagent_type: "security-reviewer"
 - run_in_background: false (we need results before proceeding)
-- prompt: "Run the /security-audit-review command. Assess today's audit quality and apply improvements:
+- prompt: "IMPORTANT RULES: (1) NEVER include actual secret values in reports — use [REDACTED] placeholders. (2) Do NOT create branches or run git checkout — stay on the current branch.
+
+    Run the /security-audit-review command. Assess today's audit quality and apply improvements:
     1. Read the intelligence report just created at .security/intel/{TODAY}.md
     2. Assess coverage against HOT-SPOTS.md (were all hot spots checked?)
     3. Assess progress on open questions
@@ -218,6 +243,16 @@ Store these for the executive summary.
 **This is the self-improvement loop:** The review can modify the audit command itself, making future audits better.
 
 **Wait for subagent completion before proceeding to Phase 4.**
+
+**Re-verify branch after subagent completes:**
+```bash
+CURRENT_BRANCH=$(git branch --show-current)
+if [ "$CURRENT_BRANCH" != "security-audits" ]; then
+  echo "WARN: Subagent switched to branch $CURRENT_BRANCH, restoring security-audits"
+  git checkout security-audits --quiet
+fi
+echo "Verified on branch: $(git branch --show-current)"
+```
 </step>
 
 <step name="phase_4_executive_summary">
