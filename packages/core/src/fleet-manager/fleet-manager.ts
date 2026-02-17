@@ -61,6 +61,7 @@ import { ScheduleExecutor } from "./schedule-executor.js";
 import { DiscordManager } from "./discord-manager.js";
 import { SlackManager } from "./slack-manager.js";
 import { createLogger } from "../utils/logger.js";
+import type { IChatManager } from "./chat-manager-interface.js";
 
 const DEFAULT_CHECK_INTERVAL = 1000;
 
@@ -100,8 +101,10 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   private jobControl!: JobControl;
   private logStreaming!: LogStreaming;
   private scheduleExecutor!: ScheduleExecutor;
-  private discordManager!: DiscordManager;
-  private slackManager!: SlackManager;
+
+  // Chat managers (Discord, Slack, etc.)
+  // Key is platform name (e.g., "discord", "slack")
+  private chatManagers: Map<string, IChatManager> = new Map();
 
   constructor(options: FleetManagerOptions) {
     super();
@@ -130,8 +133,20 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   getLastError(): string | null { return this.lastError; }
   getCheckInterval(): number { return this.checkInterval; }
   getEmitter(): EventEmitter { return this; }
-  getDiscordManager(): DiscordManager { return this.discordManager; }
-  getSlackManager(): SlackManager { return this.slackManager; }
+
+  /**
+   * Get a chat manager by platform name
+   */
+  getChatManager(platform: string): IChatManager | undefined {
+    return this.chatManagers.get(platform);
+  }
+
+  /**
+   * Get all registered chat managers
+   */
+  getChatManagers(): Map<string, IChatManager> {
+    return this.chatManagers;
+  }
 
   // ===========================================================================
   // Public State Accessors
@@ -178,11 +193,11 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
         onTrigger: (info) => this.handleScheduleTrigger(info),
       });
 
-      // Initialize Discord connectors for agents with Discord configuration
-      await this.discordManager.initialize();
-
-      // Initialize Slack connector for agents with Slack configuration
-      await this.slackManager.initialize();
+      // Initialize all chat managers
+      for (const [platform, manager] of this.chatManagers) {
+        this.logger.debug(`Initializing ${platform} chat manager...`);
+        await manager.initialize();
+      }
 
       this.status = "initialized";
       this.initializedAt = new Date().toISOString();
@@ -209,11 +224,11 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     try {
       this.startSchedulerAsync(this.config!.agents);
 
-      // Start Discord connectors
-      await this.discordManager.start();
-
-      // Start Slack connector
-      await this.slackManager.start();
+      // Start all chat managers
+      for (const [platform, manager] of this.chatManagers) {
+        this.logger.debug(`Starting ${platform} chat manager...`);
+        await manager.start();
+      }
 
       this.status = "running";
       this.startedAt = new Date().toISOString();
@@ -241,11 +256,11 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     this.status = "stopping";
 
     try {
-      // Stop Discord connectors first (graceful disconnect)
-      await this.discordManager.stop();
-
-      // Stop Slack connector
-      await this.slackManager.stop();
+      // Stop all chat managers first (graceful disconnect)
+      for (const [platform, manager] of this.chatManagers) {
+        this.logger.debug(`Stopping ${platform} chat manager...`);
+        await manager.stop();
+      }
 
       if (this.scheduler) {
         try {
@@ -320,8 +335,14 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     this.jobControl = new JobControl(this, () => this.statusQueries.getAgentInfo());
     this.logStreaming = new LogStreaming(this);
     this.scheduleExecutor = new ScheduleExecutor(this);
-    this.discordManager = new DiscordManager(this);
-    this.slackManager = new SlackManager(this);
+
+    // Create chat managers and store in the map
+    // Note: These are still statically imported for now.
+    // In future phases (7-8), they will be dynamically imported from platform packages.
+    const discordManager = new DiscordManager(this);
+    const slackManager = new SlackManager(this);
+    this.chatManagers.set("discord", discordManager);
+    this.chatManagers.set("slack", slackManager);
   }
 
   private async loadConfiguration(): Promise<ResolvedConfig> {

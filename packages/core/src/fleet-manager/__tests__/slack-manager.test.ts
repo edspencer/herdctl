@@ -52,6 +52,7 @@ function createMockContext(
     getCheckInterval: () => 1000,
     emit: (event: string, ...args: unknown[]) => emitter.emit(event, ...args),
     getEmitter: () => emitter,
+    trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
   };
 }
 
@@ -277,12 +278,12 @@ describe("SlackManager (no @herdctl/slack)", () => {
   });
 
   describe("getState", () => {
-    it("returns null when no connector for agent", async () => {
+    it("returns undefined when no connector for agent", async () => {
       const SlackManager = await getSlackManager();
       const ctx = createMockContext(null);
       const manager = new SlackManager(ctx);
 
-      expect(manager.getState("test-agent")).toBeNull();
+      expect(manager.getState("test-agent")).toBeUndefined();
     });
   });
 
@@ -835,7 +836,8 @@ describe("SlackManager (mocked @herdctl/slack)", () => {
       const connector = mockConnectors.get("agent1");
       connector?.getState.mockReturnValue(state);
 
-      expect(manager.getState("agent1")).toBe(state);
+      // getState returns a normalized ChatManagerConnectorState, so we use deep equality
+      expect(manager.getState("agent1")).toStrictEqual(state);
     });
   });
 

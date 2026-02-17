@@ -38,6 +38,7 @@ function createMockContext(config: ResolvedConfig | null = null): FleetManagerCo
     getCheckInterval: () => 1000,
     emit: (event: string, ...args: unknown[]) => mockEmitter.emit(event, ...args),
     getEmitter: () => mockEmitter,
+    trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
   };
 }
 
@@ -723,6 +724,7 @@ describe("DiscordManager message handling", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => emitterWithTrigger.emit(event, ...args),
       getEmitter: () => emitterWithTrigger,
+      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
     };
 
     manager = new DiscordManager(mockContext);
@@ -883,6 +885,7 @@ describe("DiscordManager message handling", () => {
         getCheckInterval: () => 1000,
         emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
         getEmitter: () => streamingEmitter,
+      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
       };
 
       const streamingManager = new DiscordManager(streamingContext);
@@ -1008,6 +1011,7 @@ describe("DiscordManager message handling", () => {
         getCheckInterval: () => 1000,
         emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
         getEmitter: () => streamingEmitter,
+      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
       };
 
       const streamingManager = new DiscordManager(streamingContext);
@@ -1161,6 +1165,7 @@ describe("DiscordManager message handling", () => {
         getCheckInterval: () => 1000,
         emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
         getEmitter: () => streamingEmitter,
+      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
       };
 
       const streamingManager = new DiscordManager(streamingContext);
@@ -1302,6 +1307,7 @@ describe("DiscordManager message handling", () => {
         getCheckInterval: () => 1000,
         emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
         getEmitter: () => streamingEmitter,
+      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
       };
 
       const streamingManager = new DiscordManager(streamingContext);
@@ -1417,6 +1423,7 @@ describe("DiscordManager message handling", () => {
         getCheckInterval: () => 1000,
         emit: (event: string, ...args: unknown[]) => errorEmitter.emit(event, ...args),
         getEmitter: () => errorEmitter,
+      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
       };
 
       const errorManager = new DiscordManager(errorContext);
@@ -2330,6 +2337,7 @@ describe("DiscordManager session integration", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => emitterWithTrigger.emit(event, ...args),
       getEmitter: () => emitterWithTrigger,
+      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
     };
 
     manager = new DiscordManager(mockContext);
@@ -2951,6 +2959,7 @@ describe("DiscordManager lifecycle", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => emitterWithTrigger.emit(event, ...args),
       getEmitter: () => emitterWithTrigger,
+      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
     };
 
     const manager = new DiscordManager(mockContext);
@@ -3077,6 +3086,7 @@ describe("DiscordManager lifecycle", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => emitterWithTrigger.emit(event, ...args),
       getEmitter: () => emitterWithTrigger,
+      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
     };
 
     const manager = new DiscordManager(mockContext);
@@ -3183,6 +3193,7 @@ describe("DiscordManager lifecycle", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => eventEmitter.emit(event, ...args),
       getEmitter: () => eventEmitter,
+      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
     };
 
     const manager = new DiscordManager(mockContext);
@@ -3263,6 +3274,7 @@ describe("DiscordManager lifecycle", () => {
       getCheckInterval: () => 1000,
       emit: () => true,
       getEmitter: () => new EventEmitter(),
+      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
     };
 
     const manager = new DiscordManager(mockContext);
@@ -3385,6 +3397,7 @@ describe("DiscordManager lifecycle", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => emitterWithTrigger.emit(event, ...args),
       getEmitter: () => emitterWithTrigger,
+      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
     };
 
     const manager = new DiscordManager(mockContext);
@@ -3555,6 +3568,7 @@ describe("DiscordManager output configuration", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
       getEmitter: () => streamingEmitter,
+      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
     };
 
     const manager = new DiscordManager(mockContext);
@@ -3695,6 +3709,7 @@ describe("DiscordManager output configuration", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
       getEmitter: () => streamingEmitter,
+      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
     };
 
     const manager = new DiscordManager(mockContext);
@@ -3834,6 +3849,7 @@ describe("DiscordManager output configuration", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
       getEmitter: () => streamingEmitter,
+      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
     };
 
     const manager = new DiscordManager(mockContext);
@@ -3974,6 +3990,7 @@ describe("DiscordManager output configuration", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
       getEmitter: () => streamingEmitter,
+      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
     };
 
     const manager = new DiscordManager(mockContext);
@@ -4117,6 +4134,7 @@ describe("DiscordManager output configuration", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
       getEmitter: () => streamingEmitter,
+      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
     };
 
     const manager = new DiscordManager(mockContext);
@@ -4255,6 +4273,7 @@ describe("DiscordManager output configuration", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
       getEmitter: () => streamingEmitter,
+      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
     };
 
     const manager = new DiscordManager(mockContext);

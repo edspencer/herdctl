@@ -601,6 +601,13 @@ export class DiscordManager {
   }
 
   /**
+   * Check if the manager has been initialized
+   */
+  isInitialized(): boolean {
+    return this.initialized;
+  }
+
+  /**
    * Check if a specific agent has a Discord connector
    *
    * @param agentName - Name of the agent
@@ -608,6 +615,38 @@ export class DiscordManager {
    */
   hasConnector(agentName: string): boolean {
     return this.connectors.has(agentName);
+  }
+
+  /**
+   * Check if a specific agent has a connector (alias for hasConnector)
+   *
+   * @param agentName - Name of the agent
+   * @returns true if the agent has a connector
+   */
+  hasAgent(agentName: string): boolean {
+    return this.connectors.has(agentName);
+  }
+
+  /**
+   * Get the state of a connector for a specific agent
+   *
+   * @param agentName - Name of the agent
+   * @returns The connector state, or undefined if not found
+   */
+  getState(agentName: string): import("./chat-manager-interface.js").ChatManagerConnectorState | undefined {
+    const connector = this.connectors.get(agentName);
+    if (!connector) return undefined;
+
+    const state = connector.getState();
+    return {
+      status: state.status,
+      connectedAt: state.connectedAt,
+      disconnectedAt: state.disconnectedAt,
+      reconnectAttempts: state.reconnectAttempts,
+      lastError: state.lastError,
+      botUser: state.botUser ? { id: state.botUser.id, username: state.botUser.username } : null,
+      messageStats: state.messageStats,
+    };
   }
 
   // ===========================================================================

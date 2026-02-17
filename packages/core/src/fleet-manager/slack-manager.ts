@@ -512,6 +512,13 @@ export class SlackManager {
   }
 
   /**
+   * Check if the manager has been initialized
+   */
+  isInitialized(): boolean {
+    return this.initialized;
+  }
+
+  /**
    * Check if a specific agent has a Slack connector
    *
    * @param agentName - Name of the agent
@@ -525,10 +532,22 @@ export class SlackManager {
    * Get the state of a specific connector
    *
    * @param agentName - Name of the agent
-   * @returns The connector state, or null if not found
+   * @returns The connector state, or undefined if not found
    */
-  getState(agentName: string): SlackConnectorState | null {
-    return this.connectors.get(agentName)?.getState() ?? null;
+  getState(agentName: string): import("./chat-manager-interface.js").ChatManagerConnectorState | undefined {
+    const connector = this.connectors.get(agentName);
+    if (!connector) return undefined;
+
+    const state = connector.getState();
+    return {
+      status: state.status,
+      connectedAt: state.connectedAt,
+      disconnectedAt: state.disconnectedAt,
+      reconnectAttempts: state.reconnectAttempts,
+      lastError: state.lastError,
+      botUser: state.botUser,
+      messageStats: state.messageStats,
+    };
   }
 
   // ===========================================================================

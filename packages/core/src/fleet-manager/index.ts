@@ -18,8 +18,15 @@ export { ConfigReload } from "./config-reload.js";
 export { JobControl } from "./job-control.js";
 export { LogStreaming } from "./log-streaming.js";
 export { ScheduleExecutor } from "./schedule-executor.js";
+
+// Chat manager interface and types
+export type { IChatManager, ChatManagerConnectorState } from "./chat-manager-interface.js";
+
+// Chat managers (will be dynamically imported in future phases, kept for now)
 export { DiscordManager } from "./discord-manager.js";
+export { SlackManager } from "./slack-manager.js";
 export type { DiscordConnectionStatus, DiscordConnectorState } from "./discord-manager.js";
+export type { SlackConnectionStatus, SlackConnectorState } from "./slack-manager.js";
 
 // Event emitters (US-4: Extract Event Emitters Module)
 export {
@@ -130,14 +137,29 @@ export type {
   // Job control event types (US-6)
   JobCancelledPayload,
   JobForkedPayload,
-  // Discord connector event types
+  // Generic chat connector event types
+  ChatConnectorConnectedPayload,
+  ChatConnectorDisconnectedPayload,
+  ChatConnectorErrorPayload,
+  ChatMessageHandledPayload,
+  ChatMessageErrorPayload,
+  ChatSessionLifecyclePayload,
+  // Discord connector event types (kept for backwards compatibility)
   DiscordConnectorConnectedPayload,
   DiscordConnectorDisconnectedPayload,
   DiscordConnectorErrorPayload,
+  // Slack connector event types (kept for backwards compatibility)
+  SlackConnectorConnectedPayload,
+  SlackConnectorDisconnectedPayload,
+  SlackConnectorErrorPayload,
+  SlackMessageHandledPayload,
+  SlackMessageErrorPayload,
+  SlackErrorPayload,
+  SlackSessionLifecyclePayload,
   // Status query types (US-3)
   FleetStatus,
   AgentInfo,
-  AgentDiscordStatus,
+  AgentChatStatus,
   ScheduleInfo,
   FleetCounts,
   // Trigger types (US-5)

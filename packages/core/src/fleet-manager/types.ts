@@ -29,11 +29,18 @@ export type {
   // Job control events (US-6)
   JobCancelledPayload,
   JobForkedPayload,
-  // Discord connector events
+  // Generic chat connector events
+  ChatConnectorConnectedPayload,
+  ChatConnectorDisconnectedPayload,
+  ChatConnectorErrorPayload,
+  ChatMessageHandledPayload,
+  ChatMessageErrorPayload,
+  ChatSessionLifecyclePayload,
+  // Discord connector events (kept for backwards compatibility)
   DiscordConnectorConnectedPayload,
   DiscordConnectorDisconnectedPayload,
   DiscordConnectorErrorPayload,
-  // Slack connector events
+  // Slack connector events (kept for backwards compatibility)
   SlackConnectorConnectedPayload,
   SlackConnectorDisconnectedPayload,
   SlackConnectorErrorPayload,
@@ -227,36 +234,13 @@ export interface ScheduleInfo {
  * ```
  */
 /**
- * Discord connector status within AgentInfo
+ * Chat connector status within AgentInfo
+ *
+ * This is a unified type that works for all chat platforms (Discord, Slack, etc.).
  */
-export interface AgentDiscordStatus {
+export interface AgentChatStatus {
   /**
-   * Whether this agent has Discord configured
-   */
-  configured: boolean;
-
-  /**
-   * Connection status (only present if configured)
-   */
-  connectionStatus?: "disconnected" | "connecting" | "connected" | "reconnecting" | "disconnecting" | "error";
-
-  /**
-   * Bot username (only present if connected)
-   */
-  botUsername?: string;
-
-  /**
-   * Last error message (only present if status is 'error')
-   */
-  lastError?: string;
-}
-
-/**
- * Slack connector status within AgentInfo
- */
-export interface AgentSlackStatus {
-  /**
-   * Whether this agent has Slack configured
+   * Whether this agent has this chat platform configured
    */
   configured: boolean;
 
@@ -338,14 +322,12 @@ export interface AgentInfo {
   working_directory?: string;
 
   /**
-   * Discord connector status (if Discord is configured for this agent)
+   * Chat connector statuses by platform
+   *
+   * Keys are platform names (e.g., "discord", "slack").
+   * Values are the connector status for that platform.
    */
-  discord?: AgentDiscordStatus;
-
-  /**
-   * Slack connector status (if Slack is configured for this agent)
-   */
-  slack?: AgentSlackStatus;
+  chat?: Record<string, AgentChatStatus>;
 }
 
 /**

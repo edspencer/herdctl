@@ -12,7 +12,8 @@ import type { EventEmitter } from "node:events";
 import type { ResolvedConfig } from "../config/index.js";
 import type { StateDirectory } from "../state/index.js";
 import type { Scheduler } from "../scheduler/index.js";
-import type { FleetManagerLogger, FleetManagerStatus } from "./types.js";
+import type { FleetManagerLogger, FleetManagerStatus, TriggerOptions, TriggerResult } from "./types.js";
+import type { IChatManager } from "./chat-manager-interface.js";
 
 /**
  * Context interface for FleetManager modules
@@ -88,12 +89,31 @@ export interface FleetManagerContext {
   getEmitter(): EventEmitter;
 
   /**
-   * Get the Discord manager instance (may return undefined if not initialized)
+   * Get a chat manager by platform name
+   *
+   * @param platform - Platform name (e.g., "discord", "slack")
+   * @returns The chat manager for the platform, or undefined if not available
    */
-  getDiscordManager?(): unknown;
+  getChatManager?(platform: string): IChatManager | undefined;
 
   /**
-   * Get the Slack manager instance (may return undefined if not initialized)
+   * Get all registered chat managers
+   *
+   * @returns Map of platform name to chat manager
    */
-  getSlackManager?(): unknown;
+  getChatManagers?(): Map<string, IChatManager>;
+
+  /**
+   * Trigger an agent job
+   *
+   * This method is used by chat managers to execute agent jobs in response
+   * to chat messages. It provides a clean interface that doesn't require
+   * managers to cast the emitter unsafely.
+   *
+   * @param agentName - Name of the agent to trigger
+   * @param scheduleName - Optional schedule name
+   * @param options - Optional trigger options
+   * @returns Promise resolving to the trigger result
+   */
+  trigger(agentName: string, scheduleName?: string, options?: TriggerOptions): Promise<TriggerResult>;
 }
