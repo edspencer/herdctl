@@ -7,362 +7,59 @@
  * - Managing connector lifecycle (start/stop)
  * - Providing access to connectors for status queries
  *
- * Note: This module dynamically imports @herdctl/discord at runtime to avoid
- * a hard dependency. The @herdctl/core package can be used without Discord support.
- *
- * @module discord-manager
+ * @module manager
  */
 
-import type { FleetManagerContext } from "./context.js";
-import type { ResolvedAgent } from "../config/index.js";
+import type {
+  FleetManagerContext,
+  IChatManager,
+  ChatManagerConnectorState,
+  TriggerOptions,
+  TriggerResult,
+  ResolvedAgent,
+} from "@herdctl/core";
+import {
+  StreamingResponder,
+  extractMessageContent,
+  splitMessage,
+  ChatSessionManager,
+  type ChatConnectorLogger,
+} from "@herdctl/chat";
 
-// =============================================================================
-// Local Type Definitions
-// =============================================================================
-
-/**
- * Discord connection status (mirrors @herdctl/discord types)
- */
-export type DiscordConnectionStatus =
-  | "disconnected"
-  | "connecting"
-  | "connected"
-  | "reconnecting"
-  | "disconnecting"
-  | "error";
-
-/**
- * Discord connector state (mirrors @herdctl/discord types)
- */
-export interface DiscordConnectorState {
-  status: DiscordConnectionStatus;
-  connectedAt: string | null;
-  disconnectedAt: string | null;
-  reconnectAttempts: number;
-  lastError: string | null;
-  botUser: {
-    id: string;
-    username: string;
-    discriminator: string;
-  } | null;
-  rateLimits: {
-    totalCount: number;
-    lastRateLimitAt: string | null;
-    isRateLimited: boolean;
-    currentResetTime: number;
-  };
-  messageStats: {
-    received: number;
-    sent: number;
-    ignored: number;
-  };
-}
-
-/**
- * Discord embed field (mirrors @herdctl/discord types)
- */
-export interface DiscordReplyEmbedField {
-  name: string;
-  value: string;
-  inline?: boolean;
-}
-
-/**
- * Discord embed for rich message formatting (mirrors @herdctl/discord types)
- */
-export interface DiscordReplyEmbed {
-  title: string;
-  description?: string;
-  color?: number;
-  fields?: DiscordReplyEmbedField[];
-  footer?: { text: string };
-  timestamp?: string;
-}
-
-/**
- * Payload for sending rich messages via reply (mirrors @herdctl/discord types)
- */
-export interface DiscordReplyPayload {
-  embeds: DiscordReplyEmbed[];
-}
-
-/**
- * Message event payload from DiscordConnector
- */
-export interface DiscordMessageEvent {
-  agentName: string;
-  /** The processed prompt (with mention stripped) */
-  prompt: string;
-  /** Conversation context including recent message history */
-  context: {
-    messages: Array<{
-      author: string;
-      content: string;
-      isBot: boolean;
-      timestamp: string;
-    }>;
-    wasMentioned: boolean;
-    prompt: string;
-  };
-  /** Discord-specific metadata */
-  metadata: {
-    /** ID of the guild (server), null for DMs */
-    guildId: string | null;
-    /** ID of the channel */
-    channelId: string;
-    /** ID of the message */
-    messageId: string;
-    /** ID of the user who sent the message */
-    userId: string;
-    /** Username of the user who sent the message */
-    username: string;
-    /** Whether this was triggered by a mention */
-    wasMentioned: boolean;
-    /** Channel mode that was applied */
-    mode: "mention" | "auto";
-  };
-  /** Function to send a reply in the same channel (text or embed payload) */
-  reply: (content: string | DiscordReplyPayload) => Promise<void>;
-  /** Start typing indicator, returns stop function */
-  startTyping: () => () => void;
-}
-
-/**
- * Error event payload from DiscordConnector
- */
-export interface DiscordErrorEvent {
-  agentName: string;
-  error: Error;
-}
-
-/**
- * Minimal interface for a Discord connector
- */
-interface IDiscordConnector {
-  connect(): Promise<void>;
-  disconnect(): Promise<void>;
-  isConnected(): boolean;
-  getState(): DiscordConnectorState;
-  readonly agentName: string;
-  readonly sessionManager: ISessionManager;
-  // EventEmitter methods for event subscription
-  on(event: "message", listener: (payload: DiscordMessageEvent) => void): this;
-  on(event: "error", listener: (payload: DiscordErrorEvent) => void): this;
-  on(event: string, listener: (...args: unknown[]) => void): this;
-  off(event: string, listener: (...args: unknown[]) => void): this;
-}
-
-/**
- * Logger interface for Discord operations
- */
-interface DiscordLogger {
-  debug(message: string, data?: Record<string, unknown>): void;
-  info(message: string, data?: Record<string, unknown>): void;
-  warn(message: string, data?: Record<string, unknown>): void;
-  error(message: string, data?: Record<string, unknown>): void;
-}
-
-/**
- * Session manager interface (minimal for our needs)
- */
-interface ISessionManager {
-  readonly agentName: string;
-  getOrCreateSession(channelId: string): Promise<{ sessionId: string; isNew: boolean }>;
-  getSession(channelId: string): Promise<{ sessionId: string; lastMessageAt: string } | null>;
-  setSession(channelId: string, sessionId: string): Promise<void>;
-  touchSession(channelId: string): Promise<void>;
-  clearSession(channelId: string): Promise<boolean>;
-  cleanupExpiredSessions(): Promise<number>;
-  getActiveSessionCount(): Promise<number>;
-}
-
-/**
- * Dynamically imported Discord module structure
- */
-interface DiscordModule {
-  DiscordConnector: new (options: {
-    agentConfig: ResolvedAgent;
-    discordConfig: NonNullable<ResolvedAgent["chat"]>["discord"];
-    botToken: string;
-    fleetManager: unknown;
-    sessionManager: ISessionManager;
-    stateDir?: string;
-    logger?: DiscordLogger;
-  }) => IDiscordConnector;
-  SessionManager: new (options: {
-    agentName: string;
-    stateDir: string;
-    sessionExpiryHours?: number;
-    logger?: DiscordLogger;
-  }) => ISessionManager;
-}
-
-/**
- * Lazy import the Discord package to avoid hard dependency
- * This allows @herdctl/core to be used without @herdctl/discord installed
- */
-async function importDiscordPackage(): Promise<DiscordModule | null> {
-  try {
-    // Dynamic import - will be resolved at runtime
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pkg = (await import("@herdctl/discord" as string)) as unknown as DiscordModule;
-    return pkg;
-  } catch {
-    return null;
-  }
-}
-
-// =============================================================================
-// Streaming Responder
-// =============================================================================
-
-/**
- * Options for StreamingResponder
- */
-interface StreamingResponderOptions {
-  /** Function to send a reply to Discord */
-  reply: (content: string) => Promise<void>;
-  /** Function to split long messages */
-  splitResponse: (text: string) => string[];
-  /** Logger for debug output */
-  logger: DiscordLogger;
-  /** Agent name for logging */
-  agentName: string;
-  /** Minimum time between messages in ms (default: 1000) */
-  minMessageInterval?: number;
-  /** Maximum buffer size before forcing a send (default: 1500) */
-  maxBufferSize?: number;
-}
-
-/**
- * StreamingResponder handles incremental message delivery to Discord
- *
- * Instead of collecting all output and sending at the end, this class:
- * - Buffers incoming content
- * - Sends messages as complete chunks arrive (detected by double newlines or size)
- * - Respects rate limits by enforcing minimum intervals between sends
- * - Handles message splitting for content exceeding Discord's 2000 char limit
- */
-class StreamingResponder {
-  private buffer: string = "";
-  private lastSendTime: number = 0;
-  private messagesSent: number = 0;
-  private readonly reply: (content: string) => Promise<void>;
-  private readonly splitResponse: (text: string) => string[];
-  private readonly logger: DiscordLogger;
-  private readonly agentName: string;
-  private readonly minMessageInterval: number;
-  private readonly maxBufferSize: number;
-
-  constructor(options: StreamingResponderOptions) {
-    this.reply = options.reply;
-    this.splitResponse = options.splitResponse;
-    this.logger = options.logger;
-    this.agentName = options.agentName;
-    this.minMessageInterval = options.minMessageInterval ?? 1000; // 1 second default
-    this.maxBufferSize = options.maxBufferSize ?? 1500; // Leave room for Discord's 2000 limit
-  }
-
-  /**
-   * Add a complete message and send it immediately (with rate limiting)
-   *
-   * Use this for complete assistant message turns from the SDK.
-   * Each assistant message is a complete response that should be sent.
-   */
-  async addMessageAndSend(content: string): Promise<void> {
-    if (!content || content.trim().length === 0) {
-      return;
-    }
-
-    // Add to any existing buffer (in case there's leftover content)
-    this.buffer += content;
-
-    // Send everything in the buffer
-    await this.sendAll();
-  }
-
-  /**
-   * Send all buffered content immediately (with rate limiting)
-   */
-  private async sendAll(): Promise<void> {
-    if (this.buffer.trim().length === 0) {
-      return;
-    }
-
-    const content = this.buffer.trim();
-    this.buffer = "";
-
-    // Respect rate limiting - wait if needed
-    const now = Date.now();
-    const timeSinceLastSend = now - this.lastSendTime;
-    if (timeSinceLastSend < this.minMessageInterval && this.lastSendTime > 0) {
-      const waitTime = this.minMessageInterval - timeSinceLastSend;
-      await this.sleep(waitTime);
-    }
-
-    // Split if needed for Discord's limit
-    const chunks = this.splitResponse(content);
-
-    for (const chunk of chunks) {
-      try {
-        await this.reply(chunk);
-        this.messagesSent++;
-        this.lastSendTime = Date.now();
-        this.logger.debug(`Streamed message to Discord`, {
-          agentName: this.agentName,
-          chunkLength: chunk.length,
-          totalSent: this.messagesSent,
-        });
-
-        // Small delay between multiple chunks from same content
-        if (chunks.length > 1) {
-          await this.sleep(500);
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        this.logger.error(`Failed to send Discord message`, {
-          agentName: this.agentName,
-          error: errorMessage,
-        });
-        throw error;
-      }
-    }
-  }
-
-  /**
-   * Flush any remaining content in the buffer
-   */
-  async flush(): Promise<void> {
-    await this.sendAll();
-  }
-
-  /**
-   * Check if any messages have been sent
-   */
-  hasSentMessages(): boolean {
-    return this.messagesSent > 0;
-  }
-
-  /**
-   * Sleep for a given number of milliseconds
-   */
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-}
+import { DiscordConnector } from "./discord-connector.js";
+import type {
+  DiscordConnectorState,
+  DiscordReplyEmbed,
+  DiscordReplyEmbedField,
+  DiscordReplyPayload,
+  DiscordConnectorEventMap,
+} from "./types.js";
 
 // =============================================================================
 // Discord Manager
 // =============================================================================
 
 /**
+ * Message event payload from DiscordConnector
+ */
+type DiscordMessageEvent = DiscordConnectorEventMap["message"];
+
+/**
+ * Error event payload from DiscordConnector
+ */
+type DiscordErrorEvent = DiscordConnectorEventMap["error"];
+
+/**
  * DiscordManager handles Discord connections for agents
  *
  * This class encapsulates the creation and lifecycle management of
  * DiscordConnector instances for agents that have Discord chat configured.
+ *
+ * Implements IChatManager so FleetManager can interact with it through
+ * the generic chat manager interface.
  */
-export class DiscordManager {
-  private connectors: Map<string, IDiscordConnector> = new Map();
+export class DiscordManager implements IChatManager {
+  private connectors: Map<string, DiscordConnector> = new Map();
   private initialized: boolean = false;
 
   constructor(private ctx: FleetManagerContext) {}
@@ -371,9 +68,8 @@ export class DiscordManager {
    * Initialize Discord connectors for all configured agents
    *
    * This method:
-   * 1. Checks if @herdctl/discord package is available
-   * 2. Iterates through agents to find those with Discord configured
-   * 3. Creates a DiscordConnector for each Discord-enabled agent
+   * 1. Iterates through agents to find those with Discord configured
+   * 2. Creates a DiscordConnector for each Discord-enabled agent
    *
    * Should be called during FleetManager initialization.
    */
@@ -390,14 +86,6 @@ export class DiscordManager {
       return;
     }
 
-    // Try to import the discord package
-    const discordPkg = await importDiscordPackage();
-    if (!discordPkg) {
-      logger.debug("@herdctl/discord not installed, skipping Discord connectors");
-      return;
-    }
-
-    const { DiscordConnector, SessionManager } = discordPkg;
     const stateDir = this.ctx.getStateDir();
 
     // Find agents with Discord configured
@@ -429,7 +117,7 @@ export class DiscordManager {
         }
 
         // Create logger adapter for this agent
-        const createAgentLogger = (prefix: string): DiscordLogger => ({
+        const createAgentLogger = (prefix: string): ChatConnectorLogger => ({
           debug: (msg: string, data?: Record<string, unknown>) =>
             logger.debug(`${prefix} ${msg}${data ? ` ${JSON.stringify(data)}` : ""}`),
           info: (msg: string, data?: Record<string, unknown>) =>
@@ -441,7 +129,8 @@ export class DiscordManager {
         });
 
         // Create session manager for this agent
-        const sessionManager = new SessionManager({
+        const sessionManager = new ChatSessionManager({
+          platform: "discord",
           agentName: agent.name,
           stateDir,
           sessionExpiryHours: discordConfig.session_expiry_hours,
@@ -449,13 +138,13 @@ export class DiscordManager {
         });
 
         // Create the connector
-        // Note: FleetManager is passed via ctx.getEmitter() which returns the FleetManager instance
+        // Pass FleetManager (via ctx.getEmitter() which returns FleetManager instance)
         const connector = new DiscordConnector({
           agentConfig: agent,
           discordConfig,
           botToken,
-          // The context's getEmitter() returns the FleetManager instance (which extends EventEmitter)
-          fleetManager: this.ctx.getEmitter(),
+          // The context's getEmitter() returns the FleetManager instance
+          fleetManager: this.ctx.getEmitter() as unknown as import("@herdctl/core").FleetManager,
           sessionManager,
           stateDir,
           logger: createAgentLogger(`[discord:${agent.name}]`),
@@ -576,7 +265,7 @@ export class DiscordManager {
    * @param agentName - Name of the agent
    * @returns The DiscordConnector instance, or undefined if not found
    */
-  getConnector(agentName: string): IDiscordConnector | undefined {
+  getConnector(agentName: string): DiscordConnector | undefined {
     return this.connectors.get(agentName);
   }
 
@@ -633,7 +322,7 @@ export class DiscordManager {
    * @param agentName - Name of the agent
    * @returns The connector state, or undefined if not found
    */
-  getState(agentName: string): import("./chat-manager-interface.js").ChatManagerConnectorState | undefined {
+  getState(agentName: string): ChatManagerConnectorState | undefined {
     const connector = this.connectors.get(agentName);
     if (!connector) return undefined;
 
@@ -717,12 +406,13 @@ export class DiscordManager {
     }
 
     // Create streaming responder for incremental message delivery
-    // StreamingResponder only sends text, so narrow the reply type
     const streamer = new StreamingResponder({
       reply: (content: string) => event.reply(content),
-      splitResponse: (text) => this.splitResponse(text),
-      logger,
+      logger: logger as ChatConnectorLogger,
       agentName,
+      maxMessageLength: 2000, // Discord's limit
+      maxBufferSize: 1500,
+      platformName: "Discord",
     });
 
     // Start typing indicator while processing
@@ -732,56 +422,30 @@ export class DiscordManager {
     let typingStopped = false;
 
     try {
-      // Import FleetManager dynamically to avoid circular dependency
-      // The context's getEmitter() returns the FleetManager instance
-      const fleetManager = emitter as unknown as {
-        trigger: (
-          agentName: string,
-          scheduleName?: string,
-          options?: {
-            prompt?: string;
-            resume?: string;
-            onMessage?: (message: {
-              type: string;
-              content?: string;
-              message?: { content?: unknown };
-              tool_use_result?: unknown;
-              // System message fields
-              subtype?: string;
-              status?: string | null;
-              // Result message fields
-              is_error?: boolean;
-              duration_ms?: number;
-              total_cost_usd?: number;
-              num_turns?: number;
-              usage?: { input_tokens?: number; output_tokens?: number };
-              result?: string;
-            }) => void | Promise<void>;
-          }
-        ) => Promise<import("./types.js").TriggerResult>;
-      };
-
       // Track pending tool_use blocks so we can pair them with results
       const pendingToolUses = new Map<string, { name: string; input?: unknown; startTime: number }>();
       let embedsSent = 0;
 
-      // Execute job via FleetManager.trigger()
+      // Execute job via FleetManager.trigger() through the context
       // Pass resume option for conversation continuity
       // The onMessage callback streams output incrementally to Discord
-      const result = await fleetManager.trigger(agentName, undefined, {
+      const result = await this.ctx.trigger(agentName, undefined, {
         prompt: event.prompt,
         resume: existingSessionId,
         onMessage: async (message) => {
           // Extract text content from assistant messages and stream to Discord
           if (message.type === "assistant") {
-            const content = this.extractMessageContent(message);
+            // Cast to the SDKMessage shape expected by extractMessageContent
+            // The chat package's SDKMessage type expects a specific structure
+            const sdkMessage = message as unknown as Parameters<typeof extractMessageContent>[0];
+            const content = extractMessageContent(sdkMessage);
             if (content) {
               // Each assistant message is a complete turn - send immediately
               await streamer.addMessageAndSend(content);
             }
 
             // Track tool_use blocks for pairing with results later
-            const toolUseBlocks = this.extractToolUseBlocks(message);
+            const toolUseBlocks = this.extractToolUseBlocks(sdkMessage);
             for (const block of toolUseBlocks) {
               if (block.id) {
                 pendingToolUses.set(block.id, {
@@ -795,7 +459,9 @@ export class DiscordManager {
 
           // Build and send embeds for tool results
           if (message.type === "user" && outputConfig.tool_results) {
-            const toolResults = this.extractToolResults(message);
+            // Cast to the shape expected by extractToolResults
+            const userMessage = message as { type: string; message?: { content?: unknown }; tool_use_result?: unknown };
+            const toolResults = this.extractToolResults(userMessage);
             for (const toolResult of toolResults) {
               // Look up the matching tool_use for name, input, and timing
               const toolUse = toolResult.toolUseId
@@ -820,10 +486,11 @@ export class DiscordManager {
 
           // Show system status messages (e.g., "compacting context...")
           if (message.type === "system" && outputConfig.system_status) {
-            if (message.subtype === "status" && message.status) {
-              const statusText = message.status === "compacting"
+            const sysMessage = message as { subtype?: string; status?: string | null };
+            if (sysMessage.subtype === "status" && sysMessage.status) {
+              const statusText = sysMessage.status === "compacting"
                 ? "Compacting context..."
-                : `Status: ${message.status}`;
+                : `Status: ${sysMessage.status}`;
               await streamer.flush();
               await event.reply({
                 embeds: [{
@@ -838,35 +505,42 @@ export class DiscordManager {
 
           // Show result summary embed (cost, tokens, turns)
           if (message.type === "result" && outputConfig.result_summary) {
+            const resultMessage = message as {
+              is_error?: boolean;
+              duration_ms?: number;
+              total_cost_usd?: number;
+              num_turns?: number;
+              usage?: { input_tokens?: number; output_tokens?: number };
+            };
             const fields: DiscordReplyEmbedField[] = [];
 
-            if (message.duration_ms !== undefined) {
+            if (resultMessage.duration_ms !== undefined) {
               fields.push({
                 name: "Duration",
-                value: DiscordManager.formatDuration(message.duration_ms),
+                value: DiscordManager.formatDuration(resultMessage.duration_ms),
                 inline: true,
               });
             }
 
-            if (message.num_turns !== undefined) {
+            if (resultMessage.num_turns !== undefined) {
               fields.push({
                 name: "Turns",
-                value: String(message.num_turns),
+                value: String(resultMessage.num_turns),
                 inline: true,
               });
             }
 
-            if (message.total_cost_usd !== undefined) {
+            if (resultMessage.total_cost_usd !== undefined) {
               fields.push({
                 name: "Cost",
-                value: `$${message.total_cost_usd.toFixed(4)}`,
+                value: `$${resultMessage.total_cost_usd.toFixed(4)}`,
                 inline: true,
               });
             }
 
-            if (message.usage) {
-              const inputTokens = message.usage.input_tokens ?? 0;
-              const outputTokens = message.usage.output_tokens ?? 0;
+            if (resultMessage.usage) {
+              const inputTokens = resultMessage.usage.input_tokens ?? 0;
+              const outputTokens = resultMessage.usage.output_tokens ?? 0;
               fields.push({
                 name: "Tokens",
                 value: `${inputTokens.toLocaleString()} in / ${outputTokens.toLocaleString()} out`,
@@ -874,7 +548,7 @@ export class DiscordManager {
               });
             }
 
-            const isError = message.is_error === true;
+            const isError = resultMessage.is_error === true;
             await streamer.flush();
             await event.reply({
               embeds: [{
@@ -923,7 +597,7 @@ export class DiscordManager {
         } else {
           // Job failed without streaming any messages - send error details
           const errorMessage = result.errorDetails?.message ?? result.error?.message ?? "An unknown error occurred";
-          await event.reply(`❌ **Error:** ${errorMessage}\n\nThe task could not be completed. Please check the logs for more details.`);
+          await event.reply(`\u274C **Error:** ${errorMessage}\n\nThe task could not be completed. Please check the logs for more details.`);
         }
 
         // Stop typing after sending fallback message (if not already stopped)
@@ -982,48 +656,6 @@ export class DiscordManager {
         stopTyping();
       }
     }
-  }
-
-  /**
-   * Extract text content from an SDK message
-   *
-   * Handles various message formats from the Claude Agent SDK
-   */
-  private extractMessageContent(message: {
-    type: string;
-    content?: string;
-    message?: { content?: unknown };
-  }): string | undefined {
-    // Check for direct content
-    if (typeof message.content === "string" && message.content) {
-      return message.content;
-    }
-
-    // Check for nested message content (SDK structure)
-    const apiMessage = message.message as { content?: unknown } | undefined;
-    const content = apiMessage?.content;
-
-    if (!content) return undefined;
-
-    // If it's a string, return directly
-    if (typeof content === "string") {
-      return content;
-    }
-
-    // If it's an array of content blocks, extract text
-    if (Array.isArray(content)) {
-      const textParts: string[] = [];
-      for (const block of content) {
-        if (block && typeof block === "object" && "type" in block) {
-          if (block.type === "text" && "text" in block && typeof block.text === "string") {
-            textParts.push(block.text);
-          }
-        }
-      }
-      return textParts.length > 0 ? textParts.join("") : undefined;
-    }
-
-    return undefined;
   }
 
   // =============================================================================
@@ -1365,161 +997,20 @@ export class DiscordManager {
    * @returns Formatted error message string
    */
   formatErrorMessage(error: Error): string {
-    return `❌ **Error**: ${error.message}\n\nPlease try again or use \`/reset\` to start a new session.`;
+    return `\u274C **Error**: ${error.message}\n\nPlease try again or use \`/reset\` to start a new session.`;
   }
 
   /**
    * Split a response into chunks that fit Discord's 2000 character limit
    *
-   * This method intelligently splits text:
-   * - Preserves code blocks when possible (closing and reopening across chunks)
-   * - Splits at natural boundaries (newlines, then spaces)
-   * - Never splits mid-word
+   * Uses the shared splitMessage utility from @herdctl/chat.
    *
    * @param text - The text to split
    * @returns Array of text chunks, each under 2000 characters
    */
   splitResponse(text: string): string[] {
-    const MAX_LENGTH = DiscordManager.MAX_MESSAGE_LENGTH;
-
-    // If text fits in one message, return as-is
-    if (text.length <= MAX_LENGTH) {
-      return [text];
-    }
-
-    const chunks: string[] = [];
-    let remaining = text;
-
-    while (remaining.length > 0) {
-      if (remaining.length <= MAX_LENGTH) {
-        chunks.push(remaining);
-        break;
-      }
-
-      // Find the best split point
-      const { chunk, rest } = this.findSplitPoint(remaining, MAX_LENGTH);
-      chunks.push(chunk);
-      remaining = rest;
-    }
-
-    return chunks;
-  }
-
-  /**
-   * Find the best point to split text, preserving code blocks
-   *
-   * @param text - Text to split
-   * @param maxLength - Maximum chunk length
-   * @returns Object with the chunk and remaining text
-   */
-  private findSplitPoint(
-    text: string,
-    maxLength: number
-  ): { chunk: string; rest: string } {
-    // Check if we're inside a code block at the split point
-    const codeBlockState = this.analyzeCodeBlocks(text.substring(0, maxLength));
-
-    // If inside a code block, we need to close it and reopen in the next chunk
-    if (codeBlockState.insideBlock) {
-      // Find a good split point before maxLength
-      const splitIndex = this.findNaturalBreak(text, maxLength);
-      const chunkText = text.substring(0, splitIndex);
-
-      // Re-analyze the actual chunk
-      const actualState = this.analyzeCodeBlocks(chunkText);
-
-      if (actualState.insideBlock) {
-        // Close the code block in this chunk
-        const closedChunk = chunkText + "\n```";
-        // Reopen with the same language in the next chunk
-        const continuation = "```" + (actualState.language || "") + "\n" + text.substring(splitIndex);
-        return { chunk: closedChunk, rest: continuation };
-      }
-
-      return {
-        chunk: chunkText,
-        rest: text.substring(splitIndex),
-      };
-    }
-
-    // Not inside a code block - find natural break point
-    const splitIndex = this.findNaturalBreak(text, maxLength);
-    return {
-      chunk: text.substring(0, splitIndex),
-      rest: text.substring(splitIndex),
-    };
-  }
-
-  /**
-   * Analyze text to determine if it ends inside a code block
-   *
-   * @param text - Text to analyze
-   * @returns Object indicating if inside a block and the language if so
-   */
-  private analyzeCodeBlocks(text: string): {
-    insideBlock: boolean;
-    language: string | null;
-  } {
-    // Find all code block markers (```)
-    const codeBlockRegex = /```(\w*)?/g;
-    let match: RegExpExecArray | null;
-    let insideBlock = false;
-    let language: string | null = null;
-
-    while ((match = codeBlockRegex.exec(text)) !== null) {
-      if (insideBlock) {
-        // This closes a block
-        insideBlock = false;
-        language = null;
-      } else {
-        // This opens a block
-        insideBlock = true;
-        language = match[1] || null;
-      }
-    }
-
-    return { insideBlock, language };
-  }
-
-  /**
-   * Find a natural break point in text (newline or space)
-   *
-   * Prefers breaking at:
-   * 1. Double newlines (paragraph breaks)
-   * 2. Single newlines
-   * 3. Spaces
-   *
-   * @param text - Text to search
-   * @param maxLength - Maximum position to search
-   * @returns Index of the best split point
-   */
-  private findNaturalBreak(text: string, maxLength: number): number {
-    // Don't search beyond the text length
-    const searchEnd = Math.min(maxLength, text.length);
-
-    // First, try to find a double newline (paragraph break)
-    const doubleNewline = text.lastIndexOf("\n\n", searchEnd);
-    if (doubleNewline > 0 && doubleNewline > searchEnd - 500) {
-      // Found a paragraph break within the last 500 chars
-      return doubleNewline + 2; // Include the newlines
-    }
-
-    // Try to find a single newline
-    const singleNewline = text.lastIndexOf("\n", searchEnd);
-    if (singleNewline > 0 && singleNewline > searchEnd - 200) {
-      // Found a newline within the last 200 chars
-      return singleNewline + 1; // Include the newline
-    }
-
-    // Try to find a space (avoid splitting mid-word)
-    const space = text.lastIndexOf(" ", searchEnd);
-    if (space > 0 && space > searchEnd - 100) {
-      // Found a space within the last 100 chars
-      return space + 1; // Include the space
-    }
-
-    // Last resort: hard cut at maxLength
-    return searchEnd;
+    const result = splitMessage(text, { maxLength: DiscordManager.MAX_MESSAGE_LENGTH });
+    return result.chunks;
   }
 
   /**

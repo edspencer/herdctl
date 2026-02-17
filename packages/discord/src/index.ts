@@ -5,6 +5,7 @@
  *
  * This package provides:
  * - DiscordConnector class for connecting agents to Discord
+ * - DiscordManager class for managing multiple Discord connectors
  * - Per-agent Discord bot support
  * - Connection lifecycle management
  * - Event-driven architecture for monitoring
@@ -17,6 +18,9 @@ export const VERSION = "0.0.1";
 
 // Main connector class
 export { DiscordConnector } from "./discord-connector.js";
+
+// Manager class (used by FleetManager)
+export { DiscordManager } from "./manager.js";
 
 // Logger
 export {

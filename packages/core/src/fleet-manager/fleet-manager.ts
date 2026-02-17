@@ -58,7 +58,6 @@ import { ConfigReload, computeConfigChanges } from "./config-reload.js";
 import { JobControl } from "./job-control.js";
 import { LogStreaming } from "./log-streaming.js";
 import { ScheduleExecutor } from "./schedule-executor.js";
-import { DiscordManager } from "./discord-manager.js";
 import { SlackManager } from "./slack-manager.js";
 import { createLogger } from "../utils/logger.js";
 import type { IChatManager } from "./chat-manager-interface.js";
@@ -192,6 +191,9 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
         logger: this.logger,
         onTrigger: (info) => this.handleScheduleTrigger(info),
       });
+
+      // Dynamically import and create chat managers for configured platforms
+      await this.initializeChatManagers();
 
       // Initialize all chat managers
       for (const [platform, manager] of this.chatManagers) {
@@ -336,13 +338,44 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     this.logStreaming = new LogStreaming(this);
     this.scheduleExecutor = new ScheduleExecutor(this);
 
-    // Create chat managers and store in the map
-    // Note: These are still statically imported for now.
-    // In future phases (7-8), they will be dynamically imported from platform packages.
-    const discordManager = new DiscordManager(this);
+    // Chat managers are created during initialize() via dynamic imports
+    // to avoid hard dependencies on platform packages.
+    // SlackManager is still statically imported for now (Phase 8 will move it).
     const slackManager = new SlackManager(this);
-    this.chatManagers.set("discord", discordManager);
     this.chatManagers.set("slack", slackManager);
+  }
+
+  /**
+   * Dynamically import and initialize chat managers for platforms
+   * that have agents configured.
+   *
+   * This allows FleetManager to work without platform packages installed,
+   * and only loads the packages when they're actually needed.
+   */
+  private async initializeChatManagers(): Promise<void> {
+    if (!this.config) return;
+
+    // Check if any agents have Discord configured
+    const hasDiscordAgents = this.config.agents.some(
+      (agent) => agent.chat?.discord !== undefined
+    );
+
+    if (hasDiscordAgents) {
+      try {
+        // Dynamic import of @herdctl/discord
+        // Use `as string` to prevent TypeScript from resolving types at compile time
+        // This allows core to build without discord installed (optional peer dependency)
+        const mod = (await import("@herdctl/discord" as string)) as unknown as {
+          DiscordManager: new (ctx: FleetManagerContext) => IChatManager;
+        };
+        const manager = new mod.DiscordManager(this);
+        this.chatManagers.set("discord", manager);
+        this.logger.debug("Discord chat manager created");
+      } catch {
+        // Package not installed - skip Discord integration
+        this.logger.debug("@herdctl/discord not installed, skipping Discord integration");
+      }
+    }
   }
 
   private async loadConfiguration(): Promise<ResolvedConfig> {
