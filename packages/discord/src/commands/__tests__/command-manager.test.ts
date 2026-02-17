@@ -193,11 +193,11 @@ describe("CommandManager", () => {
 
       await manager.registerCommands();
 
-      expect(logger.info).toHaveBeenCalledWith(
+      expect(logger.debug).toHaveBeenCalledWith(
         expect.stringContaining("Registering"),
         expect.any(Object)
       );
-      expect(logger.info).toHaveBeenCalledWith(
+      expect(logger.debug).toHaveBeenCalledWith(
         expect.stringContaining("Successfully")
       );
     });

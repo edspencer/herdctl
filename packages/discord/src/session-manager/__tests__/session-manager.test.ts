@@ -429,7 +429,7 @@ describe("SessionManager", () => {
       expect(session).toBeDefined();
       expect(session?.sessionId).toBe("new-session-id");
 
-      expect(mockLogger.info).toHaveBeenCalledWith(
+      expect(mockLogger.debug).toHaveBeenCalledWith(
         "Updated session",
         expect.objectContaining({
           channelId: "channel-123",

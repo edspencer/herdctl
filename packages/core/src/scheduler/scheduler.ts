@@ -5,6 +5,7 @@
  * due agents according to their configured schedules.
  */
 
+import { createLogger } from "../utils/logger.js";
 import type { ResolvedAgent } from "../config/index.js";
 import { calculateNextTrigger, isScheduleDue } from "./interval.js";
 import { calculateNextCronTrigger, calculatePreviousCronTrigger, isValidCronExpression } from "./cron.js";
@@ -48,12 +49,7 @@ const DEFAULT_SHUTDOWN_TIMEOUT = 30000;
  * Create a default console-based logger
  */
 function createDefaultLogger(): SchedulerLogger {
-  return {
-    debug: (message: string) => console.debug(`[scheduler] ${message}`),
-    info: (message: string) => console.info(`[scheduler] ${message}`),
-    warn: (message: string) => console.warn(`[scheduler] ${message}`),
-    error: (message: string) => console.error(`[scheduler] ${message}`),
-  };
+  return createLogger("scheduler");
 }
 
 // =============================================================================
