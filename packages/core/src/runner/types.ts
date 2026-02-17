@@ -35,6 +35,8 @@ export interface RunnerOptions {
   outputToFile?: boolean;
   /** AbortController for canceling the execution */
   abortController?: AbortController;
+  /** MCP servers to inject at runtime (SDK and Docker runtimes) */
+  injectedMcpServers?: Record<string, InjectedMcpServerDef>;
 }
 
 /**
@@ -144,6 +146,52 @@ export interface RunnerResult {
   errorDetails?: RunnerErrorDetails;
   /** Duration in seconds */
   durationSeconds?: number;
+}
+
+// =============================================================================
+// Injected MCP Server Types
+// =============================================================================
+
+/**
+ * Tool call result from an MCP tool handler
+ */
+export interface McpToolCallResult {
+  content: Array<{ type: string; text: string }>;
+  isError?: boolean;
+}
+
+/**
+ * A single tool definition for an injected MCP server.
+ *
+ * Contains the tool metadata, JSON schema for HTTP transport, and
+ * the handler function for executing the tool.
+ */
+export interface InjectedMcpToolDef {
+  /** Tool name as it appears to the agent */
+  name: string;
+  /** Human-readable description of what the tool does */
+  description: string;
+  /** JSON Schema for the tool's input parameters */
+  inputSchema: Record<string, unknown>;
+  /** Handler function that executes the tool */
+  handler: (args: Record<string, unknown>) => Promise<McpToolCallResult>;
+}
+
+/**
+ * Definition for an MCP server to inject at runtime.
+ *
+ * Contains tool definitions with handlers that each runtime converts to
+ * the appropriate transport:
+ * - SDKRuntime: in-process MCP server via createSdkMcpServer()
+ * - ContainerRunner: HTTP MCP bridge accessible over Docker network
+ */
+export interface InjectedMcpServerDef {
+  /** Server name (e.g., "herdctl-file-sender") */
+  name: string;
+  /** Server version */
+  version?: string;
+  /** Tool definitions provided by this server */
+  tools: InjectedMcpToolDef[];
 }
 
 // =============================================================================

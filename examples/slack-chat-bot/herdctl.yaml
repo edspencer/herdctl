@@ -1,0 +1,8 @@
+version: 1
+
+fleet:
+  name: slack-chat-bot-example
+  description: Example fleet with Slack chat integration
+
+agents:
+  - path: agents/assistant.yaml

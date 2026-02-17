@@ -14,12 +14,14 @@ import type {
   ShellHookConfigInput,
   WebhookHookConfigInput,
   DiscordHookConfigInput,
+  SlackHookConfigInput,
   HookConfigInput,
 } from "./types.js";
 import type { AgentHooksInput } from "../config/schema.js";
 import { ShellHookRunner, type ShellHookRunnerLogger } from "./runners/shell.js";
 import { WebhookHookRunner, type WebhookHookRunnerLogger } from "./runners/webhook.js";
 import { DiscordHookRunner, type DiscordHookRunnerLogger } from "./runners/discord.js";
+import { SlackHookRunner, type SlackHookRunnerLogger } from "./runners/slack.js";
 
 /**
  * Logger interface for HookExecutor
@@ -126,6 +128,7 @@ export class HookExecutor {
   private shellRunner: ShellHookRunner;
   private webhookRunner: WebhookHookRunner;
   private discordRunner: DiscordHookRunner;
+  private slackRunner: SlackHookRunner;
 
   constructor(options: HookExecutorOptions = {}) {
     this.logger = options.logger ?? {
@@ -150,6 +153,11 @@ export class HookExecutor {
     // Create discord runner with same logger
     this.discordRunner = new DiscordHookRunner({
       logger: this.logger as DiscordHookRunnerLogger,
+    });
+
+    // Create slack runner with same logger
+    this.slackRunner = new SlackHookRunner({
+      logger: this.logger as SlackHookRunnerLogger,
     });
   }
 
@@ -262,6 +270,9 @@ export class HookExecutor {
 
       case "discord":
         return this.discordRunner.execute(config as DiscordHookConfigInput, context);
+
+      case "slack":
+        return this.slackRunner.execute(config as SlackHookConfigInput, context);
 
       default:
         return {

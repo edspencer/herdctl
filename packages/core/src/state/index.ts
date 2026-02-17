@@ -87,6 +87,7 @@ export {
   cliSessionFileExists,
   dockerSessionFileExists,
   isSessionExpiredError,
+  isTokenExpiredError,
   type SessionFileCheckOptions,
 } from "./session-validation.js";
 

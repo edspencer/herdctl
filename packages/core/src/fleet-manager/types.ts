@@ -33,6 +33,10 @@ export type {
   DiscordConnectorConnectedPayload,
   DiscordConnectorDisconnectedPayload,
   DiscordConnectorErrorPayload,
+  // Slack connector events
+  SlackConnectorConnectedPayload,
+  SlackConnectorDisconnectedPayload,
+  SlackConnectorErrorPayload,
 } from "./event-types.js";
 
 // =============================================================================
@@ -242,6 +246,31 @@ export interface AgentDiscordStatus {
   lastError?: string;
 }
 
+/**
+ * Slack connector status within AgentInfo
+ */
+export interface AgentSlackStatus {
+  /**
+   * Whether this agent has Slack configured
+   */
+  configured: boolean;
+
+  /**
+   * Connection status (only present if configured)
+   */
+  connectionStatus?: "disconnected" | "connecting" | "connected" | "reconnecting" | "disconnecting" | "error";
+
+  /**
+   * Bot username (only present if connected)
+   */
+  botUsername?: string;
+
+  /**
+   * Last error message (only present if status is 'error')
+   */
+  lastError?: string;
+}
+
 export interface AgentInfo {
   /**
    * Agent name (unique identifier)
@@ -307,6 +336,11 @@ export interface AgentInfo {
    * Discord connector status (if Discord is configured for this agent)
    */
   discord?: AgentDiscordStatus;
+
+  /**
+   * Slack connector status (if Slack is configured for this agent)
+   */
+  slack?: AgentSlackStatus;
 }
 
 /**
@@ -470,9 +504,13 @@ export interface TriggerOptions {
    *
    * When provided, the Claude Agent SDK will resume the conversation
    * from this session, maintaining context from previous interactions.
-   * This is typically used for chat-based triggers like Discord.
+   * This is typically used for chat-based triggers like Discord/Slack.
+   *
+   * - `string` — resume this specific session
+   * - `null` — explicitly start a fresh session (skip agent-level fallback)
+   * - `undefined` — use agent-level session fallback (for CLI/schedule use)
    */
-  resume?: string;
+  resume?: string | null;
 
   /**
    * Work items to process during this trigger
@@ -510,6 +548,18 @@ export interface TriggerOptions {
    * ```
    */
   onMessage?: (message: import("../runner/types.js").SDKMessage) => void | Promise<void>;
+
+  /**
+   * MCP servers to inject into the agent's runtime session
+   *
+   * These servers are merged with the agent's config-declared MCP servers
+   * at execution time. Used for runtime tool injection (e.g., file sending).
+   *
+   * Each runtime handles transport conversion:
+   * - SDKRuntime: in-process MCP via createSdkMcpServer()
+   * - ContainerRunner: HTTP MCP bridge over Docker network
+   */
+  injectedMcpServers?: Record<string, import("../runner/types.js").InjectedMcpServerDef>;
 }
 
 /**

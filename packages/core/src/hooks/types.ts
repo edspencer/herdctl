@@ -17,18 +17,20 @@ import type {
   ShellHookConfig,
   WebhookHookConfig,
   DiscordHookConfig,
+  SlackHookConfig,
   AgentHooks,
   // Input types allow optional fields (for test construction)
   ShellHookConfigInput,
   WebhookHookConfigInput,
   DiscordHookConfigInput,
+  SlackHookConfigInput,
   HookConfigInput,
 } from "../config/schema.js";
 
 // Re-export for convenience within the hooks module
 // Export both output types (for processed config) and input types (for test construction)
-export type { HookEvent, HookConfig, ShellHookConfig, WebhookHookConfig, DiscordHookConfig };
-export type { ShellHookConfigInput, WebhookHookConfigInput, DiscordHookConfigInput, HookConfigInput };
+export type { HookEvent, HookConfig, ShellHookConfig, WebhookHookConfig, DiscordHookConfig, SlackHookConfig };
+export type { ShellHookConfigInput, WebhookHookConfigInput, DiscordHookConfigInput, SlackHookConfigInput, HookConfigInput };
 
 // =============================================================================
 // Hook Context (Runtime Type)
@@ -177,7 +179,7 @@ export interface HookResult {
   /**
    * Hook type that was executed
    */
-  hookType: "shell" | "webhook" | "discord";
+  hookType: "shell" | "webhook" | "discord" | "slack";
 
   /**
    * Duration of hook execution in milliseconds

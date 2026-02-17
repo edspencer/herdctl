@@ -641,12 +641,70 @@ export const AgentChatDiscordSchema = z.object({
 });
 
 // =============================================================================
+// Agent Chat Slack Schemas (per-agent Slack bot configuration)
+// =============================================================================
+
+/**
+ * Slack channel configuration for an agent's bot
+ *
+ * @example
+ * ```yaml
+ * channels:
+ *   - id: "C0123456789"
+ *     name: "#support"
+ * ```
+ */
+export const SlackChannelSchema = z.object({
+  /** Slack channel ID */
+  id: z.string(),
+  /** Human-readable channel name (for documentation) */
+  name: z.string().optional(),
+  /** Channel message mode: "mention" = only respond to @mentions, "auto" = respond to all messages */
+  mode: z.enum(["mention", "auto"]).default("mention"),
+  /** Number of context messages to include (future use) */
+  context_messages: z.number().int().positive().default(10),
+});
+
+/**
+ * Per-agent Slack bot configuration schema
+ *
+ * Unlike Discord where each agent has its own bot token,
+ * Slack uses a single app with one bot token per workspace.
+ * All agents share the same bot + app token pair.
+ *
+ * @example
+ * ```yaml
+ * chat:
+ *   slack:
+ *     bot_token_env: SLACK_BOT_TOKEN
+ *     app_token_env: SLACK_APP_TOKEN
+ *     session_expiry_hours: 24
+ *     log_level: standard
+ *     channels:
+ *       - id: "C0123456789"
+ *         name: "#support"
+ * ```
+ */
+export const AgentChatSlackSchema = z.object({
+  /** Environment variable name containing the bot token (xoxb-...) */
+  bot_token_env: z.string().default("SLACK_BOT_TOKEN"),
+  /** Environment variable name containing the app token for Socket Mode (xapp-...) */
+  app_token_env: z.string().default("SLACK_APP_TOKEN"),
+  /** Session expiry in hours (default: 24) */
+  session_expiry_hours: z.number().int().positive().default(24),
+  /** Log level for this agent's Slack connector */
+  log_level: z.enum(["minimal", "standard", "verbose"]).default("standard"),
+  /** Channels this agent listens in */
+  channels: z.array(SlackChannelSchema),
+});
+
+// =============================================================================
 // Agent Chat Schema (agent-specific chat config)
 // =============================================================================
 
 export const AgentChatSchema = z.object({
   discord: AgentChatDiscordSchema.optional(),
-  // slack: AgentChatSlackSchema.optional(), // Future
+  slack: AgentChatSlackSchema.optional(),
 });
 
 // =============================================================================
@@ -710,12 +768,24 @@ export const DiscordHookConfigSchema = BaseHookConfigSchema.extend({
 });
 
 /**
+ * Slack hook configuration - sends notification to a Slack channel
+ */
+export const SlackHookConfigSchema = BaseHookConfigSchema.extend({
+  type: z.literal("slack"),
+  /** Slack channel ID to post to */
+  channel_id: z.string().min(1),
+  /** Environment variable name containing the bot token */
+  bot_token_env: z.string().min(1).default("SLACK_BOT_TOKEN"),
+});
+
+/**
  * Union of all hook configuration types
  */
 export const HookConfigSchema = z.discriminatedUnion("type", [
   ShellHookConfigSchema,
   WebhookHookConfigSchema,
   DiscordHookConfigSchema,
+  SlackHookConfigSchema,
 ]);
 
 /**
@@ -895,6 +965,9 @@ export type DiscordGuild = z.infer<typeof DiscordGuildSchema>;
 export type DiscordOutput = z.infer<typeof DiscordOutputSchema>;
 export type AgentChatDiscord = z.infer<typeof AgentChatDiscordSchema>;
 export type AgentChat = z.infer<typeof AgentChatSchema>;
+// Agent Chat Slack types
+export type SlackChannel = z.infer<typeof SlackChannelSchema>;
+export type AgentChatSlack = z.infer<typeof AgentChatSlackSchema>;
 export type AgentWorkingDirectory = z.infer<
   typeof AgentWorkingDirectorySchema
 >;
@@ -904,11 +977,13 @@ export type HookEvent = z.infer<typeof HookEventSchema>;
 export type ShellHookConfig = z.infer<typeof ShellHookConfigSchema>;
 export type WebhookHookConfig = z.infer<typeof WebhookHookConfigSchema>;
 export type DiscordHookConfig = z.infer<typeof DiscordHookConfigSchema>;
+export type SlackHookConfig = z.infer<typeof SlackHookConfigSchema>;
 export type HookConfig = z.infer<typeof HookConfigSchema>;
 export type AgentHooks = z.infer<typeof AgentHooksSchema>;
 // Hook types - Input types (for constructing configs, allows optional fields)
 export type ShellHookConfigInput = z.input<typeof ShellHookConfigSchema>;
 export type WebhookHookConfigInput = z.input<typeof WebhookHookConfigSchema>;
 export type DiscordHookConfigInput = z.input<typeof DiscordHookConfigSchema>;
+export type SlackHookConfigInput = z.input<typeof SlackHookConfigSchema>;
 export type HookConfigInput = z.input<typeof HookConfigSchema>;
 export type AgentHooksInput = z.input<typeof AgentHooksSchema>;

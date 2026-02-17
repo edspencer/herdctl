@@ -40,6 +40,7 @@ import {
   getSessionInfo,
   clearSession,
   isSessionExpiredError,
+  isTokenExpiredError,
   validateWorkingDirectory,
   validateRuntimeContext,
   type JobMetadata,
@@ -218,9 +219,17 @@ export class JobExecutor {
         runtime: agent.runtime ?? "sdk", // Pass runtime for correct validation
       });
 
-      if (existingSession?.session_id) {
-        // Validate that the working directory hasn't changed since the session was created
-        // If it changed, Claude Code will look for the session file in the wrong directory
+      if (existingSession?.session_id && existingSession.session_id !== options.resume) {
+        // Caller provided a different session ID than what's stored on disk for this agent.
+        // This happens with per-thread Slack sessions — the caller manages session IDs
+        // externally and passes the correct one for this specific thread.
+        // Trust the caller's session ID directly; the agent-level session is irrelevant.
+        effectiveResume = options.resume;
+        this.logger.info?.(
+          `Using caller-provided session for ${agent.name}: ${effectiveResume} (differs from agent-level session ${existingSession.session_id})`
+        );
+      } else if (existingSession?.session_id) {
+        // Caller's session matches the agent-level session — validate working dir and runtime
         const currentWorkingDirectory = resolveWorkingDirectory(agent);
         const wdValidation = validateWorkingDirectory(existingSession, currentWorkingDirectory);
 
@@ -311,8 +320,9 @@ export class JobExecutor {
     }
 
     // Step 4: Execute agent and stream output
-    // Track whether we've already retried after a session expiration
+    // Track whether we've already retried after a session expiration or token expiry
     let retriedAfterSessionExpiry = false;
+    let retriedAfterTokenExpiry = false;
 
     const executeWithRetry = async (resumeSessionId: string | undefined): Promise<void> => {
       try {
@@ -326,6 +336,7 @@ export class JobExecutor {
             resume: resumeSessionId,
             fork: options.fork ? true : undefined,
             abortController: options.abortController,
+            injectedMcpServers: options.injectedMcpServers,
           });
         } catch (initError) {
           // Wrap initialization errors with context
@@ -487,6 +498,31 @@ export class JobExecutor {
           // Retry with a fresh session (no resume)
           retriedAfterSessionExpiry = true;
           messagesReceived = 0; // Reset for fresh session
+          await executeWithRetry(undefined);
+          return;
+        }
+
+        // Check if this is an OAuth token expiry error
+        // When the access token expires mid-session, retry triggers buildContainerEnv()
+        // which reads the credentials file and refreshes the token automatically.
+        if (isTokenExpiredError(error as Error) && !retriedAfterTokenExpiry) {
+          this.logger.warn(
+            `OAuth token expired for ${agent.name}. Retrying with fresh token.`
+          );
+
+          // Write info to job output about the retry
+          try {
+            await appendJobOutput(jobsDir, job.id, {
+              type: "system",
+              content: `OAuth token expired. Refreshing token and retrying.`,
+            });
+          } catch {
+            // Ignore output write failures
+          }
+
+          // Retry — buildContainerEnv() will refresh the token from the credentials file
+          retriedAfterTokenExpiry = true;
+          messagesReceived = 0;
           await executeWithRetry(undefined);
           return;
         }

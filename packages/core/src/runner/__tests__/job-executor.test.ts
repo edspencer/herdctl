@@ -2071,21 +2071,21 @@ describe("session expiration handling", () => {
     expect(receivedOptions?.resume).toBe("valid-session-id");
   });
 
-  it("uses stored session_id from disk, not the options.resume value", async () => {
+  it("trusts caller-provided session ID when it differs from agent-level session", async () => {
     const sessionsDir = join(stateDir, "sessions");
 
-    // Create a valid session with a DIFFERENT session_id than what options.resume will provide
-    // This simulates the case where the stored session has been updated but the caller
-    // is using an outdated or generic resume value (like a boolean or old session ID)
+    // Create a valid agent-level session with a DIFFERENT session_id than what options.resume will provide
+    // This simulates per-thread Slack sessions where each thread has its own session ID
+    // managed externally by the session manager, not the agent-level session file
     await updateSessionInfo(sessionsDir, "session-mismatch-agent", {
-      session_id: "stored-session-abc123", // The actual session ID stored on disk
+      session_id: "stored-session-abc123", // The agent-level session on disk
       mode: "autonomous",
     });
 
     let receivedOptions: any;
     const runtime = createMockRuntime(async function* (options) {
       receivedOptions = options;
-      yield { type: "assistant", content: "Resumed with correct session" };
+      yield { type: "assistant", content: "Resumed with caller session" };
     });
 
     const executor = new JobExecutor(runtime, {
@@ -2096,14 +2096,14 @@ describe("session expiration handling", () => {
       agent: createTestAgent({ name: "session-mismatch-agent" }),
       prompt: "Test prompt",
       stateDir,
-      // Pass a DIFFERENT value than what's stored - this could be an old session ID
-      // or any truthy value indicating "please resume"
-      resume: "outdated-session-xyz789",
+      // Pass a DIFFERENT value than what's stored — this is a per-thread session ID
+      // managed by the caller (e.g. SlackManager's session manager)
+      resume: "per-thread-session-xyz789",
     });
 
-    // CRITICAL: Should use the session_id from the stored session file, NOT the options.resume value
-    // This is the fix for the unexpected logout bug - we must use the actual stored session ID
-    expect(receivedOptions?.resume).toBe("stored-session-abc123");
+    // Should trust the caller's session ID directly — it's a per-thread session
+    // managed externally, not the agent-level session stored on disk
+    expect(receivedOptions?.resume).toBe("per-thread-session-xyz789");
   });
 
   it("respects custom session timeout from agent config", async () => {

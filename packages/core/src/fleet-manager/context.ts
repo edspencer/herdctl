@@ -91,4 +91,9 @@ export interface FleetManagerContext {
    * Get the Discord manager instance (may return undefined if not initialized)
    */
   getDiscordManager?(): unknown;
+
+  /**
+   * Get the Slack manager instance (may return undefined if not initialized)
+   */
+  getSlackManager?(): unknown;
 }
