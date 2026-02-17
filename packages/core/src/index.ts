@@ -37,3 +37,6 @@ export * from "./fleet-manager/index.js";
 
 // Hooks exports (Execution Hooks System)
 export * from "./hooks/index.js";
+
+// Utils exports (Logger, etc.)
+export * from "./utils/index.js";

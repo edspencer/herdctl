@@ -17,9 +17,16 @@ import {
   type LogEntry,
 } from "@herdctl/core";
 
+import {
+  colorize,
+  getLevelColor,
+  getSourceColor,
+} from "../utils/colors.js";
+
 export interface StartOptions {
   config?: string;
   state?: string;
+  verbose?: boolean;
 }
 
 /**
@@ -52,19 +59,46 @@ function formatStartupStatus(status: FleetStatus): string {
 }
 
 /**
- * Format a log entry for console output
+ * Format timestamp to local timezone
+ */
+function formatTimestamp(isoTimestamp: string): string {
+  const date = new Date(isoTimestamp);
+  return date.toLocaleString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
+/**
+ * Format a log entry for console output with colors
  */
 function formatLogEntry(entry: LogEntry): string {
-  const timestamp = new Date(entry.timestamp).toLocaleTimeString();
-  const level = entry.level.toUpperCase().padEnd(5);
-  const source = entry.agentName
-    ? `[${entry.agentName}]`
-    : entry.source
-      ? `[${entry.source}]`
-      : "";
-  const jobInfo = entry.jobId ? ` (${entry.jobId})` : "";
+  const timestamp = colorize(formatTimestamp(entry.timestamp), "dim");
+  const level = colorize(entry.level.toUpperCase().padEnd(5), getLevelColor(entry.level));
 
-  return `${timestamp} ${level} ${source}${jobInfo} ${entry.message}`;
+  // Build source label
+  let sourceLabel = "";
+  if (entry.agentName) {
+    sourceLabel = colorize(`[${entry.agentName}]`, getSourceColor("agent", entry.data));
+  } else if (entry.source) {
+    sourceLabel = colorize(`[${entry.source}]`, getSourceColor(entry.source, entry.data));
+  }
+
+  // Add job ID if present (truncated for readability)
+  const jobInfo = entry.jobId
+    ? colorize(` (${entry.jobId.substring(0, 12)})`, "dim")
+    : "";
+
+  // Format the message with output type coloring if available
+  let message = entry.message;
+  const outputType = entry.data?.outputType as string | undefined;
+  if (outputType) {
+    message = colorize(message, getSourceColor("", entry.data));
+  }
+
+  return `${timestamp} ${level} ${sourceLabel}${jobInfo} ${message}`;
 }
 
 /**
@@ -101,6 +135,11 @@ async function removePidFile(stateDir: string): Promise<void> {
  * Start the fleet
  */
 export async function startCommand(options: StartOptions): Promise<void> {
+  // Set log level based on verbose flag (must happen before FleetManager creation)
+  if (options.verbose) {
+    process.env.HERDCTL_LOG_LEVEL = 'debug';
+  }
+
   const stateDir = options.state || DEFAULT_STATE_DIR;
 
   console.log("Starting fleet...");
