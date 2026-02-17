@@ -1348,6 +1348,54 @@ describe("AgentChatDiscordSchema", () => {
     // but semantically the bot needs at least one guild
     expect(result.success).toBe(true);
   });
+
+  it("applies output defaults when output is omitted", () => {
+    const result = AgentChatDiscordSchema.safeParse({
+      bot_token_env: "TOKEN",
+      guilds: [{ id: "123", channels: [{ id: "456" }] }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.output).toEqual({
+        tool_results: true,
+        tool_result_max_length: 900,
+        system_status: true,
+        result_summary: false,
+        errors: true,
+      });
+    }
+  });
+
+  it("accepts custom output configuration", () => {
+    const result = AgentChatDiscordSchema.safeParse({
+      bot_token_env: "TOKEN",
+      guilds: [{ id: "123", channels: [{ id: "456" }] }],
+      output: {
+        tool_results: false,
+        tool_result_max_length: 500,
+        system_status: false,
+        result_summary: true,
+        errors: false,
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.output.tool_results).toBe(false);
+      expect(result.data.output.tool_result_max_length).toBe(500);
+      expect(result.data.output.system_status).toBe(false);
+      expect(result.data.output.result_summary).toBe(true);
+      expect(result.data.output.errors).toBe(false);
+    }
+  });
+
+  it("rejects tool_result_max_length over 1000", () => {
+    const result = AgentChatDiscordSchema.safeParse({
+      bot_token_env: "TOKEN",
+      guilds: [{ id: "123", channels: [{ id: "456" }] }],
+      output: { tool_result_max_length: 1500 },
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("AgentChatSchema", () => {

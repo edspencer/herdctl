@@ -568,6 +568,32 @@ export const DiscordGuildSchema = z.object({
 });
 
 /**
+ * Discord output configuration for controlling what gets shown during conversations
+ *
+ * @example
+ * ```yaml
+ * output:
+ *   tool_results: true
+ *   tool_result_max_length: 900
+ *   system_status: true
+ *   result_summary: false
+ *   errors: true
+ * ```
+ */
+export const DiscordOutputSchema = z.object({
+  /** Show tool results as embeds (default: true) */
+  tool_results: z.boolean().optional().default(true),
+  /** Max chars of tool output to include in embeds (default: 900, max: 1000) */
+  tool_result_max_length: z.number().int().positive().max(1000).optional().default(900),
+  /** Show system status messages like "compacting context..." (default: true) */
+  system_status: z.boolean().optional().default(true),
+  /** Show a summary embed when the agent finishes a turn (cost, tokens, turns) (default: false) */
+  result_summary: z.boolean().optional().default(false),
+  /** Show error messages from the SDK (default: true) */
+  errors: z.boolean().optional().default(true),
+});
+
+/**
  * Per-agent Discord bot configuration schema
  *
  * Each agent can have its own Discord bot with independent identity,
@@ -580,6 +606,12 @@ export const DiscordGuildSchema = z.object({
  *     bot_token_env: SUPPORT_DISCORD_TOKEN
  *     session_expiry_hours: 24
  *     log_level: standard
+ *     output:
+ *       tool_results: true
+ *       tool_result_max_length: 900
+ *       system_status: true
+ *       result_summary: false
+ *       errors: true
  *     presence:
  *       activity_type: watching
  *       activity_message: "for support requests"
@@ -598,6 +630,8 @@ export const AgentChatDiscordSchema = z.object({
   session_expiry_hours: z.number().int().positive().default(24),
   /** Log level for this agent's Discord connector */
   log_level: z.enum(["minimal", "standard", "verbose"]).default("standard"),
+  /** Output configuration for controlling what gets shown during conversations */
+  output: DiscordOutputSchema.optional().default({}),
   /** Bot presence/activity configuration */
   presence: DiscordPresenceSchema.optional(),
   /** Guilds (servers) this bot participates in */
@@ -858,6 +892,7 @@ export type DiscordPresence = z.infer<typeof DiscordPresenceSchema>;
 export type DiscordDM = z.infer<typeof DiscordDMSchema>;
 export type DiscordChannel = z.infer<typeof DiscordChannelSchema>;
 export type DiscordGuild = z.infer<typeof DiscordGuildSchema>;
+export type DiscordOutput = z.infer<typeof DiscordOutputSchema>;
 export type AgentChatDiscord = z.infer<typeof AgentChatDiscordSchema>;
 export type AgentChat = z.infer<typeof AgentChatSchema>;
 export type AgentWorkingDirectory = z.infer<

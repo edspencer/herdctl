@@ -649,6 +649,15 @@ export class DiscordManager {
       return;
     }
 
+    // Get output configuration (with defaults)
+    const outputConfig = agent.chat?.discord?.output ?? {
+      tool_results: true,
+      tool_result_max_length: 900,
+      system_status: true,
+      result_summary: false,
+      errors: true,
+    };
+
     // Get existing session for this channel (for conversation continuity)
     const connector = this.connectors.get(agentName);
     let existingSessionId: string | undefined;
@@ -693,7 +702,22 @@ export class DiscordManager {
           options?: {
             prompt?: string;
             resume?: string;
-            onMessage?: (message: { type: string; content?: string; message?: { content?: unknown }; tool_use_result?: unknown }) => void | Promise<void>;
+            onMessage?: (message: {
+              type: string;
+              content?: string;
+              message?: { content?: unknown };
+              tool_use_result?: unknown;
+              // System message fields
+              subtype?: string;
+              status?: string | null;
+              // Result message fields
+              is_error?: boolean;
+              duration_ms?: number;
+              total_cost_usd?: number;
+              num_turns?: number;
+              usage?: { input_tokens?: number; output_tokens?: number };
+              result?: string;
+            }) => void | Promise<void>;
           }
         ) => Promise<import("./types.js").TriggerResult>;
       };
@@ -731,7 +755,7 @@ export class DiscordManager {
           }
 
           // Build and send embeds for tool results
-          if (message.type === "user") {
+          if (message.type === "user" && outputConfig.tool_results) {
             const toolResults = this.extractToolResults(message);
             for (const toolResult of toolResults) {
               // Look up the matching tool_use for name, input, and timing
@@ -742,13 +766,101 @@ export class DiscordManager {
                 pendingToolUses.delete(toolResult.toolUseId);
               }
 
-              const embed = this.buildToolEmbed(toolUse ?? null, toolResult);
+              const embed = this.buildToolEmbed(
+                toolUse ?? null,
+                toolResult,
+                outputConfig.tool_result_max_length,
+              );
 
               // Flush any buffered text before sending embed to preserve ordering
               await streamer.flush();
               await event.reply({ embeds: [embed] });
               embedsSent++;
             }
+          }
+
+          // Show system status messages (e.g., "compacting context...")
+          if (message.type === "system" && outputConfig.system_status) {
+            if (message.subtype === "status" && message.status) {
+              const statusText = message.status === "compacting"
+                ? "Compacting context..."
+                : `Status: ${message.status}`;
+              await streamer.flush();
+              await event.reply({
+                embeds: [{
+                  title: "\u2699\uFE0F System",
+                  description: statusText,
+                  color: DiscordManager.EMBED_COLOR_SYSTEM,
+                }],
+              });
+              embedsSent++;
+            }
+          }
+
+          // Show result summary embed (cost, tokens, turns)
+          if (message.type === "result" && outputConfig.result_summary) {
+            const fields: DiscordReplyEmbedField[] = [];
+
+            if (message.duration_ms !== undefined) {
+              fields.push({
+                name: "Duration",
+                value: DiscordManager.formatDuration(message.duration_ms),
+                inline: true,
+              });
+            }
+
+            if (message.num_turns !== undefined) {
+              fields.push({
+                name: "Turns",
+                value: String(message.num_turns),
+                inline: true,
+              });
+            }
+
+            if (message.total_cost_usd !== undefined) {
+              fields.push({
+                name: "Cost",
+                value: `$${message.total_cost_usd.toFixed(4)}`,
+                inline: true,
+              });
+            }
+
+            if (message.usage) {
+              const inputTokens = message.usage.input_tokens ?? 0;
+              const outputTokens = message.usage.output_tokens ?? 0;
+              fields.push({
+                name: "Tokens",
+                value: `${inputTokens.toLocaleString()} in / ${outputTokens.toLocaleString()} out`,
+                inline: true,
+              });
+            }
+
+            const isError = message.is_error === true;
+            await streamer.flush();
+            await event.reply({
+              embeds: [{
+                title: isError ? "\u274C Task Failed" : "\u2705 Task Complete",
+                color: isError ? DiscordManager.EMBED_COLOR_ERROR : DiscordManager.EMBED_COLOR_SUCCESS,
+                fields,
+              }],
+            });
+            embedsSent++;
+          }
+
+          // Show SDK error messages
+          if (message.type === "error" && outputConfig.errors) {
+            const errorText = typeof message.content === "string"
+              ? message.content
+              : "An unknown error occurred";
+            await streamer.flush();
+            await event.reply({
+              embeds: [{
+                title: "\u274C Error",
+                description: errorText.length > 4000 ? errorText.substring(0, 4000) + "..." : errorText,
+                color: DiscordManager.EMBED_COLOR_ERROR,
+              }],
+            });
+            embedsSent++;
           }
         },
       });
@@ -885,6 +997,8 @@ export class DiscordManager {
   /** Embed colors */
   private static readonly EMBED_COLOR_DEFAULT = 0x5865f2; // Discord blurple
   private static readonly EMBED_COLOR_ERROR = 0xef4444; // Red
+  private static readonly EMBED_COLOR_SYSTEM = 0x95a5a6; // Gray
+  private static readonly EMBED_COLOR_SUCCESS = 0x57f287; // Green
 
   /** Tool title emojis */
   private static readonly TOOL_EMOJIS: Record<string, string> = {
@@ -1104,10 +1218,15 @@ export class DiscordManager {
    *
    * Combines the tool_use info (name, input) with the tool_result
    * (output, error status) into a compact Discord embed.
+   *
+   * @param toolUse - The tool_use block info (name, input, startTime)
+   * @param toolResult - The tool result (output, isError)
+   * @param maxOutputChars - Maximum characters for output (defaults to TOOL_OUTPUT_MAX_CHARS)
    */
   private buildToolEmbed(
     toolUse: { name: string; input?: unknown; startTime: number } | null,
-    toolResult: { output: string; isError: boolean }
+    toolResult: { output: string; isError: boolean },
+    maxOutputChars?: number,
   ): DiscordReplyEmbed {
     const toolName = toolUse?.name ?? "Tool";
     const emoji = DiscordManager.TOOL_EMOJIS[toolName] ?? "\u{1F527}"; // wrench fallback
@@ -1148,7 +1267,7 @@ export class DiscordManager {
     // Add truncated output as a field if non-empty
     const trimmedOutput = toolResult.output.trim();
     if (trimmedOutput.length > 0) {
-      const maxChars = DiscordManager.TOOL_OUTPUT_MAX_CHARS;
+      const maxChars = maxOutputChars ?? DiscordManager.TOOL_OUTPUT_MAX_CHARS;
       let outputText = trimmedOutput;
       if (outputText.length > maxChars) {
         outputText = outputText.substring(0, maxChars) + `\n... (${outputLength.toLocaleString()} chars total)`;

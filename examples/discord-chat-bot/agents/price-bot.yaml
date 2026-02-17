@@ -84,6 +84,12 @@ chat:
     bot_token_env: DISCORD_BOT_TOKEN
     session_expiry_hours: 24
     log_level: standard
+    output:
+      tool_results: true
+      tool_result_max_length: 500
+      system_status: true
+      result_summary: false
+      errors: true
     guilds:
       - id: "${DISCORD_GUILD_ID}"
         channels:

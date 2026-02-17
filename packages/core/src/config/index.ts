@@ -39,6 +39,7 @@ export {
   DiscordDMSchema,
   DiscordChannelSchema,
   DiscordGuildSchema,
+  DiscordOutputSchema,
   AgentChatDiscordSchema,
   // Hook schemas
   HookEventSchema,
@@ -82,6 +83,7 @@ export {
   type DiscordDM,
   type DiscordChannel,
   type DiscordGuild,
+  type DiscordOutput,
   type AgentChatDiscord,
   // Hook types
   type HookEvent,
