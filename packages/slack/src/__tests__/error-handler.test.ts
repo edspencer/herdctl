@@ -54,11 +54,33 @@ describe("classifyError", () => {
     expect(result.userMessage).toBe(USER_ERROR_MESSAGES.auth);
   });
 
-  it("classifies token errors as auth", () => {
+  it("classifies token_expired as auth", () => {
     const result = classifyError(new Error("token_expired"));
 
     expect(result.category).toBe(ErrorCategory.AUTH);
     expect(result.isRetryable).toBe(false);
+  });
+
+  it("classifies token_revoked as auth", () => {
+    const result = classifyError(new Error("token_revoked"));
+
+    expect(result.category).toBe(ErrorCategory.AUTH);
+    expect(result.isRetryable).toBe(false);
+  });
+
+  it("classifies not_authed as auth", () => {
+    const result = classifyError(new Error("not_authed"));
+
+    expect(result.category).toBe(ErrorCategory.AUTH);
+    expect(result.isRetryable).toBe(false);
+  });
+
+  it("does not classify unrelated 'token' substring as auth", () => {
+    const result = classifyError(
+      new Error("invalid JSON token at position 42")
+    );
+
+    expect(result.category).not.toBe(ErrorCategory.AUTH);
   });
 
   it("classifies rate limit errors", () => {

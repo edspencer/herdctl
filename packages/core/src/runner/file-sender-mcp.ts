@@ -15,7 +15,7 @@
  * @module file-sender-mcp
  */
 
-import { readFile } from "node:fs/promises";
+import { readFile, realpath } from "node:fs/promises";
 import { basename, resolve, relative } from "node:path";
 import type { InjectedMcpServerDef, McpToolCallResult } from "./types.js";
 
@@ -84,8 +84,26 @@ function createToolHandler(
       // Resolve the file path relative to working directory
       const resolvedPath = resolve(context.workingDirectory, filePath);
 
-      // Security: ensure the resolved path is within the working directory
-      const rel = relative(context.workingDirectory, resolvedPath);
+      // Security: resolve symlinks before checking containment.
+      // Without realpath(), a symlink inside the working directory could
+      // point to an arbitrary file outside it and bypass the relative() check.
+      let realPath: string;
+      try {
+        realPath = await realpath(resolvedPath);
+      } catch {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Error: file not found: ${filePath}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      const realWorkingDir = await realpath(context.workingDirectory);
+      const rel = relative(realWorkingDir, realPath);
       if (rel.startsWith("..") || rel.startsWith("/")) {
         return {
           content: [
@@ -99,7 +117,7 @@ function createToolHandler(
       }
 
       // Read the file
-      const fileBuffer = await readFile(resolvedPath);
+      const fileBuffer = await readFile(realPath);
       const filename = (args.filename as string) ?? basename(resolvedPath);
 
       // Upload via the connector

@@ -37,6 +37,11 @@ export type {
   SlackConnectorConnectedPayload,
   SlackConnectorDisconnectedPayload,
   SlackConnectorErrorPayload,
+  // Slack manager events
+  SlackMessageHandledPayload,
+  SlackMessageErrorPayload,
+  SlackErrorPayload,
+  SlackSessionLifecyclePayload,
 } from "./event-types.js";
 
 // =============================================================================
