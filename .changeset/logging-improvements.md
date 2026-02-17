@@ -1,6 +1,8 @@
 ---
 "@herdctl/core": patch
 "herdctl": minor
+"@herdctl/discord": patch
+"@herdctl/slack": patch
 ---
 
 Add verbose logging control and colorized output
@@ -9,5 +11,6 @@ Add verbose logging control and colorized output
 - Add `HERDCTL_LOG_LEVEL` environment variable support (debug/info/warn/error)
 - Add colorized log output in `herdctl start` matching the style of `herdctl logs`
 - Refactor CLIRuntime and CLISessionWatcher to use centralized logger
+- Convert Discord and Slack connector loggers to use centralized `createLogger` from core
 - Internal debug logs are now hidden by default, reducing noise significantly
 - Extract shared color utilities for consistent formatting across CLI commands
