@@ -143,6 +143,12 @@ function createMockSessionManager(agentName: string) {
 describe("SlackManager (no @herdctl/slack)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.resetModules();
+
+    // Mock @herdctl/slack to simulate it not being installed
+    vi.doMock("@herdctl/slack", () => {
+      throw new Error("Cannot find package '@herdctl/slack'");
+    });
   });
 
   afterEach(() => {
