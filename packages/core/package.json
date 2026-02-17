@@ -27,10 +27,14 @@
     "zod": "^3.22.0"
   },
   "peerDependencies": {
-    "@herdctl/discord": "workspace:*"
+    "@herdctl/discord": "workspace:*",
+    "@herdctl/slack": "workspace:*"
   },
   "peerDependenciesMeta": {
     "@herdctl/discord": {
+      "optional": true
+    },
+    "@herdctl/slack": {
       "optional": true
     }
   },

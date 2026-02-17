@@ -69,6 +69,9 @@ importers:
       '@herdctl/discord':
         specifier: workspace:*
         version: link:../discord
+      '@herdctl/slack':
+        specifier: workspace:*
+        version: link:../slack
       chokidar:
         specifier: ^5
         version: 5.0.0
