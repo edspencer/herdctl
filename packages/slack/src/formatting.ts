@@ -3,9 +3,31 @@
  *
  * Provides utilities for:
  * - Converting standard markdown to Slack's mrkdwn format
- * - Splitting long messages to fit Slack's practical limit
  * - Creating context attachments with color coding
+ *
+ * Note: Message splitting utilities (findSplitPoint, splitMessage, needsSplit,
+ * truncateMessage, formatCodeBlock) are provided by @herdctl/chat.
  */
+
+import { slackifyMarkdown } from "slackify-markdown";
+
+// =============================================================================
+// Re-exports from @herdctl/chat
+// =============================================================================
+
+// Re-export message splitting utilities from @herdctl/chat
+// These are identical between Discord and Slack, just with different max lengths
+export {
+  findSplitPoint,
+  splitMessage,
+  needsSplit,
+  truncateMessage,
+  formatCodeBlock,
+  DEFAULT_MESSAGE_DELAY_MS,
+  MIN_CHUNK_SIZE,
+  type MessageSplitOptions,
+  type SplitResult,
+} from "@herdctl/chat";
 
 // =============================================================================
 // Constants
@@ -18,37 +40,9 @@
  */
 export const SLACK_MAX_MESSAGE_LENGTH = 4000;
 
-/**
- * Minimum chunk size when splitting messages
- */
-export const MIN_CHUNK_SIZE = 100;
-
-/**
- * Default delay between sending split messages (in milliseconds)
- */
-export const DEFAULT_MESSAGE_DELAY_MS = 500;
-
 // =============================================================================
 // Types
 // =============================================================================
-
-/**
- * Options for splitting messages
- */
-export interface MessageSplitOptions {
-  maxLength?: number;
-  preserveBoundaries?: boolean;
-  splitPoints?: string[];
-}
-
-/**
- * Result from splitting a message
- */
-export interface SplitResult {
-  chunks: string[];
-  wasSplit: boolean;
-  originalLength: number;
-}
 
 /**
  * Context attachment for Slack messages
@@ -61,8 +55,6 @@ export interface ContextAttachment {
 // =============================================================================
 // Markdown to mrkdwn Conversion
 // =============================================================================
-
-import { slackifyMarkdown } from "slackify-markdown";
 
 /**
  * Convert standard markdown to Slack's mrkdwn format
@@ -80,105 +72,6 @@ export function markdownToMrkdwn(text: string): string {
       .replace(/^\*\*\*$/gm, "⸻")
       .trimEnd()
   );
-}
-
-// =============================================================================
-// Message Splitting
-// =============================================================================
-
-const DEFAULT_SPLIT_POINTS = ["\n\n", "\n", ". ", "! ", "? ", ", ", " "];
-
-/**
- * Find the best split point within a text chunk
- */
-export function findSplitPoint(
-  text: string,
-  maxLength: number,
-  splitPoints: string[] = DEFAULT_SPLIT_POINTS
-): number {
-  if (text.length <= maxLength) {
-    return text.length;
-  }
-
-  for (const splitPoint of splitPoints) {
-    const searchText = text.slice(0, maxLength);
-    const lastIndex = searchText.lastIndexOf(splitPoint);
-
-    if (lastIndex > MIN_CHUNK_SIZE) {
-      return lastIndex + splitPoint.length;
-    }
-  }
-
-  const hardSplitIndex = text.lastIndexOf(" ", maxLength);
-  if (hardSplitIndex > MIN_CHUNK_SIZE) {
-    return hardSplitIndex + 1;
-  }
-
-  return maxLength;
-}
-
-/**
- * Split a message into chunks that fit Slack's message length limit
- */
-export function splitMessage(
-  content: string,
-  options: MessageSplitOptions = {}
-): SplitResult {
-  const {
-    maxLength = SLACK_MAX_MESSAGE_LENGTH,
-    preserveBoundaries = true,
-    splitPoints = DEFAULT_SPLIT_POINTS,
-  } = options;
-
-  const originalLength = content.length;
-
-  if (content.length <= maxLength) {
-    return {
-      chunks: [content],
-      wasSplit: false,
-      originalLength,
-    };
-  }
-
-  const chunks: string[] = [];
-  let remaining = content;
-
-  while (remaining.length > 0) {
-    if (remaining.length <= maxLength) {
-      chunks.push(remaining.trim());
-      break;
-    }
-
-    let splitIndex: number;
-    if (preserveBoundaries) {
-      splitIndex = findSplitPoint(remaining, maxLength, splitPoints);
-    } else {
-      splitIndex = maxLength;
-    }
-
-    const chunk = remaining.slice(0, splitIndex).trim();
-    if (chunk.length > 0) {
-      chunks.push(chunk);
-    }
-
-    remaining = remaining.slice(splitIndex).trim();
-  }
-
-  return {
-    chunks,
-    wasSplit: chunks.length > 1,
-    originalLength,
-  };
-}
-
-/**
- * Check if a message needs to be split
- */
-export function needsSplit(
-  content: string,
-  maxLength: number = SLACK_MAX_MESSAGE_LENGTH
-): boolean {
-  return content.length > maxLength;
 }
 
 // =============================================================================
@@ -202,30 +95,6 @@ export function createContextAttachment(
 // =============================================================================
 // Utility Functions
 // =============================================================================
-
-/**
- * Truncate a message to fit within the max length, adding an ellipsis
- */
-export function truncateMessage(
-  content: string,
-  maxLength: number = SLACK_MAX_MESSAGE_LENGTH,
-  ellipsis: string = "..."
-): string {
-  if (content.length <= maxLength) {
-    return content;
-  }
-
-  const truncatedLength = maxLength - ellipsis.length;
-  return content.slice(0, truncatedLength) + ellipsis;
-}
-
-/**
- * Format code as a Slack code block
- */
-export function formatCodeBlock(code: string, language?: string): string {
-  const langTag = language ?? "";
-  return `\`\`\`${langTag}\n${code}\n\`\`\``;
-}
 
 /**
  * Escape Slack mrkdwn characters in text

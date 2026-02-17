@@ -153,6 +153,9 @@ importers:
 
   packages/slack:
     dependencies:
+      '@herdctl/chat':
+        specifier: workspace:*
+        version: link:../chat
       '@herdctl/core':
         specifier: workspace:*
         version: link:../core

@@ -5,8 +5,8 @@
  * (vs Slack slash commands which require URL verification).
  */
 
-import type { SlackConnectorLogger, ISlackSessionManager } from "../types.js";
-import type { SlackConnectorState } from "../types.js";
+import type { IChatSessionManager } from "@herdctl/chat";
+import type { SlackConnectorLogger, SlackConnectorState } from "../types.js";
 
 // =============================================================================
 // Types
@@ -29,7 +29,7 @@ export interface CommandContext {
   reply: (content: string) => Promise<void>;
 
   /** Session manager for the agent */
-  sessionManager: ISlackSessionManager;
+  sessionManager: IChatSessionManager;
 
   /** Current connector state */
   connectorState: SlackConnectorState;

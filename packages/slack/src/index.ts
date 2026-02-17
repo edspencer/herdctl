@@ -8,7 +8,9 @@
  * - Single Bolt App shared across all agents (one bot token per workspace)
  * - Channel->agent routing for multi-agent support
  * - Channel-based conversation management
- * - SessionManager for per-channel conversation context
+ *
+ * Session management, message splitting, and other shared utilities
+ * are provided by @herdctl/chat - import them from there directly.
  */
 
 export const VERSION = "0.1.0";
@@ -27,10 +29,7 @@ export type {
   SlackLoggerOptions,
 } from "./logger.js";
 
-// Session manager
-export { SessionManager } from "./session-manager/index.js";
-
-// Types
+// Types (Slack-specific only - shared types are in @herdctl/chat)
 export type {
   SlackConnectorOptions,
   SlackConnectorState,
@@ -39,31 +38,14 @@ export type {
   SlackMessageEvent,
   SlackErrorEvent,
   SlackChannelConfig,
+  SlackFileUploadParams,
   ISlackConnector,
-  ISlackSessionManager,
   SlackConnectorEventMap,
   SlackConnectorEventName,
   SlackConnectorEventPayload,
 } from "./types.js";
 
-// Session manager types
-export type {
-  SessionManagerOptions,
-  SessionManagerLogger,
-  ISessionManager,
-  SessionResult,
-  ChannelSession,
-  SlackSessionState,
-} from "./session-manager/index.js";
-
-export {
-  SlackSessionStateSchema,
-  ChannelSessionSchema,
-  createInitialSessionState,
-  createChannelSession,
-} from "./session-manager/index.js";
-
-// Errors
+// Slack-specific errors
 export {
   SlackErrorCode,
   SlackConnectorError,
@@ -74,9 +56,8 @@ export {
   isSlackConnectorError,
 } from "./errors.js";
 
-// Error handling utilities
+// Slack-specific error handling (re-exports shared types + Slack classifier)
 export {
-  USER_ERROR_MESSAGES,
   ErrorCategory,
   classifyError,
   safeExecute,
@@ -84,16 +65,6 @@ export {
 } from "./error-handler.js";
 
 export type { ClassifiedError } from "./error-handler.js";
-
-// Session manager errors
-export {
-  SessionErrorCode,
-  SessionManagerError,
-  SessionStateReadError,
-  SessionStateWriteError,
-  SessionDirectoryCreateError,
-  isSessionManagerError,
-} from "./session-manager/index.js";
 
 // Commands
 export { CommandHandler } from "./commands/index.js";
@@ -114,19 +85,22 @@ export {
   processMessage,
 } from "./message-handler.js";
 
-// Formatting utilities
+// Slack-specific formatting utilities
+// Note: Message splitting functions are re-exported from @herdctl/chat
 export {
+  // Slack-specific
   SLACK_MAX_MESSAGE_LENGTH,
-  DEFAULT_MESSAGE_DELAY_MS,
-  MIN_CHUNK_SIZE,
+  markdownToMrkdwn,
+  escapeMrkdwn,
+  createContextAttachment,
+  // Re-exported from @herdctl/chat
   findSplitPoint,
   splitMessage,
   needsSplit,
   truncateMessage,
   formatCodeBlock,
-  escapeMrkdwn,
-  markdownToMrkdwn,
-  createContextAttachment,
+  DEFAULT_MESSAGE_DELAY_MS,
+  MIN_CHUNK_SIZE,
 } from "./formatting.js";
 
 export type {

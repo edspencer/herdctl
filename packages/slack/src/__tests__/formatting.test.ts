@@ -118,7 +118,7 @@ describe("markdownToMrkdwn", () => {
 
 describe("splitMessage", () => {
   it("returns single chunk for short messages", () => {
-    const result = splitMessage("Hello world");
+    const result = splitMessage("Hello world", { maxLength: SLACK_MAX_MESSAGE_LENGTH });
 
     expect(result.chunks).toEqual(["Hello world"]);
     expect(result.wasSplit).toBe(false);
@@ -130,7 +130,7 @@ describe("splitMessage", () => {
     const paragraph2 = "b".repeat(2000);
     const content = `${paragraph1}\n\n${paragraph2}`;
 
-    const result = splitMessage(content);
+    const result = splitMessage(content, { maxLength: SLACK_MAX_MESSAGE_LENGTH });
 
     expect(result.wasSplit).toBe(true);
     expect(result.chunks.length).toBeGreaterThanOrEqual(2);
@@ -140,7 +140,7 @@ describe("splitMessage", () => {
     const sentence = "This is a sentence. ";
     const content = sentence.repeat(300); // ~6000 chars
 
-    const result = splitMessage(content);
+    const result = splitMessage(content, { maxLength: SLACK_MAX_MESSAGE_LENGTH });
 
     expect(result.wasSplit).toBe(true);
     for (const chunk of result.chunks) {
@@ -200,11 +200,11 @@ describe("findSplitPoint", () => {
 
 describe("needsSplit", () => {
   it("returns false for short messages", () => {
-    expect(needsSplit("Hello")).toBe(false);
+    expect(needsSplit("Hello", SLACK_MAX_MESSAGE_LENGTH)).toBe(false);
   });
 
-  it("returns true for messages exceeding default limit", () => {
-    expect(needsSplit("a".repeat(SLACK_MAX_MESSAGE_LENGTH + 1))).toBe(true);
+  it("returns true for messages exceeding max limit", () => {
+    expect(needsSplit("a".repeat(SLACK_MAX_MESSAGE_LENGTH + 1), SLACK_MAX_MESSAGE_LENGTH)).toBe(true);
   });
 
   it("respects custom maxLength", () => {
@@ -242,7 +242,7 @@ describe("createContextAttachment", () => {
 
 describe("truncateMessage", () => {
   it("returns message unchanged if under limit", () => {
-    expect(truncateMessage("hello")).toBe("hello");
+    expect(truncateMessage("hello", 100)).toBe("hello");
   });
 
   it("truncates and adds ellipsis", () => {
@@ -256,9 +256,9 @@ describe("truncateMessage", () => {
     expect(result).toBe("he [more]");
   });
 
-  it("uses default max length", () => {
+  it("returns short message unchanged when under limit", () => {
     const shortMsg = "a".repeat(100);
-    expect(truncateMessage(shortMsg)).toBe(shortMsg);
+    expect(truncateMessage(shortMsg, SLACK_MAX_MESSAGE_LENGTH)).toBe(shortMsg);
   });
 });
 

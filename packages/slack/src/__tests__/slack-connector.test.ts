@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { SlackConnector } from "../slack-connector.js";
-import type { ISlackSessionManager, SlackMessageEvent, SlackChannelConfig } from "../types.js";
+import type { IChatSessionManager } from "@herdctl/chat";
+import type { SlackMessageEvent, SlackChannelConfig } from "../types.js";
 
 const BOT_USER_ID = "U0123456789";
 const CHANNEL_ID = "C_GENERAL";
@@ -14,9 +15,10 @@ const createMockLogger = () => ({
 });
 
 const createMockSessionManager = (
-  overrides: Partial<ISlackSessionManager> = {}
-): ISlackSessionManager => ({
+  overrides: Partial<IChatSessionManager> = {}
+): IChatSessionManager => ({
   agentName: AGENT_NAME,
+  platform: "slack",
   getOrCreateSession: vi.fn().mockResolvedValue({ sessionId: "s1", isNew: true }),
   getSession: vi.fn().mockResolvedValue(null),
   setSession: vi.fn().mockResolvedValue(undefined),
@@ -35,7 +37,7 @@ const createMockSessionManager = (
  */
 function createTestConnector(options?: {
   channels?: SlackChannelConfig[];
-  sessionManager?: ISlackSessionManager;
+  sessionManager?: IChatSessionManager;
 }) {
   const channels = options?.channels ?? [{ id: CHANNEL_ID }];
   const sessionManager = options?.sessionManager ?? createMockSessionManager();
