@@ -1,5 +1,24 @@
 # @herdctl/slack
 
+## 0.3.0
+
+### Minor Changes
+
+- [#61](https://github.com/edspencer/herdctl/pull/61) [`1e3a570`](https://github.com/edspencer/herdctl/commit/1e3a570cf4e0d3196a05a3fecbbcd39ae0984dcb) Thanks [@edspencer](https://github.com/edspencer)! - feat(slack): align SlackConnector to per-agent model matching Discord
+
+  Restructured the Slack integration from a single shared connector with channel-agent routing to one connector per agent, matching Discord's per-agent architecture.
+
+  - SlackConnector now takes per-agent options (agentName, channels, sessionManager)
+  - SlackManager creates Map<string, ISlackConnector> instead of single connector
+  - Event payloads (ready, disconnect, error) now include agentName
+  - Added getConnectorNames() and getConnectedCount() to SlackManager
+  - Removed getChannelAgentMap() from SlackManager
+
+### Patch Changes
+
+- Updated dependencies [[`1e3a570`](https://github.com/edspencer/herdctl/commit/1e3a570cf4e0d3196a05a3fecbbcd39ae0984dcb)]:
+  - @herdctl/core@4.2.0
+
 ## 0.2.1
 
 ### Patch Changes
