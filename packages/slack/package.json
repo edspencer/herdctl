@@ -1,6 +1,6 @@
 {
   "name": "@herdctl/slack",
-  "version": "0.3.0",
+  "version": "1.0.0",
   "description": "Slack connector for herdctl fleet management",
   "license": "MIT",
   "type": "module",
