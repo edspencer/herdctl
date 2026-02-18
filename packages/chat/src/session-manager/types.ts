@@ -35,8 +35,13 @@ export const ChannelSessionSchema = z.object({
  *   - .herdctl/slack-sessions/my-agent.yaml
  */
 export const ChatSessionStateSchema = z.object({
-  /** Version for future schema migrations */
-  version: z.literal(3),
+  /**
+   * Schema version. Accepts 1, 2, and 3 — all have identical structure.
+   * (1 was Discord's original, 2 was Slack's, 3 was a mistaken bump.)
+   * Only increment this when the schema shape actually changes, and add
+   * migration logic to handle older versions.
+   */
+  version: z.union([z.literal(1), z.literal(2), z.literal(3)]),
 
   /** Agent name this session state belongs to */
   agentName: z.string().min(1, "Agent name cannot be empty"),
@@ -212,7 +217,7 @@ export function createInitialSessionState(
   agentName: string
 ): ChatSessionState {
   return {
-    version: 3,
+    version: 1,
     agentName,
     channels: {},
   };

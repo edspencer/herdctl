@@ -255,7 +255,7 @@ describe("ChatSessionManager (platform: discord)", () => {
       const content = await readFile(stateFilePath, "utf-8");
       const state = parseYaml(content) as ChatSessionState;
 
-      expect(state.version).toBe(3);
+      expect(state.version).toBe(1);
       expect(state.agentName).toBe("test-agent");
       expect(state.channels["channel-123"].sessionId).toBe(result.sessionId);
       expect(state.channels["channel-123"].lastMessageAt).toBeTruthy();
@@ -1035,10 +1035,10 @@ describe("ChatSessionManager errors", () => {
 // =============================================================================
 
 describe("createInitialSessionState", () => {
-  it("creates state with version 3", () => {
+  it("creates state with version 1", () => {
     const state = createInitialSessionState("my-agent");
 
-    expect(state.version).toBe(3);
+    expect(state.version).toBe(1);
     expect(state.agentName).toBe("my-agent");
     expect(state.channels).toEqual({});
   });
