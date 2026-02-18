@@ -74,38 +74,10 @@ export default function App() {
   // Initialize WebSocket connection
   useWebSocket();
 
-  // Fetch initial fleet status
-  const { loading, error, retry } = useFleetStatus();
+  // Fetch initial fleet status (non-blocking — data populates into store)
+  useFleetStatus();
 
-  // Show loading state
-  if (loading) {
-    return (
-      <div className="h-dvh flex items-center justify-center bg-herd-bg">
-        <div className="bg-herd-card border border-herd-border rounded-[10px] p-4 text-center">
-          <p className="text-sm text-herd-fg">Loading fleet data...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show error state with retry
-  if (error) {
-    return (
-      <div className="h-dvh flex items-center justify-center bg-herd-bg">
-        <div className="bg-herd-card border border-herd-border rounded-[10px] p-4 text-center max-w-sm">
-          <p className="text-sm text-herd-status-error mb-3">{error}</p>
-          <button
-            onClick={retry}
-            className="bg-herd-primary hover:bg-herd-primary-hover text-white rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Render main app with routing
+  // Always render the layout shell — loading/error states show within the dashboard
   return (
     <AppLayout>
       <Routes>

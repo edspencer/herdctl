@@ -20,10 +20,10 @@
     "test": "vitest run --coverage --passWithNoTests"
   },
   "dependencies": {
-    "@herdctl/core": "workspace:*",
     "@fastify/cors": "^10.0.3",
     "@fastify/static": "^8.2.0",
     "@fastify/websocket": "^11.0.3",
+    "@herdctl/core": "workspace:*",
     "fastify": "^5.2.2",
     "lucide-react": "^0.475.0",
     "react": "^19.0.0",
@@ -35,6 +35,7 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.1.18",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@types/react": "^19.0.10",
