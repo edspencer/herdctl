@@ -6,7 +6,7 @@
  */
 
 import type { EventEmitter } from "node:events";
-import type { IChatSessionManager } from "@herdctl/chat";
+import type { IChatSessionManager, DMConfig } from "@herdctl/chat";
 
 // =============================================================================
 // Connection Status
@@ -93,6 +93,9 @@ export interface SlackConnectorOptions {
   /** Channels this agent listens to */
   channels: SlackChannelConfig[];
 
+  /** DM (direct message) configuration */
+  dm?: Partial<DMConfig>;
+
   /** Session manager for this agent */
   sessionManager: IChatSessionManager;
 
@@ -141,6 +144,9 @@ export interface SlackMessageEvent {
 
     /** Whether this was triggered by a mention */
     wasMentioned: boolean;
+
+    /** Whether this message is from a DM */
+    isDM: boolean;
   };
 
   /** Function to send a reply in the same thread */
@@ -253,7 +259,7 @@ export interface SlackConnectorEventMap {
   /** Emitted when a message is ignored */
   messageIgnored: {
     agentName: string;
-    reason: "not_configured" | "bot_message" | "no_agent_resolved" | "empty_prompt";
+    reason: "not_configured" | "bot_message" | "no_agent_resolved" | "empty_prompt" | "dm_disabled" | "dm_filtered";
     channelId: string;
     messageTs: string;
   };

@@ -10,7 +10,7 @@
  * while working with Discord's guild/channel hierarchy.
  */
 
-import type { DiscordDM, DiscordChannel, DiscordGuild } from "@herdctl/core";
+import type { ChatDM, DiscordChannel, DiscordGuild } from "@herdctl/core";
 import {
   isDMEnabled as chatIsDMEnabled,
   getDMMode as chatGetDMMode,
@@ -49,7 +49,7 @@ export interface ResolvedChannelConfig {
  * @param dmConfig - DM configuration from agent's Discord config
  * @returns true if DMs are enabled, false otherwise
  */
-export function isDMEnabled(dmConfig?: DiscordDM): boolean {
+export function isDMEnabled(dmConfig?: ChatDM): boolean {
   return chatIsDMEnabled(dmConfig);
 }
 
@@ -59,7 +59,7 @@ export function isDMEnabled(dmConfig?: DiscordDM): boolean {
  * @param dmConfig - DM configuration from agent's Discord config
  * @returns The mode for DM processing (defaults to "auto")
  */
-export function getDMMode(dmConfig?: DiscordDM): "mention" | "auto" {
+export function getDMMode(dmConfig?: ChatDM): "mention" | "auto" {
   return chatGetDMMode(dmConfig);
 }
 
@@ -86,7 +86,7 @@ export function getDMMode(dmConfig?: DiscordDM): "mention" | "auto" {
  */
 export function checkDMUserFilter(
   userId: string,
-  dmConfig?: DiscordDM
+  dmConfig?: ChatDM
 ): DMFilterResult {
   return chatCheckDMUserFilter(userId, dmConfig);
 }
@@ -159,7 +159,7 @@ export function resolveChannelConfig(
   channelId: string,
   guildId: string | null,
   guilds: DiscordGuild[],
-  dmConfig?: DiscordDM
+  dmConfig?: ChatDM
 ): ResolvedChannelConfig | null {
   // Handle DMs
   if (!guildId) {

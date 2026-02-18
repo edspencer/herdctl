@@ -156,6 +156,7 @@ export class SlackManager implements IChatManager {
           botToken,
           appToken,
           channels: slackConfig.channels.map((ch) => ({ id: ch.id, mode: ch.mode })),
+          dm: slackConfig.dm,
           sessionManager,
           logger: createAgentLogger(`[slack:${agent.name}]`),
         });

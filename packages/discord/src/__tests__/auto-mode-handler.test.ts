@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { DiscordDM, DiscordGuild } from "@herdctl/core";
+import type { ChatDM, DiscordGuild } from "@herdctl/core";
 import {
   isDMEnabled,
   getDMMode,
@@ -20,7 +20,7 @@ describe("isDMEnabled", () => {
   });
 
   it("returns true when DM config has enabled: true", () => {
-    const dmConfig: DiscordDM = {
+    const dmConfig: ChatDM = {
       enabled: true,
       mode: "auto",
     };
@@ -28,7 +28,7 @@ describe("isDMEnabled", () => {
   });
 
   it("returns false when DM config has enabled: false", () => {
-    const dmConfig: DiscordDM = {
+    const dmConfig: ChatDM = {
       enabled: false,
       mode: "auto",
     };
@@ -46,7 +46,7 @@ describe("getDMMode", () => {
   });
 
   it("returns auto when DM config has mode: auto", () => {
-    const dmConfig: DiscordDM = {
+    const dmConfig: ChatDM = {
       enabled: true,
       mode: "auto",
     };
@@ -54,7 +54,7 @@ describe("getDMMode", () => {
   });
 
   it("returns mention when DM config has mode: mention", () => {
-    const dmConfig: DiscordDM = {
+    const dmConfig: ChatDM = {
       enabled: true,
       mode: "mention",
     };
@@ -69,7 +69,7 @@ describe("getDMMode", () => {
 describe("checkDMUserFilter", () => {
   describe("when DMs are disabled", () => {
     it("returns dm_disabled reason", () => {
-      const dmConfig: DiscordDM = {
+      const dmConfig: ChatDM = {
         enabled: false,
         mode: "auto",
       };
@@ -89,7 +89,7 @@ describe("checkDMUserFilter", () => {
 
   describe("with blocklist", () => {
     it("blocks users on blocklist", () => {
-      const dmConfig: DiscordDM = {
+      const dmConfig: ChatDM = {
         enabled: true,
         mode: "auto",
         blocklist: ["blocked-user-1", "blocked-user-2"],
@@ -100,7 +100,7 @@ describe("checkDMUserFilter", () => {
     });
 
     it("allows users not on blocklist", () => {
-      const dmConfig: DiscordDM = {
+      const dmConfig: ChatDM = {
         enabled: true,
         mode: "auto",
         blocklist: ["blocked-user-1"],
@@ -111,7 +111,7 @@ describe("checkDMUserFilter", () => {
     });
 
     it("handles empty blocklist", () => {
-      const dmConfig: DiscordDM = {
+      const dmConfig: ChatDM = {
         enabled: true,
         mode: "auto",
         blocklist: [],
@@ -124,7 +124,7 @@ describe("checkDMUserFilter", () => {
 
   describe("with allowlist", () => {
     it("allows users on allowlist", () => {
-      const dmConfig: DiscordDM = {
+      const dmConfig: ChatDM = {
         enabled: true,
         mode: "auto",
         allowlist: ["allowed-user-1", "allowed-user-2"],
@@ -135,7 +135,7 @@ describe("checkDMUserFilter", () => {
     });
 
     it("blocks users not on allowlist", () => {
-      const dmConfig: DiscordDM = {
+      const dmConfig: ChatDM = {
         enabled: true,
         mode: "auto",
         allowlist: ["allowed-user-1"],
@@ -146,7 +146,7 @@ describe("checkDMUserFilter", () => {
     });
 
     it("handles empty allowlist (all allowed)", () => {
-      const dmConfig: DiscordDM = {
+      const dmConfig: ChatDM = {
         enabled: true,
         mode: "auto",
         allowlist: [],
@@ -159,7 +159,7 @@ describe("checkDMUserFilter", () => {
 
   describe("with both allowlist and blocklist", () => {
     it("blocklist takes precedence over allowlist", () => {
-      const dmConfig: DiscordDM = {
+      const dmConfig: ChatDM = {
         enabled: true,
         mode: "auto",
         allowlist: ["user-123"],
@@ -172,7 +172,7 @@ describe("checkDMUserFilter", () => {
     });
 
     it("user on allowlist but not blocklist is allowed", () => {
-      const dmConfig: DiscordDM = {
+      const dmConfig: ChatDM = {
         enabled: true,
         mode: "auto",
         allowlist: ["allowed-user"],
@@ -184,7 +184,7 @@ describe("checkDMUserFilter", () => {
     });
 
     it("user not on allowlist is blocked regardless of blocklist", () => {
-      const dmConfig: DiscordDM = {
+      const dmConfig: ChatDM = {
         enabled: true,
         mode: "auto",
         allowlist: ["allowed-user"],
@@ -298,7 +298,7 @@ describe("resolveChannelConfig", () => {
 
   describe("for DMs", () => {
     it("returns auto mode with default context messages when DMs enabled", () => {
-      const dmConfig: DiscordDM = {
+      const dmConfig: ChatDM = {
         enabled: true,
         mode: "auto",
       };
@@ -311,7 +311,7 @@ describe("resolveChannelConfig", () => {
     });
 
     it("returns mention mode when DM config has mention mode", () => {
-      const dmConfig: DiscordDM = {
+      const dmConfig: ChatDM = {
         enabled: true,
         mode: "mention",
       };
@@ -322,7 +322,7 @@ describe("resolveChannelConfig", () => {
     });
 
     it("returns null when DMs are disabled", () => {
-      const dmConfig: DiscordDM = {
+      const dmConfig: ChatDM = {
         enabled: false,
         mode: "auto",
       };
