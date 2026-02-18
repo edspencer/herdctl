@@ -1,5 +1,17 @@
 # @herdctl/core
 
+## 5.1.0
+
+### Minor Changes
+
+- [#69](https://github.com/edspencer/herdctl/pull/69) [`5ca33b5`](https://github.com/edspencer/herdctl/commit/5ca33b53141092ca82ec859d59c4b0ea596fc2eb) Thanks [@edspencer](https://github.com/edspencer)! - Add Slack DM support with enabled/allowlist/blocklist (matching Discord).
+
+  - Rename `DiscordDMSchema` to `ChatDMSchema` (shared between platforms)
+  - Add `dm` field to `AgentChatSlackSchema` for DM configuration
+  - Implement DM detection and filtering in `SlackConnector` (channel IDs starting with `D`)
+  - Add `isDM` flag to `SlackMessageEvent` metadata
+  - Add `dm_disabled` and `dm_filtered` message ignored reasons
+
 ## 5.0.0
 
 ### Major Changes
