@@ -2,12 +2,11 @@
  * AgentDetail component
  *
  * Main agent detail page with tab navigation.
- * Tabs: Output (default), Jobs, Config
+ * Tabs: Overview (default landing from /agents/:name), Jobs, Output
  */
 
-import { useState } from "react";
 import { useParams, Link } from "react-router";
-import { ArrowLeft, Terminal, History, Settings } from "lucide-react";
+import { ArrowLeft, Terminal, History, LayoutDashboard } from "lucide-react";
 import { useAgentDetail } from "../../hooks/useAgentDetail";
 import { Card, Spinner } from "../ui";
 import { AgentHeader } from "./AgentHeader";
@@ -19,7 +18,7 @@ import { AgentConfig } from "./AgentConfig";
 // Types
 // =============================================================================
 
-type TabId = "output" | "jobs" | "config";
+type TabId = "overview" | "jobs" | "output";
 
 interface Tab {
   id: TabId;
@@ -32,9 +31,9 @@ interface Tab {
 // =============================================================================
 
 const TABS: Tab[] = [
-  { id: "output", label: "Output", icon: Terminal },
+  { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "jobs", label: "Jobs", icon: History },
-  { id: "config", label: "Config", icon: Settings },
+  { id: "output", label: "Output", icon: Terminal },
 ];
 
 // =============================================================================
@@ -43,10 +42,12 @@ const TABS: Tab[] = [
 
 interface TabBarProps {
   activeTab: TabId;
-  onTabChange: (tab: TabId) => void;
+  agentName: string;
 }
 
-function TabBar({ activeTab, onTabChange }: TabBarProps) {
+function TabBar({ activeTab, agentName }: TabBarProps) {
+  const encodedName = encodeURIComponent(agentName);
+
   return (
     <div className="flex border-b border-herd-border">
       {TABS.map((tab) => {
@@ -54,9 +55,10 @@ function TabBar({ activeTab, onTabChange }: TabBarProps) {
         const isActive = activeTab === tab.id;
 
         return (
-          <button
+          <Link
             key={tab.id}
-            onClick={() => onTabChange(tab.id)}
+            to={`/agents/${encodedName}/${tab.id}`}
+            replace
             className={`
               flex items-center gap-1.5 px-4 py-2 text-xs font-medium transition-colors
               border-b-2 -mb-px
@@ -69,7 +71,7 @@ function TabBar({ activeTab, onTabChange }: TabBarProps) {
           >
             <Icon className="w-3.5 h-3.5" />
             {tab.label}
-          </button>
+          </Link>
         );
       })}
     </div>
@@ -152,10 +154,12 @@ function ErrorState({ message, onRetry }: ErrorStateProps) {
 // Component
 // =============================================================================
 
+const VALID_TABS: Set<string> = new Set(["overview", "jobs", "output"]);
+
 export function AgentDetail() {
-  const { name } = useParams<{ name: string }>();
+  const { name, tab } = useParams<{ name: string; tab?: string }>();
   const { agent, loading, error, retry } = useAgentDetail(name ?? null);
-  const [activeTab, setActiveTab] = useState<TabId>("output");
+  const activeTab: TabId = tab && VALID_TABS.has(tab) ? (tab as TabId) : "overview";
 
   // Handle missing name parameter
   if (!name) {
@@ -180,12 +184,12 @@ export function AgentDetail() {
   // Render active tab content
   function renderTabContent() {
     switch (activeTab) {
-      case "output":
-        return <AgentOutput agent={agent!} />;
+      case "overview":
+        return <AgentConfig agent={agent!} />;
       case "jobs":
         return <AgentJobs agent={agent!} />;
-      case "config":
-        return <AgentConfig agent={agent!} />;
+      case "output":
+        return <AgentOutput agent={agent!} />;
       default:
         // This should never happen, but TypeScript requires exhaustive checks
         const exhaustiveCheck: never = activeTab;
@@ -211,7 +215,7 @@ export function AgentDetail() {
 
       {/* Tab Navigation and Content */}
       <Card className="overflow-hidden">
-        <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
+        <TabBar activeTab={activeTab} agentName={name} />
         <div className="p-4">{renderTabContent()}</div>
       </Card>
     </div>

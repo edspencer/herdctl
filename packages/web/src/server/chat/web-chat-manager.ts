@@ -354,6 +354,7 @@ export class WebChatManager {
     try {
       // Trigger job via FleetManager
       const result = await this.fleetManager.trigger(agentName, undefined, {
+        triggerType: "web",
         prompt: message,
         resume: existingSdkSessionId,
         onMessage: async (sdkMessage) => {

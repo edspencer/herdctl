@@ -30,6 +30,7 @@ function mapJobToSummary(job: any, agents: ResolvedAgent[]): Record<string, unkn
     exitCode: job.exit_reason === "success" ? 0 : job.exit_reason === "error" ? 1 : undefined,
     error: undefined,
     sessionId: job.session_id ?? undefined,
+    triggerType: job.trigger_type ?? "manual",
     workspace,
   };
 }

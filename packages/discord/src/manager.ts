@@ -430,6 +430,7 @@ export class DiscordManager implements IChatManager {
       // Pass resume option for conversation continuity
       // The onMessage callback streams output incrementally to Discord
       const result = await this.ctx.trigger(agentName, undefined, {
+        triggerType: "discord",
         prompt: event.prompt,
         resume: existingSessionId,
         onMessage: async (message) => {

@@ -492,6 +492,17 @@ export interface FleetStatus {
  */
 export interface TriggerOptions {
   /**
+   * How this trigger was initiated
+   *
+   * Connectors should set this to identify the source platform:
+   * - `"discord"` — triggered from Discord
+   * - `"slack"` — triggered from Slack
+   * - `"web"` — triggered from the web chat UI
+   * - `"manual"` — triggered from CLI or API (default)
+   */
+  triggerType?: string;
+
+  /**
    * Override the prompt for this trigger
    *
    * This prompt will be used instead of the schedule's configured prompt

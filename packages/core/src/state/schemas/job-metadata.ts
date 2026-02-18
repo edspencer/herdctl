@@ -30,6 +30,9 @@ export const TriggerTypeSchema = z.enum([
   "schedule",
   "webhook",
   "chat",
+  "discord",
+  "slack",
+  "web",
   "fork",
 ]);
 

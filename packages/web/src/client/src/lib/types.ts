@@ -135,6 +135,8 @@ export type JobStatus = "pending" | "running" | "completed" | "failed" | "cancel
 
 export type StreamType = "stdout" | "stderr";
 
+export type TriggerType = "manual" | "schedule" | "webhook" | "chat" | "discord" | "slack" | "web" | "fork";
+
 export interface JobSummary {
   jobId: string;
   agentName: string;
@@ -146,6 +148,7 @@ export interface JobSummary {
   exitCode?: number;
   error?: string;
   sessionId?: string;
+  triggerType?: TriggerType;
   workspace?: string;
 }
 
