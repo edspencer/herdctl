@@ -4,9 +4,11 @@
  * Main dashboard page showing fleet overview, agent cards, and recent jobs.
  */
 
+import { useEffect } from "react";
 import { Server, History } from "lucide-react";
-import { useFleet } from "../../store";
+import { useFleet, useFleetActions } from "../../store";
 import { useFleetStatus } from "../../hooks/useFleetStatus";
+import { fetchJobs } from "../../lib/api";
 import { StatusBadge, Card, TimeAgo } from "../ui";
 import { AgentCard } from "./AgentCard";
 import { RecentJobs } from "./RecentJobs";
@@ -163,9 +165,30 @@ function RecentJobsEmptyState() {
 // Main Component
 // =============================================================================
 
+/** Cutoff for "recent" jobs: 24 hours */
+const RECENT_HOURS = 24;
+
 export function FleetDashboard() {
   const { fleetStatus, agents, recentJobs, lastUpdated } = useFleet();
+  const { setRecentJobs } = useFleetActions();
   const { loading } = useFleetStatus();
+
+  // Seed recent jobs from the REST API on mount
+  useEffect(() => {
+    fetchJobs({ limit: 100 })
+      .then((response) => {
+        setRecentJobs(response.jobs);
+      })
+      .catch(() => {
+        // Non-critical — dashboard still works from WebSocket events
+      });
+  }, [setRecentJobs]);
+
+  // Filter to last 24 hours
+  const cutoff = Date.now() - RECENT_HOURS * 60 * 60 * 1000;
+  const recentJobsFiltered = recentJobs.filter(
+    (job) => new Date(job.createdAt).getTime() >= cutoff
+  );
 
   const counts = fleetStatus?.counts ?? {
     totalAgents: 0,
@@ -266,13 +289,13 @@ export function FleetDashboard() {
       {/* Recent Jobs Section */}
       <section>
         <Card className="p-4">
-          {recentJobs.length === 0 ? (
+          {recentJobsFiltered.length === 0 ? (
             <>
               <h2 className="text-sm font-semibold text-herd-fg mb-3">Recent Jobs</h2>
               <RecentJobsEmptyState />
             </>
           ) : (
-            <RecentJobs jobs={recentJobs} limit={10} />
+            <RecentJobs jobs={recentJobsFiltered} pageSize={10} />
           )}
         </Card>
       </section>

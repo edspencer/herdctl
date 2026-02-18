@@ -142,6 +142,7 @@ export function useFleetActions() {
       setFleetStatus: state.setFleetStatus,
       setAgents: state.setAgents,
       updateAgent: state.updateAgent,
+      setRecentJobs: state.setRecentJobs,
       addJob: state.addJob,
       completeJob: state.completeJob,
       failJob: state.failJob,

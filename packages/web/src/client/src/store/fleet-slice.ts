@@ -43,6 +43,8 @@ export interface FleetActions {
   setAgents: (agents: AgentInfo[]) => void;
   /** Update a single agent (from WebSocket event) */
   updateAgent: (payload: AgentStartedPayload | AgentStoppedPayload) => void;
+  /** Set recent jobs from API fetch (seeds the list) */
+  setRecentJobs: (jobs: JobSummary[]) => void;
   /** Add a new job to recent jobs */
   addJob: (payload: JobCreatedPayload) => void;
   /** Mark a job as completed */
@@ -93,6 +95,26 @@ export const createFleetSlice: StateCreator<FleetSlice, [], [], FleetSlice> = (s
     set({
       agents,
       lastUpdated: new Date().toISOString(),
+    }),
+
+  setRecentJobs: (jobs) =>
+    set((state) => {
+      // Merge fetched jobs with any WebSocket-added jobs already in state.
+      // Use a Map keyed by jobId to deduplicate, preferring existing (more up-to-date) entries.
+      const merged = new Map<string, JobSummary>();
+      for (const job of jobs) {
+        merged.set(job.jobId, job);
+      }
+      // WebSocket jobs override fetched ones (they have fresher status)
+      for (const job of state.recentJobs) {
+        merged.set(job.jobId, job);
+      }
+      const allJobs = Array.from(merged.values());
+      allJobs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      return {
+        recentJobs: allJobs.slice(0, MAX_RECENT_JOBS),
+        lastUpdated: new Date().toISOString(),
+      };
     }),
 
   updateAgent: (payload) =>
