@@ -73,9 +73,10 @@ export interface ScheduleInfo {
 
 export type ChatConnectorType = "discord" | "slack" | "web";
 
-export interface ChatConnectorInfo {
-  type: ChatConnectorType;
-  status: string;
+export interface ChatConnectorStatus {
+  configured: boolean;
+  connectionStatus?: string;
+  botUsername?: string;
 }
 
 export interface AgentInfo {
@@ -92,7 +93,7 @@ export interface AgentInfo {
   model?: string;
   working_directory?: string;
   permission_mode?: string;
-  chatConnectors: ChatConnectorInfo[];
+  chat?: Record<string, ChatConnectorStatus>;
 }
 
 // =============================================================================

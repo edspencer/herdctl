@@ -11,20 +11,12 @@ import { useWebSocket } from "./hooks/useWebSocket";
 import { useFleetStatus } from "./hooks/useFleetStatus";
 import { AppLayout } from "./components/layout/AppLayout";
 import { FleetDashboard } from "./components/dashboard/FleetDashboard";
+import { AgentDetail } from "./components/agent";
+import { JobHistory } from "./components/jobs";
 
 // =============================================================================
 // Placeholder Page Components
 // =============================================================================
-
-function AgentDetailPage() {
-  return (
-    <div className="p-4">
-      <p className="text-herd-muted text-sm">
-        Agent Detail — Coming in Phase 3
-      </p>
-    </div>
-  );
-}
 
 function AgentChatPage() {
   return (
@@ -38,10 +30,9 @@ function AgentChatPage() {
 
 function JobsPage() {
   return (
-    <div className="p-4">
-      <p className="text-herd-muted text-sm">
-        Job History — Coming in Phase 3
-      </p>
+    <div className="p-4 h-full overflow-auto">
+      <h1 className="text-lg font-semibold text-herd-fg mb-4">Job History</h1>
+      <JobHistory />
     </div>
   );
 }
@@ -82,7 +73,7 @@ export default function App() {
     <AppLayout>
       <Routes>
         <Route path="/" element={<FleetDashboard />} />
-        <Route path="/agents/:name" element={<AgentDetailPage />} />
+        <Route path="/agents/:name" element={<AgentDetail />} />
         <Route path="/agents/:name/chat" element={<AgentChatPage />} />
         <Route path="/jobs" element={<JobsPage />} />
         <Route path="/schedules" element={<SchedulesPage />} />

@@ -1,19 +1,21 @@
 /**
  * Combined Zustand store for @herdctl/web
  *
- * Combines fleet and UI slices into a single store.
+ * Combines fleet, UI, output, and jobs slices into a single store.
  */
 
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import { createFleetSlice, type FleetSlice } from "./fleet-slice";
 import { createUISlice, type UISlice } from "./ui-slice";
+import { createOutputSlice, type OutputSlice } from "./output-slice";
+import { createJobsSlice, type JobsSlice } from "./jobs-slice";
 
 // =============================================================================
 // Combined Store Type
 // =============================================================================
 
-export type AppStore = FleetSlice & UISlice;
+export type AppStore = FleetSlice & UISlice & OutputSlice & JobsSlice;
 
 // =============================================================================
 // Store
@@ -22,6 +24,8 @@ export type AppStore = FleetSlice & UISlice;
 export const useStore = create<AppStore>()((...args) => ({
   ...createFleetSlice(...args),
   ...createUISlice(...args),
+  ...createOutputSlice(...args),
+  ...createJobsSlice(...args),
 }));
 
 // =============================================================================
@@ -30,6 +34,18 @@ export const useStore = create<AppStore>()((...args) => ({
 
 export type { FleetSlice, FleetState, FleetActions } from "./fleet-slice";
 export type { UISlice, UIState, UIActions } from "./ui-slice";
+export type {
+  OutputSlice,
+  OutputState,
+  OutputActions,
+  OutputMessage,
+} from "./output-slice";
+export type {
+  JobsSlice,
+  JobsState,
+  JobsActions,
+  JobsFilter,
+} from "./jobs-slice";
 
 // =============================================================================
 // Selector Hooks
@@ -105,6 +121,79 @@ export function useFleetActions() {
       failJob: state.failJob,
       cancelJob: state.cancelJob,
       setConnectionStatus: state.setConnectionStatus,
+    }))
+  );
+}
+
+/**
+ * Select output messages for a specific job
+ */
+export function useJobOutput(jobId: string | null) {
+  return useStore((state) =>
+    jobId ? state.outputsByJob[jobId] ?? [] : []
+  );
+}
+
+/**
+ * Select output actions
+ */
+export function useOutputActions() {
+  return useStore(
+    useShallow((state) => ({
+      appendOutput: state.appendOutput,
+      clearJobOutput: state.clearJobOutput,
+      setActiveJobView: state.setActiveJobView,
+      clearAllOutput: state.clearAllOutput,
+    }))
+  );
+}
+
+// =============================================================================
+// Jobs Selector Hooks
+// =============================================================================
+
+/**
+ * Select jobs list state (with useShallow to prevent infinite re-renders)
+ */
+export function useJobs() {
+  return useStore(
+    useShallow((state) => ({
+      jobs: state.jobs,
+      totalJobs: state.totalJobs,
+      jobsLoading: state.jobsLoading,
+      jobsError: state.jobsError,
+      jobsFilter: state.jobsFilter,
+      jobsOffset: state.jobsOffset,
+      jobsLimit: state.jobsLimit,
+    }))
+  );
+}
+
+/**
+ * Select jobs actions
+ */
+export function useJobsActions() {
+  return useStore(
+    useShallow((state) => ({
+      fetchJobs: state.fetchJobs,
+      fetchJobDetail: state.fetchJobDetail,
+      setJobsFilter: state.setJobsFilter,
+      setJobsOffset: state.setJobsOffset,
+      selectJob: state.selectJob,
+      clearJobsState: state.clearJobsState,
+    }))
+  );
+}
+
+/**
+ * Select selected job state (with useShallow to prevent infinite re-renders)
+ */
+export function useSelectedJob() {
+  return useStore(
+    useShallow((state) => ({
+      selectedJobId: state.selectedJobId,
+      selectedJob: state.selectedJob,
+      selectedJobLoading: state.selectedJobLoading,
     }))
   );
 }

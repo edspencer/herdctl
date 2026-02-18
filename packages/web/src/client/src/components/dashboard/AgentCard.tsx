@@ -79,8 +79,9 @@ function getNextRunTime(agent: AgentInfo): string | null {
  * Get chat connector type labels
  */
 function getConnectorLabels(agent: AgentInfo): string[] {
-  return agent.chatConnectors.map((c) =>
-    c.type.charAt(0).toUpperCase() + c.type.slice(1)
+  if (!agent.chat) return [];
+  return Object.keys(agent.chat).map(
+    (key) => key.charAt(0).toUpperCase() + key.slice(1)
   );
 }
 

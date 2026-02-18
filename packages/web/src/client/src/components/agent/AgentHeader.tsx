@@ -1,0 +1,89 @@
+/**
+ * AgentHeader component
+ *
+ * Header section at top of agent detail page showing:
+ * - Agent name and status
+ * - Description, model, permission mode, working directory
+ * - Action buttons (Trigger Job, Chat)
+ */
+
+import { Link } from "react-router";
+import { Play, MessageSquare, FolderOpen, Cpu, Shield } from "lucide-react";
+import { StatusBadge } from "../ui";
+import type { AgentInfo } from "../../lib/types";
+
+// =============================================================================
+// Types
+// =============================================================================
+
+interface AgentHeaderProps {
+  /** Agent information */
+  agent: AgentInfo;
+}
+
+// =============================================================================
+// Component
+// =============================================================================
+
+export function AgentHeader({ agent }: AgentHeaderProps) {
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Top row: Name, status, and actions */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-3">
+            <h1 className="text-lg font-semibold text-herd-fg">{agent.name}</h1>
+            <StatusBadge status={agent.status} size="md" />
+          </div>
+          {agent.description && (
+            <p className="text-xs text-herd-muted mt-1">{agent.description}</p>
+          )}
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex gap-2 shrink-0">
+          <button
+            disabled
+            className="bg-herd-primary hover:bg-herd-primary-hover text-white rounded-lg px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Trigger Job (coming soon)"
+          >
+            <Play className="w-3.5 h-3.5" />
+            Trigger Job
+          </button>
+          <Link
+            to={`/agents/${agent.name}/chat`}
+            className="border border-herd-border hover:bg-herd-hover text-herd-fg rounded-lg px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5"
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            Chat
+          </Link>
+        </div>
+      </div>
+
+      {/* Metadata row */}
+      <div className="flex flex-wrap items-center gap-4 text-xs text-herd-muted">
+        {agent.model && (
+          <div className="flex items-center gap-1.5">
+            <Cpu className="w-3.5 h-3.5" />
+            <span className="font-mono">{agent.model}</span>
+          </div>
+        )}
+        {agent.permission_mode && (
+          <div className="flex items-center gap-1.5">
+            <Shield className="w-3.5 h-3.5" />
+            <span>{agent.permission_mode}</span>
+          </div>
+        )}
+        {agent.working_directory && (
+          <div
+            className="flex items-center gap-1.5 min-w-0 max-w-[300px]"
+            title={agent.working_directory}
+          >
+            <FolderOpen className="w-3.5 h-3.5 shrink-0" />
+            <span className="font-mono truncate">{agent.working_directory}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

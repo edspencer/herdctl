@@ -53,6 +53,7 @@ export function useWebSocket() {
   const cancelJob = useStore((state) => state.cancelJob);
   const setConnectionStatus = useStore((state) => state.setConnectionStatus);
   const connectionStatus = useStore((state) => state.connectionStatus);
+  const appendOutput = useStore((state) => state.appendOutput);
 
   useEffect(() => {
     // Message handler that dispatches to store
@@ -87,10 +88,12 @@ export function useWebSocket() {
           // For now, we rely on job:created for the actual job
           break;
 
-        case "job:output":
-          // Output events are high-volume and handled separately
-          // (e.g., by a dedicated output viewer component)
+        case "job:output": {
+          // Dispatch output to the output slice
+          const { jobId, agentName, data, stream } = message.payload;
+          appendOutput(jobId, agentName, data, stream);
           break;
+        }
 
         case "pong":
           // Pong is a keepalive response, no action needed
@@ -137,10 +140,16 @@ export function useWebSocket() {
       onStatusChange: handleStatusChange,
     });
 
+    // Expose client globally for useJobOutput hook to access
+    (window as unknown as { __herdWsClient?: WebSocketClient }).__herdWsClient =
+      clientRef.current;
+
     // Cleanup on unmount
     return () => {
       clientRef.current?.disconnect();
       clientRef.current = null;
+      // Clean up global reference
+      delete (window as unknown as { __herdWsClient?: WebSocketClient }).__herdWsClient;
     };
   }, [
     setFleetStatus,
@@ -151,6 +160,7 @@ export function useWebSocket() {
     failJob,
     cancelJob,
     setConnectionStatus,
+    appendOutput,
   ]);
 
   return {

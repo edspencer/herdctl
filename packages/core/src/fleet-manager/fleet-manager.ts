@@ -368,8 +368,8 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
         this.chatManagers.set("discord", manager);
         this.logger.debug("Discord chat manager created");
       } catch {
-        // Package not installed - skip Discord integration
-        this.logger.debug("@herdctl/discord not installed, skipping Discord integration");
+        // Package not installed - warn since Discord is explicitly configured
+        this.logger.warn("@herdctl/discord not installed, skipping Discord integration — install it with: pnpm add @herdctl/discord");
       }
     }
 
@@ -390,8 +390,8 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
         this.chatManagers.set("slack", manager);
         this.logger.debug("Slack chat manager created");
       } catch {
-        // Package not installed - skip Slack integration
-        this.logger.debug("@herdctl/slack not installed, skipping Slack integration");
+        // Package not installed - warn since Slack is explicitly configured
+        this.logger.warn("@herdctl/slack not installed, skipping Slack integration — install it with: pnpm add @herdctl/slack");
       }
     }
 
@@ -408,8 +408,8 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
         this.chatManagers.set("web", manager);
         this.logger.debug("Web chat manager created");
       } catch {
-        // Package not installed - skip web integration
-        this.logger.debug("@herdctl/web not installed, skipping web integration");
+        // Package not installed - warn since web is explicitly enabled in config
+        this.logger.warn("@herdctl/web not installed, skipping web dashboard — install it with: pnpm add @herdctl/web");
       }
     }
   }

@@ -165,6 +165,15 @@ export async function fetchJobs(params?: FetchJobsParams): Promise<PaginatedJobs
 }
 
 /**
+ * Fetch a single job by ID
+ *
+ * GET /api/jobs/:id
+ */
+export async function fetchJobById(jobId: string): Promise<JobSummary> {
+  return get<JobSummary>(`/api/jobs/${encodeURIComponent(jobId)}`);
+}
+
+/**
  * Fetch all schedules
  *
  * GET /api/schedules
