@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+/* ===== Theme Tokens (Light Mode) ===== */
+@theme {
+  /* Font families */
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", "SF Mono", "Cascadia Code", "Fira Code", Menlo,
+    monospace;
+  --font-serif: "Lora", Georgia, "Times New Roman", serif;
+
+  /* Light mode colors */
+  --color-herd-bg: #f4f1eb;
+  --color-herd-fg: #1c1b18;
+  --color-herd-card: #fdfcfa;
+  --color-herd-sidebar: #ebe8e1;
+  --color-herd-border: rgba(0, 0, 0, 0.12);
+  --color-herd-input-bg: #fdfcfa;
+  --color-herd-hover: rgba(0, 0, 0, 0.06);
+  --color-herd-active: rgba(0, 0, 0, 0.1);
+  --color-herd-muted: #7a776d;
+  --color-herd-primary: #2d6a4f;
+  --color-herd-primary-hover: #3a7d5e;
+  --color-herd-primary-muted: rgba(45, 106, 79, 0.1);
+  --color-herd-user-bubble: #ddd9d0;
+  --color-herd-code-bg: #1e1e1e;
+  --color-herd-code-fg: #d4d4d4;
+  --color-herd-status-running: #2d7d46;
+  --color-herd-status-idle: #7a776d;
+  --color-herd-status-error: #c53030;
+  --color-herd-status-pending: #b7791f;
+
+  /* Custom animations */
+  --animate-fade-slide-in: fadeSlideIn 150ms ease-out;
+  --animate-fade-in: fadeIn 150ms ease-out;
+}
+
+/* ===== Dark Mode Overrides ===== */
+.dark {
+  --color-herd-bg: #1c1b18;
+  --color-herd-fg: #e8e6e1;
+  --color-herd-card: #252320;
+  --color-herd-sidebar: #1a1917;
+  --color-herd-border: rgba(255, 255, 255, 0.08);
+  --color-herd-input-bg: #252320;
+  --color-herd-hover: rgba(255, 255, 255, 0.05);
+  --color-herd-active: rgba(255, 255, 255, 0.08);
+  --color-herd-muted: #8a877f;
+  --color-herd-primary: #40916c;
+  --color-herd-primary-hover: #52a37e;
+  --color-herd-primary-muted: rgba(64, 145, 108, 0.12);
+  --color-herd-user-bubble: #353330;
+  --color-herd-code-bg: #141413;
+  --color-herd-code-fg: #d4d4d4;
+  --color-herd-status-running: #48bb78;
+  --color-herd-status-idle: #8a877f;
+  --color-herd-status-error: #fc8181;
+  --color-herd-status-pending: #f6e05e;
+}
+
+/* ===== Keyframes ===== */
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ===== Scrollbar Styling ===== */
+/* Thin, warm-tinted scrollbars that match the theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-herd-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-herd-muted);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-herd-border) transparent;
+}
+
+/* ===== Base Styles ===== */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

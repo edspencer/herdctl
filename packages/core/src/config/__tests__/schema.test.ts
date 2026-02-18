@@ -13,6 +13,7 @@ import {
   DockerSchema,
   ChatSchema,
   WebhooksSchema,
+  WebSchema,
   InstancesSchema,
   AgentReferenceSchema,
   // Discord chat schemas
@@ -43,10 +44,75 @@ describe("FleetConfigSchema", () => {
       agents: [{ path: "./test.yaml" }],
       chat: {},
       webhooks: {},
+      web: {},
       docker: {},
     };
     const result = FleetConfigSchema.safeParse(config);
     expect(result.success).toBe(true);
+  });
+
+  it("parses config with web block enabled", () => {
+    const config = {
+      version: 1,
+      fleet: { name: "test" },
+      agents: [],
+      web: {
+        enabled: true,
+        port: 8080,
+        host: "0.0.0.0",
+        session_expiry_hours: 48,
+        open_browser: true,
+      },
+    };
+    const result = FleetConfigSchema.safeParse(config);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.web?.enabled).toBe(true);
+      expect(result.data.web?.port).toBe(8080);
+      expect(result.data.web?.host).toBe("0.0.0.0");
+      expect(result.data.web?.session_expiry_hours).toBe(48);
+      expect(result.data.web?.open_browser).toBe(true);
+    }
+  });
+
+  it("applies web defaults when web block is empty", () => {
+    const config = {
+      version: 1,
+      web: {},
+    };
+    const result = FleetConfigSchema.safeParse(config);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.web?.enabled).toBe(false);
+      expect(result.data.web?.port).toBe(3456);
+      expect(result.data.web?.host).toBe("localhost");
+      expect(result.data.web?.session_expiry_hours).toBe(24);
+      expect(result.data.web?.open_browser).toBe(false);
+    }
+  });
+
+  it("accepts absence of web key", () => {
+    const config = {
+      version: 1,
+      agents: [],
+    };
+    const result = FleetConfigSchema.safeParse(config);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.web).toBeUndefined();
+    }
+  });
+
+  it("rejects invalid web port in fleet config", () => {
+    const config = {
+      version: 1,
+      web: {
+        enabled: true,
+        port: -1,
+      },
+    };
+    const result = FleetConfigSchema.safeParse(config);
+    expect(result.success).toBe(false);
   });
 
   it("rejects invalid version", () => {
@@ -940,6 +1006,91 @@ describe("WebhooksSchema", () => {
 
   it("rejects non-integer port", () => {
     const result = WebhooksSchema.safeParse({ port: 80.5 });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("WebSchema", () => {
+  it("applies defaults", () => {
+    const result = WebSchema.safeParse({});
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.enabled).toBe(false);
+      expect(result.data.port).toBe(3456);
+      expect(result.data.host).toBe("localhost");
+      expect(result.data.session_expiry_hours).toBe(24);
+      expect(result.data.open_browser).toBe(false);
+    }
+  });
+
+  it("parses minimal enabled config", () => {
+    const result = WebSchema.safeParse({ enabled: true });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.enabled).toBe(true);
+      expect(result.data.port).toBe(3456);
+      expect(result.data.host).toBe("localhost");
+      expect(result.data.session_expiry_hours).toBe(24);
+      expect(result.data.open_browser).toBe(false);
+    }
+  });
+
+  it("parses complete web config", () => {
+    const web = {
+      enabled: true,
+      port: 8080,
+      host: "0.0.0.0",
+      session_expiry_hours: 48,
+      open_browser: true,
+    };
+    const result = WebSchema.safeParse(web);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.enabled).toBe(true);
+      expect(result.data.port).toBe(8080);
+      expect(result.data.host).toBe("0.0.0.0");
+      expect(result.data.session_expiry_hours).toBe(48);
+      expect(result.data.open_browser).toBe(true);
+    }
+  });
+
+  it("rejects negative port", () => {
+    const result = WebSchema.safeParse({ port: -1 });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects zero port", () => {
+    const result = WebSchema.safeParse({ port: 0 });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects non-integer port", () => {
+    const result = WebSchema.safeParse({ port: 3456.5 });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects negative session_expiry_hours", () => {
+    const result = WebSchema.safeParse({ session_expiry_hours: -1 });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects zero session_expiry_hours", () => {
+    const result = WebSchema.safeParse({ session_expiry_hours: 0 });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects non-integer session_expiry_hours", () => {
+    const result = WebSchema.safeParse({ session_expiry_hours: 24.5 });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts string port as invalid", () => {
+    const result = WebSchema.safeParse({ port: "3456" });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts non-boolean enabled as invalid", () => {
+    const result = WebSchema.safeParse({ enabled: "true" });
     expect(result.success).toBe(false);
   });
 });

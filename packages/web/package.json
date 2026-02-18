@@ -1,0 +1,73 @@
+{
+  "name": "@herdctl/web",
+  "version": "0.0.1",
+  "description": "Web dashboard for herdctl fleet management",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/server/index.js",
+  "types": "./dist/server/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "vite build",
+    "build:server": "tsc -p tsconfig.json",
+    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
+    "dev:client": "vite",
+    "dev:server": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --coverage --passWithNoTests"
+  },
+  "dependencies": {
+    "@herdctl/core": "workspace:*",
+    "@fastify/cors": "^10.0.3",
+    "@fastify/static": "^8.2.0",
+    "@fastify/websocket": "^11.0.3",
+    "fastify": "^5.2.2",
+    "lucide-react": "^0.475.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "react-resizable-panels": "^2.1.7",
+    "react-router": "^7.2.0",
+    "remark-gfm": "^4.0.1",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.2.0",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@types/ws": "^8.5.10",
+    "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/coverage-v8": "^4.0.17",
+    "concurrently": "^9.1.2",
+    "jsdom": "^26.0.0",
+    "tailwindcss": "^4.0.9",
+    "typescript": "^5",
+    "vite": "^6.2.0",
+    "vitest": "^4.0.17"
+  },
+  "homepage": "https://herdctl.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/edspencer/herdctl"
+  },
+  "keywords": [
+    "claude",
+    "agent",
+    "fleet",
+    "orchestration",
+    "dashboard",
+    "web",
+    "anthropic"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

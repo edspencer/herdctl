@@ -394,6 +394,24 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
         this.logger.debug("@herdctl/slack not installed, skipping Slack integration");
       }
     }
+
+    // Check if web UI is configured (web config is at fleet level, not per-agent)
+    if (this.config.fleet.web?.enabled) {
+      try {
+        // Dynamic import of @herdctl/web
+        // Use `as string` to prevent TypeScript from resolving types at compile time
+        // This allows core to build without web installed (optional peer dependency)
+        const mod = (await import("@herdctl/web" as string)) as unknown as {
+          WebManager: new (ctx: FleetManagerContext) => IChatManager;
+        };
+        const manager = new mod.WebManager(this);
+        this.chatManagers.set("web", manager);
+        this.logger.debug("Web chat manager created");
+      } catch {
+        // Package not installed - skip web integration
+        this.logger.debug("@herdctl/web not installed, skipping web integration");
+      }
+    }
   }
 
   private async loadConfiguration(): Promise<ResolvedConfig> {

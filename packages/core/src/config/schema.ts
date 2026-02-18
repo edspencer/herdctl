@@ -906,6 +906,38 @@ export const WebhooksSchema = z.object({
 });
 
 // =============================================================================
+// Web UI Schema
+// =============================================================================
+
+/**
+ * Web UI configuration schema
+ *
+ * Configures the @herdctl/web dashboard server.
+ *
+ * @example
+ * ```yaml
+ * web:
+ *   enabled: true
+ *   port: 3456
+ *   host: localhost
+ *   session_expiry_hours: 24
+ *   open_browser: false
+ * ```
+ */
+export const WebSchema = z.object({
+  /** Enable the web dashboard (default: false) */
+  enabled: z.boolean().optional().default(false),
+  /** Port to serve the dashboard on (default: 3456) */
+  port: z.number().int().positive().optional().default(3456),
+  /** Host to bind to (default: localhost) */
+  host: z.string().optional().default("localhost"),
+  /** Session expiry in hours (default: 24) */
+  session_expiry_hours: z.number().int().positive().optional().default(24),
+  /** Automatically open browser when starting (default: false) */
+  open_browser: z.boolean().optional().default(false),
+});
+
+// =============================================================================
 // Fleet Configuration Schema
 // =============================================================================
 
@@ -924,6 +956,7 @@ export const FleetConfigSchema = z
     agents: z.array(AgentReferenceSchema).optional().default([]),
     chat: ChatSchema.optional(),
     webhooks: WebhooksSchema.optional(),
+    web: WebSchema.optional(),
     docker: FleetDockerSchema.optional(),
   })
   .strict();
@@ -955,6 +988,7 @@ export type AgentReference = z.infer<typeof AgentReferenceSchema>;
 export type DiscordChat = z.infer<typeof DiscordChatSchema>;
 export type Chat = z.infer<typeof ChatSchema>;
 export type Webhooks = z.infer<typeof WebhooksSchema>;
+export type WebConfig = z.infer<typeof WebSchema>;
 export type FleetConfig = z.infer<typeof FleetConfigSchema>;
 export type Identity = z.infer<typeof IdentitySchema>;
 export type Session = z.infer<typeof SessionSchema>;
