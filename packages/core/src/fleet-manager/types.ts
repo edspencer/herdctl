@@ -96,6 +96,34 @@ export interface FleetManagerOptions {
    * Default: 1000 (1 second)
    */
   checkInterval?: number;
+
+  /**
+   * Runtime overrides for fleet configuration
+   *
+   * These overrides are applied after loading and parsing the configuration file,
+   * allowing CLI flags or programmatic callers to override specific config values.
+   *
+   * Currently supports overriding fleet-level settings like `web`.
+   */
+  configOverrides?: FleetConfigOverrides;
+}
+
+/**
+ * Runtime overrides for fleet configuration
+ *
+ * Allows CLI flags or programmatic callers to override specific fleet config values
+ * after the config file has been loaded and parsed.
+ */
+export interface FleetConfigOverrides {
+  /** Override web dashboard configuration */
+  web?: {
+    /** Enable/disable the web dashboard */
+    enabled?: boolean;
+    /** Override the web dashboard port */
+    port?: number;
+    /** Override the web dashboard host */
+    host?: string;
+  };
 }
 
 // =============================================================================

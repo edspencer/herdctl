@@ -12,12 +12,13 @@ import { createOutputSlice, type OutputSlice } from "./output-slice";
 import { createJobsSlice, type JobsSlice } from "./jobs-slice";
 import { createChatSlice, type ChatSlice } from "./chat-slice";
 import { createScheduleSlice, type ScheduleSlice } from "./schedule-slice";
+import { createToastSlice, type ToastSlice } from "./toast-slice";
 
 // =============================================================================
 // Combined Store Type
 // =============================================================================
 
-export type AppStore = FleetSlice & UISlice & OutputSlice & JobsSlice & ChatSlice & ScheduleSlice;
+export type AppStore = FleetSlice & UISlice & OutputSlice & JobsSlice & ChatSlice & ScheduleSlice & ToastSlice;
 
 // =============================================================================
 // Store
@@ -30,6 +31,7 @@ export const useStore = create<AppStore>()((...args) => ({
   ...createJobsSlice(...args),
   ...createChatSlice(...args),
   ...createScheduleSlice(...args),
+  ...createToastSlice(...args),
 }));
 
 // =============================================================================
@@ -60,6 +62,13 @@ export type {
   ScheduleState,
   ScheduleActions,
 } from "./schedule-slice";
+export type {
+  ToastSlice,
+  ToastState,
+  ToastActions,
+  Toast,
+  ToastType,
+} from "./toast-slice";
 
 // =============================================================================
 // Selector Hooks
@@ -96,6 +105,7 @@ export function useUI() {
   return useStore(
     useShallow((state) => ({
       sidebarCollapsed: state.sidebarCollapsed,
+      sidebarMobileOpen: state.sidebarMobileOpen,
       selectedAgent: state.selectedAgent,
       activeView: state.activeView,
       theme: state.theme,
@@ -112,6 +122,8 @@ export function useUIActions() {
     useShallow((state) => ({
       toggleSidebar: state.toggleSidebar,
       setSidebarCollapsed: state.setSidebarCollapsed,
+      toggleSidebarMobile: state.toggleSidebarMobile,
+      setSidebarMobileOpen: state.setSidebarMobileOpen,
       selectAgent: state.selectAgent,
       setActiveView: state.setActiveView,
       setTheme: state.setTheme,
@@ -297,6 +309,29 @@ export function useScheduleActions() {
       disableSchedule: state.disableSchedule,
       updateScheduleFromWS: state.updateScheduleFromWS,
       clearSchedulesState: state.clearSchedulesState,
+    }))
+  );
+}
+
+// =============================================================================
+// Toast Selector Hooks
+// =============================================================================
+
+/**
+ * Select toasts state
+ */
+export function useToasts() {
+  return useStore((state) => state.toasts);
+}
+
+/**
+ * Select toast actions
+ */
+export function useToastActions() {
+  return useStore(
+    useShallow((state) => ({
+      addToast: state.addToast,
+      removeToast: state.removeToast,
     }))
   );
 }

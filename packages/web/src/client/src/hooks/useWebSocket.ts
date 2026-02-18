@@ -58,6 +58,7 @@ export function useWebSocket() {
   const completeStreaming = useStore((state) => state.completeStreaming);
   const setChatError = useStore((state) => state.setChatError);
   const updateScheduleFromWS = useStore((state) => state.updateScheduleFromWS);
+  const addToast = useStore((state) => state.addToast);
 
   useEffect(() => {
     // Message handler that dispatches to store
@@ -77,10 +78,19 @@ export function useWebSocket() {
 
         case "job:completed":
           completeJob(message.payload);
+          addToast({
+            message: `Job completed for ${message.payload.agentName}`,
+            type: "success",
+          });
           break;
 
         case "job:failed":
           failJob(message.payload);
+          addToast({
+            message: `Job failed for ${message.payload.agentName}`,
+            type: "error",
+            duration: 5000,
+          });
           break;
 
         case "job:cancelled":
@@ -90,6 +100,10 @@ export function useWebSocket() {
         case "schedule:triggered":
           // Refetch schedules to update runCount, lastRunAt, status, etc.
           updateScheduleFromWS();
+          addToast({
+            message: `Schedule triggered for ${message.payload.agentName}`,
+            type: "info",
+          });
           break;
 
         case "job:output": {

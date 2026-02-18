@@ -7,7 +7,8 @@
  */
 
 import { useLocation, useParams } from "react-router";
-import { useFleet } from "../../store";
+import { Menu } from "lucide-react";
+import { useFleet, useUIActions } from "../../store";
 import type { ConnectionStatus } from "../../lib/types";
 
 // =============================================================================
@@ -73,6 +74,7 @@ function getPageTitle(pathname: string, agentName?: string): string {
 
 export function Header() {
   const { connectionStatus } = useFleet();
+  const { toggleSidebarMobile } = useUIActions();
   const location = useLocation();
   const params = useParams<{ name?: string }>();
 
@@ -80,8 +82,18 @@ export function Header() {
 
   return (
     <header className="flex items-center justify-between px-4 py-3 border-b border-herd-border bg-herd-card">
-      {/* Page title */}
-      <h1 className="text-lg font-semibold text-herd-fg">{pageTitle}</h1>
+      {/* Left: hamburger + page title */}
+      <div className="flex items-center gap-2">
+        {/* Hamburger menu — visible only on mobile */}
+        <button
+          onClick={toggleSidebarMobile}
+          className="md:hidden hover:bg-herd-hover text-herd-muted hover:text-herd-fg rounded-lg p-1.5 transition-colors"
+          aria-label="Toggle sidebar"
+        >
+          <Menu className="w-4 h-4" />
+        </button>
+        <h1 className="text-lg font-semibold text-herd-fg">{pageTitle}</h1>
+      </div>
 
       {/* Connection status */}
       <div className="flex items-center gap-2">

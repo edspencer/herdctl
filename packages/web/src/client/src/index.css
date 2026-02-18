@@ -18,9 +18,9 @@
   --color-herd-hover: rgba(0, 0, 0, 0.06);
   --color-herd-active: rgba(0, 0, 0, 0.1);
   --color-herd-muted: #7a776d;
-  --color-herd-primary: #2d6a4f;
-  --color-herd-primary-hover: #3a7d5e;
-  --color-herd-primary-muted: rgba(45, 106, 79, 0.1);
+  --color-herd-primary: #326CE5;
+  --color-herd-primary-hover: #2856B8;
+  --color-herd-primary-muted: rgba(50, 108, 229, 0.10);
   --color-herd-user-bubble: #ddd9d0;
   --color-herd-code-bg: #1e1e1e;
   --color-herd-code-fg: #d4d4d4;
@@ -45,9 +45,9 @@
   --color-herd-hover: rgba(255, 255, 255, 0.05);
   --color-herd-active: rgba(255, 255, 255, 0.08);
   --color-herd-muted: #8a877f;
-  --color-herd-primary: #40916c;
-  --color-herd-primary-hover: #52a37e;
-  --color-herd-primary-muted: rgba(64, 145, 108, 0.12);
+  --color-herd-primary: #5B8DEF;
+  --color-herd-primary-hover: #7AA3F5;
+  --color-herd-primary-muted: rgba(91, 141, 239, 0.12);
   --color-herd-user-bubble: #353330;
   --color-herd-code-bg: #141413;
   --color-herd-code-fg: #d4d4d4;

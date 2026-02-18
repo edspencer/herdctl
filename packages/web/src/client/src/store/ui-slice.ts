@@ -6,6 +6,7 @@
 
 import type { StateCreator } from "zustand";
 import type { Theme, ActiveView } from "../lib/types";
+import { getStoredTheme, setTheme as applyAndPersistTheme } from "../lib/theme";
 
 // =============================================================================
 // State Types
@@ -14,6 +15,8 @@ import type { Theme, ActiveView } from "../lib/types";
 export interface UIState {
   /** Whether the sidebar is collapsed */
   sidebarCollapsed: boolean;
+  /** Whether the mobile sidebar overlay is open */
+  sidebarMobileOpen: boolean;
   /** Currently selected agent name (for detail view) */
   selectedAgent: string | null;
   /** Active view/route */
@@ -29,6 +32,10 @@ export interface UIActions {
   toggleSidebar: () => void;
   /** Set sidebar collapsed state explicitly */
   setSidebarCollapsed: (collapsed: boolean) => void;
+  /** Toggle mobile sidebar overlay */
+  toggleSidebarMobile: () => void;
+  /** Set mobile sidebar open state explicitly */
+  setSidebarMobileOpen: (open: boolean) => void;
   /** Select an agent (opens detail panel) */
   selectAgent: (name: string | null) => void;
   /** Set the active view/route */
@@ -44,73 +51,17 @@ export interface UIActions {
 export type UISlice = UIState & UIActions;
 
 // =============================================================================
-// Theme Helpers
-// =============================================================================
-
-const THEME_STORAGE_KEY = "herd-theme";
-
-/**
- * Get initial theme from localStorage or default to 'system'
- */
-function getInitialTheme(): Theme {
-  if (typeof window === "undefined") {
-    return "system";
-  }
-
-  const stored = localStorage.getItem(THEME_STORAGE_KEY);
-  if (stored === "light" || stored === "dark" || stored === "system") {
-    return stored;
-  }
-
-  return "system";
-}
-
-/**
- * Apply theme to document
- */
-function applyTheme(theme: Theme): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  const root = document.documentElement;
-
-  if (theme === "system") {
-    // Use system preference
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    root.classList.toggle("dark", prefersDark);
-  } else {
-    root.classList.toggle("dark", theme === "dark");
-  }
-
-  // Persist to localStorage
-  localStorage.setItem(THEME_STORAGE_KEY, theme);
-}
-
-// =============================================================================
 // Initial State
 // =============================================================================
 
 const initialUIState: UIState = {
   sidebarCollapsed: false,
+  sidebarMobileOpen: false,
   selectedAgent: null,
   activeView: "dashboard",
-  theme: getInitialTheme(),
+  theme: getStoredTheme(),
   rightPanelOpen: false,
 };
-
-// Apply initial theme on load
-if (typeof window !== "undefined") {
-  applyTheme(initialUIState.theme);
-
-  // Listen for system theme changes when using 'system' preference
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
-    const currentTheme = localStorage.getItem(THEME_STORAGE_KEY);
-    if (currentTheme === "system") {
-      document.documentElement.classList.toggle("dark", e.matches);
-    }
-  });
-}
 
 // =============================================================================
 // Slice Creator
@@ -129,6 +80,16 @@ export const createUISlice: StateCreator<UISlice, [], [], UISlice> = (set) => ({
       sidebarCollapsed: collapsed,
     }),
 
+  toggleSidebarMobile: () =>
+    set((state) => ({
+      sidebarMobileOpen: !state.sidebarMobileOpen,
+    })),
+
+  setSidebarMobileOpen: (open) =>
+    set({
+      sidebarMobileOpen: open,
+    }),
+
   selectAgent: (name) =>
     set({
       selectedAgent: name,
@@ -142,7 +103,7 @@ export const createUISlice: StateCreator<UISlice, [], [], UISlice> = (set) => ({
     }),
 
   setTheme: (theme) => {
-    applyTheme(theme);
+    applyAndPersistTheme(theme);
     return set({ theme });
   },
 

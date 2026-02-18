@@ -25,6 +25,7 @@
     "@herdctl/core": "workspace:*",
     "@herdctl/discord": "workspace:*",
     "@herdctl/slack": "workspace:*",
+    "@herdctl/web": "workspace:*",
     "@inquirer/prompts": "^8.2.0",
     "commander": "^12"
   },

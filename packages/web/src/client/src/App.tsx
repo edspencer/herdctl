@@ -15,6 +15,9 @@ import { AgentDetail } from "./components/agent";
 import { JobHistory } from "./components/jobs";
 import { ScheduleList } from "./components/schedules";
 import { ChatView } from "./components/chat";
+import { SettingsPage } from "./components/settings";
+import { ErrorBoundary } from "./components/ui";
+import { ToastContainer } from "./components/ui/Toast";
 
 // =============================================================================
 // Placeholder Page Components
@@ -38,16 +41,6 @@ function SchedulesPage() {
   );
 }
 
-function SettingsPage() {
-  return (
-    <div className="p-4">
-      <p className="text-herd-muted text-sm">
-        Settings — Coming in Phase 5
-      </p>
-    </div>
-  );
-}
-
 // =============================================================================
 // App Component
 // =============================================================================
@@ -61,16 +54,19 @@ export default function App() {
 
   // Always render the layout shell — loading/error states show within the dashboard
   return (
-    <AppLayout>
-      <Routes>
-        <Route path="/" element={<FleetDashboard />} />
-        <Route path="/agents/:name" element={<AgentDetail />} />
-        <Route path="/agents/:name/chat" element={<ChatView />} />
-        <Route path="/agents/:name/chat/:sessionId" element={<ChatView />} />
-        <Route path="/jobs" element={<JobsPage />} />
-        <Route path="/schedules" element={<SchedulesPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-      </Routes>
-    </AppLayout>
+    <ErrorBoundary>
+      <AppLayout>
+        <Routes>
+          <Route path="/" element={<ErrorBoundary><FleetDashboard /></ErrorBoundary>} />
+          <Route path="/agents/:name" element={<ErrorBoundary><AgentDetail /></ErrorBoundary>} />
+          <Route path="/agents/:name/chat" element={<ErrorBoundary><ChatView /></ErrorBoundary>} />
+          <Route path="/agents/:name/chat/:sessionId" element={<ErrorBoundary><ChatView /></ErrorBoundary>} />
+          <Route path="/jobs" element={<ErrorBoundary><JobsPage /></ErrorBoundary>} />
+          <Route path="/schedules" element={<ErrorBoundary><SchedulesPage /></ErrorBoundary>} />
+          <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
+        </Routes>
+      </AppLayout>
+      <ToastContainer />
+    </ErrorBoundary>
   );
 }

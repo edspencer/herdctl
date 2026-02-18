@@ -87,12 +87,14 @@ function getConnectionDotClass(status: ConnectionStatus): string {
 interface AgentItemProps {
   agent: AgentInfo;
   isActive: boolean;
+  onNavigate?: () => void;
 }
 
-function AgentItem({ agent, isActive }: AgentItemProps) {
+function AgentItem({ agent, isActive, onNavigate }: AgentItemProps) {
   return (
     <Link
       to={`/agents/${agent.name}`}
+      onClick={onNavigate}
       className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
         isActive
           ? "text-herd-fg bg-herd-active font-medium"
@@ -112,12 +114,14 @@ interface NavItemProps {
   icon: React.ReactNode;
   label: string;
   isActive: boolean;
+  onNavigate?: () => void;
 }
 
-function NavItem({ to, icon, label, isActive }: NavItemProps) {
+function NavItem({ to, icon, label, isActive, onNavigate }: NavItemProps) {
   return (
     <Link
       to={to}
+      onClick={onNavigate}
       className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
         isActive
           ? "text-herd-fg bg-herd-active font-medium"
@@ -134,7 +138,12 @@ function NavItem({ to, icon, label, isActive }: NavItemProps) {
 // Main Component
 // =============================================================================
 
-export function Sidebar() {
+interface SidebarProps {
+  /** Called when a navigation item is clicked (used to close mobile overlay) */
+  onNavigate?: () => void;
+}
+
+export function Sidebar({ onNavigate }: SidebarProps = {}) {
   const { agents, connectionStatus, fleetStatus } = useFleet();
   const location = useLocation();
 
@@ -164,7 +173,10 @@ export function Sidebar() {
       {/* Header section */}
       <div className="p-4 border-b border-herd-border">
         <div className="flex items-center justify-between">
-          <h1 className="text-lg font-semibold text-herd-fg">herdctl</h1>
+          <div className="flex items-center gap-2">
+            <img src="/herdctl-logo.svg" alt="herdctl logo" className="w-7 h-7" />
+            <h1 className="text-lg font-semibold text-herd-fg">herdctl</h1>
+          </div>
           <div className="flex items-center gap-1.5">
             <span
               className={`w-2 h-2 rounded-full ${getConnectionDotClass(connectionStatus)}`}
@@ -181,6 +193,7 @@ export function Sidebar() {
               key={agent.name}
               agent={agent}
               isActive={currentAgentName === agent.name}
+              onNavigate={onNavigate}
             />
           ))}
           {sortedAgents.length === 0 && (
@@ -197,24 +210,28 @@ export function Sidebar() {
             icon={<LayoutDashboard className="w-4 h-4" />}
             label="Dashboard"
             isActive={location.pathname === "/"}
+            onNavigate={onNavigate}
           />
           <NavItem
             to="/jobs"
             icon={<Briefcase className="w-4 h-4" />}
             label="Jobs"
             isActive={location.pathname === "/jobs"}
+            onNavigate={onNavigate}
           />
           <NavItem
             to="/schedules"
             icon={<Calendar className="w-4 h-4" />}
             label="Schedules"
             isActive={location.pathname === "/schedules"}
+            onNavigate={onNavigate}
           />
           <NavItem
             to="/settings"
             icon={<Settings className="w-4 h-4" />}
             label="Settings"
             isActive={location.pathname === "/settings"}
+            onNavigate={onNavigate}
           />
         </div>
       </nav>

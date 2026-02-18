@@ -15,6 +15,7 @@ import {
   isFleetManagerError,
   setLogHandler,
   shouldLog,
+  type FleetConfigOverrides,
   type FleetStatus,
   type LogEntry,
   type LogLevel,
@@ -30,6 +31,8 @@ export interface StartOptions {
   config?: string;
   state?: string;
   verbose?: boolean;
+  web?: boolean;
+  webPort?: number;
 }
 
 /**
@@ -154,12 +157,24 @@ export async function startCommand(options: StartOptions): Promise<void> {
 
   const stateDir = options.state || DEFAULT_STATE_DIR;
 
+  // Build config overrides from CLI flags
+  let configOverrides: FleetConfigOverrides | undefined;
+  if (options.web !== undefined || options.webPort !== undefined) {
+    configOverrides = {
+      web: {
+        ...(options.web !== undefined && { enabled: options.web }),
+        ...(options.webPort !== undefined && { port: options.webPort }),
+      },
+    };
+  }
+
   console.log("Starting fleet...");
 
   // Create FleetManager (uses global log handler automatically)
   const manager = new FleetManager({
     configPath: options.config,
     stateDir,
+    configOverrides,
   });
 
   // Track if we're shutting down to prevent multiple shutdown attempts

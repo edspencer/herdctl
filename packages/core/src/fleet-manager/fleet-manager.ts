@@ -27,6 +27,7 @@ import { Scheduler, type TriggerInfo } from "../scheduler/index.js";
 import type { FleetManagerContext } from "./context.js";
 import type {
   FleetManagerOptions,
+  FleetConfigOverrides,
   FleetManagerState,
   FleetManagerStatus,
   FleetManagerLogger,
@@ -79,6 +80,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   private readonly stateDir: string;
   private readonly logger: FleetManagerLogger;
   private readonly checkInterval: number;
+  private readonly configOverrides?: FleetConfigOverrides;
 
   // Internal state
   private status: FleetManagerStatus = "uninitialized";
@@ -110,6 +112,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     this.stateDir = resolve(options.stateDir);
     this.logger = options.logger ?? createDefaultLogger();
     this.checkInterval = options.checkInterval ?? DEFAULT_CHECK_INTERVAL;
+    this.configOverrides = options.configOverrides;
 
     // Initialize modules in constructor so they work before initialize() is called
     this.initializeModules();
@@ -415,8 +418,9 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   }
 
   private async loadConfiguration(): Promise<ResolvedConfig> {
+    let config: ResolvedConfig;
     try {
-      return await loadConfig(this.configPath);
+      config = await loadConfig(this.configPath);
     } catch (error) {
       if (error instanceof ConfigNotFoundError) {
         throw new ConfigurationError(`Configuration file not found. ${error.message}`, { configPath: this.configPath, cause: error });
@@ -426,6 +430,47 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       }
       throw new ConfigurationError(`Failed to load configuration: ${error instanceof Error ? error.message : String(error)}`, { configPath: this.configPath, cause: error instanceof Error ? error : undefined });
     }
+
+    // Apply runtime config overrides (e.g., from CLI flags)
+    if (this.configOverrides) {
+      config = this.applyConfigOverrides(config);
+    }
+
+    return config;
+  }
+
+  /**
+   * Apply runtime configuration overrides to the loaded config
+   *
+   * This enables CLI flags like --web and --web-port to override
+   * values from the config file.
+   */
+  private applyConfigOverrides(config: ResolvedConfig): ResolvedConfig {
+    const overrides = this.configOverrides;
+    if (!overrides) return config;
+
+    // Deep clone the fleet config to avoid mutating the original
+    const fleet = { ...config.fleet };
+
+    // Apply web overrides
+    if (overrides.web) {
+      const existingWeb = fleet.web ?? {
+        enabled: false,
+        port: 3456,
+        host: "localhost",
+        session_expiry_hours: 24,
+        open_browser: false,
+      };
+
+      fleet.web = {
+        ...existingWeb,
+        ...(overrides.web.enabled !== undefined && { enabled: overrides.web.enabled }),
+        ...(overrides.web.port !== undefined && { port: overrides.web.port }),
+        ...(overrides.web.host !== undefined && { host: overrides.web.host }),
+      };
+    }
+
+    return { ...config, fleet };
   }
 
   /**

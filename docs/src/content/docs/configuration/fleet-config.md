@@ -457,6 +457,67 @@ Chat integrations (Discord, Slack) are configured **per-agent**, not at fleet le
 
 ---
 
+### fleet.web
+
+| Property | Value |
+|----------|-------|
+| **Type** | `object` |
+| **Default** | `undefined` |
+| **Required** | No |
+
+Web dashboard configuration. When enabled, herdctl serves a browser-based dashboard for real-time fleet monitoring, agent chat, and job/schedule management. See [Web Dashboard](/integrations/web-dashboard/) for full documentation.
+
+#### fleet.web.enabled
+
+| Property | Value |
+|----------|-------|
+| **Type** | `boolean` |
+| **Default** | `false` |
+| **Required** | No |
+
+Enable the web dashboard server.
+
+#### fleet.web.port
+
+| Property | Value |
+|----------|-------|
+| **Type** | `number` (positive integer) |
+| **Default** | `3456` |
+| **Required** | No |
+
+Port for the web dashboard to listen on.
+
+#### fleet.web.host
+
+| Property | Value |
+|----------|-------|
+| **Type** | `string` |
+| **Default** | `"0.0.0.0"` |
+| **Required** | No |
+
+Host to bind the web dashboard to.
+
+#### fleet.web.session_expiry_hours
+
+| Property | Value |
+|----------|-------|
+| **Type** | `number` (positive integer) |
+| **Default** | `24` |
+| **Required** | No |
+
+Hours before web chat sessions expire.
+
+```yaml
+fleet:
+  web:
+    enabled: true
+    port: 3456
+    host: "0.0.0.0"
+    session_expiry_hours: 24
+```
+
+---
+
 ### webhooks
 
 | Property | Value |

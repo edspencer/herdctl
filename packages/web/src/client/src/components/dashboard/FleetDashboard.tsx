@@ -4,7 +4,9 @@
  * Main dashboard page showing fleet overview, agent cards, and recent jobs.
  */
 
+import { Server, History } from "lucide-react";
 import { useFleet } from "../../store";
+import { useFleetStatus } from "../../hooks/useFleetStatus";
 import { StatusBadge, Card, TimeAgo } from "../ui";
 import { AgentCard } from "./AgentCard";
 import { RecentJobs } from "./RecentJobs";
@@ -70,8 +72,100 @@ function StatChip({ label, value, variant = "default" }: StatChipProps) {
 // Component
 // =============================================================================
 
+// =============================================================================
+// Loading Placeholder Components
+// =============================================================================
+
+function LoadingAgentCards() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {[1, 2, 3].map((i) => (
+        <Card key={i} className="p-4">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-herd-hover opacity-50 animate-pulse" />
+              <div className="h-4 w-24 bg-herd-hover opacity-50 animate-pulse rounded" />
+            </div>
+            <div className="h-3 w-32 bg-herd-hover opacity-50 animate-pulse rounded" />
+            <div className="h-3 w-20 bg-herd-hover opacity-50 animate-pulse rounded" />
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function LoadingHeaderCard() {
+  return (
+    <Card className="p-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="space-y-2">
+          <div className="h-5 w-36 bg-herd-hover opacity-50 animate-pulse rounded" />
+          <div className="h-3 w-24 bg-herd-hover opacity-50 animate-pulse rounded" />
+        </div>
+        <div className="flex gap-2">
+          <div className="h-8 w-20 bg-herd-hover opacity-50 animate-pulse rounded-lg" />
+          <div className="h-8 w-20 bg-herd-hover opacity-50 animate-pulse rounded-lg" />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function LoadingRecentJobs() {
+  return (
+    <Card className="p-4">
+      <div className="h-4 w-24 bg-herd-hover opacity-50 animate-pulse rounded mb-4" />
+      <div className="space-y-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="flex items-center gap-4">
+            <div className="h-3 w-20 bg-herd-hover opacity-50 animate-pulse rounded" />
+            <div className="h-3 w-40 bg-herd-hover opacity-50 animate-pulse rounded flex-1" />
+            <div className="h-3 w-16 bg-herd-hover opacity-50 animate-pulse rounded" />
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function AgentsEmptyState() {
+  return (
+    <Card className="p-6">
+      <div className="flex flex-col items-center justify-center gap-3 py-6 text-center">
+        <Server className="w-12 h-12 text-herd-muted" />
+        <div>
+          <p className="text-sm text-herd-fg font-medium">No agents configured</p>
+          <p className="text-xs text-herd-muted mt-1">
+            Add agents to your herdctl.yaml to get started
+          </p>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function RecentJobsEmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 py-8 text-center">
+      <History className="w-12 h-12 text-herd-muted" />
+      <div>
+        <p className="text-sm text-herd-fg font-medium">No jobs yet</p>
+        <p className="text-xs text-herd-muted mt-1">
+          Jobs will appear here when agents run
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// Main Component
+// =============================================================================
+
 export function FleetDashboard() {
   const { fleetStatus, agents, recentJobs, lastUpdated } = useFleet();
+  const { loading } = useFleetStatus();
 
   const counts = fleetStatus?.counts ?? {
     totalAgents: 0,
@@ -83,6 +177,22 @@ export function FleetDashboard() {
     completedJobs: 0,
     failedJobs: 0,
   };
+
+  // Show loading placeholders when initial data is loading
+  if (loading && !fleetStatus) {
+    return (
+      <div className="p-4 space-y-6 overflow-auto h-full">
+        <LoadingHeaderCard />
+        <section>
+          <h2 className="text-sm font-semibold text-herd-fg mb-3">Agents</h2>
+          <LoadingAgentCards />
+        </section>
+        <section>
+          <LoadingRecentJobs />
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 space-y-6 overflow-auto h-full">
@@ -143,11 +253,7 @@ export function FleetDashboard() {
       <section>
         <h2 className="text-sm font-semibold text-herd-fg mb-3">Agents</h2>
         {agents.length === 0 ? (
-          <Card className="p-6 text-center">
-            <p className="text-sm text-herd-muted">
-              No agents configured. Add agents to your herd.yaml to get started.
-            </p>
-          </Card>
+          <AgentsEmptyState />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {agents.map((agent) => (
@@ -160,7 +266,14 @@ export function FleetDashboard() {
       {/* Recent Jobs Section */}
       <section>
         <Card className="p-4">
-          <RecentJobs jobs={recentJobs} limit={10} />
+          {recentJobs.length === 0 ? (
+            <>
+              <h2 className="text-sm font-semibold text-herd-fg mb-3">Recent Jobs</h2>
+              <RecentJobsEmptyState />
+            </>
+          ) : (
+            <RecentJobs jobs={recentJobs} limit={10} />
+          )}
         </Card>
       </section>
     </div>

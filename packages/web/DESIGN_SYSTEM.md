@@ -24,7 +24,7 @@ These are explicit anti-patterns. Do NOT use any of these:
 
 - **Purple-to-blue gradients** — the hallmark of generic AI-generated UI
 - **Inter, Roboto, or Arial** as primary fonts — overused and personality-free
-- **Saturated blue as the primary accent** — too cold, too generic
+- **Saturated blue on large surface areas** — use blue for accents and interactive elements, not as background fills
 - **Pure white (#FFFFFF) backgrounds** in light mode — too harsh, no warmth
 - **Cool gray (#6B7280 etc.) for secondary text** — use warm grays instead
 - **Excessive border-radius** (fully rounded cards, pill-shaped containers) — looks toy-like
@@ -53,9 +53,9 @@ Colors are defined as CSS custom properties using Tailwind v4's `@theme` directi
 | `--color-herd-hover` | `rgba(0, 0, 0, 0.06)` | Hover state overlay |
 | `--color-herd-active` | `rgba(0, 0, 0, 0.10)` | Active/pressed state overlay |
 | `--color-herd-muted` | `#7A776D` | Secondary text — warm medium gray |
-| `--color-herd-primary` | `#2D6A4F` | Primary accent — deep forest green |
-| `--color-herd-primary-hover` | `#3A7D5E` | Primary hover — lighter green |
-| `--color-herd-primary-muted` | `rgba(45, 106, 79, 0.10)` | Primary tinted backgrounds |
+| `--color-herd-primary` | `#326CE5` | Primary accent — herdctl brand blue |
+| `--color-herd-primary-hover` | `#2856B8` | Primary hover — slightly darker blue |
+| `--color-herd-primary-muted` | `rgba(50, 108, 229, 0.10)` | Primary tinted backgrounds |
 | `--color-herd-user-bubble` | `#DDD9D0` | User message bubble — warm light gray |
 | `--color-herd-code-bg` | `#1E1E1E` | Code block background — VS Code dark |
 | `--color-herd-code-fg` | `#D4D4D4` | Code block text |
@@ -77,9 +77,9 @@ Colors are defined as CSS custom properties using Tailwind v4's `@theme` directi
 | `--color-herd-hover` | `rgba(255, 255, 255, 0.05)` | Hover overlay |
 | `--color-herd-active` | `rgba(255, 255, 255, 0.08)` | Active overlay |
 | `--color-herd-muted` | `#8A877F` | Secondary text |
-| `--color-herd-primary` | `#40916C` | Primary accent — slightly lighter green for dark bg |
-| `--color-herd-primary-hover` | `#52A37E` | Primary hover |
-| `--color-herd-primary-muted` | `rgba(64, 145, 108, 0.12)` | Primary tinted backgrounds |
+| `--color-herd-primary` | `#5B8DEF` | Primary accent — lighter blue for dark bg |
+| `--color-herd-primary-hover` | `#7AA3F5` | Primary hover — even lighter on hover |
+| `--color-herd-primary-muted` | `rgba(91, 141, 239, 0.12)` | Primary tinted backgrounds |
 | `--color-herd-user-bubble` | `#353330` | User message bubble |
 | `--color-herd-code-bg` | `#141413` | Code blocks — darker |
 | `--color-herd-code-fg` | `#D4D4D4` | Code text |
@@ -93,11 +93,11 @@ Colors are defined as CSS custom properties using Tailwind v4's `@theme` directi
 1. **Never use raw hex values in components.** Always reference `herd-*` tokens via Tailwind classes: `bg-herd-bg`, `text-herd-fg`, `border-herd-border`, etc.
 2. **Status colors are semantic.** `status-running` always means "active and healthy." Do not repurpose status colors for decoration.
 3. **Opacity modifiers for state feedback.** Use Tailwind's `/{opacity}` syntax for tinted backgrounds: `bg-herd-status-error/10` for error backgrounds, `bg-herd-primary/10` for selected states.
-4. **The primary green is used sparingly.** It marks primary actions (CTA buttons, active navigation, links). It should NOT be used as a decorative color or background fill.
+4. **The primary blue is used sparingly.** It marks primary actions (CTA buttons, active navigation, links). It should NOT be used as a decorative color or background fill.
 
-### Why Green?
+### Why Blue?
 
-herdctl manages *herds* of agents. The name evokes pastoral, agricultural imagery. Forest green (`#2D6A4F`) grounds this identity — natural, reliable, organic. It differentiates from Companion's terracotta while maintaining the same warm, non-corporate aesthetic.
+herdctl's logo uses `#326CE5`, a callback to Kubernetes' kubectl. The blue represents infrastructure, orchestration, and control — fitting for a fleet management tool. Combined with warm backgrounds and earth-tone neutrals, it avoids the cold/corporate feel that blue typically carries. The result is a tool that feels both technically authoritative and approachable.
 
 ---
 

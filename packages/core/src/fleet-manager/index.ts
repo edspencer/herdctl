@@ -116,6 +116,7 @@ export type {
 // Types
 export type {
   FleetManagerOptions,
+  FleetConfigOverrides,
   FleetManagerState,
   FleetManagerStatus,
   FleetManagerLogger,
