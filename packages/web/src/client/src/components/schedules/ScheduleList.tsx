@@ -36,7 +36,7 @@ function getTypeLabel(type: ScheduleType): string {
  * Get the expression string for a schedule (cron expression or interval)
  */
 function getExpression(schedule: ScheduleInfo): string {
-  if (schedule.cron) return schedule.cron;
+  if (schedule.expression) return schedule.expression;
   if (schedule.interval) return schedule.interval;
   return "-";
 }
@@ -107,9 +107,6 @@ function ScheduleRow({ schedule, onTrigger, onEnable, onDisable }: ScheduleRowPr
       </td>
       <td className="py-2 px-3 text-herd-muted text-xs">
         {formatTimestamp(schedule.nextRunAt)}
-      </td>
-      <td className="py-2 px-3 text-herd-muted text-xs font-mono">
-        {schedule.runCount}
       </td>
       <td className="py-2 px-3">
         <div className="flex items-center gap-1.5">
@@ -255,7 +252,6 @@ export function ScheduleList() {
                 <th className="text-left py-2 px-3">Status</th>
                 <th className="text-left py-2 px-3">Last Run</th>
                 <th className="text-left py-2 px-3">Next Run</th>
-                <th className="text-left py-2 px-3">Runs</th>
                 <th className="text-left py-2 px-3">Actions</th>
               </tr>
             </thead>

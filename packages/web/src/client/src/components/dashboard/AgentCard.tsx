@@ -122,7 +122,7 @@ export function AgentCard({ agent }: AgentCardProps) {
         {agent.status === "idle" && (
           <div className="text-xs text-herd-muted">
             {nextRun ? (
-              <span>Next run in {nextRun}</span>
+              <span>{nextRun === "Due" ? "Next run due" : `Next run in ${nextRun}`}</span>
             ) : (
               <span>No scheduled runs</span>
             )}

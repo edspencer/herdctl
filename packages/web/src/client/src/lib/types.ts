@@ -64,11 +64,10 @@ export interface ScheduleInfo {
   agentName: string;
   type: ScheduleType;
   interval?: string;
-  cron?: string;
+  expression?: string;
   status: ScheduleStatus;
   lastRunAt: string | null;
   nextRunAt: string | null;
-  runCount: number;
 }
 
 export type ChatConnectorType = "discord" | "slack" | "web";
