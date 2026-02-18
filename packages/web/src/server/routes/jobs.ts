@@ -6,10 +6,33 @@
  */
 
 import type { FastifyInstance } from "fastify";
-import type { FleetManager, JobStatus, listJobs } from "@herdctl/core";
-import { createLogger } from "@herdctl/core";
+import type { FleetManager, JobStatus, listJobs, ResolvedAgent } from "@herdctl/core";
+import { createLogger, resolveWorkingDirectory } from "@herdctl/core";
 
 const logger = createLogger("web:jobs");
+
+/**
+ * Map a core Job object (snake_case) to a client-friendly JobSummary (camelCase)
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapJobToSummary(job: any, agents: ResolvedAgent[]): Record<string, unknown> {
+  const agent = agents.find((a) => a.name === job.agent);
+  const workspace = agent ? resolveWorkingDirectory(agent) : undefined;
+
+  return {
+    jobId: job.id,
+    agentName: job.agent,
+    prompt: job.prompt ?? "",
+    status: job.status,
+    createdAt: job.started_at,
+    startedAt: job.started_at,
+    completedAt: job.finished_at ?? undefined,
+    exitCode: job.exit_reason === "success" ? 0 : job.exit_reason === "error" ? 1 : undefined,
+    error: undefined,
+    sessionId: job.session_id ?? undefined,
+    workspace,
+  };
+}
 
 /**
  * Query parameters for listing jobs
@@ -80,8 +103,9 @@ export function registerJobRoutes(
         clampedOffset + clampedLimit
       );
 
+      const agents = fleetManager.getAgents();
       return reply.send({
-        jobs: paginatedJobs,
+        jobs: paginatedJobs.map((j) => mapJobToSummary(j, agents)),
         total: result.jobs.length,
         limit: clampedLimit,
         offset: clampedOffset,
@@ -125,7 +149,8 @@ export function registerJobRoutes(
         });
       }
 
-      return reply.send(job);
+      const agents = fleetManager.getAgents();
+      return reply.send(mapJobToSummary(job, agents));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return reply.status(500).send({

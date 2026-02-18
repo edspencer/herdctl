@@ -145,6 +145,8 @@ export interface JobSummary {
   completedAt?: string;
   exitCode?: number;
   error?: string;
+  sessionId?: string;
+  workspace?: string;
 }
 
 // =============================================================================

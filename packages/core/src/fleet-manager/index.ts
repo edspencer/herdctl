@@ -84,6 +84,9 @@ export {
   formatLogEntry,
 } from "./log-streaming.js";
 
+// Working directory helper
+export { resolveWorkingDirectory } from "./working-directory-helper.js";
+
 // Job Manager (US-4)
 export { JobManager } from "./job-manager.js";
 

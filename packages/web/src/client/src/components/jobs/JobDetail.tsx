@@ -357,11 +357,13 @@ export function JobDetail({ jobId, job, loading, onClose }: JobDetailProps) {
   );
 
   // Build CLI commands
-  const resumeCommand = job
-    ? `herdctl resume --agent ${job.agentName} --session ${job.jobId}`
+  const resumeCommand = job?.sessionId
+    ? job.workspace
+      ? `cd ${job.workspace} && claude --resume ${job.sessionId}`
+      : `claude --resume ${job.sessionId}`
     : "";
-  const forkCommand = job
-    ? `herdctl trigger --agent ${job.agentName}${job.prompt ? ` --prompt "${job.prompt.replace(/"/g, '\\"')}"` : ""}`
+  const triggerCommand = job
+    ? `herdctl trigger ${job.agentName}${job.prompt ? ` --prompt "${job.prompt.replace(/"/g, '\\"')}"` : ""}`
     : "";
 
   return (
@@ -496,8 +498,10 @@ export function JobDetail({ jobId, job, loading, onClose }: JobDetailProps) {
             <p className="text-xs text-herd-muted font-medium uppercase tracking-wide mb-1">
               CLI Commands
             </p>
-            <CopyButton text={resumeCommand} label="Copy Resume Command" />
-            <CopyButton text={forkCommand} label="Copy Fork Command" />
+            {resumeCommand && (
+              <CopyButton text={resumeCommand} label="Copy Resume Command" />
+            )}
+            <CopyButton text={triggerCommand} label="Copy Trigger Command" />
           </div>
         </div>
       )}
