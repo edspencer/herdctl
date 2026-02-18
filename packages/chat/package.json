@@ -1,6 +1,6 @@
 {
   "name": "@herdctl/chat",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shared chat infrastructure for herdctl connectors",
   "license": "MIT",
   "type": "module",
