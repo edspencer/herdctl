@@ -10,12 +10,13 @@ import { createFleetSlice, type FleetSlice } from "./fleet-slice";
 import { createUISlice, type UISlice } from "./ui-slice";
 import { createOutputSlice, type OutputSlice } from "./output-slice";
 import { createJobsSlice, type JobsSlice } from "./jobs-slice";
+import { createChatSlice, type ChatSlice } from "./chat-slice";
 
 // =============================================================================
 // Combined Store Type
 // =============================================================================
 
-export type AppStore = FleetSlice & UISlice & OutputSlice & JobsSlice;
+export type AppStore = FleetSlice & UISlice & OutputSlice & JobsSlice & ChatSlice;
 
 // =============================================================================
 // Store
@@ -26,6 +27,7 @@ export const useStore = create<AppStore>()((...args) => ({
   ...createUISlice(...args),
   ...createOutputSlice(...args),
   ...createJobsSlice(...args),
+  ...createChatSlice(...args),
 }));
 
 // =============================================================================
@@ -46,6 +48,11 @@ export type {
   JobsActions,
   JobsFilter,
 } from "./jobs-slice";
+export type {
+  ChatSlice,
+  ChatState,
+  ChatActions,
+} from "./chat-slice";
 
 // =============================================================================
 // Selector Hooks
@@ -125,12 +132,15 @@ export function useFleetActions() {
   );
 }
 
+// Singleton empty array to prevent creating new references in selectors
+const EMPTY_ARRAY: any[] = [];
+
 /**
  * Select output messages for a specific job
  */
 export function useJobOutput(jobId: string | null) {
   return useStore((state) =>
-    jobId ? state.outputsByJob[jobId] ?? [] : []
+    jobId ? state.outputsByJob[jobId] ?? EMPTY_ARRAY : EMPTY_ARRAY
   );
 }
 
@@ -194,6 +204,59 @@ export function useSelectedJob() {
       selectedJobId: state.selectedJobId,
       selectedJob: state.selectedJob,
       selectedJobLoading: state.selectedJobLoading,
+    }))
+  );
+}
+
+// =============================================================================
+// Chat Selector Hooks
+// =============================================================================
+
+/**
+ * Select chat sessions state (with useShallow to prevent infinite re-renders)
+ */
+export function useChatSessions() {
+  return useStore(
+    useShallow((state) => ({
+      chatSessions: state.chatSessions,
+      chatSessionsLoading: state.chatSessionsLoading,
+      chatError: state.chatError,
+    }))
+  );
+}
+
+/**
+ * Select chat messages state (with useShallow to prevent infinite re-renders)
+ */
+export function useChatMessages() {
+  return useStore(
+    useShallow((state) => ({
+      chatMessages: state.chatMessages,
+      chatMessagesLoading: state.chatMessagesLoading,
+      activeChatSessionId: state.activeChatSessionId,
+      chatStreaming: state.chatStreaming,
+      chatStreamingContent: state.chatStreamingContent,
+      chatError: state.chatError,
+    }))
+  );
+}
+
+/**
+ * Select chat actions
+ */
+export function useChatActions() {
+  return useStore(
+    useShallow((state) => ({
+      fetchChatSessions: state.fetchChatSessions,
+      fetchChatMessages: state.fetchChatMessages,
+      createChatSession: state.createChatSession,
+      deleteChatSession: state.deleteChatSession,
+      setActiveChatSession: state.setActiveChatSession,
+      appendStreamingChunk: state.appendStreamingChunk,
+      completeStreaming: state.completeStreaming,
+      addUserMessage: state.addUserMessage,
+      setChatError: state.setChatError,
+      clearChatState: state.clearChatState,
     }))
   );
 }

@@ -90,7 +90,7 @@ export function useFleetStatus(): UseFleetStatusResult {
     return () => {
       cancelled = true;
     };
-  }, [retryCount, setFleetStatus, setAgents]);
+  }, [retryCount]);
 
   const retry = (): void => {
     setRetryCount((c) => c + 1);

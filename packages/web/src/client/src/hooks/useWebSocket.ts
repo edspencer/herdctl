@@ -54,6 +54,9 @@ export function useWebSocket() {
   const setConnectionStatus = useStore((state) => state.setConnectionStatus);
   const connectionStatus = useStore((state) => state.connectionStatus);
   const appendOutput = useStore((state) => state.appendOutput);
+  const appendStreamingChunk = useStore((state) => state.appendStreamingChunk);
+  const completeStreaming = useStore((state) => state.completeStreaming);
+  const setChatError = useStore((state) => state.setChatError);
 
   useEffect(() => {
     // Message handler that dispatches to store
@@ -98,6 +101,22 @@ export function useWebSocket() {
         case "pong":
           // Pong is a keepalive response, no action needed
           break;
+
+        case "chat:response": {
+          const { chunk } = message.payload;
+          appendStreamingChunk(chunk);
+          break;
+        }
+
+        case "chat:complete": {
+          completeStreaming();
+          break;
+        }
+
+        case "chat:error": {
+          setChatError(message.payload.error);
+          break;
+        }
       }
     };
 
@@ -151,17 +170,7 @@ export function useWebSocket() {
       // Clean up global reference
       delete (window as unknown as { __herdWsClient?: WebSocketClient }).__herdWsClient;
     };
-  }, [
-    setFleetStatus,
-    setAgents,
-    updateAgent,
-    addJob,
-    completeJob,
-    failJob,
-    cancelJob,
-    setConnectionStatus,
-    appendOutput,
-  ]);
+  }, []);
 
   return {
     connectionStatus,

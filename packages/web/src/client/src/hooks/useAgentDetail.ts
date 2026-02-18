@@ -82,7 +82,8 @@ export function useAgentDetail(name: string | null): UseAgentDetailResult {
         if (cancelled) return;
 
         // Update store with fresh data
-        updateAgent(agentData);
+        // Wrap agent data in AgentStartedPayload format
+        updateAgent({ agent: agentData });
         setLoading(false);
       } catch (err) {
         if (cancelled) return;
@@ -99,7 +100,7 @@ export function useAgentDetail(name: string | null): UseAgentDetailResult {
     return () => {
       cancelled = true;
     };
-  }, [name, retryCount, updateAgent]);
+  }, [name, retryCount]);
 
   const retry = useCallback((): void => {
     setRetryCount((c) => c + 1);

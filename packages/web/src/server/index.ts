@@ -25,7 +25,9 @@ import { registerFleetRoutes } from "./routes/fleet.js";
 import { registerAgentRoutes } from "./routes/agents.js";
 import { registerJobRoutes } from "./routes/jobs.js";
 import { registerScheduleRoutes } from "./routes/schedules.js";
+import { registerChatRoutes } from "./routes/chat.js";
 import { WebSocketHandler, FleetBridge } from "./ws/index.js";
+import { WebChatManager } from "./chat/index.js";
 
 const logger = createLogger("web");
 
@@ -53,6 +55,18 @@ export interface WebServerResult {
   wsHandler: WebSocketHandler;
   /** Fleet bridge for event broadcasting */
   fleetBridge: FleetBridge;
+  /** Web chat manager for handling chat sessions */
+  chatManager: WebChatManager;
+}
+
+/**
+ * Configuration for the web server (extended with state directory)
+ */
+export interface WebServerConfigExtended extends WebServerConfig {
+  /** State directory for persistence (e.g., ".herdctl") */
+  stateDir?: string;
+  /** Session expiry in hours for chat sessions */
+  sessionExpiryHours?: number;
 }
 
 /**
@@ -64,11 +78,11 @@ export interface WebServerResult {
  *
  * @param fleetManager - FleetManager instance for API calls and event subscription
  * @param config - Server configuration
- * @returns WebServerResult containing server, wsHandler, and fleetBridge
+ * @returns WebServerResult containing server, wsHandler, fleetBridge, and chatManager
  */
 export async function createWebServer(
   fleetManager: FleetManager,
-  config: WebServerConfig
+  config: WebServerConfigExtended
 ): Promise<WebServerResult> {
   const server = Fastify({
     logger: false, // We use our own logger
@@ -89,9 +103,24 @@ export async function createWebServer(
   // Register WebSocket plugin
   await server.register(fastifyWebsocket);
 
-  // Create WebSocket handler and fleet bridge
+  // Create WebSocket handler, fleet bridge, and chat manager
   const wsHandler = new WebSocketHandler(fleetManager);
   const fleetBridge = new FleetBridge(fleetManager, wsHandler);
+  const chatManager = new WebChatManager();
+
+  // Initialize chat manager if state directory is provided
+  if (config.stateDir) {
+    await chatManager.initialize(fleetManager, config.stateDir, {
+      enabled: true,
+      port: config.port,
+      host: config.host,
+      session_expiry_hours: config.sessionExpiryHours ?? 24,
+      open_browser: false,
+    });
+
+    // Wire up chat manager to WebSocket handler
+    wsHandler.setChatManager(chatManager);
+  }
 
   // Register WebSocket route at /ws
   server.get("/ws", { websocket: true }, (socket, _request) => {
@@ -124,6 +153,7 @@ export async function createWebServer(
   registerAgentRoutes(server, fleetManager);
   registerJobRoutes(server, fleetManager, listJobs);
   registerScheduleRoutes(server, fleetManager);
+  registerChatRoutes(server, fleetManager, chatManager);
 
   // Health check endpoint
   server.get("/api/health", async (_request, reply) => {
@@ -136,8 +166,12 @@ export async function createWebServer(
   server.setNotFoundHandler(async (request: FastifyRequest, reply: FastifyReply) => {
     const url = request.url;
 
-    // Don't serve SPA for API routes or WebSocket
-    if (url.startsWith("/api/") || url === "/ws") {
+    // Don't serve SPA for API routes, WebSocket, or static assets
+    if (
+      url.startsWith("/api/") ||
+      url === "/ws" ||
+      url.startsWith("/assets/")
+    ) {
       return reply.status(404).send({ error: "Not found" });
     }
 
@@ -157,7 +191,7 @@ export async function createWebServer(
   // Log registered routes in debug mode
   logger.debug("Web server routes registered (REST + WebSocket + SPA fallback)");
 
-  return { server, wsHandler, fleetBridge };
+  return { server, wsHandler, fleetBridge, chatManager };
 }
 
 /**
@@ -238,9 +272,12 @@ export class WebManager implements IChatManager {
       const fleetManager = this.ctx.getEmitter() as unknown as FleetManager;
 
       // Create the web server with all components
+      const stateDir = this.ctx.getStateDir();
       const result = await createWebServer(fleetManager, {
         host: webConfig.host,
         port: webConfig.port,
+        stateDir,
+        sessionExpiryHours: webConfig.session_expiry_hours,
       });
 
       this.server = result.server;
@@ -430,7 +467,22 @@ export {
   type JobCancelledMessage,
   type ScheduleTriggeredMessage,
   type PongMessage,
+  type ChatSendMessage,
+  type ChatResponseMessage,
+  type ChatCompleteMessage,
+  type ChatErrorMessage,
   isClientMessage,
+  isChatSendMessage,
   isAgentStartedPayload,
   isAgentStoppedPayload,
 } from "./ws/index.js";
+
+// Re-export chat types for consumers
+export {
+  WebChatManager,
+  type WebChatSession,
+  type WebChatSessionDetails,
+  type ChatMessage,
+  type SendMessageResult,
+  type OnChunkCallback,
+} from "./chat/index.js";

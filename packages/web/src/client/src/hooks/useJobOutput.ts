@@ -105,7 +105,7 @@ export function useJobOutput({
         setActiveJobView(jobId, false);
       }
     };
-  }, [jobId, setActiveJobView]);
+  }, [jobId]);
 
   return {
     messages,

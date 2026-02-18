@@ -186,6 +186,10 @@ export function AgentDetail() {
         return <AgentJobs agent={agent!} />;
       case "config":
         return <AgentConfig agent={agent!} />;
+      default:
+        // This should never happen, but TypeScript requires exhaustive checks
+        const exhaustiveCheck: never = activeTab;
+        return exhaustiveCheck;
     }
   }
 
