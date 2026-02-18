@@ -92,9 +92,8 @@ export function Composer({ agentName, sessionId }: ComposerProps) {
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             placeholder={`Send a message to ${agentName}...`}
-            disabled={chatStreaming}
             rows={1}
-            className="flex-1 bg-herd-input-bg border border-herd-border rounded-lg px-3 py-2.5 text-sm text-herd-fg placeholder:text-herd-muted focus:outline-none focus:border-herd-primary/60 transition-colors resize-none disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 bg-herd-input-bg border border-herd-border rounded-lg px-3 py-2.5 text-sm text-herd-fg placeholder:text-herd-muted focus:outline-none focus:border-herd-primary/60 transition-colors resize-none"
             style={{ minHeight: "42px", maxHeight: "200px" }}
           />
           <button
