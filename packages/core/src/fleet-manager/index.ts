@@ -22,12 +22,11 @@ export { ScheduleExecutor } from "./schedule-executor.js";
 // Chat manager interface and types
 export type { IChatManager, ChatManagerConnectorState } from "./chat-manager-interface.js";
 
-// SlackManager is still statically imported (Phase 8 will move it)
-export { SlackManager } from "./slack-manager.js";
-export type { SlackConnectionStatus, SlackConnectorState } from "./slack-manager.js";
-
 // DiscordManager has moved to @herdctl/discord
 // Import it from there: import { DiscordManager } from "@herdctl/discord"
+
+// SlackManager has moved to @herdctl/slack
+// Import it from there: import { SlackManager } from "@herdctl/slack"
 
 // Event emitters (US-4: Extract Event Emitters Module)
 export {

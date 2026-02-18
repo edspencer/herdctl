@@ -58,7 +58,6 @@ import { ConfigReload, computeConfigChanges } from "./config-reload.js";
 import { JobControl } from "./job-control.js";
 import { LogStreaming } from "./log-streaming.js";
 import { ScheduleExecutor } from "./schedule-executor.js";
-import { SlackManager } from "./slack-manager.js";
 import { createLogger } from "../utils/logger.js";
 import type { IChatManager } from "./chat-manager-interface.js";
 
@@ -340,9 +339,6 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
 
     // Chat managers are created during initialize() via dynamic imports
     // to avoid hard dependencies on platform packages.
-    // SlackManager is still statically imported for now (Phase 8 will move it).
-    const slackManager = new SlackManager(this);
-    this.chatManagers.set("slack", slackManager);
   }
 
   /**
@@ -374,6 +370,28 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       } catch {
         // Package not installed - skip Discord integration
         this.logger.debug("@herdctl/discord not installed, skipping Discord integration");
+      }
+    }
+
+    // Check if any agents have Slack configured
+    const hasSlackAgents = this.config.agents.some(
+      (agent) => agent.chat?.slack !== undefined
+    );
+
+    if (hasSlackAgents) {
+      try {
+        // Dynamic import of @herdctl/slack
+        // Use `as string` to prevent TypeScript from resolving types at compile time
+        // This allows core to build without slack installed (optional peer dependency)
+        const mod = (await import("@herdctl/slack" as string)) as unknown as {
+          SlackManager: new (ctx: FleetManagerContext) => IChatManager;
+        };
+        const manager = new mod.SlackManager(this);
+        this.chatManagers.set("slack", manager);
+        this.logger.debug("Slack chat manager created");
+      } catch {
+        // Package not installed - skip Slack integration
+        this.logger.debug("@herdctl/slack not installed, skipping Slack integration");
       }
     }
   }

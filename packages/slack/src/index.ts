@@ -18,6 +18,9 @@ export const VERSION = "0.1.0";
 // Main connector class
 export { SlackConnector } from "./slack-connector.js";
 
+// Manager class (used by FleetManager)
+export { SlackManager } from "./manager.js";
+
 // Logger
 export {
   createSlackLogger,
