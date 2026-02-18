@@ -138,7 +138,7 @@ export interface PingMessage {
   type: "ping";
 }
 
-export type ClientMessage = SubscribeMessage | UnsubscribeMessage | PingMessage;
+export type ClientMessage = SubscribeMessage | UnsubscribeMessage | PingMessage | ChatSendMessage;
 
 // =============================================================================
 // WebSocket Message Types (Server -> Client)
@@ -243,7 +243,10 @@ export type ServerMessage =
   | JobFailedMessage
   | JobCancelledMessage
   | ScheduleTriggeredMessage
-  | PongMessage;
+  | PongMessage
+  | ChatResponseMessage
+  | ChatCompleteMessage
+  | ChatErrorMessage;
 
 // =============================================================================
 // Type Guards
@@ -280,3 +283,66 @@ export type ConnectionStatus = "connected" | "disconnected" | "reconnecting";
 export type Theme = "light" | "dark" | "system";
 
 export type ActiveView = "dashboard" | "agents" | "jobs" | "schedules" | "settings";
+
+// =============================================================================
+// Chat Types
+// =============================================================================
+
+export interface ChatSession {
+  sessionId: string;
+  createdAt: string;
+  lastMessageAt: string;
+  messageCount: number;
+  preview: string;
+}
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+}
+
+// =============================================================================
+// Chat WebSocket Messages (Server -> Client)
+// =============================================================================
+
+export interface ChatResponseMessage {
+  type: "chat:response";
+  payload: {
+    agentName: string;
+    sessionId: string;
+    jobId: string;
+    chunk: string;
+  };
+}
+
+export interface ChatCompleteMessage {
+  type: "chat:complete";
+  payload: {
+    agentName: string;
+    sessionId: string;
+    jobId: string;
+  };
+}
+
+export interface ChatErrorMessage {
+  type: "chat:error";
+  payload: {
+    agentName: string;
+    sessionId: string;
+    error: string;
+  };
+}
+
+// =============================================================================
+// Chat WebSocket Messages (Client -> Server)
+// =============================================================================
+
+export interface ChatSendMessage {
+  type: "chat:send";
+  payload: {
+    agentName: string;
+    sessionId: string;
+    message: string;
+  };
+}

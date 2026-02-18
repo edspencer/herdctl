@@ -9,9 +9,12 @@ import type { WebSocket, RawData } from "ws";
 import { createLogger, type FleetManager } from "@herdctl/core";
 import {
   isClientMessage,
+  isChatSendMessage,
   type ClientMessage,
   type ServerMessage,
+  type ChatSendMessage,
 } from "./types.js";
+import type { WebChatManager } from "../chat/index.js";
 
 const logger = createLogger("web:ws");
 
@@ -37,9 +40,20 @@ export class WebSocketHandler {
   private clientIdCounter = 0;
   /** FleetManager for getting initial status */
   private fleetManager: FleetManager;
+  /** WebChatManager for handling chat messages */
+  private chatManager: WebChatManager | null = null;
 
   constructor(fleetManager: FleetManager) {
     this.fleetManager = fleetManager;
+  }
+
+  /**
+   * Set the chat manager for handling chat messages
+   *
+   * @param chatManager - WebChatManager instance
+   */
+  setChatManager(chatManager: WebChatManager): void {
+    this.chatManager = chatManager;
   }
 
   /**
@@ -134,6 +148,92 @@ export class WebSocketHandler {
         this.sendToClient(client, { type: "pong" });
         break;
       }
+
+      case "chat:send": {
+        this.handleChatSend(client, message).catch((error) => {
+          logger.error(`Error handling chat:send: ${(error as Error).message}`);
+        });
+        break;
+      }
+    }
+  }
+
+  /**
+   * Handle a chat:send message from a client
+   */
+  private async handleChatSend(client: WebSocketClient, message: ChatSendMessage): Promise<void> {
+    const { agentName, sessionId, message: userMessage } = message.payload;
+
+    if (!this.chatManager) {
+      this.sendToClient(client, {
+        type: "chat:error",
+        payload: {
+          agentName,
+          sessionId,
+          error: "Chat manager not available",
+        },
+      });
+      return;
+    }
+
+    logger.debug(`${client.clientId} sending chat message`, { agentName, sessionId });
+
+    let jobId = "";
+
+    try {
+      const result = await this.chatManager.sendMessage(
+        agentName,
+        sessionId,
+        userMessage,
+        async (chunk) => {
+          // Stream chunks back to the client
+          this.sendToClient(client, {
+            type: "chat:response",
+            payload: {
+              agentName,
+              sessionId,
+              jobId,
+              chunk,
+            },
+          });
+        }
+      );
+
+      jobId = result.jobId;
+
+      if (result.success) {
+        // Send completion message
+        this.sendToClient(client, {
+          type: "chat:complete",
+          payload: {
+            agentName,
+            sessionId,
+            jobId: result.jobId,
+          },
+        });
+      } else {
+        // Send error message
+        this.sendToClient(client, {
+          type: "chat:error",
+          payload: {
+            agentName,
+            sessionId,
+            error: result.error ?? "Unknown error",
+          },
+        });
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Chat send failed`, { agentName, sessionId, error: errorMessage });
+
+      this.sendToClient(client, {
+        type: "chat:error",
+        payload: {
+          agentName,
+          sessionId,
+          error: errorMessage,
+        },
+      });
     }
   }
 

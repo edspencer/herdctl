@@ -5,7 +5,7 @@
  * All functions throw on non-OK responses.
  */
 
-import type { FleetStatus, AgentInfo, ScheduleInfo, JobSummary } from "./types";
+import type { FleetStatus, AgentInfo, ScheduleInfo, JobSummary, ChatSession, ChatMessage } from "./types";
 
 // =============================================================================
 // Configuration
@@ -100,6 +100,36 @@ async function get<T>(path: string, params?: Record<string, string | number | un
   return handleResponse<T>(response);
 }
 
+/**
+ * Helper to make typed POST requests
+ */
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  return handleResponse<T>(response);
+}
+
+/**
+ * Helper to make typed DELETE requests
+ */
+async function del<T>(path: string): Promise<T> {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: "DELETE",
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  return handleResponse<T>(response);
+}
+
 // =============================================================================
 // API Functions
 // =============================================================================
@@ -180,4 +210,69 @@ export async function fetchJobById(jobId: string): Promise<JobSummary> {
  */
 export async function fetchSchedules(): Promise<ScheduleInfo[]> {
   return get<ScheduleInfo[]>("/api/schedules");
+}
+
+// =============================================================================
+// Chat API Functions
+// =============================================================================
+
+/**
+ * Chat session response from create/fetch
+ */
+export interface ChatSessionResponse {
+  sessionId: string;
+  createdAt: string;
+}
+
+/**
+ * Full chat session detail response
+ */
+export interface ChatSessionDetailResponse {
+  sessionId: string;
+  messages: ChatMessage[];
+  createdAt: string;
+  lastMessageAt: string;
+}
+
+/**
+ * Create a new chat session for an agent
+ *
+ * POST /api/chat/:agentName/sessions
+ */
+export async function createChatSession(agentName: string): Promise<ChatSessionResponse> {
+  return post<ChatSessionResponse>(`/api/chat/${encodeURIComponent(agentName)}/sessions`, {});
+}
+
+/**
+ * Fetch all chat sessions for an agent
+ *
+ * GET /api/chat/:agentName/sessions
+ */
+export async function fetchChatSessions(agentName: string): Promise<{ sessions: ChatSession[] }> {
+  return get<{ sessions: ChatSession[] }>(`/api/chat/${encodeURIComponent(agentName)}/sessions`);
+}
+
+/**
+ * Fetch a single chat session with messages
+ *
+ * GET /api/chat/:agentName/sessions/:sessionId
+ */
+export async function fetchChatSession(
+  agentName: string,
+  sessionId: string
+): Promise<ChatSessionDetailResponse> {
+  return get<ChatSessionDetailResponse>(
+    `/api/chat/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`
+  );
+}
+
+/**
+ * Delete a chat session
+ *
+ * DELETE /api/chat/:agentName/sessions/:sessionId
+ */
+export async function deleteChatSession(agentName: string, sessionId: string): Promise<void> {
+  await del<{ deleted: boolean }>(
+    `/api/chat/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`
+  );
 }

@@ -13,20 +13,11 @@ import { AppLayout } from "./components/layout/AppLayout";
 import { FleetDashboard } from "./components/dashboard/FleetDashboard";
 import { AgentDetail } from "./components/agent";
 import { JobHistory } from "./components/jobs";
+import { ChatView } from "./components/chat";
 
 // =============================================================================
 // Placeholder Page Components
 // =============================================================================
-
-function AgentChatPage() {
-  return (
-    <div className="p-4">
-      <p className="text-herd-muted text-sm">
-        Agent Chat — Coming in Phase 4
-      </p>
-    </div>
-  );
-}
 
 function JobsPage() {
   return (
@@ -74,7 +65,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<FleetDashboard />} />
         <Route path="/agents/:name" element={<AgentDetail />} />
-        <Route path="/agents/:name/chat" element={<AgentChatPage />} />
+        <Route path="/agents/:name/chat" element={<ChatView />} />
+        <Route path="/agents/:name/chat/:sessionId" element={<ChatView />} />
         <Route path="/jobs" element={<JobsPage />} />
         <Route path="/schedules" element={<SchedulesPage />} />
         <Route path="/settings" element={<SettingsPage />} />

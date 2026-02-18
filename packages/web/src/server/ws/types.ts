@@ -61,9 +61,27 @@ export interface PingMessage {
 }
 
 /**
+ * Chat send message
+ *
+ * Client sends this to send a message to an agent in a chat session.
+ * The response streams back via `chat:response` messages.
+ */
+export interface ChatSendMessage {
+  type: "chat:send";
+  payload: {
+    /** Name of the agent to chat with */
+    agentName: string;
+    /** Session ID for the chat conversation */
+    sessionId: string;
+    /** User message content */
+    message: string;
+  };
+}
+
+/**
  * Union type of all messages that clients can send to the server
  */
-export type ClientMessage = SubscribeMessage | UnsubscribeMessage | PingMessage;
+export type ClientMessage = SubscribeMessage | UnsubscribeMessage | PingMessage | ChatSendMessage;
 
 // =============================================================================
 // Server Messages (sent from server to browser)
@@ -159,6 +177,59 @@ export interface PongMessage {
 }
 
 /**
+ * Chat response chunk
+ *
+ * Server sends this as streaming response chunks during chat.
+ */
+export interface ChatResponseMessage {
+  type: "chat:response";
+  payload: {
+    /** Name of the agent */
+    agentName: string;
+    /** Session ID for the chat conversation */
+    sessionId: string;
+    /** Job ID for tracking the execution */
+    jobId: string;
+    /** Response chunk content */
+    chunk: string;
+  };
+}
+
+/**
+ * Chat complete message
+ *
+ * Server sends this when chat response is complete.
+ */
+export interface ChatCompleteMessage {
+  type: "chat:complete";
+  payload: {
+    /** Name of the agent */
+    agentName: string;
+    /** Session ID for the chat conversation */
+    sessionId: string;
+    /** Job ID for tracking the execution */
+    jobId: string;
+  };
+}
+
+/**
+ * Chat error message
+ *
+ * Server sends this when a chat error occurs.
+ */
+export interface ChatErrorMessage {
+  type: "chat:error";
+  payload: {
+    /** Name of the agent */
+    agentName: string;
+    /** Session ID for the chat conversation */
+    sessionId: string;
+    /** Error message */
+    error: string;
+  };
+}
+
+/**
  * Union type of all messages that the server can send to clients
  */
 export type ServerMessage =
@@ -170,7 +241,10 @@ export type ServerMessage =
   | JobFailedMessage
   | JobCancelledMessage
   | ScheduleTriggeredMessage
-  | PongMessage;
+  | PongMessage
+  | ChatResponseMessage
+  | ChatCompleteMessage
+  | ChatErrorMessage;
 
 // =============================================================================
 // Type Guards
@@ -200,9 +274,37 @@ export function isClientMessage(data: unknown): data is ClientMessage {
       );
     case "ping":
       return true;
+    case "chat:send":
+      return isChatSendMessage(msg);
     default:
       return false;
   }
+}
+
+/**
+ * Check if a message is a valid ChatSendMessage
+ */
+export function isChatSendMessage(data: unknown): data is ChatSendMessage {
+  if (typeof data !== "object" || data === null) {
+    return false;
+  }
+
+  const msg = data as Record<string, unknown>;
+
+  if (msg.type !== "chat:send") {
+    return false;
+  }
+
+  const payload = msg.payload as Record<string, unknown> | null | undefined;
+  if (typeof payload !== "object" || payload === null) {
+    return false;
+  }
+
+  return (
+    typeof payload.agentName === "string" &&
+    typeof payload.sessionId === "string" &&
+    typeof payload.message === "string"
+  );
 }
 
 /**

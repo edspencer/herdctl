@@ -196,6 +196,9 @@ importers:
       '@fastify/websocket':
         specifier: ^11.0.3
         version: 11.2.0
+      '@herdctl/chat':
+        specifier: workspace:*
+        version: link:../chat
       '@herdctl/core':
         specifier: workspace:*
         version: link:../core
