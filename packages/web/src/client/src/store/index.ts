@@ -11,12 +11,13 @@ import { createUISlice, type UISlice } from "./ui-slice";
 import { createOutputSlice, type OutputSlice } from "./output-slice";
 import { createJobsSlice, type JobsSlice } from "./jobs-slice";
 import { createChatSlice, type ChatSlice } from "./chat-slice";
+import { createScheduleSlice, type ScheduleSlice } from "./schedule-slice";
 
 // =============================================================================
 // Combined Store Type
 // =============================================================================
 
-export type AppStore = FleetSlice & UISlice & OutputSlice & JobsSlice & ChatSlice;
+export type AppStore = FleetSlice & UISlice & OutputSlice & JobsSlice & ChatSlice & ScheduleSlice;
 
 // =============================================================================
 // Store
@@ -28,6 +29,7 @@ export const useStore = create<AppStore>()((...args) => ({
   ...createOutputSlice(...args),
   ...createJobsSlice(...args),
   ...createChatSlice(...args),
+  ...createScheduleSlice(...args),
 }));
 
 // =============================================================================
@@ -53,6 +55,11 @@ export type {
   ChatState,
   ChatActions,
 } from "./chat-slice";
+export type {
+  ScheduleSlice,
+  ScheduleState,
+  ScheduleActions,
+} from "./schedule-slice";
 
 // =============================================================================
 // Selector Hooks
@@ -257,6 +264,39 @@ export function useChatActions() {
       addUserMessage: state.addUserMessage,
       setChatError: state.setChatError,
       clearChatState: state.clearChatState,
+    }))
+  );
+}
+
+// =============================================================================
+// Schedule Selector Hooks
+// =============================================================================
+
+/**
+ * Select schedule list state (with useShallow to prevent infinite re-renders)
+ */
+export function useSchedules() {
+  return useStore(
+    useShallow((state) => ({
+      schedules: state.schedules,
+      schedulesLoading: state.schedulesLoading,
+      schedulesError: state.schedulesError,
+    }))
+  );
+}
+
+/**
+ * Select schedule actions
+ */
+export function useScheduleActions() {
+  return useStore(
+    useShallow((state) => ({
+      fetchSchedules: state.fetchSchedules,
+      triggerSchedule: state.triggerSchedule,
+      enableSchedule: state.enableSchedule,
+      disableSchedule: state.disableSchedule,
+      updateScheduleFromWS: state.updateScheduleFromWS,
+      clearSchedulesState: state.clearSchedulesState,
     }))
   );
 }

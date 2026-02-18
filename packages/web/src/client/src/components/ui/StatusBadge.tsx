@@ -5,13 +5,13 @@
  * Uses semantic herd-status-* color tokens.
  */
 
-import type { AgentStatus, JobStatus } from "../../lib/types";
+import type { AgentStatus, JobStatus, ScheduleStatus } from "../../lib/types";
 
 // =============================================================================
 // Types
 // =============================================================================
 
-type Status = AgentStatus | JobStatus;
+type Status = AgentStatus | JobStatus | ScheduleStatus;
 
 interface StatusBadgeProps {
   /** The status to display */
@@ -45,6 +45,8 @@ function getDotColorClass(status: Status): string {
       return "bg-herd-status-idle";
     case "pending":
       return "bg-herd-status-pending";
+    case "disabled":
+      return "bg-herd-status-idle";
   }
 }
 
@@ -67,6 +69,8 @@ function getTextColorClass(status: Status): string {
       return "text-herd-status-idle";
     case "pending":
       return "text-herd-status-pending";
+    case "disabled":
+      return "text-herd-status-idle";
   }
 }
 

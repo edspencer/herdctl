@@ -13,6 +13,7 @@ import { AppLayout } from "./components/layout/AppLayout";
 import { FleetDashboard } from "./components/dashboard/FleetDashboard";
 import { AgentDetail } from "./components/agent";
 import { JobHistory } from "./components/jobs";
+import { ScheduleList } from "./components/schedules";
 import { ChatView } from "./components/chat";
 
 // =============================================================================
@@ -30,10 +31,9 @@ function JobsPage() {
 
 function SchedulesPage() {
   return (
-    <div className="p-4">
-      <p className="text-herd-muted text-sm">
-        Schedule Overview — Coming in Phase 3
-      </p>
+    <div className="p-4 h-full overflow-auto">
+      <h1 className="text-lg font-semibold text-herd-fg mb-4">Schedules</h1>
+      <ScheduleList />
     </div>
   );
 }

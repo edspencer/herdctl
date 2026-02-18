@@ -5,12 +5,13 @@
  * Used both for fleet-wide job history (/jobs) and per-agent job tabs.
  */
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
-import { History, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { History, ChevronLeft, ChevronRight, Search, X, Play } from "lucide-react";
 import { useJobs, useJobsActions, useSelectedJob } from "../../store";
 import { Card, StatusBadge, Spinner } from "../ui";
 import { JobDetail } from "./JobDetail";
+import { TriggerJobModal } from "./TriggerJobModal";
 import type { JobStatus, JobSummary } from "../../lib/types";
 
 // =============================================================================
@@ -304,6 +305,8 @@ export function JobHistory({ agentName }: JobHistoryProps) {
     useJobsActions();
   const { selectedJobId, selectedJob, selectedJobLoading } = useSelectedJob();
 
+  const [triggerModalOpen, setTriggerModalOpen] = useState(false);
+
   // Determine if we're in agent-specific mode
   const isAgentView = !!agentName;
 
@@ -380,14 +383,23 @@ export function JobHistory({ agentName }: JobHistoryProps) {
     <div className="flex gap-4">
       {/* Main job list */}
       <Card className="p-4 flex-1 min-w-0">
-        {/* Header with title and loading indicator */}
+        {/* Header with title, trigger button, and loading indicator */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-herd-fg">
             {isAgentView ? "Job History" : "All Jobs"}
           </h2>
-          {jobsLoading && jobs.length > 0 && (
-            <Spinner size="sm" />
-          )}
+          <div className="flex items-center gap-2">
+            {jobsLoading && jobs.length > 0 && (
+              <Spinner size="sm" />
+            )}
+            <button
+              onClick={() => setTriggerModalOpen(true)}
+              className="bg-herd-primary hover:bg-herd-primary-hover text-white rounded-lg px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5"
+            >
+              <Play className="w-3.5 h-3.5" />
+              Trigger Job
+            </button>
+          </div>
         </div>
 
         {/* Error banner */}
@@ -457,6 +469,17 @@ export function JobHistory({ agentName }: JobHistoryProps) {
           onClose={handleCloseDetail}
         />
       )}
+
+      {/* Trigger Job Modal */}
+      <TriggerJobModal
+        isOpen={triggerModalOpen}
+        onClose={() => {
+          setTriggerModalOpen(false);
+          // Refetch jobs to show newly triggered job
+          fetchJobs().catch(() => {});
+        }}
+        preSelectedAgent={agentName}
+      />
     </div>
   );
 }

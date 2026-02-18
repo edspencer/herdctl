@@ -5,7 +5,7 @@
  * All functions throw on non-OK responses.
  */
 
-import type { FleetStatus, AgentInfo, ScheduleInfo, JobSummary, ChatSession, ChatMessage } from "./types";
+import type { FleetStatus, AgentInfo, ScheduleInfo, TriggerResult, JobSummary, ChatSession, ChatMessage, CancelJobResult, ForkJobResult } from "./types";
 
 // =============================================================================
 // Configuration
@@ -204,12 +204,84 @@ export async function fetchJobById(jobId: string): Promise<JobSummary> {
 }
 
 /**
+ * Cancel a running job
+ *
+ * POST /api/jobs/:id/cancel
+ */
+export async function cancelJob(jobId: string): Promise<CancelJobResult> {
+  return post<CancelJobResult>(
+    `/api/jobs/${encodeURIComponent(jobId)}/cancel`,
+    {}
+  );
+}
+
+/**
+ * Fork an existing job
+ *
+ * POST /api/jobs/:id/fork
+ */
+export async function forkJob(
+  jobId: string,
+  options?: { prompt?: string }
+): Promise<ForkJobResult> {
+  return post<ForkJobResult>(
+    `/api/jobs/${encodeURIComponent(jobId)}/fork`,
+    options ?? {}
+  );
+}
+
+/**
  * Fetch all schedules
  *
  * GET /api/schedules
  */
 export async function fetchSchedules(): Promise<ScheduleInfo[]> {
   return get<ScheduleInfo[]>("/api/schedules");
+}
+
+/**
+ * Trigger a job for an agent
+ *
+ * POST /api/agents/:name/trigger
+ */
+export async function triggerAgent(
+  agentName: string,
+  options?: { scheduleName?: string; prompt?: string }
+): Promise<TriggerResult> {
+  return post<TriggerResult>(
+    `/api/agents/${encodeURIComponent(agentName)}/trigger`,
+    options ?? {}
+  );
+}
+
+/**
+ * Enable a schedule
+ *
+ * POST /api/schedules/:agentName/:scheduleName/enable
+ */
+export async function enableSchedule(
+  agentName: string,
+  scheduleName: string
+): Promise<ScheduleInfo> {
+  return post<ScheduleInfo>(
+    `/api/schedules/${encodeURIComponent(agentName)}/${encodeURIComponent(scheduleName)}/enable`,
+    {}
+  );
+}
+
+/**
+ * Disable a schedule
+ *
+ * POST /api/schedules/:agentName/:scheduleName/disable
+ */
+export async function disableSchedule(
+  agentName: string,
+  scheduleName: string
+): Promise<ScheduleInfo> {
+  return post<ScheduleInfo>(
+    `/api/schedules/${encodeURIComponent(agentName)}/${encodeURIComponent(scheduleName)}/disable`,
+    {}
+  );
 }
 
 // =============================================================================

@@ -1,11 +1,15 @@
 /**
  * Job REST API routes
  *
- * Provides endpoints for retrieving job information with pagination and filtering.
+ * Provides endpoints for retrieving job information with pagination and filtering,
+ * as well as job control actions (cancel, fork).
  */
 
 import type { FastifyInstance } from "fastify";
 import type { FleetManager, JobStatus, listJobs } from "@herdctl/core";
+import { createLogger } from "@herdctl/core";
+
+const logger = createLogger("web:jobs");
 
 /**
  * Query parameters for listing jobs
@@ -126,6 +130,86 @@ export function registerJobRoutes(
       const message = error instanceof Error ? error.message : String(error);
       return reply.status(500).send({
         error: `Failed to get job: ${message}`,
+        statusCode: 500,
+      });
+    }
+  });
+
+  /**
+   * POST /api/jobs/:id/cancel
+   *
+   * Cancels a running job.
+   *
+   * @param id - Job ID (URL parameter)
+   * @returns CancelJobResult
+   */
+  server.post<{
+    Params: { id: string };
+  }>("/api/jobs/:id/cancel", async (request, reply) => {
+    try {
+      const { id } = request.params;
+      logger.info("Cancelling job", { jobId: id });
+
+      const result = await fleetManager.cancelJob(id);
+
+      logger.info("Job cancelled", { jobId: id, terminationType: result.terminationType });
+      return reply.send(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      if (message.toLowerCase().includes("not found")) {
+        return reply.status(404).send({
+          error: message,
+          statusCode: 404,
+        });
+      }
+
+      logger.error("Failed to cancel job", { error: message });
+      return reply.status(500).send({
+        error: `Failed to cancel job: ${message}`,
+        statusCode: 500,
+      });
+    }
+  });
+
+  /**
+   * POST /api/jobs/:id/fork
+   *
+   * Forks an existing job, creating a new job based on its configuration.
+   * Optionally accepts a prompt override.
+   *
+   * @param id - Job ID to fork (URL parameter)
+   * @body prompt - Optional prompt override for the forked job
+   * @returns ForkJobResult
+   */
+  server.post<{
+    Params: { id: string };
+    Body: { prompt?: string };
+  }>("/api/jobs/:id/fork", async (request, reply) => {
+    try {
+      const { id } = request.params;
+      const { prompt } = request.body ?? {};
+
+      const modifications = prompt ? { prompt } : undefined;
+      logger.info("Forking job", { jobId: id, hasPromptOverride: !!prompt });
+
+      const result = await fleetManager.forkJob(id, modifications);
+
+      logger.info("Job forked", { originalJobId: id, newJobId: result.jobId });
+      return reply.send(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      if (message.toLowerCase().includes("not found")) {
+        return reply.status(404).send({
+          error: message,
+          statusCode: 404,
+        });
+      }
+
+      logger.error("Failed to fork job", { error: message });
+      return reply.status(500).send({
+        error: `Failed to fork job: ${message}`,
         statusCode: 500,
       });
     }

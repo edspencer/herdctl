@@ -97,6 +97,37 @@ export interface AgentInfo {
 }
 
 // =============================================================================
+// Trigger Types
+// =============================================================================
+
+export interface TriggerResult {
+  jobId: string;
+  agentName: string;
+  scheduleName: string | null;
+  startedAt: string;
+  prompt?: string;
+}
+
+// =============================================================================
+// Job Control Types
+// =============================================================================
+
+export interface CancelJobResult {
+  jobId: string;
+  success: boolean;
+  terminationType: "graceful" | "forced" | "already_stopped";
+  canceledAt: string;
+}
+
+export interface ForkJobResult {
+  jobId: string;
+  forkedFromJobId: string;
+  agentName: string;
+  startedAt: string;
+  prompt?: string;
+}
+
+// =============================================================================
 // Job Types
 // =============================================================================
 

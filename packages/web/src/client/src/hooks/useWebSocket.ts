@@ -57,6 +57,7 @@ export function useWebSocket() {
   const appendStreamingChunk = useStore((state) => state.appendStreamingChunk);
   const completeStreaming = useStore((state) => state.completeStreaming);
   const setChatError = useStore((state) => state.setChatError);
+  const updateScheduleFromWS = useStore((state) => state.updateScheduleFromWS);
 
   useEffect(() => {
     // Message handler that dispatches to store
@@ -87,8 +88,8 @@ export function useWebSocket() {
           break;
 
         case "schedule:triggered":
-          // Schedule triggered events can optionally be handled
-          // For now, we rely on job:created for the actual job
+          // Refetch schedules to update runCount, lastRunAt, status, etc.
+          updateScheduleFromWS();
           break;
 
         case "job:output": {

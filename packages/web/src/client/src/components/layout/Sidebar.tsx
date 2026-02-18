@@ -13,7 +13,7 @@ import { Link, useLocation } from "react-router";
 import {
   LayoutDashboard,
   Briefcase,
-  Clock,
+  Calendar,
   Settings,
 } from "lucide-react";
 import { useFleet } from "../../store";
@@ -206,7 +206,7 @@ export function Sidebar() {
           />
           <NavItem
             to="/schedules"
-            icon={<Clock className="w-4 h-4" />}
+            icon={<Calendar className="w-4 h-4" />}
             label="Schedules"
             isActive={location.pathname === "/schedules"}
           />

@@ -1,13 +1,27 @@
 /**
  * JobDetail component
  *
- * Displays full metadata for a selected job.
+ * Displays full metadata for a selected job with action buttons
+ * for cancel, fork, and CLI command copying.
  * Shown as a side panel when a job row is selected.
  */
 
+import { useState, useCallback } from "react";
 import { Link } from "react-router";
-import { X, ExternalLink, AlertCircle, Clock, Hash } from "lucide-react";
+import {
+  X,
+  ExternalLink,
+  AlertCircle,
+  Clock,
+  Hash,
+  Copy,
+  Check,
+  GitFork,
+  StopCircle,
+} from "lucide-react";
 import { Card, StatusBadge, Spinner } from "../ui";
+import { cancelJob as apiCancelJob, forkJob as apiForkJob } from "../../lib/api";
+import { useJobsActions } from "../../store";
 import type { JobSummary } from "../../lib/types";
 
 // =============================================================================
@@ -121,13 +135,234 @@ function NotFoundState({ jobId }: { jobId: string }) {
   );
 }
 
+/**
+ * Small icon button for copying text to clipboard with "Copied!" feedback
+ */
+function CopyButton({ text, label }: { text: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Fallback: silently fail if clipboard API is not available
+    }
+  }, [text]);
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="flex items-center gap-1.5 hover:bg-herd-hover text-herd-muted hover:text-herd-fg rounded-lg px-2 py-1 text-xs font-medium transition-colors"
+      title={label}
+    >
+      {copied ? (
+        <>
+          <Check className="w-3.5 h-3.5 text-herd-status-running" />
+          <span className="text-herd-status-running">Copied!</span>
+        </>
+      ) : (
+        <>
+          <Copy className="w-3.5 h-3.5" />
+          <span>{label}</span>
+        </>
+      )}
+    </button>
+  );
+}
+
+/**
+ * Cancel button with inline confirmation step
+ */
+function CancelButton({ jobId, onCancelled }: { jobId: string; onCancelled: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleCancel = useCallback(async () => {
+    setCancelling(true);
+    setError(null);
+    try {
+      await apiCancelJob(jobId);
+      onCancelled();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to cancel";
+      setError(message);
+      setCancelling(false);
+      setConfirming(false);
+    }
+  }, [jobId, onCancelled]);
+
+  if (error) {
+    return (
+      <div className="bg-herd-status-error/10 border border-herd-status-error/20 text-herd-status-error rounded-lg px-2 py-1.5 text-xs">
+        {error}
+      </div>
+    );
+  }
+
+  if (cancelling) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-herd-muted">
+        <Spinner size="sm" />
+        Cancelling...
+      </div>
+    );
+  }
+
+  if (confirming) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-herd-muted">Are you sure?</span>
+        <button
+          onClick={handleCancel}
+          className="bg-herd-status-error hover:bg-herd-status-error/80 text-white rounded-lg px-2 py-1 text-xs font-medium transition-colors"
+        >
+          Cancel Job
+        </button>
+        <button
+          onClick={() => setConfirming(false)}
+          className="border border-herd-border hover:bg-herd-hover text-herd-fg rounded-lg px-2 py-1 text-xs font-medium transition-colors"
+        >
+          Keep Running
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setConfirming(true)}
+      className="bg-herd-status-error hover:bg-herd-status-error/80 text-white rounded-lg px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5"
+    >
+      <StopCircle className="w-3.5 h-3.5" />
+      Cancel Job
+    </button>
+  );
+}
+
+/**
+ * Fork button with optional prompt override popover
+ */
+function ForkButton({ jobId, onForked }: { jobId: string; onForked: (newJobId: string) => void }) {
+  const [showPrompt, setShowPrompt] = useState(false);
+  const [prompt, setPrompt] = useState("");
+  const [forking, setForking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFork = useCallback(async () => {
+    setForking(true);
+    setError(null);
+    try {
+      const result = await apiForkJob(jobId, {
+        prompt: prompt.trim() || undefined,
+      });
+      onForked(result.jobId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to fork";
+      setError(message);
+      setForking(false);
+    }
+  }, [jobId, prompt, onForked]);
+
+  if (error) {
+    return (
+      <div className="space-y-2">
+        <div className="bg-herd-status-error/10 border border-herd-status-error/20 text-herd-status-error rounded-lg px-2 py-1.5 text-xs">
+          {error}
+        </div>
+        <button
+          onClick={() => { setError(null); setShowPrompt(false); }}
+          className="hover:bg-herd-hover text-herd-muted hover:text-herd-fg rounded-lg px-2 py-1 text-xs font-medium transition-colors"
+        >
+          Dismiss
+        </button>
+      </div>
+    );
+  }
+
+  if (forking) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-herd-muted">
+        <Spinner size="sm" />
+        Forking...
+      </div>
+    );
+  }
+
+  if (showPrompt) {
+    return (
+      <div className="space-y-2">
+        <textarea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="Override prompt (optional)..."
+          rows={2}
+          className="bg-herd-input-bg border border-herd-border rounded-lg px-3 py-2 text-xs text-herd-fg placeholder:text-herd-muted focus:outline-none focus:border-herd-primary/60 transition-colors w-full resize-none"
+        />
+        <div className="flex gap-2">
+          <button
+            onClick={handleFork}
+            className="bg-herd-primary hover:bg-herd-primary-hover text-white rounded-lg px-2 py-1 text-xs font-medium transition-colors flex items-center gap-1"
+          >
+            <GitFork className="w-3 h-3" />
+            Fork
+          </button>
+          <button
+            onClick={() => { setShowPrompt(false); setPrompt(""); }}
+            className="border border-herd-border hover:bg-herd-hover text-herd-fg rounded-lg px-2 py-1 text-xs font-medium transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setShowPrompt(true)}
+      className="border border-herd-border hover:bg-herd-hover text-herd-fg rounded-lg px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5"
+    >
+      <GitFork className="w-3.5 h-3.5" />
+      Fork Job
+    </button>
+  );
+}
+
 // =============================================================================
 // Component
 // =============================================================================
 
 export function JobDetail({ jobId, job, loading, onClose }: JobDetailProps) {
-  const isRunning = job?.status === "running";
+  const { selectJob, fetchJobs } = useJobsActions();
+
+  const isRunning = job?.status === "running" || job?.status === "pending";
+  const isFinished = job?.status === "completed" || job?.status === "failed" || job?.status === "cancelled";
   const duration = job ? formatDuration(job.startedAt, job.completedAt) : "-";
+
+  const handleCancelled = useCallback(() => {
+    // Refetch to get updated status (WebSocket will also update)
+    fetchJobs().catch(() => {});
+  }, [fetchJobs]);
+
+  const handleForked = useCallback(
+    (newJobId: string) => {
+      // Select the newly forked job and refetch list
+      selectJob(newJobId);
+      fetchJobs().catch(() => {});
+    },
+    [selectJob, fetchJobs]
+  );
+
+  // Build CLI commands
+  const resumeCommand = job
+    ? `herdctl resume --agent ${job.agentName} --session ${job.jobId}`
+    : "";
+  const forkCommand = job
+    ? `herdctl trigger --agent ${job.agentName}${job.prompt ? ` --prompt "${job.prompt.replace(/"/g, '\\"')}"` : ""}`
+    : "";
 
   return (
     <Card className="w-[320px] flex-shrink-0 self-start sticky top-4">
@@ -234,9 +469,20 @@ export function JobDetail({ jobId, job, loading, onClose }: JobDetailProps) {
         )}
       </div>
 
-      {/* Footer with actions */}
+      {/* Actions */}
       {job && (
-        <div className="px-4 py-3 border-t border-herd-border">
+        <div className="px-4 py-3 border-t border-herd-border space-y-3">
+          {/* Cancel (running jobs only) */}
+          {isRunning && (
+            <CancelButton jobId={job.jobId} onCancelled={handleCancelled} />
+          )}
+
+          {/* Fork (finished jobs only) */}
+          {isFinished && (
+            <ForkButton jobId={job.jobId} onForked={handleForked} />
+          )}
+
+          {/* View Agent Output */}
           <Link
             to={`/agents/${encodeURIComponent(job.agentName)}`}
             className="flex items-center justify-center gap-1.5 w-full bg-herd-primary hover:bg-herd-primary-hover text-white rounded-lg px-3 py-2 text-xs font-medium transition-colors"
@@ -244,6 +490,15 @@ export function JobDetail({ jobId, job, loading, onClose }: JobDetailProps) {
             <ExternalLink className="w-3.5 h-3.5" />
             View Agent Output
           </Link>
+
+          {/* Copy CLI Commands */}
+          <div className="border-t border-herd-border pt-2 space-y-1">
+            <p className="text-xs text-herd-muted font-medium uppercase tracking-wide mb-1">
+              CLI Commands
+            </p>
+            <CopyButton text={resumeCommand} label="Copy Resume Command" />
+            <CopyButton text={forkCommand} label="Copy Fork Command" />
+          </div>
         </div>
       )}
     </Card>
