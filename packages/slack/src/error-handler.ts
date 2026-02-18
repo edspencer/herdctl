@@ -1,58 +1,30 @@
 /**
  * Error handling utilities for the Slack connector
  *
- * Provides error classification, user-friendly messages,
- * and retry logic for Slack API operations.
+ * Provides Slack-specific error classification that builds on
+ * the shared error handling infrastructure from @herdctl/chat.
  */
 
 import type { SlackConnectorLogger } from "./types.js";
+import {
+  ErrorCategory,
+  type ClassifiedError,
+  USER_ERROR_MESSAGES,
+  safeExecute as baseSafeExecute,
+  safeExecuteWithReply as baseSafeExecuteWithReply,
+} from "@herdctl/chat";
+
+// Re-export shared types and utilities
+export { ErrorCategory, type ClassifiedError, USER_ERROR_MESSAGES } from "@herdctl/chat";
 
 // =============================================================================
-// Error Classification
+// Slack-specific Error Classification
 // =============================================================================
 
 /**
- * Error categories for classification
- */
-export enum ErrorCategory {
-  /** Authentication/authorization errors */
-  AUTH = "auth",
-  /** Rate limiting errors */
-  RATE_LIMIT = "rate_limit",
-  /** Network errors */
-  NETWORK = "network",
-  /** Slack API errors */
-  API = "api",
-  /** Internal errors */
-  INTERNAL = "internal",
-  /** Unknown errors */
-  UNKNOWN = "unknown",
-}
-
-/**
- * Classified error with category and user-facing message
- */
-export interface ClassifiedError {
-  category: ErrorCategory;
-  userMessage: string;
-  isRetryable: boolean;
-  originalError: Error;
-}
-
-/**
- * User-friendly error messages
- */
-export const USER_ERROR_MESSAGES: Record<string, string> = {
-  auth: "I'm having trouble authenticating with Slack. Please check the bot configuration.",
-  rate_limit: "I'm being rate limited by Slack. Please try again in a moment.",
-  network: "I'm having trouble connecting to Slack. Please try again later.",
-  api: "Something went wrong with the Slack API. Please try again.",
-  internal: "An internal error occurred. Please try again or use `!reset` to start a new session.",
-  unknown: "An unexpected error occurred. Please try again.",
-};
-
-/**
- * Classify an error for appropriate handling
+ * Classify a Slack-specific error for appropriate handling
+ *
+ * This function provides Slack-specific error classification patterns.
  */
 export function classifyError(error: Error): ClassifiedError {
   const message = error.message.toLowerCase();
@@ -64,19 +36,20 @@ export function classifyError(error: Error): ClassifiedError {
     message.includes("not_authed")
   ) {
     return {
+      error,
       category: ErrorCategory.AUTH,
-      userMessage: USER_ERROR_MESSAGES.auth,
-      isRetryable: false,
-      originalError: error,
+      userMessage: USER_ERROR_MESSAGES.AUTH_ERROR,
+      shouldRetry: false,
     };
   }
 
   if (message.includes("rate_limit") || message.includes("ratelimited")) {
     return {
+      error,
       category: ErrorCategory.RATE_LIMIT,
-      userMessage: USER_ERROR_MESSAGES.rate_limit,
-      isRetryable: true,
-      originalError: error,
+      userMessage: USER_ERROR_MESSAGES.RATE_LIMITED,
+      shouldRetry: true,
+      retryDelayMs: 5000, // 5 second delay for rate limits
     };
   }
 
@@ -86,54 +59,52 @@ export function classifyError(error: Error): ClassifiedError {
     message.includes("timeout")
   ) {
     return {
+      error,
       category: ErrorCategory.NETWORK,
-      userMessage: USER_ERROR_MESSAGES.network,
-      isRetryable: true,
-      originalError: error,
+      userMessage: USER_ERROR_MESSAGES.CONNECTION_ERROR,
+      shouldRetry: true,
     };
   }
 
   if (message.includes("slack") || message.includes("api")) {
     return {
+      error,
       category: ErrorCategory.API,
-      userMessage: USER_ERROR_MESSAGES.api,
-      isRetryable: true,
-      originalError: error,
+      userMessage: USER_ERROR_MESSAGES.API_ERROR,
+      shouldRetry: true,
     };
   }
 
   return {
+    error,
     category: ErrorCategory.UNKNOWN,
-    userMessage: USER_ERROR_MESSAGES.unknown,
-    isRetryable: false,
-    originalError: error,
+    userMessage: USER_ERROR_MESSAGES.UNKNOWN_ERROR,
+    shouldRetry: false,
   };
 }
 
 // =============================================================================
-// Safe Execution
+// Safe Execution Wrappers
 // =============================================================================
 
 /**
  * Execute a function safely, catching and logging errors
+ *
+ * Wrapper around @herdctl/chat's safeExecute that accepts SlackConnectorLogger.
  */
 export async function safeExecute<T>(
   fn: () => Promise<T>,
   logger: SlackConnectorLogger,
   context: string
 ): Promise<T | undefined> {
-  try {
-    return await fn();
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : String(error);
-    logger.error(`Error in ${context}: ${errorMessage}`);
-    return undefined;
-  }
+  return baseSafeExecute(fn, logger, context);
 }
 
 /**
  * Execute a function safely and reply with error message on failure
+ *
+ * Wrapper around @herdctl/chat's safeExecuteWithReply that accepts SlackConnectorLogger
+ * and uses the Slack-specific classifyError function.
  */
 export async function safeExecuteWithReply(
   fn: () => Promise<void>,

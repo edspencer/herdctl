@@ -17,6 +17,9 @@ export type {
   SDKMcpServerConfig,
   SDKSystemPrompt,
   ProcessedMessage,
+  InjectedMcpServerDef,
+  InjectedMcpToolDef,
+  McpToolCallResult,
 } from "./types.js";
 
 // Export error types and utilities

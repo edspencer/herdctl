@@ -6,7 +6,6 @@ import {
   checkDMUserFilter,
   findChannelConfig,
   resolveChannelConfig,
-  shouldProcessInMode,
   DEFAULT_DM_CONTEXT_MESSAGES,
   DEFAULT_CHANNEL_CONTEXT_MESSAGES,
 } from "../auto-mode-handler.js";
@@ -365,39 +364,6 @@ describe("resolveChannelConfig", () => {
     it("returns null for unconfigured guild", () => {
       const result = resolveChannelConfig("channel-1", "unknown-guild", guilds);
       expect(result).toBeNull();
-    });
-  });
-});
-
-// =============================================================================
-// shouldProcessInMode Tests
-// =============================================================================
-
-describe("shouldProcessInMode", () => {
-  describe("for bot messages", () => {
-    it("returns false in auto mode", () => {
-      expect(shouldProcessInMode(true, "auto", false)).toBe(false);
-    });
-
-    it("returns false in mention mode even when mentioned", () => {
-      expect(shouldProcessInMode(true, "mention", true)).toBe(false);
-    });
-  });
-
-  describe("in auto mode", () => {
-    it("returns true for non-bot messages regardless of mention", () => {
-      expect(shouldProcessInMode(false, "auto", false)).toBe(true);
-      expect(shouldProcessInMode(false, "auto", true)).toBe(true);
-    });
-  });
-
-  describe("in mention mode", () => {
-    it("returns true when mentioned", () => {
-      expect(shouldProcessInMode(false, "mention", true)).toBe(true);
-    });
-
-    it("returns false when not mentioned", () => {
-      expect(shouldProcessInMode(false, "mention", false)).toBe(false);
     });
   });
 });

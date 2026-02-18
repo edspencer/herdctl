@@ -1,10 +1,11 @@
 /**
- * Session manager for Slack channel conversations
+ * Session manager for chat channel conversations
  *
  * Provides per-channel session management for Claude conversations,
- * enabling conversation context preservation across Slack channels.
+ * enabling conversation context preservation across chat channels.
  *
- * Sessions are stored at .herdctl/slack-sessions/<agent-name>.yaml
+ * This implementation is shared between Discord, Slack, and other chat platforms.
+ * Sessions are stored at .herdctl/<platform>-sessions/<agent-name>.yaml
  */
 
 import { mkdir } from "node:fs/promises";
@@ -15,13 +16,13 @@ import { readFile, writeFile, rename, unlink } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { createLogger } from "@herdctl/core";
 import {
-  type SessionManagerOptions,
+  type ChatSessionManagerOptions,
   type SessionManagerLogger,
-  type ISessionManager,
+  type IChatSessionManager,
   type SessionResult,
   type ChannelSession,
-  type SlackSessionState,
-  SlackSessionStateSchema,
+  type ChatSessionState,
+  ChatSessionStateSchema,
   createInitialSessionState,
 } from "./types.js";
 import {
@@ -34,8 +35,11 @@ import {
 // Default Logger
 // =============================================================================
 
-function createDefaultLogger(agentName: string): SessionManagerLogger {
-  return createLogger(`slack-session:${agentName}`);
+function createDefaultLogger(
+  platform: string,
+  agentName: string
+): SessionManagerLogger {
+  return createLogger(`${platform}-session:${agentName}`);
 }
 
 // =============================================================================
@@ -43,15 +47,39 @@ function createDefaultLogger(agentName: string): SessionManagerLogger {
 // =============================================================================
 
 /**
- * SessionManager manages per-channel Claude sessions for a Slack agent.
+ * ChatSessionManager manages per-channel Claude sessions for a chat agent.
  *
- * Each agent has its own SessionManager instance, storing session mappings
- * in a YAML file at .herdctl/slack-sessions/<agent-name>.yaml
+ * Each agent has its own ChatSessionManager instance, storing session mappings
+ * in a YAML file at .herdctl/<platform>-sessions/<agent-name>.yaml
  *
- * Sessions are keyed by channelId (matching Discord's approach).
+ * Features:
+ * - Create new sessions for channels/DMs
+ * - Resume existing sessions when user sends messages
+ * - Automatic session expiry based on configurable timeout
+ * - Cleanup expired sessions on startup
+ *
+ * @example
+ * ```typescript
+ * const sessionManager = new ChatSessionManager({
+ *   platform: 'discord',
+ *   agentName: 'my-agent',
+ *   stateDir: '.herdctl',
+ *   sessionExpiryHours: 24,
+ * });
+ *
+ * // Get or create a session for a channel
+ * const { sessionId, isNew } = await sessionManager.getOrCreateSession('channel-123');
+ *
+ * // After sending/receiving a message
+ * await sessionManager.touchSession('channel-123');
+ *
+ * // Cleanup expired sessions on startup
+ * const cleanedUp = await sessionManager.cleanupExpiredSessions();
+ * ```
  */
-export class SessionManager implements ISessionManager {
+export class ChatSessionManager implements IChatSessionManager {
   public readonly agentName: string;
+  public readonly platform: string;
 
   private readonly stateDir: string;
   private readonly sessionExpiryHours: number;
@@ -59,19 +87,20 @@ export class SessionManager implements ISessionManager {
   private readonly stateFilePath: string;
 
   // In-memory cache of session state
-  private state: SlackSessionState | null = null;
+  private state: ChatSessionState | null = null;
 
-  constructor(options: SessionManagerOptions) {
+  constructor(options: ChatSessionManagerOptions) {
+    this.platform = options.platform;
     this.agentName = options.agentName;
     this.stateDir = options.stateDir;
     this.sessionExpiryHours = options.sessionExpiryHours ?? 24;
     this.logger =
-      options.logger ?? createDefaultLogger(options.agentName);
+      options.logger ?? createDefaultLogger(options.platform, options.agentName);
 
-    // Compute state file path
+    // Compute state file path: .herdctl/<platform>-sessions/<agent>.yaml
     this.stateFilePath = join(
       this.stateDir,
-      "slack-sessions",
+      `${this.platform}-sessions`,
       `${this.agentName}.yaml`
     );
   }
@@ -81,7 +110,10 @@ export class SessionManager implements ISessionManager {
   // ===========================================================================
 
   /**
-   * Get or create a session for a channel
+   * Get or create a session for a channel/DM
+   *
+   * If an active (non-expired) session exists, returns it.
+   * Otherwise, creates a new session with a generated session ID.
    */
   async getOrCreateSession(channelId: string): Promise<SessionResult> {
     const existingSession = await this.getSession(channelId);
@@ -142,6 +174,8 @@ export class SessionManager implements ISessionManager {
 
   /**
    * Get an existing session without creating one
+   *
+   * Returns null if no session exists or if the session is expired.
    */
   async getSession(channelId: string): Promise<ChannelSession | null> {
     const state = await this.loadState();
@@ -167,6 +201,8 @@ export class SessionManager implements ISessionManager {
 
   /**
    * Store or update the session ID for a channel
+   *
+   * Called after a job completes to store the SDK-provided session ID.
    */
   async setSession(channelId: string, sessionId: string): Promise<void> {
     const state = await this.loadState();
@@ -211,6 +247,8 @@ export class SessionManager implements ISessionManager {
 
   /**
    * Clean up all expired sessions
+   *
+   * Should be called on connector startup and periodically.
    */
   async cleanupExpiredSessions(): Promise<number> {
     const state = await this.loadState();
@@ -240,6 +278,8 @@ export class SessionManager implements ISessionManager {
 
   /**
    * Get the count of active (non-expired) sessions
+   *
+   * Useful for logging during shutdown to confirm sessions are preserved.
    */
   async getActiveSessionCount(): Promise<number> {
     const state = await this.loadState();
@@ -259,10 +299,17 @@ export class SessionManager implements ISessionManager {
   // Private Helpers
   // ===========================================================================
 
+  /**
+   * Generate a unique session ID
+   * Format: <platform>-<agentName>-<uuid>
+   */
   private generateSessionId(): string {
-    return `slack-${this.agentName}-${randomUUID()}`;
+    return `${this.platform}-${this.agentName}-${randomUUID()}`;
   }
 
+  /**
+   * Check if a session is expired
+   */
   private isSessionExpired(session: ChannelSession): boolean {
     const lastMessageAt = new Date(session.lastMessageAt);
     const now = new Date();
@@ -270,7 +317,13 @@ export class SessionManager implements ISessionManager {
     return now.getTime() - lastMessageAt.getTime() > expiryMs;
   }
 
-  private async loadState(): Promise<SlackSessionState> {
+  /**
+   * Load session state from disk
+   *
+   * Returns cached state if available, otherwise loads from file.
+   * Creates initial state if file doesn't exist.
+   */
+  private async loadState(): Promise<ChatSessionState> {
     if (this.state) {
       return this.state;
     }
@@ -281,21 +334,25 @@ export class SessionManager implements ISessionManager {
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
 
+      // File doesn't exist - create initial state
       if (code === "ENOENT") {
         this.state = createInitialSessionState(this.agentName);
         return this.state;
       }
 
+      // Other read errors are fatal
       throw new SessionStateReadError(this.agentName, this.stateFilePath, {
         cause: error as Error,
       });
     }
 
+    // Handle empty file
     if (content.trim() === "") {
       this.state = createInitialSessionState(this.agentName);
       return this.state;
     }
 
+    // Parse YAML - treat parse errors as corrupted state
     let parsed: unknown;
     try {
       parsed = parseYaml(content);
@@ -307,7 +364,8 @@ export class SessionManager implements ISessionManager {
       return this.state;
     }
 
-    const validated = SlackSessionStateSchema.safeParse(parsed);
+    // Validate against schema - treat validation errors as corrupted state
+    const validated = ChatSessionStateSchema.safeParse(parsed);
     if (!validated.success) {
       this.logger.warn("Corrupted session state file, creating fresh state", {
         error: validated.error.message,
@@ -320,11 +378,17 @@ export class SessionManager implements ISessionManager {
     return this.state;
   }
 
-  private async saveState(state: SlackSessionState): Promise<void> {
+  /**
+   * Save session state to disk atomically
+   */
+  private async saveState(state: ChatSessionState): Promise<void> {
+    // Ensure directory exists
     await this.ensureDirectoryExists();
 
+    // Update in-memory cache
     this.state = state;
 
+    // Write atomically
     const yamlContent = stringifyYaml(state, { indent: 2, lineWidth: 120 });
     const tempPath = this.generateTempPath(this.stateFilePath);
 
@@ -332,6 +396,7 @@ export class SessionManager implements ISessionManager {
       await writeFile(tempPath, yamlContent, "utf-8");
       await this.renameWithRetry(tempPath, this.stateFilePath);
     } catch (error) {
+      // Clean up temp file on failure
       try {
         await unlink(tempPath);
       } catch {
@@ -344,12 +409,16 @@ export class SessionManager implements ISessionManager {
     }
   }
 
+  /**
+   * Ensure the sessions directory exists
+   */
   private async ensureDirectoryExists(): Promise<void> {
     const dir = dirname(this.stateFilePath);
     try {
       await mkdir(dir, { recursive: true });
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
+      // EEXIST is fine - directory already exists
       if (code !== "EEXIST") {
         throw new SessionDirectoryCreateError(this.agentName, dir, {
           cause: error as Error,
@@ -358,6 +427,9 @@ export class SessionManager implements ISessionManager {
     }
   }
 
+  /**
+   * Generate a temp file path for atomic writes
+   */
   private generateTempPath(targetPath: string): string {
     const dir = dirname(targetPath);
     const random = randomBytes(8).toString("hex");
@@ -365,6 +437,9 @@ export class SessionManager implements ISessionManager {
     return join(dir, `.${filename}.tmp.${random}`);
   }
 
+  /**
+   * Rename with retry logic for Windows compatibility
+   */
   private async renameWithRetry(
     oldPath: string,
     newPath: string,
@@ -381,10 +456,12 @@ export class SessionManager implements ISessionManager {
         lastError = error as Error;
         const code = (error as NodeJS.ErrnoException).code;
 
+        // Only retry on Windows-specific errors
         if (code !== "EACCES" && code !== "EPERM") {
           throw error;
         }
 
+        // Don't delay on the last attempt
         if (attempt < maxRetries) {
           const delay = baseDelayMs * Math.pow(2, attempt);
           await new Promise((resolve) => setTimeout(resolve, delay));

@@ -1,7 +1,8 @@
 /**
- * Error classes for Discord session management
+ * Error classes for chat session management
  *
  * Provides typed errors for session persistence and retrieval failures.
+ * These error classes are shared between Discord, Slack, and other chat platforms.
  */
 
 /**

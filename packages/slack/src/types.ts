@@ -6,6 +6,7 @@
  */
 
 import type { EventEmitter } from "node:events";
+import type { IChatSessionManager } from "@herdctl/chat";
 
 // =============================================================================
 // Connection Status
@@ -93,7 +94,7 @@ export interface SlackConnectorOptions {
   channels: SlackChannelConfig[];
 
   /** Session manager for this agent */
-  sessionManager: ISlackSessionManager;
+  sessionManager: IChatSessionManager;
 
   /** Logger for connector operations */
   logger?: SlackConnectorLogger;
@@ -183,7 +184,7 @@ export interface ISlackConnector extends EventEmitter {
   readonly agentName: string;
 
   /** Session manager for this agent */
-  readonly sessionManager: ISlackSessionManager;
+  readonly sessionManager: IChatSessionManager;
 
   /** Connect to Slack via Socket Mode */
   connect(): Promise<void>;
@@ -213,37 +214,6 @@ export interface ISlackConnector extends EventEmitter {
     event: K,
     listener: (payload: SlackConnectorEventMap[K]) => void
   ): this;
-}
-
-// =============================================================================
-// Session Manager Interface (minimal for connector use)
-// =============================================================================
-
-/**
- * Session manager interface for Slack
- *
- * Keyed by channelId (matching Discord's approach).
- */
-export interface ISlackSessionManager {
-  readonly agentName: string;
-
-  getOrCreateSession(
-    channelId: string
-  ): Promise<{ sessionId: string; isNew: boolean }>;
-
-  getSession(
-    channelId: string
-  ): Promise<{ sessionId: string; lastMessageAt: string } | null>;
-
-  setSession(channelId: string, sessionId: string): Promise<void>;
-
-  touchSession(channelId: string): Promise<void>;
-
-  clearSession(channelId: string): Promise<boolean>;
-
-  cleanupExpiredSessions(): Promise<number>;
-
-  getActiveSessionCount(): Promise<number>;
 }
 
 // =============================================================================

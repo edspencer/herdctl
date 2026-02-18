@@ -14,15 +14,13 @@ import type { Scheduler } from "../scheduler/index.js";
 import type {
   FleetStatus,
   AgentInfo,
-  AgentDiscordStatus,
-  AgentSlackStatus,
+  AgentChatStatus,
   ScheduleInfo,
   FleetCounts,
 } from "./types.js";
 import type { FleetManagerContext } from "./context.js";
 import { AgentNotFoundError } from "./errors.js";
-import type { DiscordManager } from "./discord-manager.js";
-import type { SlackManager } from "./slack-manager.js";
+import type { IChatManager } from "./chat-manager-interface.js";
 
 // =============================================================================
 // Fleet State Snapshot Type
@@ -129,7 +127,7 @@ export class StatusQueries {
    * - Current status and job information
    * - Schedule details with runtime state
    * - Configuration details
-   * - Discord connection state (if configured)
+   * - Chat connection state (if configured)
    *
    * This method works whether the fleet is running or stopped.
    *
@@ -142,15 +140,12 @@ export class StatusQueries {
     // Read fleet state for runtime information
     const fleetState = await this.readFleetStateSnapshot();
 
-    // Get Discord manager for connection status
-    const discordManager = this.ctx.getDiscordManager?.() as DiscordManager | undefined;
-
-    // Get Slack manager for connection status
-    const slackManager = this.ctx.getSlackManager?.() as SlackManager | undefined;
+    // Get chat managers for connection status
+    const chatManagers = this.ctx.getChatManagers?.() ?? new Map<string, IChatManager>();
 
     return agents.map((agent) => {
       const agentState = fleetState.agents[agent.name];
-      return buildAgentInfo(agent, agentState, this.ctx.getScheduler(), discordManager, slackManager);
+      return buildAgentInfo(agent, agentState, this.ctx.getScheduler(), chatManagers);
     });
   }
 
@@ -161,7 +156,7 @@ export class StatusQueries {
    * - Current status and job information
    * - Schedule details with runtime state
    * - Configuration details
-   * - Discord connection state (if configured)
+   * - Chat connection state (if configured)
    *
    * This method works whether the fleet is running or stopped.
    *
@@ -182,13 +177,10 @@ export class StatusQueries {
     const fleetState = await this.readFleetStateSnapshot();
     const agentState = fleetState.agents[name];
 
-    // Get Discord manager for connection status
-    const discordManager = this.ctx.getDiscordManager?.() as DiscordManager | undefined;
+    // Get chat managers for connection status
+    const chatManagers = this.ctx.getChatManagers?.() ?? new Map<string, IChatManager>();
 
-    // Get Slack manager for connection status
-    const slackManager = this.ctx.getSlackManager?.() as SlackManager | undefined;
-
-    return buildAgentInfo(agent, agentState, this.ctx.getScheduler(), discordManager, slackManager);
+    return buildAgentInfo(agent, agentState, this.ctx.getScheduler(), chatManagers);
   }
 }
 
@@ -202,15 +194,14 @@ export class StatusQueries {
  * @param agent - Resolved agent configuration
  * @param agentState - Runtime agent state (optional)
  * @param scheduler - Scheduler instance for running job counts (optional)
- * @param discordManager - Discord manager for connection status (optional)
+ * @param chatManagers - Map of chat managers for connection status (optional)
  * @returns Complete AgentInfo object
  */
 export function buildAgentInfo(
   agent: ResolvedAgent,
   agentState?: AgentState,
   scheduler?: Scheduler | null,
-  discordManager?: DiscordManager,
-  slackManager?: SlackManager
+  chatManagers?: Map<string, IChatManager>
 ): AgentInfo {
   // Build schedule info
   const schedules = buildScheduleInfoList(agent, agentState);
@@ -226,11 +217,8 @@ export function buildAgentInfo(
     working_directory = agent.working_directory.root;
   }
 
-  // Build Discord status
-  const discord = buildDiscordStatus(agent, discordManager);
-
-  // Build Slack status
-  const slack = buildSlackStatus(agent, slackManager);
+  // Build chat status for all platforms
+  const chat = buildChatStatuses(agent, chatManagers);
 
   return {
     name: agent.name,
@@ -245,72 +233,31 @@ export function buildAgentInfo(
     schedules,
     model: agent.model,
     working_directory,
-    discord,
-    slack,
+    chat,
   };
 }
 
 /**
- * Build Discord status for an agent
+ * Build chat status for a single platform
  *
- * @param agent - Resolved agent configuration
- * @param discordManager - Discord manager instance (optional)
- * @returns AgentDiscordStatus object
+ * @param platform - Platform name (e.g., "discord", "slack")
+ * @param manager - Chat manager instance
+ * @param agentName - Agent name to get status for
+ * @returns AgentChatStatus object
  */
-function buildDiscordStatus(
-  agent: ResolvedAgent,
-  discordManager?: DiscordManager
-): AgentDiscordStatus | undefined {
-  // Check if agent has Discord configured
-  const hasDiscordConfig = agent.chat?.discord !== undefined;
-
-  if (!hasDiscordConfig) {
-    return undefined;
-  }
-
-  // Get connector state if available
-  const connector = discordManager?.getConnector(agent.name);
-  if (!connector) {
+function buildChatStatus(
+  platform: string,
+  manager: IChatManager,
+  agentName: string
+): AgentChatStatus {
+  if (!manager.hasAgent(agentName)) {
     return {
       configured: true,
       connectionStatus: "disconnected",
     };
   }
 
-  const state = connector.getState();
-  return {
-    configured: true,
-    connectionStatus: state.status,
-    botUsername: state.botUser?.username,
-    lastError: state.lastError ?? undefined,
-  };
-}
-
-/**
- * Build Slack status for an agent
- *
- * @param agent - Resolved agent configuration
- * @param slackManager - Slack manager instance (optional)
- * @returns AgentSlackStatus object
- */
-function buildSlackStatus(
-  agent: ResolvedAgent,
-  slackManager?: SlackManager
-): AgentSlackStatus | undefined {
-  const hasSlackConfig = agent.chat?.slack !== undefined;
-
-  if (!hasSlackConfig) {
-    return undefined;
-  }
-
-  if (!slackManager || !slackManager.hasAgent(agent.name)) {
-    return {
-      configured: true,
-      connectionStatus: "disconnected",
-    };
-  }
-
-  const state = slackManager.getState(agent.name);
+  const state = manager.getState(agentName);
   if (!state) {
     return {
       configured: true,
@@ -324,6 +271,44 @@ function buildSlackStatus(
     botUsername: state.botUser?.username,
     lastError: state.lastError ?? undefined,
   };
+}
+
+/**
+ * Build chat statuses for all configured platforms
+ *
+ * @param agent - Resolved agent configuration
+ * @param chatManagers - Map of platform name to chat manager
+ * @returns Record of platform name to chat status, or undefined if no chat configured
+ */
+function buildChatStatuses(
+  agent: ResolvedAgent,
+  chatManagers?: Map<string, IChatManager>
+): Record<string, AgentChatStatus> | undefined {
+  // Map of platform config keys to check
+  const platformConfigs: Record<string, unknown> = {
+    discord: agent.chat?.discord,
+    slack: agent.chat?.slack,
+  };
+
+  const result: Record<string, AgentChatStatus> = {};
+  let hasAny = false;
+
+  for (const [platform, config] of Object.entries(platformConfigs)) {
+    if (config !== undefined) {
+      hasAny = true;
+      const manager = chatManagers?.get(platform);
+      if (manager) {
+        result[platform] = buildChatStatus(platform, manager, agent.name);
+      } else {
+        result[platform] = {
+          configured: true,
+          connectionStatus: "disconnected",
+        };
+      }
+    }
+  }
+
+  return hasAny ? result : undefined;
 }
 
 /**

@@ -4,7 +4,8 @@ import {
   type PrefixCommand,
   type CommandContext,
 } from "../commands/command-handler.js";
-import type { SlackConnectorState, ISlackSessionManager } from "../types.js";
+import type { IChatSessionManager } from "@herdctl/chat";
+import type { SlackConnectorState } from "../types.js";
 
 const createMockContext = (
   overrides: Partial<CommandContext> = {}
@@ -14,6 +15,7 @@ const createMockContext = (
   userId: "U0123456789",
   reply: vi.fn().mockResolvedValue(undefined),
   sessionManager: {
+    agentName: "test-agent",
     getOrCreateSession: vi.fn(),
     touchSession: vi.fn(),
     getSession: vi.fn(),
@@ -21,7 +23,7 @@ const createMockContext = (
     clearSession: vi.fn(),
     cleanupExpiredSessions: vi.fn(),
     getActiveSessionCount: vi.fn(),
-  } as unknown as ISlackSessionManager,
+  } as unknown as IChatSessionManager,
   connectorState: {
     status: "connected",
     botUser: { id: "UBOT", username: "test-bot" },

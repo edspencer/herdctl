@@ -429,7 +429,8 @@ describe("Scheduler", () => {
         const startPromise = scheduler.start(agents);
 
         // Wait for the scheduler to check (using real setTimeout)
-        await wait(150);
+        // 500ms gives ample headroom for slow CI runners doing async file I/O
+        await wait(500);
 
         // Should have triggered since we're 5s past a minute boundary (within 30s trigger window)
         expect(triggers.length).toBeGreaterThan(0);

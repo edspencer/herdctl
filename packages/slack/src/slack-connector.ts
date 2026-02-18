@@ -11,6 +11,7 @@
  */
 
 import { EventEmitter } from "node:events";
+import type { IChatSessionManager } from "@herdctl/chat";
 import type {
   SlackConnectorOptions,
   SlackConnectorState,
@@ -20,7 +21,6 @@ import type {
   SlackChannelConfig,
   SlackFileUploadParams,
   ISlackConnector,
-  ISlackSessionManager,
   SlackConnectorEventMap,
   SlackConnectorEventName,
 } from "./types.js";
@@ -45,7 +45,7 @@ import { createDefaultSlackLogger } from "./logger.js";
 
 export class SlackConnector extends EventEmitter implements ISlackConnector {
   public readonly agentName: string;
-  public readonly sessionManager: ISlackSessionManager;
+  public readonly sessionManager: IChatSessionManager;
 
   private readonly botToken: string;
   private readonly appToken: string;

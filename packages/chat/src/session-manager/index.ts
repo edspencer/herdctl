@@ -1,22 +1,23 @@
 /**
- * Session manager module for Slack
+ * Session manager module for chat platforms
  *
  * Provides per-channel session management for Claude conversations.
+ * This module is shared between Discord, Slack, and other chat platforms.
  */
 
-export { SessionManager } from "./session-manager.js";
+export { ChatSessionManager } from "./session-manager.js";
 
 export {
   // Schemas
   ChannelSessionSchema,
-  SlackSessionStateSchema,
+  ChatSessionStateSchema,
   // Types
   type ChannelSession,
-  type SlackSessionState,
+  type ChatSessionState,
   type SessionManagerLogger,
-  type SessionManagerOptions,
+  type ChatSessionManagerOptions,
   type SessionResult,
-  type ISessionManager,
+  type IChatSessionManager,
   // Factory functions
   createInitialSessionState,
   createChannelSession,

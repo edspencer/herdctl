@@ -1,8 +1,10 @@
 /**
- * Type definitions for Discord session management
+ * Type definitions for chat session management
  *
  * Provides interfaces for per-channel session state tracking,
- * enabling conversation context preservation across Discord channels.
+ * enabling conversation context preservation across chat channels.
+ *
+ * This module is shared between Discord, Slack, and other chat platforms.
  */
 
 import { z } from "zod";
@@ -12,7 +14,7 @@ import { z } from "zod";
 // =============================================================================
 
 /**
- * Schema for individual channel/DM session mapping
+ * Schema for individual channel session mapping
  */
 export const ChannelSessionSchema = z.object({
   /** Claude session ID for resuming conversations */
@@ -25,18 +27,26 @@ export const ChannelSessionSchema = z.object({
 });
 
 /**
- * Schema for the entire agent's Discord session state file
+ * Schema for the entire agent's chat session state file
  *
- * Stored at .herdctl/discord-sessions/<agent-name>.yaml
+ * Stored at .herdctl/<platform>-sessions/<agent-name>.yaml
+ * For example:
+ *   - .herdctl/discord-sessions/my-agent.yaml
+ *   - .herdctl/slack-sessions/my-agent.yaml
  */
-export const DiscordSessionStateSchema = z.object({
-  /** Version for future schema migrations */
-  version: z.literal(1),
+export const ChatSessionStateSchema = z.object({
+  /**
+   * Schema version. Accepts 1, 2, and 3 — all have identical structure.
+   * (1 was Discord's original, 2 was Slack's, 3 was a mistaken bump.)
+   * Only increment this when the schema shape actually changes, and add
+   * migration logic to handle older versions.
+   */
+  version: z.union([z.literal(1), z.literal(2), z.literal(3)]),
 
   /** Agent name this session state belongs to */
   agentName: z.string().min(1, "Agent name cannot be empty"),
 
-  /** Map of channel/DM ID to session info */
+  /** Map of channel ID to session info */
   channels: z.record(z.string(), ChannelSessionSchema),
 });
 
@@ -45,7 +55,7 @@ export const DiscordSessionStateSchema = z.object({
 // =============================================================================
 
 export type ChannelSession = z.infer<typeof ChannelSessionSchema>;
-export type DiscordSessionState = z.infer<typeof DiscordSessionStateSchema>;
+export type ChatSessionState = z.infer<typeof ChatSessionStateSchema>;
 
 // =============================================================================
 // Session Manager Options
@@ -62,9 +72,15 @@ export interface SessionManagerLogger {
 }
 
 /**
- * Options for configuring the SessionManager
+ * Options for configuring the ChatSessionManager
  */
-export interface SessionManagerOptions {
+export interface ChatSessionManagerOptions {
+  /**
+   * Platform identifier (e.g., "discord", "slack")
+   * Used to compute storage path and session ID prefix
+   */
+  platform: string;
+
   /**
    * Name of the agent this session manager is for
    */
@@ -72,7 +88,7 @@ export interface SessionManagerOptions {
 
   /**
    * Root path for state storage (e.g., .herdctl)
-   * Sessions will be stored at <stateDir>/discord-sessions/<agent-name>.yaml
+   * Sessions will be stored at <stateDir>/<platform>-sessions/<agent-name>.yaml
    */
   stateDir: string;
 
@@ -87,7 +103,7 @@ export interface SessionManagerOptions {
   /**
    * Logger for session manager operations
    *
-   * @default console-based logger
+   * @default console-based logger using createLogger from @herdctl/core
    */
   logger?: SessionManagerLogger;
 }
@@ -108,16 +124,16 @@ export interface SessionResult {
 }
 
 /**
- * Interface that all session managers must implement
+ * Interface that all chat session managers must implement
  */
-export interface ISessionManager {
+export interface IChatSessionManager {
   /**
-   * Get or create a session for a channel/DM
+   * Get or create a session for a channel
    *
    * If an active (non-expired) session exists, returns it.
    * Otherwise, creates a new session.
    *
-   * @param channelId - Discord channel or DM ID
+   * @param channelId - Channel or DM ID
    * @returns Session info with sessionId and isNew flag
    */
   getOrCreateSession(channelId: string): Promise<SessionResult>;
@@ -127,7 +143,7 @@ export interface ISessionManager {
    *
    * Called after each message to keep the session active.
    *
-   * @param channelId - Discord channel or DM ID
+   * @param channelId - Channel or DM ID
    */
   touchSession(channelId: string): Promise<void>;
 
@@ -136,7 +152,7 @@ export interface ISessionManager {
    *
    * Returns null if no session exists or if the session is expired.
    *
-   * @param channelId - Discord channel or DM ID
+   * @param channelId - Channel or DM ID
    * @returns The session if it exists and is not expired, null otherwise
    */
   getSession(channelId: string): Promise<ChannelSession | null>;
@@ -148,7 +164,7 @@ export interface ISessionManager {
    * This enables conversation continuity by allowing subsequent requests
    * to resume from this session.
    *
-   * @param channelId - Discord channel or DM ID
+   * @param channelId - Channel or DM ID
    * @param sessionId - The Claude Agent SDK session ID
    */
   setSession(channelId: string, sessionId: string): Promise<void>;
@@ -156,7 +172,7 @@ export interface ISessionManager {
   /**
    * Clear a specific session
    *
-   * @param channelId - Discord channel or DM ID
+   * @param channelId - Channel or DM ID
    * @returns true if the session was cleared, false if it didn't exist
    */
   clearSession(channelId: string): Promise<boolean>;
@@ -183,6 +199,11 @@ export interface ISessionManager {
    * Name of the agent this session manager is for
    */
   readonly agentName: string;
+
+  /**
+   * Platform identifier this session manager is for
+   */
+  readonly platform: string;
 }
 
 // =============================================================================
@@ -194,7 +215,7 @@ export interface ISessionManager {
  */
 export function createInitialSessionState(
   agentName: string
-): DiscordSessionState {
+): ChatSessionState {
   return {
     version: 1,
     agentName,

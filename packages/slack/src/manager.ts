@@ -7,267 +7,63 @@
  * - Managing connector lifecycle (start/stop)
  * - Providing access to connectors for status queries
  *
- * Note: This module dynamically imports @herdctl/slack at runtime to avoid
- * a hard dependency. The @herdctl/core package can be used without Slack support.
- *
- * @module slack-manager
+ * @module manager
  */
 
-import type { FleetManagerContext } from "./context.js";
-import type { ResolvedAgent } from "../config/index.js";
-import { createFileSenderDef, type FileSenderContext } from "../runner/file-sender-mcp.js";
-import type { InjectedMcpServerDef } from "../runner/types.js";
-import { resolveWorkingDirectory } from "./working-directory-helper.js";
+import type {
+  FleetManagerContext,
+  IChatManager,
+  ChatManagerConnectorState,
+  TriggerOptions,
+  TriggerResult,
+  ResolvedAgent,
+  InjectedMcpServerDef,
+} from "@herdctl/core";
+import {
+  createFileSenderDef,
+  type FileSenderContext,
+} from "@herdctl/core";
+import {
+  StreamingResponder,
+  extractMessageContent,
+  splitMessage,
+  ChatSessionManager,
+  type ChatConnectorLogger,
+} from "@herdctl/chat";
 
-// =============================================================================
-// Local Type Definitions
-// =============================================================================
-
-/**
- * Slack connection status (mirrors @herdctl/slack types)
- */
-export type SlackConnectionStatus =
-  | "disconnected"
-  | "connecting"
-  | "connected"
-  | "reconnecting"
-  | "disconnecting"
-  | "error";
-
-/**
- * Slack connector state (mirrors @herdctl/slack types)
- */
-export interface SlackConnectorState {
-  status: SlackConnectionStatus;
-  connectedAt: string | null;
-  disconnectedAt: string | null;
-  reconnectAttempts: number;
-  lastError: string | null;
-  botUser: {
-    id: string;
-    username: string;
-  } | null;
-  messageStats: {
-    received: number;
-    sent: number;
-    ignored: number;
-  };
-}
-
-/**
- * Message event payload from SlackConnector
- */
-export interface SlackMessageEvent {
-  agentName: string;
-  prompt: string;
-  metadata: {
-    channelId: string;
-    messageTs: string;
-    userId: string;
-    wasMentioned: boolean;
-  };
-  reply: (content: string) => Promise<void>;
-  startProcessingIndicator: () => () => void;
-}
-
-/**
- * Error event payload from SlackConnector
- */
-export interface SlackErrorEvent {
-  agentName: string;
-  error: Error;
-}
-
-/**
- * Logger interface for Slack operations
- */
-interface SlackLogger {
-  debug(message: string, data?: Record<string, unknown>): void;
-  info(message: string, data?: Record<string, unknown>): void;
-  warn(message: string, data?: Record<string, unknown>): void;
-  error(message: string, data?: Record<string, unknown>): void;
-}
-
-/**
- * Minimal interface for a Slack connector
- */
-interface ISlackConnector {
-  readonly agentName: string;
-  readonly sessionManager: ISlackSessionManager;
-  connect(): Promise<void>;
-  disconnect(): Promise<void>;
-  isConnected(): boolean;
-  getState(): SlackConnectorState;
-  uploadFile(params: {
-    channelId: string;
-    fileBuffer: Buffer;
-    filename: string;
-    message?: string;
-  }): Promise<{ fileId: string }>;
-  on(event: "message", listener: (payload: SlackMessageEvent) => void): this;
-  on(event: "error", listener: (payload: SlackErrorEvent) => void): this;
-  on(event: "ready", listener: (payload: { agentName: string; botUser: { id: string; username: string } }) => void): this;
-  on(event: "disconnect", listener: (payload: { agentName: string; reason: string }) => void): this;
-  on(event: string, listener: (...args: unknown[]) => void): this;
-  off(event: string, listener: (...args: unknown[]) => void): this;
-}
-
-/**
- * Session manager interface for Slack (minimal for our needs)
- */
-interface ISlackSessionManager {
-  readonly agentName: string;
-  getOrCreateSession(channelId: string): Promise<{ sessionId: string; isNew: boolean }>;
-  getSession(channelId: string): Promise<{ sessionId: string; lastMessageAt: string } | null>;
-  setSession(channelId: string, sessionId: string): Promise<void>;
-  touchSession(channelId: string): Promise<void>;
-  clearSession(channelId: string): Promise<boolean>;
-  cleanupExpiredSessions(): Promise<number>;
-  getActiveSessionCount(): Promise<number>;
-}
-
-/**
- * Dynamically imported Slack module structure
- */
-interface SlackModule {
-  SlackConnector: new (options: {
-    agentName: string;
-    botToken: string;
-    appToken: string;
-    channels: Array<{ id: string; mode?: "mention" | "auto" }>;
-    sessionManager: ISlackSessionManager;
-    logger?: SlackLogger;
-  }) => ISlackConnector;
-  SessionManager: new (options: {
-    agentName: string;
-    stateDir: string;
-    sessionExpiryHours?: number;
-    logger?: SlackLogger;
-  }) => ISlackSessionManager;
-}
-
-/**
- * Lazy import the Slack package to avoid hard dependency
- */
-async function importSlackPackage(): Promise<SlackModule | null> {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pkg = (await import("@herdctl/slack" as string)) as unknown as SlackModule;
-    return pkg;
-  } catch {
-    return null;
-  }
-}
-
-// =============================================================================
-// Streaming Responder (adapted for Slack mrkdwn)
-// =============================================================================
-
-interface StreamingResponderOptions {
-  reply: (content: string) => Promise<void>;
-  splitResponse: (text: string) => string[];
-  logger: SlackLogger;
-  agentName: string;
-  minMessageInterval?: number;
-  maxBufferSize?: number;
-}
-
-class StreamingResponder {
-  private buffer: string = "";
-  private lastSendTime: number = 0;
-  private messagesSent: number = 0;
-  private readonly reply: (content: string) => Promise<void>;
-  private readonly splitResponse: (text: string) => string[];
-  private readonly logger: SlackLogger;
-  private readonly agentName: string;
-  private readonly minMessageInterval: number;
-  private readonly maxBufferSize: number;
-
-  constructor(options: StreamingResponderOptions) {
-    this.reply = options.reply;
-    this.splitResponse = options.splitResponse;
-    this.logger = options.logger;
-    this.agentName = options.agentName;
-    this.minMessageInterval = options.minMessageInterval ?? 1000;
-    this.maxBufferSize = options.maxBufferSize ?? 3500; // Leave room for Slack's ~4K practical limit
-  }
-
-  async addMessageAndSend(content: string): Promise<void> {
-    if (!content || content.trim().length === 0) {
-      return;
-    }
-
-    this.buffer += content;
-    await this.sendAll();
-  }
-
-  private async sendAll(): Promise<void> {
-    if (this.buffer.trim().length === 0) {
-      return;
-    }
-
-    const content = this.buffer.trim();
-    this.buffer = "";
-
-    const now = Date.now();
-    const timeSinceLastSend = now - this.lastSendTime;
-    if (timeSinceLastSend < this.minMessageInterval && this.lastSendTime > 0) {
-      const waitTime = this.minMessageInterval - timeSinceLastSend;
-      await this.sleep(waitTime);
-    }
-
-    const chunks = this.splitResponse(content);
-
-    for (const chunk of chunks) {
-      try {
-        await this.reply(chunk);
-        this.messagesSent++;
-        this.lastSendTime = Date.now();
-        this.logger.debug(`Streamed message to Slack`, {
-          agentName: this.agentName,
-          chunkLength: chunk.length,
-          totalSent: this.messagesSent,
-        });
-
-        if (chunks.length > 1) {
-          await this.sleep(500);
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        this.logger.error(`Failed to send Slack message`, {
-          agentName: this.agentName,
-          error: errorMessage,
-        });
-        throw error;
-      }
-    }
-  }
-
-  async flush(): Promise<void> {
-    await this.sendAll();
-  }
-
-  hasSentMessages(): boolean {
-    return this.messagesSent > 0;
-  }
-
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-}
+import { SlackConnector } from "./slack-connector.js";
+import { markdownToMrkdwn } from "./formatting.js";
+import type {
+  SlackConnectorState,
+  SlackMessageEvent,
+  SlackConnectorEventMap,
+} from "./types.js";
 
 // =============================================================================
 // Slack Manager
 // =============================================================================
 
 /**
+ * Message event payload from SlackConnector
+ */
+type SlackMessageEventType = SlackConnectorEventMap["message"];
+
+/**
+ * Error event payload from SlackConnector
+ */
+type SlackErrorEvent = SlackConnectorEventMap["error"];
+
+/**
  * SlackManager handles Slack connections for agents
  *
  * This class encapsulates the creation and lifecycle management of
  * SlackConnector instances for agents that have Slack chat configured.
+ *
+ * Implements IChatManager so FleetManager can interact with it through
+ * the generic chat manager interface.
  */
-export class SlackManager {
-  private connectors: Map<string, ISlackConnector> = new Map();
+export class SlackManager implements IChatManager {
+  private connectors: Map<string, SlackConnector> = new Map();
   private initialized: boolean = false;
 
   constructor(private ctx: FleetManagerContext) {}
@@ -276,9 +72,8 @@ export class SlackManager {
    * Initialize Slack connectors for all configured agents
    *
    * This method:
-   * 1. Checks if @herdctl/slack package is available
-   * 2. Iterates through agents to find those with Slack configured
-   * 3. Creates a SlackConnector for each Slack-enabled agent
+   * 1. Iterates through agents to find those with Slack configured
+   * 2. Creates a SlackConnector for each Slack-enabled agent
    *
    * Should be called during FleetManager initialization.
    */
@@ -295,14 +90,6 @@ export class SlackManager {
       return;
     }
 
-    // Try to import the slack package
-    const slackPkg = await importSlackPackage();
-    if (!slackPkg) {
-      logger.debug("@herdctl/slack not installed, skipping Slack connectors");
-      return;
-    }
-
-    const { SlackConnector, SessionManager } = slackPkg;
     const stateDir = this.ctx.getStateDir();
 
     // Find agents with Slack configured
@@ -343,7 +130,7 @@ export class SlackManager {
         }
 
         // Create logger adapter for this agent
-        const createAgentLogger = (prefix: string): SlackLogger => ({
+        const createAgentLogger = (prefix: string): ChatConnectorLogger => ({
           debug: (msg: string, data?: Record<string, unknown>) =>
             logger.debug(`${prefix} ${msg}${data ? ` ${JSON.stringify(data)}` : ""}`),
           info: (msg: string, data?: Record<string, unknown>) =>
@@ -355,14 +142,15 @@ export class SlackManager {
         });
 
         // Create session manager for this agent
-        const sessionManager = new SessionManager({
+        const sessionManager = new ChatSessionManager({
+          platform: "slack",
           agentName: agent.name,
           stateDir,
           sessionExpiryHours: slackConfig.session_expiry_hours,
           logger: createAgentLogger(`[slack:${agent.name}:session]`),
         });
 
-        // Create the connector with per-agent options
+        // Create the connector
         const connector = new SlackConnector({
           agentName: agent.name,
           botToken,
@@ -405,7 +193,7 @@ export class SlackManager {
 
     for (const [agentName, connector] of this.connectors) {
       // Subscribe to connector events before connecting
-      connector.on("message", (event: SlackMessageEvent) => {
+      connector.on("message", (event: SlackMessageEventType) => {
         this.handleMessage(agentName, event).catch((error: unknown) => {
           this.handleError(agentName, error);
         });
@@ -487,7 +275,7 @@ export class SlackManager {
    * @param agentName - Name of the agent
    * @returns The SlackConnector instance, or undefined if not found
    */
-  getConnector(agentName: string): ISlackConnector | undefined {
+  getConnector(agentName: string): SlackConnector | undefined {
     return this.connectors.get(agentName);
   }
 
@@ -512,29 +300,70 @@ export class SlackManager {
   }
 
   /**
+   * Check if the manager has been initialized
+   */
+  isInitialized(): boolean {
+    return this.initialized;
+  }
+
+  /**
    * Check if a specific agent has a Slack connector
    *
    * @param agentName - Name of the agent
    * @returns true if the agent has a Slack connector
+   */
+  hasConnector(agentName: string): boolean {
+    return this.connectors.has(agentName);
+  }
+
+  /**
+   * Check if a specific agent has a connector (alias for hasConnector)
+   *
+   * @param agentName - Name of the agent
+   * @returns true if the agent has a connector
    */
   hasAgent(agentName: string): boolean {
     return this.connectors.has(agentName);
   }
 
   /**
-   * Get the state of a specific connector
+   * Get the state of a connector for a specific agent
    *
    * @param agentName - Name of the agent
-   * @returns The connector state, or null if not found
+   * @returns The connector state, or undefined if not found
    */
-  getState(agentName: string): SlackConnectorState | null {
-    return this.connectors.get(agentName)?.getState() ?? null;
+  getState(agentName: string): ChatManagerConnectorState | undefined {
+    const connector = this.connectors.get(agentName);
+    if (!connector) return undefined;
+
+    const state = connector.getState();
+    return {
+      status: state.status,
+      connectedAt: state.connectedAt,
+      disconnectedAt: state.disconnectedAt,
+      reconnectAttempts: state.reconnectAttempts,
+      lastError: state.lastError,
+      botUser: state.botUser ? { id: state.botUser.id, username: state.botUser.username } : null,
+      messageStats: state.messageStats,
+    };
   }
 
   // ===========================================================================
   // Message Handling Pipeline
   // ===========================================================================
 
+  /**
+   * Handle an incoming Slack message
+   *
+   * This method:
+   * 1. Gets or creates a session for the channel
+   * 2. Builds job context from the message
+   * 3. Executes the job via trigger
+   * 4. Sends the response back to Slack
+   *
+   * @param agentName - Name of the agent handling the message
+   * @param event - The Slack message event
+   */
   private async handleMessage(
     agentName: string,
     event: SlackMessageEvent
@@ -585,7 +414,7 @@ export class SlackManager {
 
     // Create file sender definition for this message context
     let injectedMcpServers: Record<string, InjectedMcpServerDef> | undefined;
-    const workingDir = resolveWorkingDirectory(agent);
+    const workingDir = this.resolveWorkingDirectory(agent);
     if (connector && workingDir) {
       const agentConnector = connector;
       const fileSenderContext: FileSenderContext = {
@@ -603,12 +432,14 @@ export class SlackManager {
       injectedMcpServers = { [fileSenderDef.name]: fileSenderDef };
     }
 
-    // Create streaming responder
+    // Create streaming responder for incremental message delivery
     const streamer = new StreamingResponder({
-      reply: event.reply,
-      splitResponse: (text) => this.splitResponse(text),
-      logger,
+      reply: (content: string) => event.reply(markdownToMrkdwn(content)),
+      logger: logger as ChatConnectorLogger,
       agentName,
+      maxMessageLength: 4000, // Slack's limit
+      maxBufferSize: 3500,
+      platformName: "Slack",
     });
 
     // Start processing indicator (hourglass emoji)
@@ -616,53 +447,49 @@ export class SlackManager {
     let processingStopped = false;
 
     try {
-      const fleetManager = emitter as unknown as {
-        trigger: (
-          agentName: string,
-          scheduleName?: string,
-          options?: {
-            prompt?: string;
-            resume?: string | null;
-            injectedMcpServers?: Record<string, InjectedMcpServerDef>;
-            onMessage?: (message: { type: string; content?: string; message?: { content?: unknown } }) => void | Promise<void>;
-          }
-        ) => Promise<import("./types.js").TriggerResult>;
-      };
-
-      const result = await fleetManager.trigger(agentName, undefined, {
+      // Execute job via FleetManager.trigger() through the context
+      // Pass resume option for conversation continuity
+      // The onMessage callback streams output incrementally to Slack
+      const result = await this.ctx.trigger(agentName, undefined, {
         prompt: event.prompt,
         resume: existingSessionId,
         injectedMcpServers,
         onMessage: async (message) => {
+          // Extract text content from assistant messages and stream to Slack
           if (message.type === "assistant") {
-            const content = this.extractMessageContent(message);
+            // Cast to the SDKMessage shape expected by extractMessageContent
+            const sdkMessage = message as unknown as Parameters<typeof extractMessageContent>[0];
+            const content = extractMessageContent(sdkMessage);
             if (content) {
+              // Each assistant message is a complete turn - send immediately
               await streamer.addMessageAndSend(content);
             }
           }
         },
-      });
+      } as TriggerOptions);
 
-      // Stop processing indicator
+      // Stop processing indicator immediately after SDK execution completes
       if (!processingStopped) {
         stopProcessing();
         processingStopped = true;
       }
 
-      // Flush remaining content
+      // Flush any remaining buffered content
       await streamer.flush();
 
       logger.info(`Slack job completed: ${result.jobId} for agent '${agentName}'${result.sessionId ? ` (session: ${result.sessionId})` : ""}`);
 
-      // Fallback message if nothing was sent
+      // If no messages were sent, send an appropriate fallback
       if (!streamer.hasSentMessages()) {
         if (result.success) {
           await event.reply("I've completed the task, but I don't have a specific response to share.");
         } else {
+          // Job failed without streaming any messages - send error details
           const errorMessage = result.errorDetails?.message ?? result.error?.message ?? "An unknown error occurred";
           await event.reply(`*Error:* ${errorMessage}\n\nThe task could not be completed. Please check the logs for more details.`);
         }
 
+        // Stop processing after sending fallback message (if not already stopped)
         if (!processingStopped) {
           stopProcessing();
           processingStopped = true;
@@ -674,10 +501,7 @@ export class SlackManager {
       if (connector && result.sessionId && result.success) {
         const isNewSession = existingSessionId === null;
         try {
-          await connector.sessionManager.setSession(
-            event.metadata.channelId,
-            result.sessionId
-          );
+          await connector.sessionManager.setSession(event.metadata.channelId, result.sessionId);
           logger.debug(`Stored session ${result.sessionId} for channel ${event.metadata.channelId}`);
 
           if (isNewSession) {
@@ -709,12 +533,14 @@ export class SlackManager {
       const err = error instanceof Error ? error : new Error(String(error));
       logger.error(`Slack message handling failed for agent '${agentName}': ${err.message}`);
 
+      // Send user-friendly error message
       try {
         await event.reply(this.formatErrorMessage(err));
       } catch (replyError) {
         logger.error(`Failed to send error reply: ${(replyError as Error).message}`);
       }
 
+      // Emit error event for tracking
       emitter.emit("slack:message:error", {
         agentName,
         channelId: event.metadata.channelId,
@@ -723,6 +549,7 @@ export class SlackManager {
         timestamp: new Date().toISOString(),
       });
     } finally {
+      // Safety net: stop processing indicator if not already stopped
       if (!processingStopped) {
         stopProcessing();
       }
@@ -730,43 +557,12 @@ export class SlackManager {
   }
 
   /**
-   * Extract text content from an SDK message
-   */
-  private extractMessageContent(message: {
-    type: string;
-    content?: string;
-    message?: { content?: unknown };
-  }): string | undefined {
-    if (typeof message.content === "string" && message.content) {
-      return message.content;
-    }
-
-    const apiMessage = message.message as { content?: unknown } | undefined;
-    const content = apiMessage?.content;
-
-    if (!content) return undefined;
-
-    if (typeof content === "string") {
-      return content;
-    }
-
-    if (Array.isArray(content)) {
-      const textParts: string[] = [];
-      for (const block of content) {
-        if (block && typeof block === "object" && "type" in block) {
-          if (block.type === "text" && "text" in block && typeof block.text === "string") {
-            textParts.push(block.text);
-          }
-        }
-      }
-      return textParts.length > 0 ? textParts.join("") : undefined;
-    }
-
-    return undefined;
-  }
-
-  /**
-   * Handle errors from the Slack connector
+   * Handle errors from Slack connectors
+   *
+   * Logs errors without crashing the connector
+   *
+   * @param agentName - Name of the agent that encountered the error
+   * @param error - The error that occurred
    */
   private handleError(agentName: string, error: unknown): void {
     const logger = this.ctx.getLogger();
@@ -775,6 +571,7 @@ export class SlackManager {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error(`Slack connector error for agent '${agentName}': ${errorMessage}`);
 
+    // Emit error event for monitoring
     emitter.emit("slack:error", {
       agentName,
       error: errorMessage,
@@ -786,54 +583,70 @@ export class SlackManager {
   // Response Formatting and Splitting
   // ===========================================================================
 
+  /** Slack's maximum message length */
   private static readonly MAX_MESSAGE_LENGTH = 4000;
 
+  /**
+   * Format an error message for Slack display
+   *
+   * Creates a user-friendly error message with guidance on how to proceed.
+   *
+   * @param error - The error that occurred
+   * @returns Formatted error message string
+   */
   formatErrorMessage(error: Error): string {
     return `*Error:* ${error.message}\n\nPlease try again or use \`!reset\` to start a new session.`;
   }
 
+  /**
+   * Split a response into chunks that fit Slack's 4000 character limit
+   *
+   * Uses the shared splitMessage utility from @herdctl/chat.
+   *
+   * @param text - The text to split
+   * @returns Array of text chunks, each under 4000 characters
+   */
   splitResponse(text: string): string[] {
-    const MAX_LENGTH = SlackManager.MAX_MESSAGE_LENGTH;
-
-    if (text.length <= MAX_LENGTH) {
-      return [text];
-    }
-
-    const chunks: string[] = [];
-    let remaining = text;
-
-    while (remaining.length > 0) {
-      if (remaining.length <= MAX_LENGTH) {
-        chunks.push(remaining);
-        break;
-      }
-
-      const splitIndex = this.findNaturalBreak(remaining, MAX_LENGTH);
-      chunks.push(remaining.substring(0, splitIndex));
-      remaining = remaining.substring(splitIndex);
-    }
-
-    return chunks;
+    const result = splitMessage(text, { maxLength: SlackManager.MAX_MESSAGE_LENGTH });
+    return result.chunks;
   }
 
-  private findNaturalBreak(text: string, maxLength: number): number {
-    const searchEnd = Math.min(maxLength, text.length);
+  /**
+   * Send a response to Slack, splitting if necessary
+   *
+   * @param reply - The reply function from the message event
+   * @param content - The content to send
+   */
+  async sendResponse(
+    reply: (content: string) => Promise<void>,
+    content: string
+  ): Promise<void> {
+    const chunks = this.splitResponse(content);
 
-    const doubleNewline = text.lastIndexOf("\n\n", searchEnd);
-    if (doubleNewline > 0 && doubleNewline > searchEnd - 500) {
-      return doubleNewline + 2;
+    for (const chunk of chunks) {
+      await reply(chunk);
+    }
+  }
+
+  // ===========================================================================
+  // Utility Methods
+  // ===========================================================================
+
+  /**
+   * Resolve the agent's working directory to an absolute path string
+   *
+   * @param agent - The resolved agent configuration
+   * @returns Absolute path to working directory, or undefined if not configured
+   */
+  private resolveWorkingDirectory(agent: ResolvedAgent): string | undefined {
+    if (!agent.working_directory) {
+      return undefined;
     }
 
-    const singleNewline = text.lastIndexOf("\n", searchEnd);
-    if (singleNewline > 0 && singleNewline > searchEnd - 200) {
-      return singleNewline + 1;
+    if (typeof agent.working_directory === "string") {
+      return agent.working_directory;
     }
 
-    const space = text.lastIndexOf(" ", searchEnd);
-    if (space > 0 && space > searchEnd - 100) {
-      return space + 1;
-    }
-
-    return searchEnd;
+    return agent.working_directory.root;
   }
 }

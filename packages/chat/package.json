@@ -1,0 +1,48 @@
+{
+  "name": "@herdctl/chat",
+  "version": "0.1.0",
+  "description": "Shared chat infrastructure for herdctl connectors",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@herdctl/core": "workspace:*",
+    "yaml": "^2.3.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.0.17",
+    "typescript": "^5",
+    "vitest": "^4.0.17"
+  },
+  "homepage": "https://herdctl.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/edspencer/herdctl"
+  },
+  "keywords": [
+    "claude",
+    "agent",
+    "fleet",
+    "orchestration",
+    "anthropic",
+    "chat"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

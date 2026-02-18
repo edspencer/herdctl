@@ -18,8 +18,15 @@ export { ConfigReload } from "./config-reload.js";
 export { JobControl } from "./job-control.js";
 export { LogStreaming } from "./log-streaming.js";
 export { ScheduleExecutor } from "./schedule-executor.js";
-export { DiscordManager } from "./discord-manager.js";
-export type { DiscordConnectionStatus, DiscordConnectorState } from "./discord-manager.js";
+
+// Chat manager interface and types
+export type { IChatManager, ChatManagerConnectorState } from "./chat-manager-interface.js";
+
+// DiscordManager has moved to @herdctl/discord
+// Import it from there: import { DiscordManager } from "@herdctl/discord"
+
+// SlackManager has moved to @herdctl/slack
+// Import it from there: import { SlackManager } from "@herdctl/slack"
 
 // Event emitters (US-4: Extract Event Emitters Module)
 export {
@@ -130,14 +137,29 @@ export type {
   // Job control event types (US-6)
   JobCancelledPayload,
   JobForkedPayload,
-  // Discord connector event types
+  // Generic chat connector event types
+  ChatConnectorConnectedPayload,
+  ChatConnectorDisconnectedPayload,
+  ChatConnectorErrorPayload,
+  ChatMessageHandledPayload,
+  ChatMessageErrorPayload,
+  ChatSessionLifecyclePayload,
+  // Discord connector event types (kept for backwards compatibility)
   DiscordConnectorConnectedPayload,
   DiscordConnectorDisconnectedPayload,
   DiscordConnectorErrorPayload,
+  // Slack connector event types (kept for backwards compatibility)
+  SlackConnectorConnectedPayload,
+  SlackConnectorDisconnectedPayload,
+  SlackConnectorErrorPayload,
+  SlackMessageHandledPayload,
+  SlackMessageErrorPayload,
+  SlackErrorPayload,
+  SlackSessionLifecyclePayload,
   // Status query types (US-3)
   FleetStatus,
   AgentInfo,
-  AgentDiscordStatus,
+  AgentChatStatus,
   ScheduleInfo,
   FleetCounts,
   // Trigger types (US-5)

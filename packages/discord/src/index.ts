@@ -5,16 +5,22 @@
  *
  * This package provides:
  * - DiscordConnector class for connecting agents to Discord
+ * - DiscordManager class for managing multiple Discord connectors
  * - Per-agent Discord bot support
  * - Connection lifecycle management
  * - Event-driven architecture for monitoring
- * - SessionManager for per-channel conversation context
+ *
+ * Session management, message splitting, and other shared utilities
+ * are provided by @herdctl/chat - import them from there directly.
  */
 
 export const VERSION = "0.0.1";
 
 // Main connector class
 export { DiscordConnector } from "./discord-connector.js";
+
+// Manager class (used by FleetManager)
+export { DiscordManager } from "./manager.js";
 
 // Logger
 export {
@@ -28,9 +34,6 @@ export type {
   DiscordLoggerOptions,
 } from "./logger.js";
 
-// Session manager
-export { SessionManager } from "./session-manager/index.js";
-
 // Types
 export type {
   DiscordConnectorOptions,
@@ -41,30 +44,17 @@ export type {
   DiscordConnectorEventMap,
   DiscordConnectorEventName,
   DiscordConnectorEventPayload,
+  DiscordReplyEmbedField,
+  DiscordReplyEmbed,
+  DiscordReplyPayload,
 } from "./types.js";
 
-// Session manager types
-export type {
-  SessionManagerOptions,
-  SessionManagerLogger,
-  ISessionManager,
-  SessionResult,
-  ChannelSession,
-  DiscordSessionState,
-} from "./session-manager/index.js";
-
-export {
-  DiscordSessionStateSchema,
-  ChannelSessionSchema,
-  createInitialSessionState,
-  createChannelSession,
-} from "./session-manager/index.js";
-
-// Mention handling
+// Mention handling (Discord-specific)
 export {
   isBotMentioned,
   shouldProcessMessage,
   stripBotMention,
+  stripBotRoleMentions,
   stripMentions,
   processMessage,
   fetchMessageHistory,
@@ -79,25 +69,17 @@ export type {
   ConversationContext,
 } from "./mention-handler.js";
 
-// Auto mode handling (DMs and dedicated channels)
+// Auto mode handling (Discord-specific: guild hierarchy, channel resolution)
 export {
-  isDMEnabled,
-  getDMMode,
-  checkDMUserFilter,
   findChannelConfig,
   resolveChannelConfig,
-  shouldProcessInMode,
   DEFAULT_DM_CONTEXT_MESSAGES,
   DEFAULT_CHANNEL_CONTEXT_MESSAGES,
 } from "./auto-mode-handler.js";
 
-export type {
-  DMFilterResult,
-  DMConfig,
-  ResolvedChannelConfig,
-} from "./auto-mode-handler.js";
+export type { ResolvedChannelConfig } from "./auto-mode-handler.js";
 
-// Errors
+// Discord-specific errors
 export {
   DiscordErrorCode,
   DiscordConnectorError,
@@ -108,34 +90,13 @@ export {
   isDiscordConnectorError,
 } from "./errors.js";
 
-// Error handling utilities
+// Discord-specific error handling (classification uses Discord error codes)
 export {
-  USER_ERROR_MESSAGES,
-  ErrorCategory,
   classifyError,
-  withRetry,
   ErrorHandler,
-  safeExecute,
-  safeExecuteWithReply,
 } from "./error-handler.js";
 
-export type {
-  UserErrorMessageKey,
-  ClassifiedError,
-  RetryOptions,
-  RetryResult,
-  ErrorHandlerOptions,
-} from "./error-handler.js";
-
-// Session manager errors
-export {
-  SessionErrorCode,
-  SessionManagerError,
-  SessionStateReadError,
-  SessionStateWriteError,
-  SessionDirectoryCreateError,
-  isSessionManagerError,
-} from "./session-manager/index.js";
+export type { ErrorHandlerOptions } from "./error-handler.js";
 
 // Commands
 export { CommandManager } from "./commands/index.js";
@@ -149,26 +110,17 @@ export type {
   ICommandManager,
 } from "./commands/index.js";
 
-// Formatting utilities
+// Discord-specific formatting utilities (typing indicator, escapeMarkdown)
 export {
   DISCORD_MAX_MESSAGE_LENGTH,
-  DEFAULT_MESSAGE_DELAY_MS,
-  MIN_CHUNK_SIZE,
-  findSplitPoint,
-  splitMessage,
-  needsSplit,
   startTypingIndicator,
   sendSplitMessage,
   sendWithTyping,
-  truncateMessage,
-  formatCodeBlock,
   escapeMarkdown,
 } from "./utils/index.js";
 
 export type {
   SendableChannel,
-  MessageSplitOptions,
   SendSplitOptions,
-  SplitResult,
   TypingController,
 } from "./utils/index.js";

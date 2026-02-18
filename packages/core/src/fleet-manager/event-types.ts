@@ -195,7 +195,122 @@ export interface JobForkedPayload {
 }
 
 // =============================================================================
-// Discord Connector Events
+// Generic Chat Connector Events
+// =============================================================================
+
+/**
+ * Payload for chat:connector:connected event
+ *
+ * Generic event emitted when any chat connector connects.
+ * The platform field indicates which platform (discord, slack, etc.).
+ */
+export interface ChatConnectorConnectedPayload {
+  /** Platform name (e.g., "discord", "slack") */
+  platform: string;
+  /** Name of the agent whose connector connected */
+  agentName: string;
+  /** Bot username */
+  botUsername: string;
+  /** ISO timestamp when the connector connected */
+  timestamp: string;
+  /** Platform-specific metadata */
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Payload for chat:connector:disconnected event
+ *
+ * Generic event emitted when any chat connector disconnects.
+ */
+export interface ChatConnectorDisconnectedPayload {
+  /** Platform name (e.g., "discord", "slack") */
+  platform: string;
+  /** Name of the agent whose connector disconnected */
+  agentName: string;
+  /** Reason for disconnection (if available) */
+  reason?: string;
+  /** ISO timestamp when the connector disconnected */
+  timestamp: string;
+}
+
+/**
+ * Payload for chat:connector:error event
+ *
+ * Generic event emitted when any chat connector encounters an error.
+ */
+export interface ChatConnectorErrorPayload {
+  /** Platform name (e.g., "discord", "slack") */
+  platform: string;
+  /** Name of the agent whose connector had an error */
+  agentName: string;
+  /** Error message */
+  error: string;
+  /** ISO timestamp when the error occurred */
+  timestamp: string;
+}
+
+/**
+ * Payload for chat:message:handled event
+ *
+ * Generic event emitted when a chat message is handled.
+ */
+export interface ChatMessageHandledPayload {
+  /** Platform name (e.g., "discord", "slack") */
+  platform: string;
+  /** Name of the agent that handled the message */
+  agentName: string;
+  /** Channel ID */
+  channelId: string;
+  /** Message identifier (platform-specific format) */
+  messageId: string;
+  /** Job ID created for this message */
+  jobId: string;
+  /** ISO timestamp when the message was handled */
+  timestamp: string;
+}
+
+/**
+ * Payload for chat:message:error event
+ *
+ * Generic event emitted when a chat message fails to be handled.
+ */
+export interface ChatMessageErrorPayload {
+  /** Platform name (e.g., "discord", "slack") */
+  platform: string;
+  /** Name of the agent that failed to handle the message */
+  agentName: string;
+  /** Channel ID */
+  channelId: string;
+  /** Message identifier (platform-specific format) */
+  messageId: string;
+  /** Error message */
+  error: string;
+  /** ISO timestamp when the error occurred */
+  timestamp: string;
+}
+
+/**
+ * Payload for chat:session:lifecycle event
+ *
+ * Generic event emitted for session lifecycle events.
+ */
+export interface ChatSessionLifecyclePayload {
+  /** Platform name (e.g., "discord", "slack") */
+  platform: string;
+  /** Name of the agent */
+  agentName: string;
+  /** Lifecycle event type */
+  event: "created" | "resumed" | "reset";
+  /** Channel ID */
+  channelId: string;
+  /** Session ID */
+  sessionId: string;
+  /** ISO timestamp when the lifecycle event occurred */
+  timestamp: string;
+}
+
+// =============================================================================
+// Discord Connector Events (kept for backwards compatibility during migration)
 // =============================================================================
 
 /**
@@ -465,7 +580,47 @@ export interface FleetManagerEventMap {
   "job:forked": [payload: JobForkedPayload];
 
   // ===========================================================================
-  // Discord Events
+  // Generic Chat Events
+  // ===========================================================================
+
+  /**
+   * Emitted when any chat connector successfully connects.
+   * Use the `platform` field to identify which platform.
+   */
+  "chat:connector:connected": [payload: ChatConnectorConnectedPayload];
+
+  /**
+   * Emitted when any chat connector disconnects.
+   * Use the `platform` field to identify which platform.
+   */
+  "chat:connector:disconnected": [payload: ChatConnectorDisconnectedPayload];
+
+  /**
+   * Emitted when any chat connector encounters an error.
+   * Use the `platform` field to identify which platform.
+   */
+  "chat:connector:error": [payload: ChatConnectorErrorPayload];
+
+  /**
+   * Emitted when a chat message is successfully handled.
+   * Use the `platform` field to identify which platform.
+   */
+  "chat:message:handled": [payload: ChatMessageHandledPayload];
+
+  /**
+   * Emitted when a chat message fails to be handled.
+   * Use the `platform` field to identify which platform.
+   */
+  "chat:message:error": [payload: ChatMessageErrorPayload];
+
+  /**
+   * Emitted when a session lifecycle event occurs.
+   * Use the `platform` field to identify which platform.
+   */
+  "chat:session:lifecycle": [payload: ChatSessionLifecyclePayload];
+
+  // ===========================================================================
+  // Discord Events (kept for backwards compatibility)
   // ===========================================================================
 
   /**

@@ -4,16 +4,16 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomBytes } from "node:crypto";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
-import { SessionManager } from "../session-manager.js";
+import { ChatSessionManager } from "../session-manager/session-manager.js";
 import {
-  type DiscordSessionState,
+  type ChatSessionState,
   createInitialSessionState,
-} from "../types.js";
+} from "../session-manager/types.js";
 import {
   SessionStateReadError,
   SessionStateWriteError,
   SessionDirectoryCreateError,
-} from "../errors.js";
+} from "../session-manager/errors.js";
 
 // =============================================================================
 // Test Fixtures
@@ -21,7 +21,7 @@ import {
 
 function createTestDir(): string {
   const random = randomBytes(8).toString("hex");
-  return join(tmpdir(), `herdctl-session-test-${random}`);
+  return join(tmpdir(), `herdctl-chat-session-test-${random}`);
 }
 
 function createMockLogger() {
@@ -34,12 +34,13 @@ function createMockLogger() {
 }
 
 // =============================================================================
-// Session Manager Tests
+// Session Manager Tests - Discord Platform
 // =============================================================================
 
-describe("SessionManager", () => {
+describe("ChatSessionManager (platform: discord)", () => {
   let testDir: string;
   let mockLogger: ReturnType<typeof createMockLogger>;
+  const platform = "discord";
 
   beforeEach(async () => {
     testDir = createTestDir();
@@ -62,17 +63,20 @@ describe("SessionManager", () => {
 
   describe("constructor", () => {
     it("creates session manager with valid options", () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
       });
 
       expect(manager.agentName).toBe("test-agent");
+      expect(manager.platform).toBe("discord");
     });
 
     it("uses default expiry hours when not specified", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -88,13 +92,14 @@ describe("SessionManager", () => {
         "test-agent.yaml"
       );
       const content = await readFile(stateFilePath, "utf-8");
-      const state = parseYaml(content) as DiscordSessionState;
+      const state = parseYaml(content) as ChatSessionState;
 
       expect(state.channels["channel-1"]).toBeDefined();
     });
 
     it("accepts custom expiry hours", () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         sessionExpiryHours: 48,
@@ -111,7 +116,8 @@ describe("SessionManager", () => {
 
   describe("getOrCreateSession", () => {
     it("creates new session when none exists", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -128,7 +134,8 @@ describe("SessionManager", () => {
     });
 
     it("returns existing session when one exists", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -152,7 +159,8 @@ describe("SessionManager", () => {
     });
 
     it("creates different sessions for different channels", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -167,7 +175,8 @@ describe("SessionManager", () => {
     });
 
     it("creates new session when previous is expired", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         sessionExpiryHours: 1, // 1 hour expiry
@@ -184,7 +193,7 @@ describe("SessionManager", () => {
         "test-agent.yaml"
       );
       const content = await readFile(stateFilePath, "utf-8");
-      const state = parseYaml(content) as DiscordSessionState;
+      const state = parseYaml(content) as ChatSessionState;
 
       // Set last message to 2 hours ago
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
@@ -192,7 +201,8 @@ describe("SessionManager", () => {
       await writeFile(stateFilePath, stringifyYaml(state), "utf-8");
 
       // Clear cache by creating new manager
-      const manager2 = new SessionManager({
+      const manager2 = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         sessionExpiryHours: 1,
@@ -207,7 +217,8 @@ describe("SessionManager", () => {
     });
 
     it("creates discord-sessions directory if it doesn't exist", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -226,7 +237,8 @@ describe("SessionManager", () => {
     });
 
     it("persists state to YAML file", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -241,7 +253,7 @@ describe("SessionManager", () => {
         "test-agent.yaml"
       );
       const content = await readFile(stateFilePath, "utf-8");
-      const state = parseYaml(content) as DiscordSessionState;
+      const state = parseYaml(content) as ChatSessionState;
 
       expect(state.version).toBe(1);
       expect(state.agentName).toBe("test-agent");
@@ -256,7 +268,8 @@ describe("SessionManager", () => {
 
   describe("touchSession", () => {
     it("updates lastMessageAt timestamp", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -278,7 +291,7 @@ describe("SessionManager", () => {
         "test-agent.yaml"
       );
       const content = await readFile(stateFilePath, "utf-8");
-      const state = parseYaml(content) as DiscordSessionState;
+      const state = parseYaml(content) as ChatSessionState;
 
       const lastMessageAt = new Date(
         state.channels["channel-123"].lastMessageAt
@@ -290,7 +303,8 @@ describe("SessionManager", () => {
     });
 
     it("warns when touching non-existent session", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -311,7 +325,8 @@ describe("SessionManager", () => {
 
   describe("getSession", () => {
     it("returns null when no session exists", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -323,7 +338,8 @@ describe("SessionManager", () => {
     });
 
     it("returns session when it exists and is not expired", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -340,7 +356,8 @@ describe("SessionManager", () => {
     });
 
     it("returns null when session is expired", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         sessionExpiryHours: 1,
@@ -357,7 +374,7 @@ describe("SessionManager", () => {
         "test-agent.yaml"
       );
       const content = await readFile(stateFilePath, "utf-8");
-      const state = parseYaml(content) as DiscordSessionState;
+      const state = parseYaml(content) as ChatSessionState;
 
       // Set last message to 2 hours ago
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
@@ -365,7 +382,8 @@ describe("SessionManager", () => {
       await writeFile(stateFilePath, stringifyYaml(state), "utf-8");
 
       // Clear cache by creating new manager
-      const manager2 = new SessionManager({
+      const manager2 = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         sessionExpiryHours: 1,
@@ -389,7 +407,8 @@ describe("SessionManager", () => {
 
   describe("setSession", () => {
     it("stores a new session for a channel", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -412,7 +431,8 @@ describe("SessionManager", () => {
     });
 
     it("updates an existing session with a new session ID", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -440,7 +460,8 @@ describe("SessionManager", () => {
     });
 
     it("updates the lastMessageAt timestamp", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -465,7 +486,8 @@ describe("SessionManager", () => {
 
   describe("clearSession", () => {
     it("returns false when no session exists", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -477,7 +499,8 @@ describe("SessionManager", () => {
     });
 
     it("clears existing session and returns true", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -501,7 +524,8 @@ describe("SessionManager", () => {
     });
 
     it("only clears the specified session", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -527,7 +551,8 @@ describe("SessionManager", () => {
 
   describe("cleanupExpiredSessions", () => {
     it("returns 0 when no sessions exist", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -539,7 +564,8 @@ describe("SessionManager", () => {
     });
 
     it("returns 0 when no sessions are expired", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -555,7 +581,8 @@ describe("SessionManager", () => {
     });
 
     it("cleans up expired sessions", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         sessionExpiryHours: 1,
@@ -574,7 +601,7 @@ describe("SessionManager", () => {
         "test-agent.yaml"
       );
       const content = await readFile(stateFilePath, "utf-8");
-      const state = parseYaml(content) as DiscordSessionState;
+      const state = parseYaml(content) as ChatSessionState;
 
       // Expire channel-1 and channel-3 (2 hours ago)
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
@@ -583,7 +610,8 @@ describe("SessionManager", () => {
       await writeFile(stateFilePath, stringifyYaml(state), "utf-8");
 
       // Clear cache by creating new manager
-      const manager2 = new SessionManager({
+      const manager2 = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         sessionExpiryHours: 1,
@@ -625,7 +653,8 @@ describe("SessionManager", () => {
         "invalid: yaml: content: {{"
       );
 
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -650,7 +679,8 @@ describe("SessionManager", () => {
         stringifyYaml({ version: 999, invalid: true })
       );
 
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -672,7 +702,8 @@ describe("SessionManager", () => {
       await mkdir(stateDir, { recursive: true });
       await writeFile(join(stateDir, "test-agent.yaml"), "");
 
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -691,7 +722,8 @@ describe("SessionManager", () => {
 
   describe("agentName", () => {
     it("returns the agent name from options", () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "my-test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -707,7 +739,8 @@ describe("SessionManager", () => {
 
   describe("session ID format", () => {
     it("generates session IDs with expected format", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "my-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -728,7 +761,8 @@ describe("SessionManager", () => {
 
   describe("concurrent access", () => {
     it("handles concurrent getOrCreateSession calls", async () => {
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform,
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -756,10 +790,212 @@ describe("SessionManager", () => {
 });
 
 // =============================================================================
+// Session Manager Tests - Slack Platform
+// =============================================================================
+
+describe("ChatSessionManager (platform: slack)", () => {
+  let testDir: string;
+  let mockLogger: ReturnType<typeof createMockLogger>;
+  const platform = "slack";
+
+  beforeEach(async () => {
+    testDir = createTestDir();
+    await mkdir(testDir, { recursive: true });
+    mockLogger = createMockLogger();
+    vi.clearAllMocks();
+  });
+
+  afterEach(async () => {
+    try {
+      await rm(testDir, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup errors
+    }
+  });
+
+  describe("platform-specific behavior", () => {
+    it("stores sessions in slack-sessions directory", async () => {
+      const manager = new ChatSessionManager({
+        platform,
+        agentName: "test-agent",
+        stateDir: testDir,
+        logger: mockLogger,
+      });
+
+      await manager.getOrCreateSession("channel-123");
+
+      // Verify directory was created with slack prefix
+      const stateFilePath = join(
+        testDir,
+        "slack-sessions",
+        "test-agent.yaml"
+      );
+      const content = await readFile(stateFilePath, "utf-8");
+      expect(content).toBeTruthy();
+    });
+
+    it("generates session IDs with slack prefix", async () => {
+      const manager = new ChatSessionManager({
+        platform,
+        agentName: "my-agent",
+        stateDir: testDir,
+        logger: mockLogger,
+      });
+
+      const result = await manager.getOrCreateSession("channel-123");
+
+      // Should match pattern: slack-<agent-name>-<uuid>
+      expect(result.sessionId).toMatch(
+        /^slack-my-agent-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+      );
+    });
+
+    it("exposes platform property", () => {
+      const manager = new ChatSessionManager({
+        platform,
+        agentName: "test-agent",
+        stateDir: testDir,
+        logger: mockLogger,
+      });
+
+      expect(manager.platform).toBe("slack");
+    });
+  });
+
+  describe("full session lifecycle", () => {
+    it("completes full session lifecycle", async () => {
+      const manager = new ChatSessionManager({
+        platform,
+        agentName: "test-agent",
+        stateDir: testDir,
+        logger: mockLogger,
+      });
+
+      // Create session
+      const created = await manager.getOrCreateSession("channel-123");
+      expect(created.isNew).toBe(true);
+      expect(created.sessionId).toMatch(/^slack-test-agent-/);
+
+      // Touch session
+      await manager.touchSession("channel-123");
+
+      // Get session
+      const retrieved = await manager.getSession("channel-123");
+      expect(retrieved).not.toBeNull();
+      expect(retrieved!.sessionId).toBe(created.sessionId);
+
+      // Set session with new ID
+      await manager.setSession("channel-123", "new-sdk-session");
+      const updated = await manager.getSession("channel-123");
+      expect(updated!.sessionId).toBe("new-sdk-session");
+
+      // Get active session count
+      const count = await manager.getActiveSessionCount();
+      expect(count).toBe(1);
+
+      // Clear session
+      const cleared = await manager.clearSession("channel-123");
+      expect(cleared).toBe(true);
+
+      // Verify cleared
+      const afterClear = await manager.getSession("channel-123");
+      expect(afterClear).toBeNull();
+    });
+  });
+});
+
+// =============================================================================
+// Platform-Agnostic Tests
+// =============================================================================
+
+describe("ChatSessionManager (platform-agnostic)", () => {
+  let testDir: string;
+  let mockLogger: ReturnType<typeof createMockLogger>;
+
+  beforeEach(async () => {
+    testDir = createTestDir();
+    await mkdir(testDir, { recursive: true });
+    mockLogger = createMockLogger();
+    vi.clearAllMocks();
+  });
+
+  afterEach(async () => {
+    try {
+      await rm(testDir, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup errors
+    }
+  });
+
+  describe("custom platform", () => {
+    it("supports arbitrary platform names", async () => {
+      const manager = new ChatSessionManager({
+        platform: "teams",
+        agentName: "test-agent",
+        stateDir: testDir,
+        logger: mockLogger,
+      });
+
+      const result = await manager.getOrCreateSession("channel-123");
+
+      // Verify custom platform in session ID
+      expect(result.sessionId).toMatch(/^teams-test-agent-/);
+
+      // Verify custom platform directory
+      const stateFilePath = join(
+        testDir,
+        "teams-sessions",
+        "test-agent.yaml"
+      );
+      const content = await readFile(stateFilePath, "utf-8");
+      expect(content).toBeTruthy();
+
+      // Verify platform property
+      expect(manager.platform).toBe("teams");
+    });
+  });
+
+  describe("multiple platforms can coexist", () => {
+    it("maintains separate session stores per platform", async () => {
+      const discordManager = new ChatSessionManager({
+        platform: "discord",
+        agentName: "test-agent",
+        stateDir: testDir,
+        logger: mockLogger,
+      });
+
+      const slackManager = new ChatSessionManager({
+        platform: "slack",
+        agentName: "test-agent",
+        stateDir: testDir,
+        logger: mockLogger,
+      });
+
+      // Create sessions in both
+      const discordSession = await discordManager.getOrCreateSession("channel-123");
+      const slackSession = await slackManager.getOrCreateSession("channel-123");
+
+      // Sessions should be independent
+      expect(discordSession.sessionId).not.toBe(slackSession.sessionId);
+      expect(discordSession.sessionId).toMatch(/^discord-/);
+      expect(slackSession.sessionId).toMatch(/^slack-/);
+
+      // Clear Discord session
+      await discordManager.clearSession("channel-123");
+
+      // Slack session should still exist
+      const slackAfterClear = await slackManager.getSession("channel-123");
+      expect(slackAfterClear).not.toBeNull();
+      expect(slackAfterClear!.sessionId).toBe(slackSession.sessionId);
+    });
+  });
+});
+
+// =============================================================================
 // Error Tests
 // =============================================================================
 
-describe("SessionManager errors", () => {
+describe("ChatSessionManager errors", () => {
   let mockLogger: ReturnType<typeof createMockLogger>;
 
   beforeEach(() => {
@@ -777,7 +1013,8 @@ describe("SessionManager errors", () => {
       // Create the state file as a directory (which will cause read to fail)
       await mkdir(join(stateDir, "test-agent.yaml"));
 
-      const manager = new SessionManager({
+      const manager = new ChatSessionManager({
+        platform: "discord",
         agentName: "test-agent",
         stateDir: testDir,
         logger: mockLogger,
@@ -790,5 +1027,19 @@ describe("SessionManager errors", () => {
       // Cleanup
       await rm(testDir, { recursive: true, force: true });
     });
+  });
+});
+
+// =============================================================================
+// Factory Function Tests
+// =============================================================================
+
+describe("createInitialSessionState", () => {
+  it("creates state with version 1", () => {
+    const state = createInitialSessionState("my-agent");
+
+    expect(state.version).toBe(1);
+    expect(state.agentName).toBe("my-agent");
+    expect(state.channels).toEqual({});
   });
 });
