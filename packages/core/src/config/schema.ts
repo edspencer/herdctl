@@ -508,7 +508,9 @@ export const DiscordPresenceSchema = z.object({
 });
 
 /**
- * Discord DM (direct message) configuration for an agent's bot
+ * DM (direct message) configuration for an agent's chat bot
+ *
+ * Shared between Discord, Slack, and other chat platforms.
  *
  * @example
  * ```yaml
@@ -519,7 +521,7 @@ export const DiscordPresenceSchema = z.object({
  *   blocklist: []
  * ```
  */
-export const DiscordDMSchema = z.object({
+export const ChatDMSchema = z.object({
   enabled: z.boolean().default(true),
   mode: z.enum(["mention", "auto"]).default("auto"),
   allowlist: z.array(z.string()).optional(),
@@ -564,7 +566,7 @@ export const DiscordChannelSchema = z.object({
 export const DiscordGuildSchema = z.object({
   id: z.string(),
   channels: z.array(DiscordChannelSchema).optional(),
-  dm: DiscordDMSchema.optional(),
+  dm: ChatDMSchema.optional(),
 });
 
 /**
@@ -637,7 +639,7 @@ export const AgentChatDiscordSchema = z.object({
   /** Guilds (servers) this bot participates in */
   guilds: z.array(DiscordGuildSchema),
   /** Global DM (direct message) configuration - applies to all DMs regardless of guild */
-  dm: DiscordDMSchema.optional(),
+  dm: ChatDMSchema.optional(),
 });
 
 // =============================================================================
@@ -696,6 +698,8 @@ export const AgentChatSlackSchema = z.object({
   log_level: z.enum(["minimal", "standard", "verbose"]).default("standard"),
   /** Channels this agent listens in */
   channels: z.array(SlackChannelSchema),
+  /** DM (direct message) configuration — enable/disable, mode, allowlist/blocklist */
+  dm: ChatDMSchema.optional(),
 });
 
 // =============================================================================
@@ -957,9 +961,10 @@ export type Session = z.infer<typeof SessionSchema>;
 export type ScheduleType = z.infer<typeof ScheduleTypeSchema>;
 export type Schedule = z.infer<typeof ScheduleSchema>;
 export type McpServer = z.infer<typeof McpServerSchema>;
+// Agent Chat types (shared)
+export type ChatDM = z.infer<typeof ChatDMSchema>;
 // Agent Chat Discord types
 export type DiscordPresence = z.infer<typeof DiscordPresenceSchema>;
-export type DiscordDM = z.infer<typeof DiscordDMSchema>;
 export type DiscordChannel = z.infer<typeof DiscordChannelSchema>;
 export type DiscordGuild = z.infer<typeof DiscordGuildSchema>;
 export type DiscordOutput = z.infer<typeof DiscordOutputSchema>;

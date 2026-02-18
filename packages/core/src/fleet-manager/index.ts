@@ -137,21 +137,7 @@ export type {
   // Job control event types (US-6)
   JobCancelledPayload,
   JobForkedPayload,
-  // Generic chat connector event types
-  ChatConnectorConnectedPayload,
-  ChatConnectorDisconnectedPayload,
-  ChatConnectorErrorPayload,
-  ChatMessageHandledPayload,
-  ChatMessageErrorPayload,
-  ChatSessionLifecyclePayload,
-  // Discord connector event types (kept for backwards compatibility)
-  DiscordConnectorConnectedPayload,
-  DiscordConnectorDisconnectedPayload,
-  DiscordConnectorErrorPayload,
-  // Slack connector event types (kept for backwards compatibility)
-  SlackConnectorConnectedPayload,
-  SlackConnectorDisconnectedPayload,
-  SlackConnectorErrorPayload,
+  // Slack manager event types
   SlackMessageHandledPayload,
   SlackMessageErrorPayload,
   SlackErrorPayload,

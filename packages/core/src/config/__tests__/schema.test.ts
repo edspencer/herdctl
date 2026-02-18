@@ -17,7 +17,7 @@ import {
   AgentReferenceSchema,
   // Discord chat schemas
   DiscordPresenceSchema,
-  DiscordDMSchema,
+  ChatDMSchema,
   DiscordChannelSchema,
   DiscordGuildSchema,
   AgentChatDiscordSchema,
@@ -1045,9 +1045,9 @@ describe("DiscordPresenceSchema", () => {
   });
 });
 
-describe("DiscordDMSchema", () => {
+describe("ChatDMSchema", () => {
   it("applies defaults", () => {
-    const result = DiscordDMSchema.safeParse({});
+    const result = ChatDMSchema.safeParse({});
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.enabled).toBe(true);
@@ -1062,7 +1062,7 @@ describe("DiscordDMSchema", () => {
       allowlist: ["123456789012345678", "987654321098765432"],
       blocklist: ["111222333444555666"],
     };
-    const result = DiscordDMSchema.safeParse(dm);
+    const result = ChatDMSchema.safeParse(dm);
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.enabled).toBe(false);
@@ -1077,13 +1077,13 @@ describe("DiscordDMSchema", () => {
 
   it("accepts valid modes", () => {
     for (const mode of ["mention", "auto"]) {
-      const result = DiscordDMSchema.safeParse({ mode });
+      const result = ChatDMSchema.safeParse({ mode });
       expect(result.success).toBe(true);
     }
   });
 
   it("rejects invalid mode", () => {
-    const result = DiscordDMSchema.safeParse({ mode: "always" });
+    const result = ChatDMSchema.safeParse({ mode: "always" });
     expect(result.success).toBe(false);
   });
 });

@@ -34,9 +34,10 @@ export {
   McpServerSchema,
   AgentChatSchema,
   AgentWorkingDirectorySchema,
+  // Agent Chat shared schemas
+  ChatDMSchema,
   // Agent Chat Discord schemas
   DiscordPresenceSchema,
-  DiscordDMSchema,
   DiscordChannelSchema,
   DiscordGuildSchema,
   DiscordOutputSchema,
@@ -82,9 +83,10 @@ export {
   type McpServer,
   type AgentChat,
   type AgentWorkingDirectory,
+  // Agent Chat shared types
+  type ChatDM,
   // Agent Chat Discord types
   type DiscordPresence,
-  type DiscordDM,
   type DiscordChannel,
   type DiscordGuild,
   type DiscordOutput,

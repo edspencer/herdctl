@@ -11,7 +11,8 @@
  */
 
 import { EventEmitter } from "node:events";
-import type { IChatSessionManager } from "@herdctl/chat";
+import type { IChatSessionManager, DMConfig } from "@herdctl/chat";
+import { checkDMUserFilter, getDMMode, isDMEnabled } from "@herdctl/chat";
 import type {
   SlackConnectorOptions,
   SlackConnectorState,
@@ -50,6 +51,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
   private readonly botToken: string;
   private readonly appToken: string;
   private readonly channels: Map<string, SlackChannelConfig>;
+  private readonly dmConfig: Partial<DMConfig> | undefined;
   private readonly logger: SlackConnectorLogger;
 
   // Bolt App instance (dynamically imported)
@@ -87,6 +89,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
       this.channels.set(channel.id, channel);
     }
 
+    this.dmConfig = options.dm;
     this.logger = options.logger ?? createDefaultSlackLogger();
   }
 
@@ -286,8 +289,13 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
 
       if (!this.botUserId) return;
 
-      // Check if this channel is configured for this connector
-      if (!this.channels.has(event.channel)) {
+      const isDM = isSlackDM(event.channel);
+
+      // For DMs, check DM filtering; for channels, check channel config
+      if (isDM) {
+        const filterResult = this.checkDMAccess(event.channel, event.ts, event.user);
+        if (!filterResult) return;
+      } else if (!this.channels.has(event.channel)) {
         this.messagesIgnored++;
         this.emit("messageIgnored", {
           agentName: this.agentName,
@@ -325,13 +333,14 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
         event.ts,
         event.user,
         true,
+        isDM,
         say
       );
 
       this.emit("message", messageEvent);
     });
 
-    // Handle all messages — thread replies AND top-level channel messages
+    // Handle all messages — thread replies AND top-level channel messages AND DMs
     this.app.event("message", async ({ event, say }: { event: MessageEvent; say: SayFn }) => {
       this.messagesReceived++;
 
@@ -366,26 +375,18 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
         return;
       }
 
-      // Check if this channel is configured for this connector
-      if (!this.channels.has(event.channel)) {
-        this.messagesIgnored++;
-        this.emit("messageIgnored", {
-          agentName: this.agentName,
-          reason: "not_configured",
-          channelId: event.channel,
-          messageTs: event.ts,
-        });
-        this.logger.debug("No channel config for message", {
-          channel: event.channel,
-        });
-        return;
-      }
+      const isDM = isSlackDM(event.channel);
 
-      // For top-level messages (no thread_ts), check channel mode
-      if (!event.thread_ts) {
-        const channelConfig = this.channels.get(event.channel);
-        const mode = channelConfig?.mode ?? "mention";
+      // For DMs, check DM filtering; for channels, check channel config
+      if (isDM) {
+        const filterResult = this.checkDMAccess(event.channel, event.ts, event.user ?? "");
+        if (!filterResult) return;
+
+        // DMs always use "auto" mode from DM config (no mention required)
+        const mode = getDMMode(this.dmConfig);
         if (mode === "mention") {
+          // In mention mode, DMs without a mention are ignored
+          // (the app_mention handler above processes mentions)
           this.messagesIgnored++;
           this.emit("messageIgnored", {
             agentName: this.agentName,
@@ -393,19 +394,53 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
             channelId: event.channel,
             messageTs: event.ts,
           });
-          this.logger.debug("Ignoring top-level message in mention-mode channel", {
+          this.logger.debug("Ignoring DM in mention mode (no mention)", {
             channel: event.channel,
-            agent: this.agentName,
-            mode,
+          });
+          return;
+        }
+      } else {
+        // Channel message — check channel config
+        if (!this.channels.has(event.channel)) {
+          this.messagesIgnored++;
+          this.emit("messageIgnored", {
+            agentName: this.agentName,
+            reason: "not_configured",
+            channelId: event.channel,
+            messageTs: event.ts,
+          });
+          this.logger.debug("No channel config for message", {
+            channel: event.channel,
           });
           return;
         }
 
-        this.logger.debug("Top-level channel message (auto mode)", {
-          channel: event.channel,
-          agent: this.agentName,
-          ts: event.ts,
-        });
+        // For top-level messages (no thread_ts), check channel mode
+        if (!event.thread_ts) {
+          const channelConfig = this.channels.get(event.channel);
+          const mode = channelConfig?.mode ?? "mention";
+          if (mode === "mention") {
+            this.messagesIgnored++;
+            this.emit("messageIgnored", {
+              agentName: this.agentName,
+              reason: "not_configured",
+              channelId: event.channel,
+              messageTs: event.ts,
+            });
+            this.logger.debug("Ignoring top-level message in mention-mode channel", {
+              channel: event.channel,
+              agent: this.agentName,
+              mode,
+            });
+            return;
+          }
+
+          this.logger.debug("Top-level channel message (auto mode)", {
+            channel: event.channel,
+            agent: this.agentName,
+            ts: event.ts,
+          });
+        }
       }
 
       const prompt = processMessage(event.text ?? "", this.botUserId);
@@ -433,11 +468,49 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
         event.ts,
         event.user ?? "",
         false,
+        isDM,
         say
       );
 
       this.emit("message", messageEvent);
     });
+  }
+
+  /**
+   * Check if a DM is allowed based on DM config (enabled, allowlist, blocklist).
+   * Returns true if the DM should be processed, false if it was filtered.
+   * Emits messageIgnored events when filtered.
+   */
+  private checkDMAccess(channelId: string, messageTs: string, userId: string): boolean {
+    if (!isDMEnabled(this.dmConfig)) {
+      this.messagesIgnored++;
+      this.emit("messageIgnored", {
+        agentName: this.agentName,
+        reason: "dm_disabled",
+        channelId,
+        messageTs,
+      });
+      this.logger.debug("DM ignored (DMs disabled)", { channel: channelId });
+      return false;
+    }
+
+    const filterResult = checkDMUserFilter(userId, this.dmConfig);
+    if (!filterResult.allowed) {
+      this.messagesIgnored++;
+      this.emit("messageIgnored", {
+        agentName: this.agentName,
+        reason: "dm_filtered",
+        channelId,
+        messageTs,
+      });
+      this.logger.debug("DM filtered", {
+        userId,
+        reason: filterResult.reason,
+      });
+      return false;
+    }
+
+    return true;
   }
 
   // ===========================================================================
@@ -497,6 +570,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
     messageTs: string,
     userId: string,
     wasMentioned: boolean,
+    isDM: boolean,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     say: any
   ): SlackMessageEvent {
@@ -545,6 +619,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
         messageTs,
         userId,
         wasMentioned,
+        isDM,
       },
       reply,
       startProcessingIndicator,
@@ -582,6 +657,18 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
   ): this {
     return super.off(event, listener);
   }
+}
+
+// =============================================================================
+// DM Detection
+// =============================================================================
+
+/**
+ * Check if a Slack channel ID is a DM (IM) channel.
+ * Slack DM channel IDs use a 'D' prefix (e.g., D069C7QFK).
+ */
+function isSlackDM(channelId: string): boolean {
+  return channelId.startsWith("D");
 }
 
 // =============================================================================

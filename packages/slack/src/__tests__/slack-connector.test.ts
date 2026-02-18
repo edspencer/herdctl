@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { SlackConnector } from "../slack-connector.js";
-import type { IChatSessionManager } from "@herdctl/chat";
+import type { IChatSessionManager, DMConfig } from "@herdctl/chat";
 import type { SlackMessageEvent, SlackChannelConfig } from "../types.js";
 
 const BOT_USER_ID = "U0123456789";
@@ -37,6 +37,7 @@ const createMockSessionManager = (
  */
 function createTestConnector(options?: {
   channels?: SlackChannelConfig[];
+  dm?: Partial<DMConfig>;
   sessionManager?: IChatSessionManager;
 }) {
   const channels = options?.channels ?? [{ id: CHANNEL_ID }];
@@ -47,6 +48,7 @@ function createTestConnector(options?: {
     botToken: "xoxb-fake",
     appToken: "xapp-fake",
     channels,
+    dm: options?.dm,
     sessionManager,
     logger: createMockLogger(),
   });
@@ -115,6 +117,7 @@ describe("SlackConnector registerEventHandlers", () => {
       expect(messages[0].prompt).toBe("help me");
       expect(messages[0].metadata.wasMentioned).toBe(true);
       expect(messages[0].metadata.channelId).toBe(CHANNEL_ID);
+      expect(messages[0].metadata.isDM).toBe(false);
     });
 
     it("ignores @mention in unconfigured channel", async () => {
@@ -159,6 +162,7 @@ describe("SlackConnector registerEventHandlers", () => {
       expect(messages[0].prompt).toBe("hello bot");
       expect(messages[0].metadata.wasMentioned).toBe(false);
       expect(messages[0].metadata.channelId).toBe(CHANNEL_ID);
+      expect(messages[0].metadata.isDM).toBe(false);
     });
 
     it("routes thread reply in configured channel to agent", async () => {
@@ -428,6 +432,233 @@ describe("SlackConnector registerEventHandlers", () => {
       expect(sentText).toContain("*bold*");
       expect(sentText).not.toContain("**bold**");
       expect(sentText).toContain("<https://example.com|link>");
+    });
+  });
+
+  describe("DM handling", () => {
+    const DM_CHANNEL_ID = "D069C7QFK";
+
+    it("processes DM messages when DMs are enabled (default)", async () => {
+      const { connector, handlers, say } = createTestConnector();
+      const messages = captureMessages(connector);
+
+      await handlers["event:message"]({
+        event: {
+          type: "message",
+          user: "UUSER1",
+          text: "hello via DM",
+          ts: "1707930001.000001",
+          channel: DM_CHANNEL_ID,
+        },
+        say,
+      });
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].prompt).toBe("hello via DM");
+      expect(messages[0].metadata.isDM).toBe(true);
+      expect(messages[0].metadata.channelId).toBe(DM_CHANNEL_ID);
+    });
+
+    it("processes DM @mentions when DMs are enabled", async () => {
+      const { connector, handlers, say } = createTestConnector();
+      const messages = captureMessages(connector);
+
+      await handlers["event:app_mention"]({
+        event: {
+          type: "app_mention",
+          user: "UUSER1",
+          text: `<@${BOT_USER_ID}> help via DM`,
+          ts: "1707930001.000001",
+          channel: DM_CHANNEL_ID,
+        },
+        say,
+      });
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].prompt).toBe("help via DM");
+      expect(messages[0].metadata.isDM).toBe(true);
+      expect(messages[0].metadata.wasMentioned).toBe(true);
+    });
+
+    it("ignores DM messages when DMs are explicitly disabled", async () => {
+      const { connector, handlers, say } = createTestConnector({
+        dm: { enabled: false, mode: "auto" },
+      });
+      const messages = captureMessages(connector);
+      const ignored: Array<{ reason: string }> = [];
+      connector.on("messageIgnored", (e) => ignored.push(e));
+
+      await handlers["event:message"]({
+        event: {
+          type: "message",
+          user: "UUSER1",
+          text: "hello via DM",
+          ts: "1707930001.000001",
+          channel: DM_CHANNEL_ID,
+        },
+        say,
+      });
+
+      expect(messages).toHaveLength(0);
+      expect(ignored).toHaveLength(1);
+      expect(ignored[0].reason).toBe("dm_disabled");
+    });
+
+    it("ignores DM @mentions when DMs are disabled", async () => {
+      const { connector, handlers, say } = createTestConnector({
+        dm: { enabled: false, mode: "auto" },
+      });
+      const messages = captureMessages(connector);
+      const ignored: Array<{ reason: string }> = [];
+      connector.on("messageIgnored", (e) => ignored.push(e));
+
+      await handlers["event:app_mention"]({
+        event: {
+          type: "app_mention",
+          user: "UUSER1",
+          text: `<@${BOT_USER_ID}> help`,
+          ts: "1707930001.000001",
+          channel: DM_CHANNEL_ID,
+        },
+        say,
+      });
+
+      expect(messages).toHaveLength(0);
+      expect(ignored).toHaveLength(1);
+      expect(ignored[0].reason).toBe("dm_disabled");
+    });
+
+    it("allows DM from user on allowlist", async () => {
+      const { connector, handlers, say } = createTestConnector({
+        dm: { enabled: true, mode: "auto", allowlist: ["UUSER1"] },
+      });
+      const messages = captureMessages(connector);
+
+      await handlers["event:message"]({
+        event: {
+          type: "message",
+          user: "UUSER1",
+          text: "I am allowed",
+          ts: "1707930001.000001",
+          channel: DM_CHANNEL_ID,
+        },
+        say,
+      });
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].prompt).toBe("I am allowed");
+    });
+
+    it("blocks DM from user not on allowlist", async () => {
+      const { connector, handlers, say } = createTestConnector({
+        dm: { enabled: true, mode: "auto", allowlist: ["UOTHER"] },
+      });
+      const messages = captureMessages(connector);
+      const ignored: Array<{ reason: string }> = [];
+      connector.on("messageIgnored", (e) => ignored.push(e));
+
+      await handlers["event:message"]({
+        event: {
+          type: "message",
+          user: "UUSER1",
+          text: "I am not allowed",
+          ts: "1707930001.000001",
+          channel: DM_CHANNEL_ID,
+        },
+        say,
+      });
+
+      expect(messages).toHaveLength(0);
+      expect(ignored).toHaveLength(1);
+      expect(ignored[0].reason).toBe("dm_filtered");
+    });
+
+    it("blocks DM from user on blocklist", async () => {
+      const { connector, handlers, say } = createTestConnector({
+        dm: { enabled: true, mode: "auto", blocklist: ["UUSER1"] },
+      });
+      const messages = captureMessages(connector);
+      const ignored: Array<{ reason: string }> = [];
+      connector.on("messageIgnored", (e) => ignored.push(e));
+
+      await handlers["event:message"]({
+        event: {
+          type: "message",
+          user: "UUSER1",
+          text: "I am blocked",
+          ts: "1707930001.000001",
+          channel: DM_CHANNEL_ID,
+        },
+        say,
+      });
+
+      expect(messages).toHaveLength(0);
+      expect(ignored).toHaveLength(1);
+      expect(ignored[0].reason).toBe("dm_filtered");
+    });
+
+    it("blocklist takes precedence over allowlist", async () => {
+      const { connector, handlers, say } = createTestConnector({
+        dm: { enabled: true, mode: "auto", allowlist: ["UUSER1"], blocklist: ["UUSER1"] },
+      });
+      const messages = captureMessages(connector);
+      const ignored: Array<{ reason: string }> = [];
+      connector.on("messageIgnored", (e) => ignored.push(e));
+
+      await handlers["event:message"]({
+        event: {
+          type: "message",
+          user: "UUSER1",
+          text: "I am on both lists",
+          ts: "1707930001.000001",
+          channel: DM_CHANNEL_ID,
+        },
+        say,
+      });
+
+      expect(messages).toHaveLength(0);
+      expect(ignored[0].reason).toBe("dm_filtered");
+    });
+
+    it("ignores DM without mention when DM mode is mention", async () => {
+      const { connector, handlers, say } = createTestConnector({
+        dm: { enabled: true, mode: "mention" },
+      });
+      const messages = captureMessages(connector);
+
+      await handlers["event:message"]({
+        event: {
+          type: "message",
+          user: "UUSER1",
+          text: "hello no mention",
+          ts: "1707930001.000001",
+          channel: DM_CHANNEL_ID,
+        },
+        say,
+      });
+
+      expect(messages).toHaveLength(0);
+    });
+
+    it("processes DM @mention when DM mode is mention", async () => {
+      const { connector, handlers, say } = createTestConnector({
+        dm: { enabled: true, mode: "mention" },
+      });
+      const messages = captureMessages(connector);
+
+      await handlers["event:app_mention"]({
+        event: {
+          type: "app_mention",
+          user: "UUSER1",
+          text: `<@${BOT_USER_ID}> help`,
+          ts: "1707930001.000001",
+          channel: DM_CHANNEL_ID,
+        },
+        say,
+      });
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0].metadata.isDM).toBe(true);
     });
   });
 
