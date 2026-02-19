@@ -80,6 +80,9 @@ export class AgentLoadError extends ConfigError {
 
 /**
  * Error thrown when a fleet composition cycle is detected
+ *
+ * Format: Fleet composition cycle detected: root.yaml -> project-a/herdctl.yaml -> shared/herdctl.yaml -> project-a/herdctl.yaml
+ * The path chain shows the full cycle so the user can identify which reference creates the cycle.
  */
 export class FleetCycleError extends ConfigError {
   public readonly pathChain: string[];
@@ -95,33 +98,89 @@ export class FleetCycleError extends ConfigError {
 
 /**
  * Error thrown when two sub-fleets at the same level resolve to the same name
+ *
+ * Format: Fleet name collision at level "root": two sub-fleets resolve to name "project-a".
+ *         Conflicting references: ./project-a/herdctl.yaml, ./renamed-a/herdctl.yaml
+ *         Add explicit "name" overrides to disambiguate.
  */
 export class FleetNameCollisionError extends ConfigError {
   public readonly fleetName: string;
   public readonly parentConfigPath: string;
+  public readonly conflictingPaths: [string, string];
 
-  constructor(fleetName: string, parentConfigPath: string) {
+  constructor(
+    fleetName: string,
+    parentConfigPath: string,
+    existingPath: string,
+    newPath: string
+  ) {
+    // Derive level name from parent config for clearer error message
+    const levelName = parentConfigPath.split("/").pop()?.replace(/\.ya?ml$/, "") ?? "root";
     super(
-      `Fleet name collision: two sub-fleets resolve to the name '${fleetName}' ` +
-        `in '${parentConfigPath}'. Use an explicit 'name' field on one of the ` +
-        `fleet references to disambiguate.`
+      `Fleet name collision at level "${levelName}": two sub-fleets resolve to name "${fleetName}". ` +
+        `Conflicting references: ${existingPath}, ${newPath}. ` +
+        `Add explicit "name" overrides to disambiguate.`
     );
     this.name = "FleetNameCollisionError";
     this.fleetName = fleetName;
     this.parentConfigPath = parentConfigPath;
+    this.conflictingPaths = [existingPath, newPath];
+  }
+}
+
+/**
+ * Error thrown when a fleet name is invalid (doesn't match the required pattern)
+ *
+ * Format: Invalid fleet name "my.fleet" — fleet names must match pattern ^[a-zA-Z0-9][a-zA-Z0-9_-]*$ (no dots allowed)
+ */
+export class InvalidFleetNameError extends ConfigError {
+  public readonly invalidName: string;
+  public readonly pattern: RegExp;
+
+  constructor(invalidName: string, pattern: RegExp = AGENT_NAME_PATTERN) {
+    super(
+      `Invalid fleet name "${invalidName}" — fleet names must match pattern ${pattern.source} (no dots allowed)`
+    );
+    this.name = "InvalidFleetNameError";
+    this.invalidName = invalidName;
+    this.pattern = pattern;
   }
 }
 
 /**
  * Error thrown when a sub-fleet fails to load
+ *
+ * For file not found errors, the format is:
+ *   Failed to load sub-fleet: file not found at /path/to/missing/herdctl.yaml (referenced from root.yaml)
+ *
+ * For other errors (e.g., YAML parse errors), the original error message is included.
  */
 export class FleetLoadError extends ConfigError {
   public readonly fleetPath: string;
+  public readonly referencedFrom?: string;
 
-  constructor(fleetPath: string, cause: Error) {
-    super(`Failed to load sub-fleet '${fleetPath}': ${cause.message}`);
+  constructor(fleetPath: string, cause: Error, referencedFrom?: string) {
+    // Check if this is a file not found error
+    const isNotFound = cause instanceof FileReadError &&
+      (cause.message.includes("ENOENT") || cause.message.includes("no such file"));
+
+    let message: string;
+    if (isNotFound) {
+      message = `Failed to load sub-fleet: file not found at ${fleetPath}`;
+      if (referencedFrom) {
+        message += ` (referenced from ${referencedFrom})`;
+      }
+    } else {
+      message = `Failed to load sub-fleet '${fleetPath}': ${cause.message}`;
+      if (referencedFrom) {
+        message += ` (referenced from ${referencedFrom})`;
+      }
+    }
+
+    super(message);
     this.name = "FleetLoadError";
     this.fleetPath = fleetPath;
+    this.referencedFrom = referencedFrom;
     this.cause = cause;
   }
 }
@@ -612,16 +671,20 @@ async function processFleetSubFleets(
     }
 
     // Read and parse sub-fleet config
+    // Derive parent config filename for error messages
+    const parentConfigFilename = configPath.split("/").pop() ?? configPath;
+
     let subFleetContent: string;
     try {
       subFleetContent = await readFile(subFleetAbsPath, "utf-8");
     } catch (error) {
       throw new FleetLoadError(
-        fleetRef.path,
+        subFleetAbsPath,
         new FileReadError(
           subFleetAbsPath,
           error instanceof Error ? error : undefined
-        )
+        ),
+        parentConfigFilename
       );
     }
 
@@ -630,8 +693,9 @@ async function processFleetSubFleets(
       subFleetConfig = parseFleetYaml(subFleetContent, subFleetAbsPath);
     } catch (error) {
       throw new FleetLoadError(
-        fleetRef.path,
-        error instanceof Error ? error : new Error(String(error))
+        subFleetAbsPath,
+        error instanceof Error ? error : new Error(String(error)),
+        parentConfigFilename
       );
     }
 
@@ -648,16 +712,13 @@ async function processFleetSubFleets(
 
     // Validate fleet name matches agent name pattern (no dots)
     if (!AGENT_NAME_PATTERN.test(resolvedName)) {
-      throw new ConfigError(
-        `Fleet name '${resolvedName}' is invalid. ` +
-          `Fleet names must start with a letter or number and contain only ` +
-          `letters, numbers, underscores, and hyphens (no dots).`
-      );
+      throw new InvalidFleetNameError(resolvedName, AGENT_NAME_PATTERN);
     }
 
     // Check for fleet name collision at this level
-    if (fleetNamesAtLevel.has(resolvedName)) {
-      throw new FleetNameCollisionError(resolvedName, configPath);
+    const existingPath = fleetNamesAtLevel.get(resolvedName);
+    if (existingPath) {
+      throw new FleetNameCollisionError(resolvedName, configPath, existingPath, subFleetAbsPath);
     }
     fleetNamesAtLevel.set(resolvedName, subFleetAbsPath);
 

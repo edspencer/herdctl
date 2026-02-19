@@ -590,7 +590,7 @@ agents:
         expect(error).toBeInstanceOf(ConfigError);
         const msg = (error as Error).message;
         expect(msg).toContain("has.dots.in.name");
-        expect(msg).toContain("invalid");
+        expect(msg.toLowerCase()).toContain("invalid");
       }
     });
 

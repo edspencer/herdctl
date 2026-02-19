@@ -166,6 +166,7 @@ export {
   FleetCycleError,
   FleetNameCollisionError,
   FleetLoadError,
+  InvalidFleetNameError,
   type ResolvedConfig,
   type ResolvedAgent,
   type LoadConfigOptions,

@@ -480,6 +480,10 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
    * scheduler, Discord connectors, session storage, job identification, etc.).
    * Duplicate qualified names cause silent overwrites and unpredictable behavior.
    *
+   * Error format examples:
+   * - Single duplicate: Duplicate agent qualified name "project-a.security-auditor". Agent names must be unique within a fleet.
+   * - Multiple duplicates: Duplicate agent qualified names found: "project-a.foo", "project-b.bar". Agent names must be unique within a fleet.
+   *
    * @param agents - Array of resolved agents to validate
    * @throws ConfigurationError if duplicate qualified names are found
    */
@@ -496,10 +500,16 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       .filter(([, count]) => count > 1)
       .map(([name]) => name);
 
-    if (duplicates.length > 0) {
+    if (duplicates.length === 1) {
+      // Single duplicate - use spec format with "found" for backward compatibility
+      throw new ConfigurationError(
+        `Duplicate agent qualified name found: "${duplicates[0]}". Agent names must be unique within a fleet.`
+      );
+    } else if (duplicates.length > 1) {
+      // Multiple duplicates - list all of them
       const duplicateList = duplicates.map(name => `"${name}"`).join(", ");
       throw new ConfigurationError(
-        `Duplicate agent qualified names found: ${duplicateList}. Agent names must be unique within their fleet.`
+        `Duplicate agent qualified names found: ${duplicateList}. Agent names must be unique within a fleet.`
       );
     }
   }
