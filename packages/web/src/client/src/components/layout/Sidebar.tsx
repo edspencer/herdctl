@@ -11,13 +11,13 @@
  * a flat agent list with no fleet grouping — identical to the pre-composition UI.
  */
 
-import { useEffect, useMemo, useCallback, useState } from "react";
+import { Briefcase, Calendar, ChevronRight, LayoutDashboard, Plus } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
-import { LayoutDashboard, Briefcase, Calendar, Plus, ChevronRight } from "lucide-react";
-import { useFleet, useSidebarSessions, useChatActions } from "../../store";
-import { formatRelativeTime } from "../../lib/format";
 import { getAgentAvatar } from "../../lib/avatar";
+import { formatRelativeTime } from "../../lib/format";
 import type { AgentInfo, ChatSession, ConnectionStatus } from "../../lib/types";
+import { useChatActions, useFleet, useSidebarSessions } from "../../store";
 
 // =============================================================================
 // Fleet Grouping Types
@@ -120,7 +120,7 @@ function countFleetAgents(node: FleetTreeNode): number {
 /**
  * Get status dot color class
  */
-function getStatusDotClass(status: AgentInfo["status"]): string {
+function _getStatusDotClass(status: AgentInfo["status"]): string {
   switch (status) {
     case "running":
       return "bg-herd-status-running animate-pulse";
@@ -266,7 +266,7 @@ function FleetSection({
   const fleetKey = fleetKeyPrefix ? `${fleetKeyPrefix}.${node.name}` : node.name;
   const isExpanded = expandedFleets.has(fleetKey);
   const agentCount = countFleetAgents(node);
-  const statusDotClass = getFleetStatusDotClass(node);
+  const _statusDotClass = getFleetStatusDotClass(node);
 
   return (
     <div>
@@ -387,7 +387,7 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
       collectKeys(fleetNodes, "");
       setExpandedFleets(allKeys);
     }
-  }, [hasFleetGrouping, fleetNodes]);
+  }, [hasFleetGrouping, fleetNodes, expandedFleets.size]);
 
   const toggleFleet = useCallback((fleetKey: string) => {
     setExpandedFleets((prev) => {
@@ -407,7 +407,7 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
     if (agentQualifiedNames.length > 0) {
       fetchSidebarSessions(agentQualifiedNames);
     }
-  }, [agentQualifiedNames.join(","), fetchSidebarSessions]);
+  }, [fetchSidebarSessions, agentQualifiedNames]);
 
   // Extract current agent qualified name from the URL path
   const currentAgentQualifiedName = useMemo(() => {

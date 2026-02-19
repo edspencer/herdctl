@@ -107,7 +107,7 @@ export function getToolInputSummary(name: string, input?: unknown): string | und
   if (name === "Bash" || name === "bash") {
     const command = inputObj?.command;
     if (typeof command === "string" && command.length > 0) {
-      return command.length > 200 ? command.substring(0, 200) + "..." : command;
+      return command.length > 200 ? `${command.substring(0, 200)}...` : command;
     }
   }
 

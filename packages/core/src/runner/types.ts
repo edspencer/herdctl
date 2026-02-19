@@ -5,7 +5,7 @@
  */
 
 import type { ResolvedAgent } from "../config/index.js";
-import type { TriggerType, JobOutputInput } from "../state/index.js";
+import type { JobOutputInput, TriggerType } from "../state/index.js";
 
 // =============================================================================
 // Runner Options Types

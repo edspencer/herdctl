@@ -16,7 +16,7 @@
  */
 
 import { readFile, realpath } from "node:fs/promises";
-import { basename, resolve, relative } from "node:path";
+import { basename, relative, resolve } from "node:path";
 import type { InjectedMcpServerDef, McpToolCallResult } from "./types.js";
 
 // =============================================================================

@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import type { AgentChatDiscord } from "@herdctl/core";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  DiscordLogger,
-  createLoggerFromConfig,
   createDefaultDiscordLogger,
+  createLoggerFromConfig,
+  DiscordLogger,
   type DiscordLogLevel,
 } from "../logger.js";
-import type { AgentChatDiscord } from "@herdctl/core";
 
 // =============================================================================
 // Test Fixtures

@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from "vitest";
+import { type ChildProcess, spawn } from "node:child_process";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import { tmpdir } from "node:os";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { stopCommand } from "../stop.js";
-import { spawn, type ChildProcess } from "node:child_process";
 
 // Helper to create a temp directory
 function createTempDir(): string {

@@ -12,15 +12,15 @@
  * - packages/core/src/fleet-manager/__tests__/config-reload-qualified.test.ts
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdir, writeFile, rm, realpath } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { FleetManager } from "../fleet-manager/fleet-manager.js";
-import { loadConfig, FleetCycleError, FleetNameCollisionError } from "../config/index.js";
-import { computeConfigChanges } from "../fleet-manager/config-reload.js";
-import type { FleetManagerLogger, AgentInfo } from "../fleet-manager/types.js";
+import { join, resolve } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResolvedAgent, ResolvedConfig } from "../config/index.js";
+import { FleetCycleError, FleetNameCollisionError, loadConfig } from "../config/index.js";
+import { computeConfigChanges } from "../fleet-manager/config-reload.js";
+import { FleetManager } from "../fleet-manager/fleet-manager.js";
+import type { FleetManagerLogger } from "../fleet-manager/types.js";
 
 // Mock the Claude SDK to avoid actual API calls
 vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
@@ -983,7 +983,7 @@ describe("computeConfigChanges with Qualified Names (Unit-Level)", () => {
     fleetPath: string[] = [],
     overrides: Record<string, unknown> = {},
   ): ResolvedAgent {
-    const qualifiedName = fleetPath.length > 0 ? fleetPath.join(".") + "." + name : name;
+    const qualifiedName = fleetPath.length > 0 ? `${fleetPath.join(".")}.${name}` : name;
     return {
       name,
       configPath: `/fake/${name}.yaml`,

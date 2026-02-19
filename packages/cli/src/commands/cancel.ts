@@ -7,17 +7,15 @@
  * - herdctl cancel <id> --yes    Skip confirmation prompt
  */
 
-import { confirm } from "@inquirer/prompts";
 import {
-  FleetManager,
   ConfigNotFoundError,
-  JobNotFoundError,
+  FleetManager,
   isFleetManagerError,
-  isJobNotFoundError,
   isJobCancelError,
+  isJobNotFoundError,
   JobManager,
-  type CancelJobResult,
 } from "@herdctl/core";
+import { confirm } from "@inquirer/prompts";
 
 export interface CancelOptions {
   force?: boolean;

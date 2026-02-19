@@ -15,99 +15,88 @@
 
 export const VERSION = "0.1.0";
 
-// Main connector class
-export { SlackConnector } from "./slack-connector.js";
-
-// Manager class (used by FleetManager)
-export { SlackManager } from "./manager.js";
-
-// Logger
-export {
-  createSlackLogger,
-  createDefaultSlackLogger,
-} from "./logger.js";
-
 export type {
-  SlackLogLevel,
-  SlackLoggerOptions,
-} from "./logger.js";
-
-// Types (Slack-specific only - shared types are in @herdctl/chat)
-export type {
-  SlackConnectorOptions,
-  SlackConnectorState,
-  SlackConnectionStatus,
-  SlackConnectorLogger,
-  SlackMessageEvent,
-  SlackErrorEvent,
-  SlackChannelConfig,
-  SlackFileUploadParams,
-  ISlackConnector,
-  SlackConnectorEventMap,
-  SlackConnectorEventName,
-  SlackConnectorEventPayload,
-} from "./types.js";
-
-// Slack-specific errors
-export {
-  SlackErrorCode,
-  SlackConnectorError,
-  SlackConnectionError,
-  AlreadyConnectedError,
-  MissingTokenError,
-  InvalidTokenError,
-  isSlackConnectorError,
-} from "./errors.js";
-
+  CommandContext,
+  CommandHandlerOptions,
+  PrefixCommand,
+} from "./commands/index.js";
+// Commands
+export { CommandHandler, helpCommand, resetCommand, statusCommand } from "./commands/index.js";
+export type { ClassifiedError } from "./error-handler.js";
 // Slack-specific error handling (re-exports shared types + Slack classifier)
 export {
-  ErrorCategory,
   classifyError,
+  ErrorCategory,
   safeExecute,
   safeExecuteWithReply,
 } from "./error-handler.js";
 
-export type { ClassifiedError } from "./error-handler.js";
-
-// Commands
-export { CommandHandler } from "./commands/index.js";
-export { helpCommand, resetCommand, statusCommand } from "./commands/index.js";
-
+// Slack-specific errors
+export {
+  AlreadyConnectedError,
+  InvalidTokenError,
+  isSlackConnectorError,
+  MissingTokenError,
+  SlackConnectionError,
+  SlackConnectorError,
+  SlackErrorCode,
+} from "./errors.js";
 export type {
-  CommandContext,
-  PrefixCommand,
-  CommandHandlerOptions,
-} from "./commands/index.js";
+  ContextAttachment,
+  MessageSplitOptions,
+  SplitResult,
+} from "./formatting.js";
+// Slack-specific formatting utilities
+// Note: Message splitting functions are re-exported from @herdctl/chat
+export {
+  createContextAttachment,
+  DEFAULT_MESSAGE_DELAY_MS,
+  escapeMrkdwn,
+  // Re-exported from @herdctl/chat
+  findSplitPoint,
+  formatCodeBlock,
+  MIN_CHUNK_SIZE,
+  markdownToMrkdwn,
+  needsSplit,
+  // Slack-specific
+  SLACK_MAX_MESSAGE_LENGTH,
+  splitMessage,
+  truncateMessage,
+} from "./formatting.js";
+export type {
+  SlackLoggerOptions,
+  SlackLogLevel,
+} from "./logger.js";
+// Logger
+export {
+  createDefaultSlackLogger,
+  createSlackLogger,
+} from "./logger.js";
+// Manager class (used by FleetManager)
+export { SlackManager } from "./manager.js";
 
 // Message handling
 export {
   isBotMentioned,
+  processMessage,
+  shouldProcessMessage,
   stripBotMention,
   stripMentions,
-  shouldProcessMessage,
-  processMessage,
 } from "./message-handler.js";
-
-// Slack-specific formatting utilities
-// Note: Message splitting functions are re-exported from @herdctl/chat
-export {
-  // Slack-specific
-  SLACK_MAX_MESSAGE_LENGTH,
-  markdownToMrkdwn,
-  escapeMrkdwn,
-  createContextAttachment,
-  // Re-exported from @herdctl/chat
-  findSplitPoint,
-  splitMessage,
-  needsSplit,
-  truncateMessage,
-  formatCodeBlock,
-  DEFAULT_MESSAGE_DELAY_MS,
-  MIN_CHUNK_SIZE,
-} from "./formatting.js";
-
+// Main connector class
+export { SlackConnector } from "./slack-connector.js";
+// Types (Slack-specific only - shared types are in @herdctl/chat)
 export type {
-  MessageSplitOptions,
-  SplitResult,
-  ContextAttachment,
-} from "./formatting.js";
+  ISlackConnector,
+  SlackChannelConfig,
+  SlackConnectionStatus,
+  SlackConnectorEventMap,
+  SlackConnectorEventName,
+  SlackConnectorEventPayload,
+  SlackConnectorLogger,
+  SlackConnectorOptions,
+  SlackConnectorState,
+  SlackErrorEvent,
+  SlackFileUploadParams,
+  SlackMessageEvent,
+} from "./types.js";

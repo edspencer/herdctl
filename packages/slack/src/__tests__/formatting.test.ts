@@ -1,15 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  markdownToMrkdwn,
-  splitMessage,
-  findSplitPoint,
-  needsSplit,
   createContextAttachment,
-  truncateMessage,
-  formatCodeBlock,
   escapeMrkdwn,
-  SLACK_MAX_MESSAGE_LENGTH,
+  findSplitPoint,
+  formatCodeBlock,
   MIN_CHUNK_SIZE,
+  markdownToMrkdwn,
+  needsSplit,
+  SLACK_MAX_MESSAGE_LENGTH,
+  splitMessage,
+  truncateMessage,
 } from "../formatting.js";
 
 describe("markdownToMrkdwn", () => {
@@ -169,7 +169,7 @@ describe("findSplitPoint", () => {
   });
 
   it("splits at paragraph boundary", () => {
-    const text = "a".repeat(200) + "\n\n" + "b".repeat(200);
+    const text = `${"a".repeat(200)}\n\n${"b".repeat(200)}`;
     const splitIndex = findSplitPoint(text, 250);
 
     expect(splitIndex).toBeLessThanOrEqual(250);
@@ -177,7 +177,7 @@ describe("findSplitPoint", () => {
   });
 
   it("splits at newline if no paragraph boundary", () => {
-    const text = "a".repeat(200) + "\n" + "b".repeat(200);
+    const text = `${"a".repeat(200)}\n${"b".repeat(200)}`;
     const splitIndex = findSplitPoint(text, 250);
 
     expect(splitIndex).toBeLessThanOrEqual(250);

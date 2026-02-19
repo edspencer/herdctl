@@ -13,19 +13,19 @@
  * - Warnings for approaching rate limit (< 100 remaining)
  */
 
+import { WorkSourceError } from "../errors.js";
 import type { WorkSourceAdapter } from "../index.js";
+import type { WorkSourceConfig } from "../registry.js";
 import type {
+  ClaimResult,
   FetchOptions,
   FetchResult,
-  ClaimResult,
-  WorkResult,
   ReleaseOptions,
   ReleaseResult,
   WorkItem,
   WorkItemPriority,
+  WorkResult,
 } from "../types.js";
-import type { WorkSourceConfig } from "../registry.js";
-import { WorkSourceError } from "../errors.js";
 
 // =============================================================================
 // Rate Limit Types
@@ -335,7 +335,7 @@ export function calculateBackoffDelay(
   }
 
   // Calculate exponential backoff: baseDelay * 2^attempt
-  const exponentialDelay = options.baseDelayMs * Math.pow(2, attempt);
+  const exponentialDelay = options.baseDelayMs * 2 ** attempt;
 
   // Cap at max delay
   const cappedDelay = Math.min(exponentialDelay, options.maxDelayMs);
@@ -533,7 +533,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
     };
 
     if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
+      headers.Authorization = `Bearer ${token}`;
     }
 
     const url = `${this.apiBaseUrl}${endpoint}`;
@@ -641,7 +641,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
     };
 
     if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
+      headers.Authorization = `Bearer ${token}`;
     }
 
     const url = `${this.apiBaseUrl}${endpoint}`;

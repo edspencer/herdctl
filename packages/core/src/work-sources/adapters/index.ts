@@ -5,17 +5,17 @@
  * work source registry at module load time.
  */
 
-import { registerWorkSource, isWorkSourceRegistered } from "../registry.js";
+import { isWorkSourceRegistered, registerWorkSource } from "../registry.js";
 import {
+  calculateBackoffDelay,
   createGitHubAdapter,
-  GitHubWorkSourceAdapter,
+  extractRateLimitInfo,
   GitHubAPIError,
   GitHubAuthError,
-  extractRateLimitInfo,
-  isRateLimitResponse,
-  calculateBackoffDelay,
-  type GitHubWorkSourceConfig,
   type GitHubIssue,
+  GitHubWorkSourceAdapter,
+  type GitHubWorkSourceConfig,
+  isRateLimitResponse,
   type RateLimitInfo,
   type RateLimitWarningOptions,
   type RetryOptions,

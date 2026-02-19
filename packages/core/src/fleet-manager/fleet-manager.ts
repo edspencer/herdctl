@@ -15,52 +15,50 @@ import { EventEmitter } from "node:events";
 import { resolve } from "node:path";
 
 import {
-  loadConfig,
-  type ResolvedConfig,
-  type ResolvedAgent,
-  ConfigNotFoundError,
   ConfigError,
+  ConfigNotFoundError,
+  loadConfig,
+  type ResolvedAgent,
+  type ResolvedConfig,
 } from "../config/index.js";
-import { initStateDirectory, type StateDirectory } from "../state/index.js";
 import { Scheduler, type TriggerInfo } from "../scheduler/index.js";
-
-import type { FleetManagerContext } from "./context.js";
-import type {
-  FleetManagerOptions,
-  FleetConfigOverrides,
-  FleetManagerState,
-  FleetManagerStatus,
-  FleetManagerLogger,
-  FleetManagerStopOptions,
-  FleetStatus,
-  AgentInfo,
-  ScheduleInfo,
-  TriggerOptions,
-  TriggerResult,
-  JobModifications,
-  CancelJobResult,
-  ForkJobResult,
-  LogEntry,
-  LogStreamOptions,
-  ConfigChange,
-  ConfigReloadedPayload,
-} from "./types.js";
-import {
-  InvalidStateError,
-  ConfigurationError,
-  FleetManagerStateDirError,
-  FleetManagerShutdownError,
-} from "./errors.js";
-
-// Module classes
-import { StatusQueries } from "./status-queries.js";
-import { ScheduleManagement } from "./schedule-management.js";
+import { initStateDirectory, type StateDirectory } from "../state/index.js";
+import { createLogger } from "../utils/logger.js";
+import type { IChatManager } from "./chat-manager-interface.js";
 import { ConfigReload, computeConfigChanges } from "./config-reload.js";
+import type { FleetManagerContext } from "./context.js";
+import {
+  ConfigurationError,
+  FleetManagerShutdownError,
+  FleetManagerStateDirError,
+  InvalidStateError,
+} from "./errors.js";
 import { JobControl } from "./job-control.js";
 import { LogStreaming } from "./log-streaming.js";
 import { ScheduleExecutor } from "./schedule-executor.js";
-import { createLogger } from "../utils/logger.js";
-import type { IChatManager } from "./chat-manager-interface.js";
+import { ScheduleManagement } from "./schedule-management.js";
+// Module classes
+import { StatusQueries } from "./status-queries.js";
+import type {
+  AgentInfo,
+  CancelJobResult,
+  ConfigChange,
+  ConfigReloadedPayload,
+  FleetConfigOverrides,
+  FleetManagerLogger,
+  FleetManagerOptions,
+  FleetManagerState,
+  FleetManagerStatus,
+  FleetManagerStopOptions,
+  FleetStatus,
+  ForkJobResult,
+  JobModifications,
+  LogEntry,
+  LogStreamOptions,
+  ScheduleInfo,
+  TriggerOptions,
+  TriggerResult,
+} from "./types.js";
 
 const DEFAULT_CHECK_INTERVAL = 1000;
 

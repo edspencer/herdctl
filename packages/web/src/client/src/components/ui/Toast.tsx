@@ -5,9 +5,9 @@
  * Toasts auto-dismiss and support success, error, and info types.
  */
 
-import { CheckCircle, XCircle, Info, X } from "lucide-react";
-import { useToasts, useToastActions } from "../../store";
-import type { ToastType, Toast } from "../../store";
+import { CheckCircle, Info, X, XCircle } from "lucide-react";
+import type { Toast, ToastType } from "../../store";
+import { useToastActions, useToasts } from "../../store";
 
 // =============================================================================
 // Helper Functions

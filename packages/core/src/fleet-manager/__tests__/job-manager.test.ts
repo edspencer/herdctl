@@ -4,15 +4,15 @@
  * Tests job history queries, output streaming, and retention management.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtemp, rm, mkdir, writeFile, appendFile } from "fs/promises";
-import { tmpdir } from "os";
-import { join } from "path";
-import { JobManager } from "../job-manager.js";
-import { JobNotFoundError } from "../errors.js";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createJob, updateJob } from "../../state/job-metadata.js";
 import { appendJobOutput } from "../../state/job-output.js";
 import type { JobMetadata } from "../../state/schemas/job-metadata.js";
+import { JobNotFoundError } from "../errors.js";
+import { JobManager } from "../job-manager.js";
 
 describe("JobManager", () => {
   let tempDir: string;
@@ -496,7 +496,7 @@ describe("JobManager", () => {
   describe("job persistence survives restarts", () => {
     it("jobs persist after creating new JobManager instance", async () => {
       // Create first manager and add jobs
-      const manager1 = new JobManager({ jobsDir });
+      const _manager1 = new JobManager({ jobsDir });
       const created = await createTestJob({ agent: "test-agent" });
 
       // Create new manager instance (simulating restart)
@@ -510,7 +510,7 @@ describe("JobManager", () => {
 
     it("job output persists after creating new JobManager instance", async () => {
       // Create first manager and add job with output
-      const manager1 = new JobManager({ jobsDir });
+      const _manager1 = new JobManager({ jobsDir });
       const created = await createTestJob({ agent: "test-agent" });
 
       await appendJobOutput(jobsDir, created.id, {

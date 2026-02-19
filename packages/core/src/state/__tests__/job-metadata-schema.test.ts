@@ -1,12 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
+  createJobMetadata,
+  ExitReasonSchema,
+  generateJobId,
+  type JobMetadata,
   JobMetadataSchema,
   JobStatusSchema,
   TriggerTypeSchema,
-  ExitReasonSchema,
-  generateJobId,
-  createJobMetadata,
-  type JobMetadata,
 } from "../schemas/job-metadata.js";
 
 describe("JobStatusSchema", () => {

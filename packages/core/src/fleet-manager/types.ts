@@ -5,34 +5,32 @@
  * and event definitions.
  */
 
-import type { SchedulerLogger, SchedulerState } from "../scheduler/types.js";
-import type { Schedule } from "../config/index.js";
-import type { AgentState, ScheduleState } from "../state/schemas/fleet-state.js";
+import type { SchedulerLogger } from "../scheduler/types.js";
 import type { WorkItem } from "../work-sources/types.js";
 
 // Re-export event types from dedicated event-types module
 export type {
+  AgentStartedPayload,
+  AgentStoppedPayload,
+  ConfigChange,
+  ConfigReloadedPayload,
+  FleetManagerEventListener,
   FleetManagerEventMap,
   FleetManagerEventName,
   FleetManagerEventPayload,
-  FleetManagerEventListener,
-  ConfigChange,
-  ConfigReloadedPayload,
-  AgentStartedPayload,
-  AgentStoppedPayload,
-  ScheduleTriggeredPayload,
-  ScheduleSkippedPayload,
-  JobCreatedPayload,
-  JobOutputPayload,
-  JobCompletedPayload,
-  JobFailedPayload,
   // Job control events (US-6)
   JobCancelledPayload,
+  JobCompletedPayload,
+  JobCreatedPayload,
+  JobFailedPayload,
   JobForkedPayload,
+  JobOutputPayload,
+  ScheduleSkippedPayload,
+  ScheduleTriggeredPayload,
+  SlackErrorPayload,
+  SlackMessageErrorPayload,
   // Slack manager events
   SlackMessageHandledPayload,
-  SlackMessageErrorPayload,
-  SlackErrorPayload,
   SlackSessionLifecyclePayload,
 } from "./event-types.js";
 

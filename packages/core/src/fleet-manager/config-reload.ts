@@ -8,9 +8,9 @@
  */
 
 import type { ResolvedAgent, ResolvedConfig } from "../config/index.js";
-import type { ConfigChange, ConfigReloadedPayload } from "./types.js";
 import type { FleetManagerContext } from "./context.js";
 import { InvalidStateError } from "./errors.js";
+import type { ConfigChange, ConfigReloadedPayload } from "./types.js";
 
 // =============================================================================
 // Schedule Type for Comparison

@@ -4,7 +4,7 @@
  * Tests cancelJob, forkJob, and streamLogs functionality.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the Claude SDK to prevent real API calls during tests
 // Mock the SDK to return an async generator that yields a simple system message
@@ -15,13 +15,13 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
   }),
 }));
 
-import { mkdtemp, rm, mkdir, writeFile } from "fs/promises";
-import { tmpdir } from "os";
-import { join } from "path";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { updateSessionInfo } from "../../state/index.js";
+import { InvalidStateError, JobForkError, JobNotFoundError } from "../errors.js";
 import { FleetManager } from "../fleet-manager.js";
-import { InvalidStateError, JobNotFoundError, JobForkError } from "../errors.js";
-import { getSessionInfo, updateSessionInfo } from "../../state/index.js";
-import type { FleetManagerLogger, JobCancelledPayload, JobForkedPayload } from "../types.js";
+import type { FleetManagerLogger } from "../types.js";
 
 describe("FleetManager Job Control (US-6)", () => {
   let tempDir: string;

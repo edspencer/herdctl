@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createSlackLogger, createDefaultSlackLogger } from "../logger.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createDefaultSlackLogger, createSlackLogger } from "../logger.js";
 
 describe("createSlackLogger", () => {
   beforeEach(() => {

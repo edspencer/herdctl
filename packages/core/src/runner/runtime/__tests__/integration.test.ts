@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { execSync } from "node:child_process";
-import { mkdir, rm, realpath } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { RuntimeFactory } from "../factory.js";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ResolvedAgent } from "../../../config/index.js";
+import { RuntimeFactory } from "../factory.js";
 
 // =============================================================================
 // Environment Detection
@@ -209,7 +209,7 @@ describe("Path Translation", () => {
   });
 
   it("workspace paths are consistent across runtime types", () => {
-    const workspace = join(tempDir, "workspace");
+    const _workspace = join(tempDir, "workspace");
 
     // SDK runtime uses workspace directly
     const sdkAgent = createTestAgent({ runtime: "sdk" });

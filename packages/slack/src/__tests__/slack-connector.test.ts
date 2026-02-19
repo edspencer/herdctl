@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import type { DMConfig, IChatSessionManager } from "@herdctl/chat";
+import { describe, expect, it, vi } from "vitest";
 import { SlackConnector } from "../slack-connector.js";
-import type { IChatSessionManager, DMConfig } from "@herdctl/chat";
-import type { SlackMessageEvent, SlackChannelConfig } from "../types.js";
+import type { SlackChannelConfig, SlackMessageEvent } from "../types.js";
 
 const BOT_USER_ID = "U0123456789";
 const CHANNEL_ID = "C_GENERAL";
@@ -63,7 +63,7 @@ function createTestConnector(options?: {
       handlers[`event:${eventName}`] = handler;
     }),
     message: vi.fn((handler: (...args: unknown[]) => Promise<void>) => {
-      handlers["message"] = handler;
+      handlers.message = handler;
     }),
     client: {
       reactions: {

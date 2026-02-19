@@ -5,11 +5,11 @@
  * Shows streaming indicator when agent is responding.
  */
 
-import { useEffect, useRef } from "react";
 import { MessageCircle } from "lucide-react";
+import { useEffect, useRef } from "react";
+import type { ChatMessage } from "../../lib/types";
 import { useChatMessages } from "../../store";
 import { MessageBubble } from "./MessageBubble";
-import type { ChatMessage } from "../../lib/types";
 
 // =============================================================================
 // Types
@@ -47,7 +47,7 @@ export function MessageFeed({ agentName }: MessageFeedProps) {
     }
 
     prevMessagesLengthRef.current = chatMessages.length;
-  }, [chatMessages, chatStreaming, chatStreamingContent]);
+  }, [chatMessages, chatStreaming]);
 
   // Loading state
   if (chatMessagesLoading) {

@@ -8,9 +8,9 @@
  * - Error classification and handling
  */
 
-import type { DiscordConnectorLogger } from "./types.js";
-import { DiscordErrorCode, isDiscordConnectorError, type DiscordConnectorError } from "./errors.js";
 import { isSessionManagerError, type SessionManagerError } from "@herdctl/chat";
+import { type DiscordConnectorError, DiscordErrorCode, isDiscordConnectorError } from "./errors.js";
+import type { DiscordConnectorLogger } from "./types.js";
 
 // =============================================================================
 // User-Friendly Error Messages
@@ -348,7 +348,7 @@ export async function withRetry<T>(
 
       // Calculate delay with exponential backoff
       const delay = Math.min(
-        classified.retryDelayMs ?? baseDelayMs * Math.pow(backoffMultiplier, attempt - 1),
+        classified.retryDelayMs ?? baseDelayMs * backoffMultiplier ** (attempt - 1),
         maxDelayMs,
       );
 

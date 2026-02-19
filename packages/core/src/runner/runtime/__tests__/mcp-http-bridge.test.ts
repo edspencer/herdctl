@@ -1,6 +1,6 @@
-import { describe, it, expect, afterEach } from "vitest";
-import { startMcpHttpBridge, type McpHttpBridge } from "../mcp-http-bridge.js";
+import { afterEach, describe, expect, it } from "vitest";
 import type { InjectedMcpServerDef } from "../../types.js";
+import { type McpHttpBridge, startMcpHttpBridge } from "../mcp-http-bridge.js";
 
 // =============================================================================
 // Helpers

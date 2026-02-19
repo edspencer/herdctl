@@ -2,9 +2,9 @@
  * Tests for DiscordHookRunner
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DiscordHookRunner } from "../runners/discord.js";
-import type { HookContext, DiscordHookConfigInput } from "../types.js";
+import type { DiscordHookConfigInput, HookContext } from "../types.js";
 
 // Use input type for test construction (allows optional fields)
 type DiscordHookConfig = DiscordHookConfigInput;
@@ -88,7 +88,7 @@ describe("DiscordHookRunner", () => {
       expect(url).toBe("https://discord.com/api/v10/channels/987654321/messages");
       expect(options.method).toBe("POST");
       expect(options.headers["Content-Type"]).toBe("application/json");
-      expect(options.headers["Authorization"]).toBe("Bot test-bot-token-12345");
+      expect(options.headers.Authorization).toBe("Bot test-bot-token-12345");
 
       expect(mockLogger.info).toHaveBeenCalled();
     });
@@ -308,7 +308,7 @@ describe("DiscordHookRunner", () => {
       expect(result.success).toBe(true);
 
       const [, options] = mockFetch.mock.calls[0];
-      expect(options.headers["Authorization"]).toBe("Bot my-custom-token-value");
+      expect(options.headers.Authorization).toBe("Bot my-custom-token-value");
     });
 
     it("should handle Discord API error responses", async () => {

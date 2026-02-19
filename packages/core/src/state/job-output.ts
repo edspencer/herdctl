@@ -7,18 +7,18 @@
  * Output files are stored at: .herdctl/jobs/job-<id>.jsonl
  */
 
-import { join } from "node:path";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
+import { join } from "node:path";
 import { createInterface } from "node:readline";
-import { appendJsonl } from "./utils/atomic.js";
 import { StateFileError } from "./errors.js";
 import {
-  type JobOutputMessage,
-  type JobOutputInput,
   isValidJobOutputInput,
+  type JobOutputInput,
+  type JobOutputMessage,
   JobOutputMessageSchema,
 } from "./schemas/job-output.js";
+import { appendJsonl } from "./utils/atomic.js";
 
 // =============================================================================
 // Types

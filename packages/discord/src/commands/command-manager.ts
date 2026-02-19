@@ -5,32 +5,27 @@
  * command interactions by routing them to the appropriate handler.
  */
 
+import type { IChatSessionManager } from "@herdctl/chat";
+import { createLogger } from "@herdctl/core";
 import {
+  type ChatInputCommandInteraction,
+  type Client,
   REST,
   Routes,
   SlashCommandBuilder,
-  type ChatInputCommandInteraction,
-  type Client,
 } from "discord.js";
-import type {
-  SlashCommand,
-  CommandManagerOptions,
-  CommandManagerLogger,
-  ICommandManager,
-  CommandContext,
-} from "./types.js";
-import { createLogger } from "@herdctl/core";
-import type { IChatSessionManager } from "@herdctl/chat";
+import { ErrorHandler, withRetry } from "../error-handler.js";
 import type { DiscordConnectorState } from "../types.js";
 import { helpCommand } from "./help.js";
 import { resetCommand } from "./reset.js";
 import { statusCommand } from "./status.js";
-import {
-  USER_ERROR_MESSAGES,
-  ErrorHandler,
-  withRetry,
-  type ErrorHandlerOptions,
-} from "../error-handler.js";
+import type {
+  CommandContext,
+  CommandManagerLogger,
+  CommandManagerOptions,
+  ICommandManager,
+  SlashCommand,
+} from "./types.js";
 
 // =============================================================================
 // Default Logger

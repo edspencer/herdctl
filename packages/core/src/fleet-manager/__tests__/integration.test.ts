@@ -8,10 +8,10 @@
  * - Edge cases: start when running, stop when stopped, etc.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from "vitest";
-import { mkdtemp, rm, mkdir, writeFile, readFile } from "fs/promises";
-import { tmpdir } from "os";
-import { join } from "path";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { FleetManager } from "../fleet-manager.js";
 
 // Mock the Claude SDK - this must be before any imports that use it
@@ -21,12 +21,11 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
 
 // Import the mocked query function for test configuration
 import { query as mockQueryFn } from "@anthropic-ai/claude-agent-sdk";
-import { InvalidStateError, AgentNotFoundError, ScheduleNotFoundError } from "../errors.js";
+import { AgentNotFoundError, InvalidStateError, ScheduleNotFoundError } from "../errors.js";
 import type {
   FleetManagerLogger,
-  JobCreatedPayload,
   JobCompletedPayload,
-  JobFailedPayload,
+  JobCreatedPayload,
   ScheduleTriggeredPayload,
 } from "../types.js";
 

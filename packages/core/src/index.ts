@@ -11,7 +11,8 @@
  * - Scheduler (interval, cron)
  */
 
-import { createRequire } from "module";
+import { createRequire } from "node:module";
+
 const require = createRequire(import.meta.url);
 const { version: VERSION } = require("../package.json");
 
@@ -19,24 +20,18 @@ export { VERSION };
 
 // Config exports (PRD 1)
 export * from "./config/index.js";
-
-// State exports (PRD 2)
-export * from "./state/index.js";
-
+// Fleet Manager exports (PRD 7)
+export * from "./fleet-manager/index.js";
+// Hooks exports (Execution Hooks System)
+export * from "./hooks/index.js";
 // Runner exports (PRD 4)
 export * from "./runner/index.js";
 
-// Work source exports (PRD 5)
-export * from "./work-sources/index.js";
-
 // Scheduler exports (PRD 6)
 export * from "./scheduler/index.js";
-
-// Fleet Manager exports (PRD 7)
-export * from "./fleet-manager/index.js";
-
-// Hooks exports (Execution Hooks System)
-export * from "./hooks/index.js";
-
+// State exports (PRD 2)
+export * from "./state/index.js";
 // Utils exports (Logger, etc.)
 export * from "./utils/index.js";
+// Work source exports (PRD 5)
+export * from "./work-sources/index.js";

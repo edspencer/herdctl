@@ -9,8 +9,8 @@
  * Message splitting utilities are provided by @herdctl/chat.
  */
 
-import type { TextChannel, DMChannel, NewsChannel, ThreadChannel } from "discord.js";
-import { splitMessage, DEFAULT_MESSAGE_DELAY_MS } from "@herdctl/chat";
+import { DEFAULT_MESSAGE_DELAY_MS, splitMessage } from "@herdctl/chat";
+import type { DMChannel, NewsChannel, TextChannel, ThreadChannel } from "discord.js";
 
 // =============================================================================
 // Constants

@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from "vitest";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import { tmpdir } from "node:os";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { triggerCommand } from "../trigger.js";
 
 // Store mock FleetManager for access in tests

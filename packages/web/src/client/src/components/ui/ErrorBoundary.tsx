@@ -5,8 +5,8 @@
  * Supports optional custom fallback UI via the `fallback` prop.
  */
 
-import { Component, type ReactNode, type ErrorInfo } from "react";
 import { AlertTriangle } from "lucide-react";
+import { Component, type ErrorInfo, type ReactNode } from "react";
 
 // =============================================================================
 // Types

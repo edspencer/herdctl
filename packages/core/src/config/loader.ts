@@ -10,22 +10,22 @@
  * - Validates the entire configuration tree
  */
 
-import { readFile, access } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { parse as parseYaml, YAMLParseError } from "yaml";
 import { config as loadDotenv } from "dotenv";
+import { parse as parseYaml, YAMLParseError } from "yaml";
 import { ZodError } from "zod";
-import {
-  FleetConfigSchema,
-  AgentConfigSchema,
-  AGENT_NAME_PATTERN,
-  type FleetConfig,
-  type AgentConfig,
-} from "./schema.js";
-import { ConfigError, FileReadError, SchemaValidationError } from "./parser.js";
-import { mergeAgentConfig, deepMerge, type ExtendedDefaults } from "./merge.js";
-import { interpolateConfig } from "./interpolate.js";
 import { createLogger } from "../utils/logger.js";
+import { interpolateConfig } from "./interpolate.js";
+import { deepMerge, type ExtendedDefaults, mergeAgentConfig } from "./merge.js";
+import { ConfigError, FileReadError, SchemaValidationError } from "./parser.js";
+import {
+  AGENT_NAME_PATTERN,
+  type AgentConfig,
+  AgentConfigSchema,
+  type FleetConfig,
+  FleetConfigSchema,
+} from "./schema.js";
 
 const logger = createLogger("config");
 
@@ -341,7 +341,7 @@ function handleBackwardCompatibility(config: Record<string, unknown>, context: s
       // Only workspace present - migrate and warn
       const logger = createLogger("config");
       logger.warn(
-        `"${context}" uses deprecated "workspace" field. ` + 'Use "working_directory" instead.',
+        `"${context}" uses deprecated "workspace" field. Use "working_directory" instead.`,
       );
       config.working_directory = config.workspace;
     }
@@ -557,7 +557,7 @@ async function loadAgent(
 
   // Compute qualified name
   const qualifiedName =
-    fleetPath.length > 0 ? fleetPath.join(".") + "." + agentConfig.name : agentConfig.name;
+    fleetPath.length > 0 ? `${fleetPath.join(".")}.${agentConfig.name}` : agentConfig.name;
 
   return {
     ...agentConfig,
@@ -799,7 +799,7 @@ export async function loadConfig(
   const { env: providedEnv, interpolate = true, mergeDefaults = true, envFile = true } = options;
 
   // Start with process.env, we'll merge .env file vars into this
-  let env: Record<string, string | undefined> = providedEnv ?? {
+  const env: Record<string, string | undefined> = providedEnv ?? {
     ...process.env,
   };
 

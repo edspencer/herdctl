@@ -7,7 +7,7 @@
  */
 
 import type { ResolvedAgent, Schedule } from "../config/index.js";
-import type { JobMetadata, JobStatus, ExitReason } from "../state/schemas/job-metadata.js";
+import type { ExitReason, JobMetadata } from "../state/schemas/job-metadata.js";
 
 // =============================================================================
 // Event Payload Types
@@ -430,7 +430,7 @@ export type FleetManagerEventName = keyof FleetManagerEventMap;
  * Extract payload type for a specific event
  */
 export type FleetManagerEventPayload<E extends FleetManagerEventName> =
-  FleetManagerEventMap[E] extends [infer P] ? P : void;
+  FleetManagerEventMap[E] extends [infer P] ? P : undefined;
 
 /**
  * Event listener type for a specific event

@@ -5,9 +5,9 @@
  * as well as job control actions (cancel, fork).
  */
 
-import type { FastifyInstance } from "fastify";
 import type { FleetManager, JobStatus, listJobs, ResolvedAgent } from "@herdctl/core";
 import { createLogger, resolveWorkingDirectory } from "@herdctl/core";
+import type { FastifyInstance } from "fastify";
 
 const logger = createLogger("web:jobs");
 

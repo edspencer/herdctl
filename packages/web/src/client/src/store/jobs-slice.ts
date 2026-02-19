@@ -5,8 +5,8 @@
  */
 
 import type { StateCreator } from "zustand";
-import type { JobSummary, JobStatus } from "../lib/types";
-import { fetchJobs, fetchJobById } from "../lib/api";
+import { fetchJobById, fetchJobs } from "../lib/api";
+import type { JobStatus, JobSummary } from "../lib/types";
 
 // =============================================================================
 // Types
@@ -127,7 +127,7 @@ export const createJobsSlice: StateCreator<JobsSlice, [], [], JobsSlice> = (set,
         selectedJobId: jobId,
         selectedJobLoading: false,
       });
-    } catch (error) {
+    } catch (_error) {
       // On error, still set the selected job ID but clear the detail
       // This allows the UI to show a "not found" state
       set({

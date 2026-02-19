@@ -2,7 +2,7 @@
  * Tests for StreamingResponder
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StreamingResponder } from "../streaming-responder.js";
 import type { ChatConnectorLogger } from "../types.js";
 

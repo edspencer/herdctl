@@ -6,18 +6,18 @@
  * Body contains the tool content in monospace.
  */
 
-import { useState } from "react";
 import {
-  ChevronRight,
-  Terminal,
-  FileText,
-  FilePen,
-  FileCode,
-  Search,
-  Globe,
   Bot,
+  ChevronRight,
+  FileCode,
+  FilePen,
+  FileText,
+  Globe,
+  Search,
+  Terminal,
   Wrench,
 } from "lucide-react";
+import { useState } from "react";
 
 // =============================================================================
 // Types

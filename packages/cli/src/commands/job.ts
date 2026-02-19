@@ -7,7 +7,7 @@
  * - herdctl job <id> --json   JSON output
  */
 
-import { JobManager, isJobNotFoundError, type Job } from "@herdctl/core";
+import { isJobNotFoundError, type Job, JobManager } from "@herdctl/core";
 
 export interface JobOptions {
   logs?: boolean;
@@ -186,7 +186,7 @@ function formatJobDetails(job: Job): string {
     // Truncate long prompts
     const maxPromptLength = 500;
     if (job.prompt.length > maxPromptLength) {
-      lines.push(job.prompt.substring(0, maxPromptLength) + "...");
+      lines.push(`${job.prompt.substring(0, maxPromptLength)}...`);
     } else {
       lines.push(job.prompt);
     }
@@ -273,7 +273,7 @@ function formatOutputMessage(entry: JobOutputMessage): void {
       if (entry.result !== undefined) {
         const resultStr =
           typeof entry.result === "string" ? entry.result : JSON.stringify(entry.result);
-        const truncated = resultStr.length > 100 ? resultStr.substring(0, 100) + "..." : resultStr;
+        const truncated = resultStr.length > 100 ? `${resultStr.substring(0, 100)}...` : resultStr;
         console.log(colorize(`[Result: ${truncated}]`, "dim"));
       }
       if (entry.error) {

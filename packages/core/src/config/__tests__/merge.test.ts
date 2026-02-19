@@ -1,7 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
+import type { ExtendedDefaults } from "../merge.js";
 import { deepMerge, mergeAgentConfig, mergeAllAgentConfigs } from "../merge.js";
 import type { AgentConfig } from "../schema.js";
-import type { ExtendedDefaults } from "../merge.js";
 
 describe("deepMerge", () => {
   describe("basic behavior", () => {

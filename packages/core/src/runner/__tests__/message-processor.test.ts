@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { processSDKMessage, isTerminalMessage, extractSummary } from "../message-processor.js";
+import { describe, expect, it } from "vitest";
+import { extractSummary, isTerminalMessage, processSDKMessage } from "../message-processor.js";
 import type { SDKMessage } from "../types.js";
 
 // =============================================================================

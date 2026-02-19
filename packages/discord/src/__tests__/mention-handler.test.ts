@@ -1,16 +1,15 @@
-import { describe, it, expect, vi } from "vitest";
 import type { Message, Snowflake } from "discord.js";
+import { describe, expect, it, vi } from "vitest";
 import {
+  buildConversationContext,
+  type ConversationContext,
+  formatContextForPrompt,
   isBotMentioned,
+  processMessage,
   shouldProcessMessage,
   stripBotMention,
   stripMentions,
-  processMessage,
-  buildConversationContext,
-  formatContextForPrompt,
   type TextBasedChannel,
-  type ConversationContext,
-  type ContextMessage,
 } from "../mention-handler.js";
 
 // =============================================================================

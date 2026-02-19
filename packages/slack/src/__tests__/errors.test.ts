@@ -1,12 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  SlackErrorCode,
-  SlackConnectorError,
-  SlackConnectionError,
   AlreadyConnectedError,
-  MissingTokenError,
   InvalidTokenError,
   isSlackConnectorError,
+  MissingTokenError,
+  SlackConnectionError,
+  SlackConnectorError,
+  SlackErrorCode,
 } from "../errors.js";
 
 describe("SlackConnectorError", () => {

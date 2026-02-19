@@ -1,17 +1,17 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdir, rm, realpath, writeFile, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { StateFileError } from "../errors.js";
 import {
   createJob,
-  updateJob,
-  getJob,
-  listJobs,
   deleteJob,
+  getJob,
   type JobLogger,
+  listJobs,
+  updateJob,
 } from "../job-metadata.js";
-import { type JobMetadata } from "../schemas/job-metadata.js";
-import { StateFileError } from "../errors.js";
+import type { JobMetadata } from "../schemas/job-metadata.js";
 
 // Helper to create a temp directory
 async function createTempDir(): Promise<string> {

@@ -5,8 +5,8 @@
  * Results are cached at module level so each seed is only generated once.
  */
 
-import { createAvatar } from "@dicebear/core";
 import * as bottts from "@dicebear/bottts";
+import { createAvatar } from "@dicebear/core";
 
 const avatarCache = new Map<string, string>();
 

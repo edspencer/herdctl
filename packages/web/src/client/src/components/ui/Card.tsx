@@ -5,7 +5,7 @@
  * Follows the design system's card pattern.
  */
 
-import type { ReactNode, ElementType, ComponentPropsWithoutRef } from "react";
+import type { ComponentPropsWithoutRef, ElementType, ReactNode } from "react";
 
 // =============================================================================
 // Types

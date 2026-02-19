@@ -6,13 +6,13 @@
 
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
+import { type ChatSlice, createChatSlice } from "./chat-slice";
 import { createFleetSlice, type FleetSlice } from "./fleet-slice";
-import { createUISlice, type UISlice } from "./ui-slice";
-import { createOutputSlice, type OutputSlice } from "./output-slice";
 import { createJobsSlice, type JobsSlice } from "./jobs-slice";
-import { createChatSlice, type ChatSlice } from "./chat-slice";
+import { createOutputSlice, type OutputSlice } from "./output-slice";
 import { createScheduleSlice, type ScheduleSlice } from "./schedule-slice";
 import { createToastSlice, type ToastSlice } from "./toast-slice";
+import { createUISlice, type UISlice } from "./ui-slice";
 
 // =============================================================================
 // Combined Store Type
@@ -44,37 +44,37 @@ export const useStore = create<AppStore>()((...args) => ({
 // Re-exports
 // =============================================================================
 
-export type { FleetSlice, FleetState, FleetActions } from "./fleet-slice";
-export type { UISlice, UIState, UIActions } from "./ui-slice";
 export type {
-  OutputSlice,
-  OutputState,
-  OutputActions,
-  OutputMessage,
-} from "./output-slice";
-export type {
-  JobsSlice,
-  JobsState,
-  JobsActions,
-  JobsFilter,
-} from "./jobs-slice";
-export type {
+  ChatActions,
   ChatSlice,
   ChatState,
-  ChatActions,
 } from "./chat-slice";
+export type { FleetActions, FleetSlice, FleetState } from "./fleet-slice";
 export type {
+  JobsActions,
+  JobsFilter,
+  JobsSlice,
+  JobsState,
+} from "./jobs-slice";
+export type {
+  OutputActions,
+  OutputMessage,
+  OutputSlice,
+  OutputState,
+} from "./output-slice";
+export type {
+  ScheduleActions,
   ScheduleSlice,
   ScheduleState,
-  ScheduleActions,
 } from "./schedule-slice";
 export type {
+  Toast,
+  ToastActions,
   ToastSlice,
   ToastState,
-  ToastActions,
-  Toast,
   ToastType,
 } from "./toast-slice";
+export type { UIActions, UISlice, UIState } from "./ui-slice";
 
 // =============================================================================
 // Selector Hooks

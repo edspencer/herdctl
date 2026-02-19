@@ -5,11 +5,14 @@
  * with chat.slack configured (one connector per agent).
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { EventEmitter } from "node:events";
-import type { FleetManagerContext, ResolvedAgent } from "@herdctl/core";
-import type { AgentChatSlack } from "@herdctl/core";
-import type { ResolvedConfig } from "@herdctl/core";
+import type {
+  AgentChatSlack,
+  FleetManagerContext,
+  ResolvedAgent,
+  ResolvedConfig,
+} from "@herdctl/core";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SlackManager } from "../manager.js";
 
 // ---------------------------------------------------------------------------
@@ -319,8 +322,8 @@ describe("SlackManager basic tests", () => {
 // ---------------------------------------------------------------------------
 
 describe("SlackManager with mocked connector", () => {
-  let mockConnectors: Map<string, ReturnType<typeof createMockConnector>>;
-  let mockSessionManagers: Map<string, ReturnType<typeof createMockSessionManager>>;
+  let _mockConnectors: Map<string, ReturnType<typeof createMockConnector>>;
+  let _mockSessionManagers: Map<string, ReturnType<typeof createMockSessionManager>>;
   let originalEnv: NodeJS.ProcessEnv;
 
   beforeEach(() => {
@@ -333,8 +336,8 @@ describe("SlackManager with mocked connector", () => {
     process.env.SLACK_APP_TOKEN = "xapp-test-app-token";
 
     // Create mock implementations - per-agent connectors
-    mockConnectors = new Map();
-    mockSessionManagers = new Map();
+    _mockConnectors = new Map();
+    _mockSessionManagers = new Map();
   });
 
   afterEach(() => {

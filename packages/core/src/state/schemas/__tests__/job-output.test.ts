@@ -1,16 +1,16 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  JobOutputTypeSchema,
-  JobOutputMessageSchema,
-  SystemMessageSchema,
   AssistantMessageSchema,
-  ToolUseMessageSchema,
-  ToolResultMessageSchema,
   ErrorMessageSchema,
-  validateJobOutputMessage,
   isValidJobOutputInput,
-  type JobOutputMessage,
   type JobOutputInput,
+  type JobOutputMessage,
+  JobOutputMessageSchema,
+  JobOutputTypeSchema,
+  SystemMessageSchema,
+  ToolResultMessageSchema,
+  ToolUseMessageSchema,
+  validateJobOutputMessage,
 } from "../job-output.js";
 
 describe("JobOutputTypeSchema", () => {

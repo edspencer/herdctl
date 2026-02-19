@@ -10,16 +10,15 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
-  FleetManager,
+  type AgentInfo,
   ConfigNotFoundError,
+  type FleetConfigOverrides,
+  FleetManager,
+  type FleetStatus,
   isFleetManagerError,
+  type LogEntry,
   setLogHandler,
   shouldLog,
-  type FleetConfigOverrides,
-  type FleetStatus,
-  type AgentInfo,
-  type LogEntry,
-  type LogLevel,
 } from "@herdctl/core";
 
 import {
@@ -61,7 +60,7 @@ function formatStartupStatus(status: FleetStatus, agents?: AgentInfo[]): string 
   }
 
   // Show fleet hierarchy if sub-fleets are present
-  if (agents && agents.some((a) => a.fleetPath && a.fleetPath.length > 0)) {
+  if (agents?.some((a) => a.fleetPath && a.fleetPath.length > 0)) {
     lines.push("");
     lines.push("Agent Hierarchy:");
 

@@ -4,7 +4,7 @@
  * Responds ephemerally with a list of available commands and their descriptions.
  */
 
-import type { SlashCommand, CommandContext } from "./types.js";
+import type { CommandContext, SlashCommand } from "./types.js";
 
 export const helpCommand: SlashCommand = {
   name: "help",

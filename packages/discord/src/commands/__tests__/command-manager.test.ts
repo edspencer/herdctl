@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { ChatInputCommandInteraction, Client, REST } from "discord.js";
 import type { IChatSessionManager } from "@herdctl/chat";
+import type { ChatInputCommandInteraction, Client } from "discord.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DiscordConnectorState } from "../../types.js";
 
 // =============================================================================

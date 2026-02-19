@@ -4,8 +4,8 @@
  * Provides endpoints for retrieving fleet-level status information.
  */
 
-import type { FastifyInstance } from "fastify";
 import type { FleetManager } from "@herdctl/core";
+import type { FastifyInstance } from "fastify";
 
 /**
  * Register fleet-related routes

@@ -5,11 +5,11 @@
  * Manages WebSocket subscription and displays live output for the agent's current job.
  */
 
-import { Terminal, History } from "lucide-react";
+import { History, Terminal } from "lucide-react";
 import { useJobOutput } from "../../hooks/useJobOutput";
+import type { AgentInfo } from "../../lib/types";
 import { Card } from "../ui";
 import { JobOutput } from "./JobOutput";
-import type { AgentInfo } from "../../lib/types";
 
 // =============================================================================
 // Types

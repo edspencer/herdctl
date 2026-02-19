@@ -7,43 +7,42 @@
  * - Updating job status and metadata on completion
  */
 
+import { appendFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { mkdir, appendFile } from "node:fs/promises";
-import type {
-  RunnerOptions,
-  RunnerOptionsWithCallbacks,
-  RunnerResult,
-  RunnerErrorDetails,
-  SDKMessage,
-} from "./types.js";
+import { resolveWorkingDirectory } from "../fleet-manager/working-directory-helper.js";
 import {
-  RunnerError,
-  SDKInitializationError,
-  SDKStreamingError,
-  MalformedResponseError,
-  wrapError,
-  classifyError,
-  buildErrorMessage,
-} from "./errors.js";
-import type { RuntimeInterface, RuntimeExecuteOptions } from "./runtime/index.js";
-import { processSDKMessage, isTerminalMessage, extractSummary } from "./message-processor.js";
-import {
-  createJob,
-  updateJob,
   appendJobOutput,
-  getJobOutputPath,
-  updateSessionInfo,
-  getSessionInfo,
   clearSession,
+  createJob,
+  getJobOutputPath,
+  getSessionInfo,
   isSessionExpiredError,
   isTokenExpiredError,
-  validateWorkingDirectory,
-  validateRuntimeContext,
   type JobMetadata,
   type TriggerType,
+  updateJob,
+  updateSessionInfo,
+  validateRuntimeContext,
+  validateWorkingDirectory,
 } from "../state/index.js";
-import { resolveWorkingDirectory } from "../fleet-manager/working-directory-helper.js";
 import { createLogger } from "../utils/logger.js";
+import {
+  buildErrorMessage,
+  classifyError,
+  MalformedResponseError,
+  type RunnerError,
+  SDKInitializationError,
+  SDKStreamingError,
+  wrapError,
+} from "./errors.js";
+import { extractSummary, isTerminalMessage, processSDKMessage } from "./message-processor.js";
+import type { RuntimeInterface } from "./runtime/index.js";
+import type {
+  RunnerErrorDetails,
+  RunnerOptionsWithCallbacks,
+  RunnerResult,
+  SDKMessage,
+} from "./types.js";
 
 // =============================================================================
 // Types
@@ -384,7 +383,7 @@ export class JobExecutor {
             try {
               const logLine = this.formatOutputLogLine(processed.output);
               if (logLine) {
-                await appendFile(outputLogPath, logLine + "\n", "utf-8");
+                await appendFile(outputLogPath, `${logLine}\n`, "utf-8");
               }
             } catch (fileError) {
               this.logger.warn(

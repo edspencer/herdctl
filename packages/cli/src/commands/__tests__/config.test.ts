@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { configValidateCommand, configShowCommand } from "../config.js";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { configShowCommand, configValidateCommand } from "../config.js";
 
 // Helper to create a temp directory
 function createTempDir(): string {

@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { initCommand, InitOptions } from "../init.js";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { initCommand } from "../init.js";
 
 // Mock @inquirer/prompts
 vi.mock("@inquirer/prompts", () => ({
@@ -11,7 +11,7 @@ vi.mock("@inquirer/prompts", () => ({
   select: vi.fn(),
 }));
 
-import { input, confirm, select } from "@inquirer/prompts";
+import { confirm, input, select } from "@inquirer/prompts";
 
 const mockedInput = vi.mocked(input);
 const mockedConfirm = vi.mocked(confirm);

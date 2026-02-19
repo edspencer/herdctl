@@ -2,19 +2,19 @@
  * Tests for chat connector errors
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  ChatErrorCode,
-  ChatConnectorError,
-  ChatConnectionError,
   AlreadyConnectedError,
+  ChatConnectionError,
+  ChatConnectorError,
+  ChatErrorCode,
   InvalidTokenError,
-  MissingTokenError,
-  isChatConnectorError,
-  isChatConnectionError,
   isAlreadyConnectedError,
+  isChatConnectionError,
+  isChatConnectorError,
   isInvalidTokenError,
   isMissingTokenError,
+  MissingTokenError,
 } from "../errors.js";
 
 describe("errors", () => {

@@ -9,7 +9,7 @@
  * - herdctl jobs --json              JSON output
  */
 
-import { JobManager, isJobNotFoundError, type Job, type JobFilter } from "@herdctl/core";
+import { isJobNotFoundError, type Job, type JobFilter, JobManager } from "@herdctl/core";
 
 /**
  * Valid job statuses type
@@ -132,7 +132,7 @@ function formatDuration(seconds: number | null): string {
 /**
  * Format timestamp to local timezone
  */
-function formatTimestamp(isoTimestamp: string): string {
+function _formatTimestamp(isoTimestamp: string): string {
   const date = new Date(isoTimestamp);
   return date.toLocaleString(undefined, {
     month: "short",
@@ -174,7 +174,7 @@ function formatRelativeTime(isoTimestamp: string): string {
 /**
  * Format jobs table for console output
  */
-function formatJobsTable(jobs: Job[], total: number, limit: number): string {
+function formatJobsTable(jobs: Job[], total: number, _limit: number): string {
   const lines: string[] = [];
 
   if (jobs.length === 0) {

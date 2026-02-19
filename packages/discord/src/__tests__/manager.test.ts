@@ -5,22 +5,22 @@
  * for agents with chat.discord configured.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { EventEmitter } from "node:events";
+import type {
+  AgentChatDiscord,
+  FleetManagerContext,
+  ResolvedAgent,
+  ResolvedConfig,
+} from "@herdctl/core";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DiscordManager } from "../manager.js";
 import type {
+  DiscordConnectorEventMap,
   DiscordConnectorState,
   DiscordReplyEmbed,
   DiscordReplyEmbedField,
   DiscordReplyPayload,
-  DiscordConnectorEventMap,
 } from "../types.js";
-import type {
-  FleetManagerContext,
-  ResolvedConfig,
-  ResolvedAgent,
-  AgentChatDiscord,
-} from "@herdctl/core";
 
 // Define event types from the connector event map
 type DiscordMessageEvent = DiscordConnectorEventMap["message"];
@@ -163,7 +163,7 @@ describe("DiscordManager", () => {
 
       // The second call should return early without doing anything
       // We can verify by checking the debug logs
-      const debugCalls = mockLogger.debug.mock.calls.map((c) => c[0]);
+      const _debugCalls = mockLogger.debug.mock.calls.map((c) => c[0]);
       // First init will log something, second call should not add more logs
       // about initialization because it returns early
     });
@@ -192,14 +192,14 @@ describe("DiscordManager", () => {
       const manager = new DiscordManager(ctx);
 
       // Clear the env var if it exists
-      const originalValue = process.env["NONEXISTENT_BOT_TOKEN_VAR"];
-      delete process.env["NONEXISTENT_BOT_TOKEN_VAR"];
+      const originalValue = process.env.NONEXISTENT_BOT_TOKEN_VAR;
+      delete process.env.NONEXISTENT_BOT_TOKEN_VAR;
 
       await manager.initialize();
 
       // Restore if it existed
       if (originalValue !== undefined) {
-        process.env["NONEXISTENT_BOT_TOKEN_VAR"] = originalValue;
+        process.env.NONEXISTENT_BOT_TOKEN_VAR = originalValue;
       }
 
       // The warning should only be logged if the discord package is available
@@ -512,7 +512,7 @@ describe.skip("DiscordManager response splitting", () => {
 
     it("preserves code blocks when splitting", () => {
       // Create a code block that spans beyond 2000 chars
-      const codeBlock = "```typescript\n" + "const x = 1;\n".repeat(200) + "```";
+      const codeBlock = `\`\`\`typescript\n${"const x = 1;\n".repeat(200)}\`\`\``;
       const result = manager.splitResponse(codeBlock);
 
       expect(result.length).toBeGreaterThan(1);
@@ -525,7 +525,7 @@ describe.skip("DiscordManager response splitting", () => {
     });
 
     it("preserves code blocks with no language specified", () => {
-      const codeBlock = "```\n" + "line of code\n".repeat(200) + "```";
+      const codeBlock = `\`\`\`\n${"line of code\n".repeat(200)}\`\`\``;
       const result = manager.splitResponse(codeBlock);
 
       expect(result.length).toBeGreaterThan(1);
@@ -553,7 +553,7 @@ describe.skip("DiscordManager response splitting", () => {
 
     it("prefers paragraph breaks over line breaks", () => {
       // Create text with both paragraph and line breaks
-      const paragraph1 = "First paragraph. ".repeat(50) + "\n\n";
+      const paragraph1 = `${"First paragraph. ".repeat(50)}\n\n`;
       const paragraph2 = "Second paragraph. ".repeat(50);
       const text = paragraph1 + paragraph2;
 
@@ -568,8 +568,7 @@ describe.skip("DiscordManager response splitting", () => {
     it("handles code block that opens and closes within split region", () => {
       // Create text where a code block opens and then closes before split point
       // This tests the code path where insideBlock becomes false after closing
-      const text =
-        "Some intro text\n```js\nconst x = 1;\n```\nMore text here " + "padding ".repeat(250);
+      const text = `Some intro text\n\`\`\`js\nconst x = 1;\n\`\`\`\nMore text here ${"padding ".repeat(250)}`;
       const result = manager.splitResponse(text);
 
       expect(result.length).toBeGreaterThanOrEqual(1);
@@ -598,8 +597,7 @@ describe.skip("DiscordManager response splitting", () => {
 
     it("handles multiple code blocks opening and closing", () => {
       // Multiple code blocks that open and close
-      const text =
-        "```js\ncode1\n```\n" + "text ".repeat(100) + "\n```py\ncode2\n```\n" + "more ".repeat(200);
+      const text = `\`\`\`js\ncode1\n\`\`\`\n${"text ".repeat(100)}\n\`\`\`py\ncode2\n\`\`\`\n${"more ".repeat(200)}`;
       const result = manager.splitResponse(text);
 
       expect(result.length).toBeGreaterThanOrEqual(1);
@@ -694,7 +692,7 @@ describe.skip("DiscordManager response splitting", () => {
         calls.push(content);
       });
 
-      const text = "First part.\n" + "x".repeat(2000) + "\nLast part.";
+      const text = `First part.\n${"x".repeat(2000)}\nLast part.`;
       await manager.sendResponse(replyMock, text);
 
       // Verify order by checking first call starts with "First"
@@ -2127,7 +2125,7 @@ describe.skip("DiscordManager message handling", () => {
     });
 
     it("truncates long Bash commands", () => {
-      const longCommand = "echo " + "a".repeat(250);
+      const longCommand = `echo ${"a".repeat(250)}`;
       // @ts-expect-error - accessing private method for testing
       const result = manager.getToolInputSummary("Bash", { command: longCommand });
       expect(result).toContain("...");

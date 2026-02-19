@@ -9,10 +9,7 @@
  * - CLI session path utilities
  */
 
-export type { RuntimeInterface, RuntimeExecuteOptions } from "./interface.js";
-export { SDKRuntime } from "./sdk-runtime.js";
 export { CLIRuntime } from "./cli-runtime.js";
-export { RuntimeFactory, type RuntimeType } from "./factory.js";
 export {
   encodePathForCli,
   getCliSessionDir,
@@ -22,29 +19,29 @@ export {
   CLISessionWatcher,
   watchSessionFile,
 } from "./cli-session-watcher.js";
-
-// Docker configuration
 export {
-  type DockerConfig,
-  type PathMapping,
-  type NetworkMode,
-  type VolumeMode,
-  parseMemoryToBytes,
-  parseVolumeMount,
-  getHostUser,
-  resolveDockerConfig,
-  DEFAULT_DOCKER_IMAGE,
-  DEFAULT_MEMORY_LIMIT,
-  DEFAULT_MAX_CONTAINERS,
-} from "./docker-config.js";
-
+  buildContainerEnv,
+  buildContainerMounts,
+  ContainerManager,
+} from "./container-manager.js";
 // Container execution
 export { ContainerRunner } from "./container-runner.js";
+// Docker configuration
 export {
-  ContainerManager,
-  buildContainerMounts,
-  buildContainerEnv,
-} from "./container-manager.js";
-
+  DEFAULT_DOCKER_IMAGE,
+  DEFAULT_MAX_CONTAINERS,
+  DEFAULT_MEMORY_LIMIT,
+  type DockerConfig,
+  getHostUser,
+  type NetworkMode,
+  type PathMapping,
+  parseMemoryToBytes,
+  parseVolumeMount,
+  resolveDockerConfig,
+  type VolumeMode,
+} from "./docker-config.js";
+export { RuntimeFactory, type RuntimeType } from "./factory.js";
+export type { RuntimeExecuteOptions, RuntimeInterface } from "./interface.js";
 // MCP HTTP bridge for Docker
-export { startMcpHttpBridge, type McpHttpBridge } from "./mcp-http-bridge.js";
+export { type McpHttpBridge, startMcpHttpBridge } from "./mcp-http-bridge.js";
+export { SDKRuntime } from "./sdk-runtime.js";

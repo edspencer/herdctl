@@ -10,86 +10,78 @@
  * - Job metadata (job-<id>.yaml) management
  */
 
-// Re-export types
-export * from "./types.js";
-
-// Re-export errors
-export * from "./errors.js";
-
-// Re-export schemas
-export * from "./schemas/index.js";
-
 // Re-export directory functions
 export {
-  initStateDirectory,
   getStateDirectory,
+  initStateDirectory,
   validateStateDirectory,
 } from "./directory.js";
 
-// Re-export file utilities
-export * from "./utils/index.js";
-
+// Re-export errors
+export * from "./errors.js";
 // Re-export fleet state functions
 export {
-  readFleetState,
-  writeFleetState,
-  updateAgentState,
+  type AgentStateUpdates,
   initializeFleetState,
+  type ReadFleetStateOptions,
+  readFleetState,
   removeAgentState,
   type StateLogger,
-  type ReadFleetStateOptions,
+  updateAgentState,
   type WriteFleetStateOptions,
-  type AgentStateUpdates,
+  writeFleetState,
 } from "./fleet-state.js";
-
 // Re-export job metadata functions
 export {
   createJob,
-  updateJob,
-  getJob,
-  listJobs,
   deleteJob,
-  type JobMetadataOptions,
+  getJob,
   type JobLogger,
+  type JobMetadataOptions,
   type JobMetadataUpdates,
   type ListJobsFilter,
   type ListJobsResult,
+  listJobs,
+  updateJob,
 } from "./job-metadata.js";
-
 // Re-export job output functions
 export {
-  getJobOutputPath,
   appendJobOutput,
   appendJobOutputBatch,
-  readJobOutput,
-  readJobOutputAll,
+  getJobOutputPath,
   type JobOutputLogger,
   type JobOutputOptions,
   type ReadJobOutputOptions,
+  readJobOutput,
+  readJobOutputAll,
 } from "./job-output.js";
-
+// Re-export schemas
+export * from "./schemas/index.js";
 // Re-export session functions
 export {
-  getSessionInfo,
-  updateSessionInfo,
   clearSession,
+  getSessionInfo,
   listSessions,
-  type SessionOptions,
-  type SessionLogger,
   type SessionInfoUpdates,
+  type SessionLogger,
+  type SessionOptions,
+  updateSessionInfo,
 } from "./session.js";
-
 // Re-export session validation functions
 export {
-  validateSession,
-  validateSessionWithFileCheck,
-  validateRuntimeContext,
   cliSessionFileExists,
   dockerSessionFileExists,
   isSessionExpiredError,
   isTokenExpiredError,
   type SessionFileCheckOptions,
+  validateRuntimeContext,
+  validateSession,
+  validateSessionWithFileCheck,
 } from "./session-validation.js";
+// Re-export types
+export * from "./types.js";
+// Re-export file utilities
+export * from "./utils/index.js";
 
 // Re-export working directory validation functions
 export {

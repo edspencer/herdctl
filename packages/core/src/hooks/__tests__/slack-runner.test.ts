@@ -2,7 +2,7 @@
  * Tests for SlackHookRunner
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SlackHookRunner } from "../runners/slack.js";
 import type { HookContext, SlackHookConfigInput } from "../types.js";
 

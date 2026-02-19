@@ -12,26 +12,26 @@
  * @module schedule-executor
  */
 
-import { join, dirname } from "node:path";
-import type { TriggerInfo } from "../scheduler/index.js";
-import type { ResolvedAgent, HookEvent } from "../config/index.js";
+import { join } from "node:path";
+import type { HookEvent, ResolvedAgent } from "../config/index.js";
+import { type HookContext, HookExecutor } from "../hooks/index.js";
 import { JobExecutor, RuntimeFactory, type SDKMessage } from "../runner/index.js";
+import type { TriggerInfo } from "../scheduler/index.js";
 import { getJob } from "../state/index.js";
 import type { JobMetadata } from "../state/schemas/job-metadata.js";
-import { HookExecutor, type HookContext } from "../hooks/index.js";
 import type { FleetManagerContext } from "./context.js";
-import type {
-  JobCreatedPayload,
-  JobOutputPayload,
-  JobCompletedPayload,
-  JobFailedPayload,
-} from "./types.js";
 import {
-  emitJobCreated as emitJobCreatedFn,
-  emitJobOutput as emitJobOutputFn,
   emitJobCompleted as emitJobCompletedFn,
+  emitJobCreated as emitJobCreatedFn,
   emitJobFailed as emitJobFailedFn,
+  emitJobOutput as emitJobOutputFn,
 } from "./event-emitters.js";
+import type {
+  JobCompletedPayload,
+  JobCreatedPayload,
+  JobFailedPayload,
+  JobOutputPayload,
+} from "./types.js";
 
 /**
  * ScheduleExecutor handles the execution of scheduled jobs

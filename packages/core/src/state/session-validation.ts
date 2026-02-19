@@ -6,7 +6,7 @@
  */
 
 import { access } from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { getCliSessionFile } from "../runner/runtime/cli-session-path.js";
 import type { SessionInfo } from "./schemas/session-info.js";
 
@@ -224,8 +224,8 @@ export function validateSession(
 
   // Check if expired
   if (ageMs > timeoutMs) {
-    const ageMinutes = Math.round(ageMs / (60 * 1000));
-    const timeoutMinutes = Math.round(timeoutMs / (60 * 1000));
+    const _ageMinutes = Math.round(ageMs / (60 * 1000));
+    const _timeoutMinutes = Math.round(timeoutMs / (60 * 1000));
 
     return {
       valid: false,

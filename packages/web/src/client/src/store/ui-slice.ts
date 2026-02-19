@@ -5,8 +5,8 @@
  */
 
 import type { StateCreator } from "zustand";
-import type { Theme, ActiveView } from "../lib/types";
-import { getStoredTheme, setTheme as applyAndPersistTheme } from "../lib/theme";
+import { setTheme as applyAndPersistTheme, getStoredTheme } from "../lib/theme";
+import type { ActiveView, Theme } from "../lib/types";
 
 // =============================================================================
 // State Types

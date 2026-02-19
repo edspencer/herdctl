@@ -6,8 +6,8 @@
  * stderr highlighting, and jump-to-bottom button.
  */
 
-import { useEffect, useRef, useState, useCallback } from "react";
 import { ArrowDown, Terminal } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { OutputMessage as OutputMessageType } from "../../store";
 import { OutputMessage } from "./OutputMessage";
 
@@ -94,7 +94,7 @@ export function JobOutput({ jobId, messages, startTime }: JobOutputProps) {
     if (isAtBottom) {
       container.scrollTop = container.scrollHeight;
     }
-  }, [messages, isAtBottom]);
+  }, [isAtBottom]);
 
   // Add scroll listener
   useEffect(() => {

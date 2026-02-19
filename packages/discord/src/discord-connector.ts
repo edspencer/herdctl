@@ -6,47 +6,43 @@
  * handles connection lifecycle events.
  */
 
-import { EventEmitter } from "events";
+import { EventEmitter } from "node:events";
+import { type RateLimitData, RESTEvents } from "@discordjs/rest";
+import type { IChatSessionManager } from "@herdctl/chat";
+import type { AgentChatDiscord, AgentConfig } from "@herdctl/core";
 import {
   Client,
-  GatewayIntentBits,
-  Events,
-  Partials,
   type ClientOptions,
-  type Message,
-  type TextChannel,
   type DMChannel,
-  type NewsChannel,
-  type ThreadChannel,
+  Events,
+  GatewayIntentBits,
   type Interaction,
+  type Message,
+  type NewsChannel,
+  Partials,
+  type TextChannel,
+  type ThreadChannel,
 } from "discord.js";
-import { RESTEvents, type RateLimitData } from "@discordjs/rest";
-import type { AgentConfig, AgentChatDiscord, FleetManager } from "@herdctl/core";
-import type {
-  DiscordConnectorOptions,
-  DiscordConnectorState,
-  DiscordConnectionStatus,
-  DiscordConnectorLogger,
-  IDiscordConnector,
-  DiscordConnectorEventMap,
-  DiscordConnectorEventName,
-  DiscordReplyPayload,
-} from "./types.js";
-import { DiscordConnectionError, AlreadyConnectedError, InvalidTokenError } from "./errors.js";
-import { ErrorHandler, USER_ERROR_MESSAGES, withRetry } from "./error-handler.js";
+import { checkDMUserFilter, resolveChannelConfig } from "./auto-mode-handler.js";
+import { CommandManager, type ICommandManager } from "./commands/index.js";
+import { ErrorHandler } from "./error-handler.js";
+import { AlreadyConnectedError, DiscordConnectionError, InvalidTokenError } from "./errors.js";
+import { createLoggerFromConfig } from "./logger.js";
 import {
-  shouldProcessMessage,
   buildConversationContext,
+  shouldProcessMessage,
   type TextBasedChannel,
 } from "./mention-handler.js";
-import {
-  checkDMUserFilter,
-  resolveChannelConfig,
-  DEFAULT_DM_CONTEXT_MESSAGES,
-} from "./auto-mode-handler.js";
-import { CommandManager, type ICommandManager } from "./commands/index.js";
-import type { IChatSessionManager } from "@herdctl/chat";
-import { DiscordLogger, createLoggerFromConfig } from "./logger.js";
+import type {
+  DiscordConnectionStatus,
+  DiscordConnectorEventMap,
+  DiscordConnectorEventName,
+  DiscordConnectorLogger,
+  DiscordConnectorOptions,
+  DiscordConnectorState,
+  DiscordReplyPayload,
+  IDiscordConnector,
+} from "./types.js";
 
 /**
  * DiscordConnector class - Connects a single agent to Discord
@@ -77,7 +73,6 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
   private readonly _agentConfig: AgentConfig;
   private readonly _discordConfig: AgentChatDiscord;
   private readonly _botToken: string;
-  private readonly _fleetManager: FleetManager;
   private readonly _logger: DiscordConnectorLogger;
   private readonly _sessionManager: IChatSessionManager;
   private readonly _errorHandler: ErrorHandler;

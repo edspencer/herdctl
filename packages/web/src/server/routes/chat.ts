@@ -5,8 +5,8 @@
  * Actual message streaming happens via WebSocket.
  */
 
-import type { FastifyInstance } from "fastify";
 import type { FleetManager } from "@herdctl/core";
+import type { FastifyInstance } from "fastify";
 import type { WebChatManager } from "../chat/index.js";
 
 /**

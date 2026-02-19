@@ -6,16 +6,16 @@
  * messages are clear, actionable, and helpful for debugging.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdir, writeFile, rm, realpath } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  loadConfig,
   FleetCycleError,
-  FleetNameCollisionError,
   FleetLoadError,
+  FleetNameCollisionError,
   InvalidFleetNameError,
+  loadConfig,
 } from "../loader.js";
 import { AGENT_NAME_PATTERN } from "../schema.js";
 

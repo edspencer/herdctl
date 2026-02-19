@@ -9,9 +9,9 @@
  * - herdctl sessions resume [session-id] Resume a session in Claude Code
  */
 
-import { listSessions, loadConfig, type SessionInfo } from "@herdctl/core";
-import { join } from "node:path";
 import { spawn } from "node:child_process";
+import { join } from "node:path";
+import { listSessions, loadConfig, type SessionInfo } from "@herdctl/core";
 
 export interface SessionsOptions {
   agent?: string;

@@ -6,21 +6,18 @@
  */
 
 import { EventEmitter } from "node:events";
-import { watch, type FSWatcher } from "node:fs";
-import { createReadStream } from "node:fs";
-import { stat, readdir, unlink } from "node:fs/promises";
+import { createReadStream, type FSWatcher, watch } from "node:fs";
+import { stat, unlink } from "node:fs/promises";
 import { createInterface } from "node:readline";
-import { join } from "node:path";
 
 import {
-  getJob as getJobFromState,
-  listJobs as listJobsFromState,
   deleteJob as deleteJobFromState,
+  getJob as getJobFromState,
   type ListJobsFilter,
-  type JobMetadataOptions,
+  listJobs as listJobsFromState,
 } from "../state/index.js";
+import { getJobOutputPath, readJobOutputAll } from "../state/job-output.js";
 import type { JobMetadata, JobStatus } from "../state/schemas/job-metadata.js";
-import { readJobOutput, readJobOutputAll, getJobOutputPath } from "../state/job-output.js";
 import type { JobOutputMessage } from "../state/schemas/job-output.js";
 import { JobNotFoundError } from "./errors.js";
 

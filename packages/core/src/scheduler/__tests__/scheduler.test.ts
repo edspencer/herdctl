@@ -1,13 +1,13 @@
-import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from "vitest";
-import { mkdir, rm, realpath } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { Scheduler } from "../scheduler.js";
-import { SchedulerShutdownError } from "../errors.js";
-import type { SchedulerOptions, SchedulerLogger, TriggerInfo, StopOptions } from "../types.js";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResolvedAgent } from "../../config/index.js";
-import { writeFleetState, readFleetState } from "../../state/fleet-state.js";
+import { readFleetState, writeFleetState } from "../../state/fleet-state.js";
 import type { FleetState } from "../../state/schemas/fleet-state.js";
+import { SchedulerShutdownError } from "../errors.js";
+import { Scheduler } from "../scheduler.js";
+import type { SchedulerLogger, TriggerInfo } from "../types.js";
 
 // Helper to create a temp directory
 async function createTempDir(): Promise<string> {

@@ -6,22 +6,17 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import {
-  createLogger,
-  type FleetManager,
-  type WebConfig,
-  type ResolvedConfig,
-} from "@herdctl/core";
-import {
+  type ChatConnectorLogger,
   ChatSessionManager,
   extractMessageContent,
-  extractToolUseBlocks,
   extractToolResults,
+  extractToolUseBlocks,
   getToolInputSummary,
-  type ChatConnectorLogger,
 } from "@herdctl/chat";
+import { createLogger, type FleetManager, type WebConfig } from "@herdctl/core";
 
 const logger = createLogger("web:chat");
 

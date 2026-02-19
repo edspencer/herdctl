@@ -1,13 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { execSync } from "node:child_process";
-import { mkdir, rm, realpath } from "node:fs/promises";
-import { join } from "node:path";
+import { exec, execSync } from "node:child_process";
+import { mkdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { promisify } from "node:util";
-import { exec } from "node:child_process";
-import { buildContainerMounts, buildContainerEnv } from "../container-manager.js";
-import { resolveDockerConfig } from "../docker-config.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ResolvedAgent } from "../../../config/index.js";
+import { buildContainerEnv, buildContainerMounts } from "../container-manager.js";
+import { resolveDockerConfig } from "../docker-config.js";
 
 const execAsync = promisify(exec);
 

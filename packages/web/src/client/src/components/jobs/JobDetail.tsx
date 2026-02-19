@@ -6,28 +6,28 @@
  * Shown as a side panel when a job row is selected.
  */
 
-import { useState, useCallback } from "react";
-import { Link } from "react-router";
 import {
-  X,
-  ExternalLink,
   AlertCircle,
-  Clock,
-  Hash,
-  Copy,
+  CalendarClock,
   Check,
+  Clock,
+  Copy,
+  ExternalLink,
   GitFork,
+  Globe,
+  Hash,
+  MessageSquare,
   StopCircle,
   Terminal,
-  CalendarClock,
-  Globe,
   Webhook,
-  MessageSquare,
+  X,
 } from "lucide-react";
-import { Card, StatusBadge, Spinner } from "../ui";
+import { useCallback, useState } from "react";
+import { Link } from "react-router";
 import { cancelJob as apiCancelJob, forkJob as apiForkJob } from "../../lib/api";
-import { useJobsActions } from "../../store";
 import type { JobSummary, TriggerType } from "../../lib/types";
+import { useJobsActions } from "../../store";
+import { Card, Spinner, StatusBadge } from "../ui";
 
 // =============================================================================
 // Types

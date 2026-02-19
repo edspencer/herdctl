@@ -16,21 +16,21 @@
  * ```
  */
 
-import { execa } from "execa";
-import * as path from "node:path";
 import * as fs from "node:fs/promises";
-import { PassThrough } from "node:stream";
+import * as path from "node:path";
 import { createInterface } from "node:readline";
-import type { RuntimeInterface, RuntimeExecuteOptions } from "./interface.js";
-import type { SDKMessage, InjectedMcpServerDef } from "../types.js";
-import type { DockerConfig } from "./docker-config.js";
-import { startMcpHttpBridge, type McpHttpBridge } from "./mcp-http-bridge.js";
-import { ContainerManager, buildContainerMounts, buildContainerEnv } from "./container-manager.js";
-import { CLIRuntime } from "./cli-runtime.js";
-import { SDKRuntime } from "./sdk-runtime.js";
-import { toSDKOptions } from "../sdk-adapter.js";
+import { PassThrough } from "node:stream";
 import Dockerode from "dockerode";
+import { execa } from "execa";
 import { createLogger } from "../../utils/logger.js";
+import { toSDKOptions } from "../sdk-adapter.js";
+import type { SDKMessage } from "../types.js";
+import { CLIRuntime } from "./cli-runtime.js";
+import { buildContainerEnv, buildContainerMounts, ContainerManager } from "./container-manager.js";
+import type { DockerConfig } from "./docker-config.js";
+import type { RuntimeExecuteOptions, RuntimeInterface } from "./interface.js";
+import { type McpHttpBridge, startMcpHttpBridge } from "./mcp-http-bridge.js";
+import { SDKRuntime } from "./sdk-runtime.js";
 
 const logger = createLogger("ContainerRunner");
 

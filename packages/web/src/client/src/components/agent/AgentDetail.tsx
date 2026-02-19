@@ -5,14 +5,14 @@
  * Tabs: Overview (default landing from /agents/:name), Jobs, Output
  */
 
-import { useParams, Link } from "react-router";
-import { ArrowLeft, Terminal, History, LayoutDashboard } from "lucide-react";
+import { ArrowLeft, History, LayoutDashboard, Terminal } from "lucide-react";
+import { Link, useParams } from "react-router";
 import { useAgentDetail } from "../../hooks/useAgentDetail";
 import { Card, Spinner } from "../ui";
-import { AgentHeader } from "./AgentHeader";
-import { AgentOutput } from "./AgentOutput";
-import { AgentJobs } from "./AgentJobs";
 import { AgentConfig } from "./AgentConfig";
+import { AgentHeader } from "./AgentHeader";
+import { AgentJobs } from "./AgentJobs";
+import { AgentOutput } from "./AgentOutput";
 
 // =============================================================================
 // Types
@@ -186,10 +186,11 @@ export function AgentDetail() {
         return <AgentJobs agent={agent!} />;
       case "output":
         return <AgentOutput agent={agent!} />;
-      default:
+      default: {
         // This should never happen, but TypeScript requires exhaustive checks
         const exhaustiveCheck: never = activeTab;
         return exhaustiveCheck;
+      }
     }
   }
 

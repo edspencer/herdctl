@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from "vitest";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import { tmpdir } from "node:os";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { statusCommand } from "../status.js";
 
 // Store mock FleetManager for access in tests
@@ -145,8 +145,6 @@ vi.mock("@herdctl/core", async () => {
     FleetManager: MockFleetManager,
   };
 });
-
-import { AgentNotFoundError, ConfigNotFoundError } from "@herdctl/core";
 
 // Helper to create a temp directory
 function createTempDir(): string {

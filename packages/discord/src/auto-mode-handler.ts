@@ -10,13 +10,13 @@
  * while working with Discord's guild/channel hierarchy.
  */
 
-import type { ChatDM, DiscordChannel, DiscordGuild } from "@herdctl/core";
 import {
-  isDMEnabled as chatIsDMEnabled,
-  getDMMode as chatGetDMMode,
   checkDMUserFilter as chatCheckDMUserFilter,
+  getDMMode as chatGetDMMode,
+  isDMEnabled as chatIsDMEnabled,
   type DMFilterResult,
 } from "@herdctl/chat";
+import type { ChatDM, DiscordChannel, DiscordGuild } from "@herdctl/core";
 
 // Re-export shared types for backwards compatibility during migration
 export type { DMFilterResult };

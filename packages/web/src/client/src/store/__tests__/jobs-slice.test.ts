@@ -5,7 +5,7 @@
  * in the Zustand store.
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { create } from "zustand";
 import { createJobsSlice, type JobsSlice } from "../jobs-slice";
 
@@ -15,7 +15,7 @@ vi.mock("../../lib/api", () => ({
   fetchJobById: vi.fn(),
 }));
 
-import { fetchJobs, fetchJobById } from "../../lib/api";
+import { fetchJobById, fetchJobs } from "../../lib/api";
 
 // =============================================================================
 // Helpers

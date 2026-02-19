@@ -7,11 +7,11 @@
  * - Action buttons (Trigger Job, Chat)
  */
 
+import { Cpu, FolderOpen, MessageSquare, Play, Shield } from "lucide-react";
 import { Link } from "react-router";
-import { Play, MessageSquare, FolderOpen, Cpu, Shield } from "lucide-react";
-import { StatusBadge } from "../ui";
 import { getAgentAvatar } from "../../lib/avatar";
 import type { AgentInfo } from "../../lib/types";
+import { StatusBadge } from "../ui";
 
 // =============================================================================
 // Types

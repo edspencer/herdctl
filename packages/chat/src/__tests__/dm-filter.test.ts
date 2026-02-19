@@ -2,13 +2,13 @@
  * Tests for DM filtering utilities
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  isDMEnabled,
-  getDMMode,
   checkDMUserFilter,
-  shouldProcessInMode,
   type DMConfig,
+  getDMMode,
+  isDMEnabled,
+  shouldProcessInMode,
 } from "../dm-filter.js";
 
 describe("dm-filter", () => {

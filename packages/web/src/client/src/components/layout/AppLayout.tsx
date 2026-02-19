@@ -8,11 +8,11 @@
  */
 
 import type { ReactNode } from "react";
-import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
-import { useUI, useUIActions, useStore } from "../../store";
-import { Sidebar } from "./Sidebar";
-import { Header } from "./Header";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { useStore, useUI, useUIActions } from "../../store";
 import { ConnectionStatus } from "../ui";
+import { Header } from "./Header";
+import { Sidebar } from "./Sidebar";
 
 // =============================================================================
 // Types

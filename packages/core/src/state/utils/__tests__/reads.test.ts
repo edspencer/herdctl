@@ -1,17 +1,17 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdir, readFile, rm, realpath, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { appendJsonl, atomicWriteYaml } from "../atomic.js";
 import {
-  safeReadYaml,
-  safeReadJsonl,
-  readYaml,
-  readJsonl,
-  safeReadJson,
   readJson,
+  readJsonl,
+  readYaml,
   SafeReadError,
+  safeReadJson,
+  safeReadJsonl,
+  safeReadYaml,
 } from "../reads.js";
-import { atomicWriteYaml, appendJsonl } from "../atomic.js";
 
 // Helper to create a temp directory
 async function createTempDir(): Promise<string> {
@@ -495,7 +495,7 @@ describe("safeReadJsonl", () => {
     for (let i = 0; i < 1000; i++) {
       lines.push(JSON.stringify({ id: i, data: "x".repeat(100) }));
     }
-    await writeFile(filePath, lines.join("\n") + "\n", "utf-8");
+    await writeFile(filePath, `${lines.join("\n")}\n`, "utf-8");
 
     const result = await safeReadJsonl<{ id: number; data: string }>(filePath);
 

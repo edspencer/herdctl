@@ -2,7 +2,7 @@
  * !help command — Show available commands
  */
 
-import type { PrefixCommand, CommandContext } from "./command-handler.js";
+import type { CommandContext, PrefixCommand } from "./command-handler.js";
 
 export const helpCommand: PrefixCommand = {
   name: "help",

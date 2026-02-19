@@ -5,10 +5,10 @@
  * No polling, no timeouts - just clean async/await.
  */
 
-import chokidar from "chokidar";
 import { readFile } from "node:fs/promises";
-import type { SDKMessage } from "../types.js";
+import chokidar from "chokidar";
 import { createLogger } from "../../utils/logger.js";
+import type { SDKMessage } from "../types.js";
 
 const logger = createLogger("CLISessionWatcher");
 

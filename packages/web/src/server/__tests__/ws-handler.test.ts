@@ -4,14 +4,14 @@
  * Tests the WebSocket message type guards and handler behavior.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { WebSocketHandler } from "../ws/handler.js";
 import {
-  isClientMessage,
-  isChatSendMessage,
   isAgentStartedPayload,
   isAgentStoppedPayload,
+  isChatSendMessage,
+  isClientMessage,
 } from "../ws/types.js";
-import { WebSocketHandler } from "../ws/handler.js";
 
 // =============================================================================
 // Type Guard Tests

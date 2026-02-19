@@ -6,16 +6,16 @@
  */
 
 import { ZodError } from "zod";
+import { createLogger } from "../utils/logger.js";
+import { StateFileError } from "./errors.js";
 import {
-  FleetStateSchema,
+  type AgentState,
   createInitialFleetState,
   type FleetState,
-  type AgentState,
+  FleetStateSchema,
 } from "./schemas/fleet-state.js";
-import { safeReadYaml } from "./utils/reads.js";
 import { atomicWriteYaml } from "./utils/atomic.js";
-import { StateFileError } from "./errors.js";
-import { createLogger } from "../utils/logger.js";
+import { safeReadYaml } from "./utils/reads.js";
 
 /**
  * Logger interface for warning messages

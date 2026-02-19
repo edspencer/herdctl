@@ -1,26 +1,26 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { writeFile, mkdir, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  parseAgentConfig,
-  validateAgentConfig,
-  safeParseAgentConfig,
-  loadAgentConfig,
-  resolveAgentPath,
   AgentValidationError,
   AgentYamlSyntaxError,
   FileReadError,
+  loadAgentConfig,
+  parseAgentConfig,
+  resolveAgentPath,
+  safeParseAgentConfig,
+  validateAgentConfig,
 } from "../parser.js";
+import type { AgentConfig } from "../schema.js";
 import {
+  AgentChatSchema,
   AgentConfigSchema,
   IdentitySchema,
-  SessionSchema,
-  ScheduleSchema,
   McpServerSchema,
-  AgentChatSchema,
+  ScheduleSchema,
+  SessionSchema,
 } from "../schema.js";
-import type { AgentConfig } from "../schema.js";
 
 describe("AgentConfigSchema", () => {
   it("validates minimal agent config with just name", () => {

@@ -5,12 +5,12 @@
  * Supports triggering, enabling/disabling, and displays schedule metadata.
  */
 
+import { Calendar, Play, Power, PowerOff } from "lucide-react";
 import { useEffect } from "react";
 import { Link } from "react-router";
-import { Calendar, Play, Power, PowerOff } from "lucide-react";
-import { useSchedules, useScheduleActions } from "../../store";
-import { Card, StatusBadge, Spinner } from "../ui";
 import type { ScheduleInfo, ScheduleType } from "../../lib/types";
+import { useScheduleActions, useSchedules } from "../../store";
+import { Card, Spinner, StatusBadge } from "../ui";
 
 // =============================================================================
 // Helper Functions

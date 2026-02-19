@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { EventEmitter } from "events";
-import type { AgentConfig, AgentChatDiscord, FleetManager } from "@herdctl/core";
+import type { EventEmitter } from "node:events";
 import type { IChatSessionManager } from "@herdctl/chat";
+import type { AgentChatDiscord, AgentConfig, FleetManager } from "@herdctl/core";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // =============================================================================
 // Mock discord.js - Must be hoisted, factory cannot reference external variables
@@ -11,11 +11,11 @@ import type { IChatSessionManager } from "@herdctl/chat";
 let mockLoginImpl: (() => Promise<string>) | null = null;
 
 // Mock REST EventEmitter for rate limit events
-let mockRestEmitter: EventEmitter | null = null;
+let _mockRestEmitter: EventEmitter | null = null;
 
 // Mock discord.js module - factory must be self-contained
 vi.mock("discord.js", () => {
-  const { EventEmitter } = require("events");
+  const { EventEmitter } = require("node:events");
 
   // Define mock user inside factory
   const mockUser = {
@@ -41,7 +41,7 @@ vi.mock("discord.js", () => {
     constructor() {
       super();
       // Store reference to rest emitter for test access
-      mockRestEmitter = this.rest;
+      _mockRestEmitter = this.rest;
     }
   }
 

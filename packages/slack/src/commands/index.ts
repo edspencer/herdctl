@@ -4,13 +4,12 @@
  * Provides message prefix command handling.
  */
 
-export { CommandHandler } from "./command-handler.js";
-
 export type {
   CommandContext,
-  PrefixCommand,
   CommandHandlerOptions,
+  PrefixCommand,
 } from "./command-handler.js";
+export { CommandHandler } from "./command-handler.js";
 
 export { helpCommand } from "./help.js";
 export { resetCommand } from "./reset.js";

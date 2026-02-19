@@ -10,31 +10,29 @@
  * @module manager
  */
 
+import {
+  type ChatConnectorLogger,
+  ChatSessionManager,
+  extractMessageContent,
+  extractToolResults,
+  extractToolUseBlocks,
+  getToolInputSummary,
+  StreamingResponder,
+  splitMessage,
+  TOOL_EMOJIS,
+} from "@herdctl/chat";
 import type {
+  ChatManagerConnectorState,
   FleetManagerContext,
   IChatManager,
-  ChatManagerConnectorState,
-  TriggerOptions,
-  TriggerResult,
-  ResolvedAgent,
   InjectedMcpServerDef,
+  ResolvedAgent,
+  TriggerOptions,
 } from "@herdctl/core";
 import { createFileSenderDef, type FileSenderContext } from "@herdctl/core";
-import {
-  StreamingResponder,
-  extractMessageContent,
-  splitMessage,
-  ChatSessionManager,
-  extractToolUseBlocks,
-  extractToolResults,
-  getToolInputSummary,
-  TOOL_EMOJIS,
-  type ChatConnectorLogger,
-} from "@herdctl/chat";
-
-import { SlackConnector } from "./slack-connector.js";
 import { markdownToMrkdwn } from "./formatting.js";
-import type { SlackConnectorState, SlackMessageEvent, SlackConnectorEventMap } from "./types.js";
+import { SlackConnector } from "./slack-connector.js";
+import type { SlackConnectorEventMap, SlackMessageEvent } from "./types.js";
 
 // =============================================================================
 // Slack Manager

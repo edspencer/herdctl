@@ -9,12 +9,11 @@
 
 import type {
   AgentConfig,
-  Defaults,
-  WorkSource,
-  Session,
+  AgentWorkingDirectory,
   Docker,
   PermissionMode,
-  AgentWorkingDirectory,
+  Session,
+  WorkSource,
 } from "./schema.js";
 
 // =============================================================================

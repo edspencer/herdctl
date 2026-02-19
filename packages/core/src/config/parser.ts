@@ -4,16 +4,16 @@
  * Parses herdctl.yaml files and validates them against the FleetConfig schema
  */
 
+import { readFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 import { parse as parseYaml, YAMLParseError } from "yaml";
 import { ZodError } from "zod";
 import {
-  FleetConfigSchema,
+  type AgentConfig,
   AgentConfigSchema,
   type FleetConfig,
-  type AgentConfig,
+  FleetConfigSchema,
 } from "./schema.js";
-import { readFile } from "node:fs/promises";
-import { resolve, dirname } from "node:path";
 
 // =============================================================================
 // Error Classes

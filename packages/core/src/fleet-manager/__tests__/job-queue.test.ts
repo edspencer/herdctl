@@ -2,9 +2,9 @@
  * Tests for JobQueue (US-10: Concurrency Control)
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ScheduleSkipResult } from "../job-queue.js";
 import { JobQueue } from "../job-queue.js";
-import type { QueuedJob, ScheduleSkipResult } from "../job-queue.js";
 
 describe("JobQueue", () => {
   let queue: JobQueue;

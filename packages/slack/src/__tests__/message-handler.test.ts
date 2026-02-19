@@ -1,10 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   isBotMentioned,
+  processMessage,
+  shouldProcessMessage,
   stripBotMention,
   stripMentions,
-  shouldProcessMessage,
-  processMessage,
 } from "../message-handler.js";
 
 const BOT_USER_ID = "U0123456789";

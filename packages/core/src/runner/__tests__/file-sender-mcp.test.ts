@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { resolve, join } from "node:path";
+import { join, resolve } from "node:path";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock node:fs/promises
 vi.mock("node:fs/promises", () => ({
@@ -7,8 +7,8 @@ vi.mock("node:fs/promises", () => ({
   realpath: vi.fn(),
 }));
 
-import { createFileSenderDef, type FileSenderContext } from "../file-sender-mcp.js";
 import { readFile, realpath } from "node:fs/promises";
+import { createFileSenderDef, type FileSenderContext } from "../file-sender-mcp.js";
 
 // =============================================================================
 // Helpers

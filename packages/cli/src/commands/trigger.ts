@@ -10,15 +10,15 @@
  */
 
 import {
-  FleetManager,
   ConfigNotFoundError,
-  isFleetManagerError,
+  FleetManager,
   isAgentNotFoundError,
-  isScheduleNotFoundError,
   isConcurrencyLimitError,
-  type TriggerResult,
+  isFleetManagerError,
+  isScheduleNotFoundError,
   type LogEntry,
   type SDKMessage,
+  type TriggerResult,
 } from "@herdctl/core";
 
 export interface TriggerOptions {
@@ -240,7 +240,7 @@ export async function triggerCommand(agentName: string, options: TriggerOptions)
 
     // Track if we've printed any streaming content
     let hasStreamedContent = false;
-    let streamBuffer = ""; // Buffer for accumulating partial content
+    const _streamBuffer = ""; // Buffer for accumulating partial content
 
     /**
      * Callback for streaming messages during execution
@@ -366,7 +366,7 @@ export async function triggerCommand(agentName: string, options: TriggerOptions)
       }
       if (result.prompt) {
         const truncatedPrompt =
-          result.prompt.length > 60 ? result.prompt.substring(0, 60) + "..." : result.prompt;
+          result.prompt.length > 60 ? `${result.prompt.substring(0, 60)}...` : result.prompt;
         console.log(`Prompt:   ${colorize(truncatedPrompt, "dim")}`);
       }
       console.log("");
@@ -429,7 +429,7 @@ export async function triggerCommand(agentName: string, options: TriggerOptions)
       // to get the actual exit code and status. For now, we assume success
       // if the stream completed without error.
       finishedAt = new Date().toISOString();
-    } catch (streamError) {
+    } catch (_streamError) {
       // Stream error - job may have failed
       if (!isShuttingDown) {
         exitCode = 1;

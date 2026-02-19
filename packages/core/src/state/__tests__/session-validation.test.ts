@@ -1,17 +1,17 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdir, rm, realpath, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { SessionInfo } from "../schemas/session-info.js";
 import {
-  parseTimeout,
-  validateSession,
-  validateRuntimeContext,
-  formatDuration,
-  isSessionExpiredError,
   cleanupExpiredSessions,
   DEFAULT_SESSION_TIMEOUT_MS,
+  formatDuration,
+  isSessionExpiredError,
+  parseTimeout,
+  validateRuntimeContext,
+  validateSession,
 } from "../session-validation.js";
-import { type SessionInfo } from "../schemas/session-info.js";
 
 // Helper to create a temp directory
 async function createTempDir(): Promise<string> {

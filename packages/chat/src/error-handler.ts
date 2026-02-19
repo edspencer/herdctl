@@ -215,7 +215,7 @@ export async function withRetry<T>(
       }
 
       // Calculate delay with exponential backoff
-      const delay = Math.min(baseDelayMs * Math.pow(backoffMultiplier, attempt - 1), maxDelayMs);
+      const delay = Math.min(baseDelayMs * backoffMultiplier ** (attempt - 1), maxDelayMs);
 
       logger?.info(`${operationName} failed, retrying in ${delay}ms...`, {
         attempt,

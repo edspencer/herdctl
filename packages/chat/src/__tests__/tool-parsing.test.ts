@@ -2,11 +2,11 @@
  * Tests for tool parsing utilities
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  extractToolUseBlocks,
-  extractToolResults,
   extractToolResultContent,
+  extractToolResults,
+  extractToolUseBlocks,
   getToolInputSummary,
   TOOL_EMOJIS,
 } from "../tool-parsing.js";
@@ -122,7 +122,7 @@ describe("tool-parsing", () => {
     it("truncates long Bash commands", () => {
       const longCommand = "a".repeat(250);
       const result = getToolInputSummary("Bash", { command: longCommand });
-      expect(result).toBe("a".repeat(200) + "...");
+      expect(result).toBe(`${"a".repeat(200)}...`);
     });
 
     it("returns file_path for Read", () => {
@@ -357,17 +357,17 @@ describe("tool-parsing", () => {
 
   describe("TOOL_EMOJIS", () => {
     it("has emoji for common tools", () => {
-      expect(TOOL_EMOJIS["Bash"]).toBeDefined();
-      expect(TOOL_EMOJIS["Read"]).toBeDefined();
-      expect(TOOL_EMOJIS["Write"]).toBeDefined();
-      expect(TOOL_EMOJIS["Glob"]).toBeDefined();
-      expect(TOOL_EMOJIS["Grep"]).toBeDefined();
-      expect(TOOL_EMOJIS["WebFetch"]).toBeDefined();
-      expect(TOOL_EMOJIS["WebSearch"]).toBeDefined();
+      expect(TOOL_EMOJIS.Bash).toBeDefined();
+      expect(TOOL_EMOJIS.Read).toBeDefined();
+      expect(TOOL_EMOJIS.Write).toBeDefined();
+      expect(TOOL_EMOJIS.Glob).toBeDefined();
+      expect(TOOL_EMOJIS.Grep).toBeDefined();
+      expect(TOOL_EMOJIS.WebFetch).toBeDefined();
+      expect(TOOL_EMOJIS.WebSearch).toBeDefined();
     });
 
     it("has lowercase bash variant", () => {
-      expect(TOOL_EMOJIS["bash"]).toBe(TOOL_EMOJIS["Bash"]);
+      expect(TOOL_EMOJIS.bash).toBe(TOOL_EMOJIS.Bash);
     });
   });
 });

@@ -10,33 +10,29 @@
  * @module manager
  */
 
+import {
+  type ChatConnectorLogger,
+  ChatSessionManager,
+  extractMessageContent,
+  extractToolResults,
+  extractToolUseBlocks,
+  getToolInputSummary,
+  StreamingResponder,
+  splitMessage,
+  TOOL_EMOJIS,
+} from "@herdctl/chat";
 import type {
+  ChatManagerConnectorState,
   FleetManagerContext,
   IChatManager,
-  ChatManagerConnectorState,
-  TriggerOptions,
-  TriggerResult,
   ResolvedAgent,
 } from "@herdctl/core";
-import {
-  StreamingResponder,
-  extractMessageContent,
-  splitMessage,
-  ChatSessionManager,
-  extractToolUseBlocks,
-  extractToolResults,
-  getToolInputSummary,
-  TOOL_EMOJIS,
-  type ChatConnectorLogger,
-} from "@herdctl/chat";
 
 import { DiscordConnector } from "./discord-connector.js";
 import type {
-  DiscordConnectorState,
+  DiscordConnectorEventMap,
   DiscordReplyEmbed,
   DiscordReplyEmbedField,
-  DiscordReplyPayload,
-  DiscordConnectorEventMap,
 } from "./types.js";
 
 // =============================================================================
@@ -597,7 +593,7 @@ export class DiscordManager implements IChatManager {
                 {
                   title: "\u274C Error",
                   description:
-                    errorText.length > 4000 ? errorText.substring(0, 4000) + "..." : errorText,
+                    errorText.length > 4000 ? `${errorText.substring(0, 4000)}...` : errorText,
                   color: DiscordManager.EMBED_COLOR_ERROR,
                 },
               ],

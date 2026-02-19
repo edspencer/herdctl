@@ -1,6 +1,6 @@
-import { defineConfig, type Plugin } from "vitest/config";
+import { resolve } from "node:path";
 import react from "@vitejs/plugin-react";
-import { resolve } from "path";
+import { defineConfig, type Plugin } from "vitest/config";
 
 // @herdctl/core dynamically imports @herdctl/discord, @herdctl/slack, and
 // @herdctl/web. Vite's import-analysis plugin fails when resolving these from

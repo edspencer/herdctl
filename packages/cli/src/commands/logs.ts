@@ -12,14 +12,14 @@
  */
 
 import {
-  FleetManager,
-  ConfigNotFoundError,
   AgentNotFoundError,
-  JobNotFoundError,
+  ConfigNotFoundError,
+  FleetManager,
   isFleetManagerError,
   JobManager,
-  type LogEntry,
+  JobNotFoundError,
   type JobOutputMessage,
+  type LogEntry,
 } from "@herdctl/core";
 
 import { colorize, getLevelColor, getSourceColor } from "../utils/colors.js";

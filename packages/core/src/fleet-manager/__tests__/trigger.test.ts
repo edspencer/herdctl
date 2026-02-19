@@ -4,7 +4,7 @@
  * Tests the trigger() method for manually triggering agents.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the Claude SDK to prevent real API calls during tests
 // Mock the SDK to return an async generator that yields a simple system message
@@ -15,17 +15,11 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
   }),
 }));
 
-import { mkdtemp, rm, mkdir, writeFile } from "fs/promises";
-import { tmpdir } from "os";
-import { join } from "path";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { AgentNotFoundError, InvalidStateError, ScheduleNotFoundError } from "../errors.js";
 import { FleetManager } from "../fleet-manager.js";
-import {
-  AgentNotFoundError,
-  ScheduleNotFoundError,
-  ConcurrencyLimitError,
-  InvalidStateError,
-} from "../errors.js";
-import type { TriggerOptions, TriggerResult } from "../types.js";
 
 describe("Manual Agent Triggering (US-5)", () => {
   let tempDir: string;

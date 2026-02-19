@@ -1,10 +1,10 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
-  ErrorCategory,
-  USER_ERROR_MESSAGES,
   classifyError,
+  ErrorCategory,
   safeExecute,
   safeExecuteWithReply,
+  USER_ERROR_MESSAGES,
 } from "../error-handler.js";
 
 const createMockLogger = () => ({

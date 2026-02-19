@@ -7,10 +7,10 @@
  * @module schedule-management
  */
 
-import type { ScheduleInfo } from "./types.js";
 import type { FleetManagerContext } from "./context.js";
 import { AgentNotFoundError, ScheduleNotFoundError } from "./errors.js";
 import { buildScheduleInfoList, type FleetStateSnapshot } from "./status-queries.js";
+import type { ScheduleInfo } from "./types.js";
 
 // =============================================================================
 // ScheduleManagement Class

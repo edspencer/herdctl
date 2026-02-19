@@ -5,11 +5,11 @@
  * Shows preview, timestamp, and message count for each session.
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { MessageSquare, Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { Plus, Trash2, MessageSquare } from "lucide-react";
-import { useChatSessions, useChatActions } from "../../store";
 import { formatRelativeTime } from "../../lib/format";
+import { useChatActions, useChatSessions } from "../../store";
 
 // =============================================================================
 // Types

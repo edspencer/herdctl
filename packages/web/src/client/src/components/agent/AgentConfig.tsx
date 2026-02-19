@@ -5,9 +5,9 @@
  * Shows General info, Schedules, Connectors, and Working Directory.
  */
 
-import { Clock, Calendar, Webhook, MessageCircle } from "lucide-react";
+import { Calendar, Clock, MessageCircle, Webhook } from "lucide-react";
+import type { AgentInfo, ChatConnectorStatus, ScheduleInfo } from "../../lib/types";
 import { Card } from "../ui";
-import type { AgentInfo, ScheduleInfo, ChatConnectorStatus } from "../../lib/types";
 
 // =============================================================================
 // Types

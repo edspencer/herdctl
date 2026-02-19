@@ -5,16 +5,15 @@
  * and provides broadcast functions for the fleet bridge.
  */
 
-import type { WebSocket, RawData } from "ws";
 import { createLogger, type FleetManager } from "@herdctl/core";
-import {
-  isClientMessage,
-  isChatSendMessage,
-  type ClientMessage,
-  type ServerMessage,
-  type ChatSendMessage,
-} from "./types.js";
+import type { RawData, WebSocket } from "ws";
 import type { WebChatManager } from "../chat/index.js";
+import {
+  type ChatSendMessage,
+  type ClientMessage,
+  isClientMessage,
+  type ServerMessage,
+} from "./types.js";
 
 const logger = createLogger("web:ws");
 

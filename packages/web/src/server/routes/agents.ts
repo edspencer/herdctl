@@ -4,8 +4,8 @@
  * Provides endpoints for retrieving agent information.
  */
 
-import type { FastifyInstance } from "fastify";
 import type { FleetManager } from "@herdctl/core";
+import type { FastifyInstance } from "fastify";
 
 /**
  * Register agent-related routes

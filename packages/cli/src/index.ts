@@ -25,22 +25,23 @@
  * - herdctl sessions resume [id]  Resume a session in Claude Code
  */
 
+import { createRequire } from "node:module";
 import { Command } from "commander";
-import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
 const { version: VERSION } = require("../package.json");
-import { initCommand } from "./commands/init.js";
-import { startCommand } from "./commands/start.js";
-import { stopCommand } from "./commands/stop.js";
-import { configValidateCommand, configShowCommand } from "./commands/config.js";
-import { statusCommand } from "./commands/status.js";
-import { logsCommand } from "./commands/logs.js";
-import { triggerCommand } from "./commands/trigger.js";
-import { jobsCommand } from "./commands/jobs.js";
-import { jobCommand } from "./commands/job.js";
+
 import { cancelCommand } from "./commands/cancel.js";
+import { configShowCommand, configValidateCommand } from "./commands/config.js";
+import { initCommand } from "./commands/init.js";
+import { jobCommand } from "./commands/job.js";
+import { jobsCommand } from "./commands/jobs.js";
+import { logsCommand } from "./commands/logs.js";
 import { sessionsCommand, sessionsResumeCommand } from "./commands/sessions.js";
+import { startCommand } from "./commands/start.js";
+import { statusCommand } from "./commands/status.js";
+import { stopCommand } from "./commands/stop.js";
+import { triggerCommand } from "./commands/trigger.js";
 
 const program = new Command();
 

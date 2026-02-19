@@ -5,9 +5,9 @@
  * Uses the standard pattern of writing to a temp file then renaming.
  */
 
-import { writeFile, rename, unlink, appendFile } from "node:fs/promises";
-import { dirname, basename, join } from "node:path";
 import { randomBytes } from "node:crypto";
+import { appendFile, rename, unlink, writeFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import { stringify as stringifyYaml } from "yaml";
 
 /**
@@ -83,7 +83,7 @@ export async function renameWithRetry(
 
       // Don't delay on the last attempt
       if (attempt < maxRetries) {
-        const delay = baseDelayMs * Math.pow(2, attempt);
+        const delay = baseDelayMs * 2 ** attempt;
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
@@ -185,7 +185,7 @@ export async function atomicWriteJson(
     indent?: number;
   },
 ): Promise<void> {
-  const jsonContent = JSON.stringify(data, null, options?.indent ?? 2) + "\n";
+  const jsonContent = `${JSON.stringify(data, null, options?.indent ?? 2)}\n`;
   await atomicWriteFile(filePath, jsonContent);
 }
 
@@ -199,7 +199,7 @@ export async function atomicWriteJson(
  * @param data - Data to serialize as a single JSON line
  */
 export async function appendJsonl(filePath: string, data: unknown): Promise<void> {
-  const line = JSON.stringify(data) + "\n";
+  const line = `${JSON.stringify(data)}\n`;
 
   try {
     await appendFile(filePath, line, "utf-8");

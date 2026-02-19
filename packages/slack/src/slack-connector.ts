@@ -11,25 +11,25 @@
  */
 
 import { EventEmitter } from "node:events";
-import type { IChatSessionManager, DMConfig } from "@herdctl/chat";
+import type { DMConfig, IChatSessionManager } from "@herdctl/chat";
 import { checkDMUserFilter, getDMMode, isDMEnabled } from "@herdctl/chat";
+import { CommandHandler, helpCommand, resetCommand, statusCommand } from "./commands/index.js";
+import { AlreadyConnectedError, SlackConnectionError } from "./errors.js";
+import { markdownToMrkdwn } from "./formatting.js";
+import { createDefaultSlackLogger } from "./logger.js";
+import { isBotMentioned, processMessage, shouldProcessMessage } from "./message-handler.js";
 import type {
-  SlackConnectorOptions,
-  SlackConnectorState,
-  SlackConnectionStatus,
-  SlackConnectorLogger,
-  SlackMessageEvent,
-  SlackChannelConfig,
-  SlackFileUploadParams,
   ISlackConnector,
+  SlackChannelConfig,
+  SlackConnectionStatus,
   SlackConnectorEventMap,
   SlackConnectorEventName,
+  SlackConnectorLogger,
+  SlackConnectorOptions,
+  SlackConnectorState,
+  SlackFileUploadParams,
+  SlackMessageEvent,
 } from "./types.js";
-import { shouldProcessMessage, processMessage, isBotMentioned } from "./message-handler.js";
-import { CommandHandler, helpCommand, resetCommand, statusCommand } from "./commands/index.js";
-import { markdownToMrkdwn } from "./formatting.js";
-import { AlreadyConnectedError, SlackConnectionError } from "./errors.js";
-import { createDefaultSlackLogger } from "./logger.js";
 
 // =============================================================================
 // Slack Connector Implementation

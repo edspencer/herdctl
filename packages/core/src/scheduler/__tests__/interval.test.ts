@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { parseInterval, calculateNextTrigger, isScheduleDue } from "../interval.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IntervalParseError } from "../errors.js";
+import { calculateNextTrigger, isScheduleDue, parseInterval } from "../interval.js";
 
 // =============================================================================
 // parseInterval - Valid inputs

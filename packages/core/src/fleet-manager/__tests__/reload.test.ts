@@ -4,19 +4,19 @@
  * Tests the reload() method for hot configuration reload without restarting.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the Claude SDK to prevent real API calls during tests
 vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
   query: vi.fn(),
 }));
 
-import { mkdtemp, rm, mkdir, writeFile } from "fs/promises";
-import { tmpdir } from "os";
-import { join } from "path";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { InvalidStateError } from "../errors.js";
 import { FleetManager } from "../fleet-manager.js";
-import { InvalidStateError, ConfigurationError } from "../errors.js";
-import type { ConfigChange, ConfigReloadedPayload } from "../types.js";
+import type { ConfigReloadedPayload } from "../types.js";
 
 describe("Configuration Hot Reload (US-9)", () => {
   let tempDir: string;

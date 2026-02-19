@@ -9,7 +9,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { input, confirm, select } from "@inquirer/prompts";
+import { confirm, input, select } from "@inquirer/prompts";
 
 export interface InitOptions {
   name?: string;

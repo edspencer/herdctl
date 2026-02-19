@@ -5,12 +5,12 @@
  * Handles routing between session list and active chat.
  */
 
-import { useEffect } from "react";
-import { useParams, useNavigate } from "react-router";
 import { MessageCircle } from "lucide-react";
-import { useChatMessages, useChatActions, useChatSessions } from "../../store";
-import { MessageFeed } from "./MessageFeed";
+import { useEffect } from "react";
+import { useNavigate, useParams } from "react-router";
+import { useChatActions, useChatMessages, useChatSessions } from "../../store";
 import { Composer } from "./Composer";
+import { MessageFeed } from "./MessageFeed";
 
 // =============================================================================
 // Component
@@ -30,7 +30,7 @@ export function ChatView() {
     return () => {
       clearChatState();
     };
-  }, [qualifiedName, clearChatState]);
+  }, [clearChatState]);
 
   // Fetch messages when session ID changes
   useEffect(() => {

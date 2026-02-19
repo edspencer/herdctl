@@ -5,23 +5,22 @@
  * Handles sequencing, error handling, and event filtering.
  */
 
+import type { AgentHooksInput } from "../config/schema.js";
+import { DiscordHookRunner, type DiscordHookRunnerLogger } from "./runners/discord.js";
+import { ShellHookRunner, type ShellHookRunnerLogger } from "./runners/shell.js";
+import { SlackHookRunner, type SlackHookRunnerLogger } from "./runners/slack.js";
+import { WebhookHookRunner, type WebhookHookRunnerLogger } from "./runners/webhook.js";
 import type {
+  DiscordHookConfigInput,
+  HookConfigInput,
   HookContext,
   HookResult,
-  HookEvent,
   // Use input types to accept configs with optional fields
   // The executor handles defaults internally
   ShellHookConfigInput,
-  WebhookHookConfigInput,
-  DiscordHookConfigInput,
   SlackHookConfigInput,
-  HookConfigInput,
+  WebhookHookConfigInput,
 } from "./types.js";
-import type { AgentHooksInput } from "../config/schema.js";
-import { ShellHookRunner, type ShellHookRunnerLogger } from "./runners/shell.js";
-import { WebhookHookRunner, type WebhookHookRunnerLogger } from "./runners/webhook.js";
-import { DiscordHookRunner, type DiscordHookRunnerLogger } from "./runners/discord.js";
-import { SlackHookRunner, type SlackHookRunnerLogger } from "./runners/slack.js";
 
 /**
  * Logger interface for HookExecutor

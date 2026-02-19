@@ -13,15 +13,15 @@
 
 import { join } from "node:path";
 import type { JobMetadata } from "../state/schemas/job-metadata.js";
-import type {
-  FleetManagerLogger,
-  LogLevel,
-  LogEntry,
-  LogStreamOptions,
-  JobOutputPayload,
-} from "./types.js";
 import type { FleetManagerContext } from "./context.js";
 import { AgentNotFoundError, JobNotFoundError } from "./errors.js";
+import type {
+  FleetManagerLogger,
+  JobOutputPayload,
+  LogEntry,
+  LogLevel,
+  LogStreamOptions,
+} from "./types.js";
 
 // =============================================================================
 // Constants

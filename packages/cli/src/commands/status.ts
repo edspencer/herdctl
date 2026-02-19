@@ -8,12 +8,12 @@
  */
 
 import {
-  FleetManager,
-  ConfigNotFoundError,
-  AgentNotFoundError,
-  isFleetManagerError,
-  type FleetStatus,
   type AgentInfo,
+  AgentNotFoundError,
+  ConfigNotFoundError,
+  FleetManager,
+  type FleetStatus,
+  isFleetManagerError,
   type ScheduleInfo,
 } from "@herdctl/core";
 

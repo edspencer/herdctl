@@ -114,7 +114,7 @@ function isTransientReadError(error: unknown): boolean {
  * Wait for a delay using exponential backoff
  */
 async function backoffDelay(attempt: number, baseDelayMs: number): Promise<void> {
-  const delay = baseDelayMs * Math.pow(2, attempt);
+  const delay = baseDelayMs * 2 ** attempt;
   await new Promise((resolve) => setTimeout(resolve, delay));
 }
 
@@ -280,7 +280,6 @@ export async function safeReadJsonl<T = unknown>(
       // Retry on transient errors
       if (attempt < maxRetries) {
         await backoffDelay(attempt, baseDelayMs);
-        continue;
       }
     }
   }

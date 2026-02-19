@@ -2,7 +2,7 @@
  * Tests for ShellHookRunner
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ShellHookRunner } from "../runners/shell.js";
 import type { HookContext, ShellHookConfigInput } from "../types.js";
 

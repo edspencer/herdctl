@@ -4,7 +4,7 @@
  * Tests toast notification add/remove behavior in the Zustand store.
  */
 
-import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { create } from "zustand";
 import { createToastSlice, type ToastSlice } from "../toast-slice";
 

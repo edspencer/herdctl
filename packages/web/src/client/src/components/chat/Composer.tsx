@@ -5,17 +5,17 @@
  * Supports Enter to send, Shift+Enter for newline.
  */
 
-import {
-  useState,
-  useRef,
-  useEffect,
-  useCallback,
-  type KeyboardEvent,
-  type ChangeEvent,
-} from "react";
 import { ArrowUp } from "lucide-react";
-import { useChatMessages, useChatActions } from "../../store";
+import {
+  type ChangeEvent,
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import type { WebSocketClient } from "../../lib/ws";
+import { useChatActions, useChatMessages } from "../../store";
 
 // =============================================================================
 // Types
@@ -48,7 +48,7 @@ export function Composer({ agentName, sessionId }: ComposerProps) {
     // Set to scroll height but cap at max
     const newHeight = Math.min(textarea.scrollHeight, 200);
     textarea.style.height = `${newHeight}px`;
-  }, [value]);
+  }, []);
 
   const canSend = value.trim().length > 0 && !chatStreaming;
 

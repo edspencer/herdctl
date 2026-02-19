@@ -4,11 +4,11 @@
  * Displays a paginated table of recent jobs with agent, prompt, status, and time.
  */
 
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { StatusBadge } from "../ui";
 import type { JobSummary } from "../../lib/types";
+import { StatusBadge } from "../ui";
 
 // =============================================================================
 // Types
@@ -32,7 +32,7 @@ function truncate(text: string, maxLength: number): string {
   if (text.length <= maxLength) {
     return text;
   }
-  return text.slice(0, maxLength - 1) + "\u2026";
+  return `${text.slice(0, maxLength - 1)}\u2026`;
 }
 
 /**

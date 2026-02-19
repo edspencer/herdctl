@@ -6,11 +6,10 @@
  * - Connection status indicator
  */
 
-import { useLocation, useParams } from "react-router";
-import { Menu, Sun, Moon, Monitor, ArrowLeft } from "lucide-react";
-import { Link } from "react-router";
-import { useFleet, useUI, useUIActions } from "../../store";
+import { ArrowLeft, Menu, Monitor, Moon, Sun } from "lucide-react";
+import { Link, useLocation, useParams } from "react-router";
 import type { ConnectionStatus, Theme } from "../../lib/types";
+import { useFleet, useUI, useUIActions } from "../../store";
 
 // =============================================================================
 // Helper Functions

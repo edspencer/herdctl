@@ -1,10 +1,10 @@
-import { describe, it, expect, vi } from "vitest";
+import type { IChatSessionManager } from "@herdctl/chat";
+import { describe, expect, it, vi } from "vitest";
 import {
+  type CommandContext,
   CommandHandler,
   type PrefixCommand,
-  type CommandContext,
 } from "../commands/command-handler.js";
-import type { IChatSessionManager } from "@herdctl/chat";
 import type { SlackConnectorState } from "../types.js";
 
 const createMockContext = (overrides: Partial<CommandContext> = {}): CommandContext => ({

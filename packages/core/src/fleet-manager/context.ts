@@ -10,15 +10,15 @@
 
 import type { EventEmitter } from "node:events";
 import type { ResolvedConfig } from "../config/index.js";
-import type { StateDirectory } from "../state/index.js";
 import type { Scheduler } from "../scheduler/index.js";
+import type { StateDirectory } from "../state/index.js";
+import type { IChatManager } from "./chat-manager-interface.js";
 import type {
   FleetManagerLogger,
   FleetManagerStatus,
   TriggerOptions,
   TriggerResult,
 } from "./types.js";
-import type { IChatManager } from "./chat-manager-interface.js";
 
 /**
  * Context interface for FleetManager modules

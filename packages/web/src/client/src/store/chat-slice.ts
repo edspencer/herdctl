@@ -5,13 +5,13 @@
  */
 
 import type { StateCreator } from "zustand";
-import type { ChatSession, ChatMessage, ChatToolCall } from "../lib/types";
 import {
-  fetchChatSessions,
-  fetchChatSession,
   createChatSession as apiCreateChatSession,
   deleteChatSession as apiDeleteChatSession,
+  fetchChatSession,
+  fetchChatSessions,
 } from "../lib/api";
+import type { ChatMessage, ChatSession, ChatToolCall } from "../lib/types";
 
 // =============================================================================
 // Types

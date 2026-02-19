@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { ChannelSession, IChatSessionManager } from "@herdctl/chat";
+import type { ChatInputCommandInteraction, Client } from "discord.js";
+import { describe, expect, it, vi } from "vitest";
+import type { DiscordConnectorState } from "../../types.js";
 import { statusCommand } from "../status.js";
 import type { CommandContext } from "../types.js";
-import type { ChatInputCommandInteraction, Client } from "discord.js";
-import type { IChatSessionManager, ChannelSession } from "@herdctl/chat";
-import type { DiscordConnectorState } from "../../types.js";
 
 // =============================================================================
 // Test Fixtures

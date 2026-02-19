@@ -59,15 +59,15 @@
  */
 
 import type { ResolvedAgent } from "../config/loader.js";
+import type { WorkSourceAdapter } from "./index.js";
 import type {
+  ClaimResult,
+  FetchOptions,
+  ReleaseOptions,
+  ReleaseResult,
   WorkItem,
   WorkResult,
-  ClaimResult,
-  ReleaseResult,
-  ReleaseOptions,
-  FetchOptions,
 } from "./types.js";
-import type { WorkSourceAdapter } from "./index.js";
 
 // =============================================================================
 // Manager Types

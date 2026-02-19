@@ -2,7 +2,7 @@
  * !reset command — Clear session for current channel
  */
 
-import type { PrefixCommand, CommandContext } from "./command-handler.js";
+import type { CommandContext, PrefixCommand } from "./command-handler.js";
 
 export const resetCommand: PrefixCommand = {
   name: "reset",

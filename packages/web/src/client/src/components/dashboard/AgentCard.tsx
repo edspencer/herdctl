@@ -5,10 +5,10 @@
  * Shows status, description, current job info, and connector badges.
  */
 
+import { Eye, MessageSquare } from "lucide-react";
 import { Link } from "react-router";
-import { MessageSquare, Eye } from "lucide-react";
-import { Card, StatusBadge } from "../ui";
 import type { AgentInfo } from "../../lib/types";
+import { Card, StatusBadge } from "../ui";
 
 // =============================================================================
 // Connector Icons (inline SVGs from brand assets)
@@ -50,7 +50,7 @@ function truncate(text: string, maxLength: number): string {
   if (text.length <= maxLength) {
     return text;
   }
-  return text.slice(0, maxLength - 1) + "\u2026";
+  return `${text.slice(0, maxLength - 1)}\u2026`;
 }
 
 /**

@@ -5,27 +5,27 @@
  * Used both for fleet-wide job history (/jobs) and per-agent job tabs.
  */
 
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router";
 import {
-  History,
+  CalendarClock,
   ChevronLeft,
   ChevronRight,
-  Search,
-  X,
-  Play,
-  Terminal,
-  CalendarClock,
-  Globe,
-  Webhook,
-  MessageSquare,
   GitFork,
+  Globe,
+  History,
+  MessageSquare,
+  Play,
+  Search,
+  Terminal,
+  Webhook,
+  X,
 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router";
+import type { JobStatus, JobSummary, TriggerType } from "../../lib/types";
 import { useJobs, useJobsActions, useSelectedJob } from "../../store";
-import { Card, StatusBadge, Spinner } from "../ui";
+import { Card, Spinner, StatusBadge } from "../ui";
 import { JobDetail } from "./JobDetail";
 import { TriggerJobModal } from "./TriggerJobModal";
-import type { JobStatus, JobSummary, TriggerType } from "../../lib/types";
 
 // =============================================================================
 // Types
@@ -100,7 +100,7 @@ function formatTimestamp(timestamp?: string): string {
  */
 function truncatePrompt(prompt: string, maxLength: number = 60): string {
   if (prompt.length <= maxLength) return prompt;
-  return prompt.slice(0, maxLength).trim() + "...";
+  return `${prompt.slice(0, maxLength).trim()}...`;
 }
 
 // =============================================================================
@@ -366,7 +366,7 @@ export function JobHistory({ agentName }: JobHistoryProps) {
       // Error is already handled in fetchJobs, which sets jobsError
       // This catch block just prevents unhandled promise rejection
     });
-  }, [fetchJobs, jobsFilter, jobsOffset]);
+  }, [fetchJobs]);
 
   // Check if any filters are active
   const hasFilters = useMemo(() => {

@@ -2,16 +2,16 @@
  * Tests for status formatting utilities
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  formatTimestamp,
+  formatCharCount,
+  formatCompactNumber,
+  formatCost,
   formatDuration,
   formatDurationMs,
-  getStatusEmoji,
   formatNumber,
-  formatCompactNumber,
-  formatCharCount,
-  formatCost,
+  formatTimestamp,
+  getStatusEmoji,
 } from "../status-formatting.js";
 
 describe("status-formatting", () => {

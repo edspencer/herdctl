@@ -9,17 +9,11 @@
  */
 
 import { readdir, unlink } from "node:fs/promises";
-import { atomicWriteJson } from "./utils/atomic.js";
-import { safeReadJson } from "./utils/reads.js";
-import { buildSafeFilePath } from "./utils/path-safety.js";
-import {
-  SessionInfoSchema,
-  createSessionInfo,
-  type SessionInfo,
-  type SessionMode,
-  type CreateSessionOptions,
-} from "./schemas/session-info.js";
 import { StateFileError } from "./errors.js";
+import { createSessionInfo, type SessionInfo, SessionInfoSchema } from "./schemas/session-info.js";
+import { atomicWriteJson } from "./utils/atomic.js";
+import { buildSafeFilePath } from "./utils/path-safety.js";
+import { safeReadJson } from "./utils/reads.js";
 
 // =============================================================================
 // Types

@@ -6,9 +6,9 @@
  * based on configuration.
  */
 
-import type { WorkSourceAdapter } from "./index.js";
 import type { WorkSourceLabels } from "../config/schema.js";
-import { UnknownWorkSourceError, DuplicateWorkSourceError } from "./errors.js";
+import { DuplicateWorkSourceError, UnknownWorkSourceError } from "./errors.js";
+import type { WorkSourceAdapter } from "./index.js";
 
 // =============================================================================
 // Types

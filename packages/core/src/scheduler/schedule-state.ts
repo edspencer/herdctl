@@ -6,12 +6,12 @@
  */
 
 import { join } from "node:path";
-import {
-  type ScheduleState,
-  type FleetState,
-  createDefaultScheduleState,
-} from "../state/schemas/fleet-state.js";
 import { readFleetState, writeFleetState } from "../state/fleet-state.js";
+import {
+  createDefaultScheduleState,
+  type FleetState,
+  type ScheduleState,
+} from "../state/schemas/fleet-state.js";
 import { STATE_FILE_NAME } from "../state/types.js";
 import { createLogger } from "../utils/logger.js";
 
@@ -25,7 +25,7 @@ export interface ScheduleStateLogger {
 /**
  * Default console logger
  */
-const defaultLogger: ScheduleStateLogger = createLogger("schedule-state");
+const _defaultLogger: ScheduleStateLogger = createLogger("schedule-state");
 
 /**
  * Options for schedule state operations

@@ -4,8 +4,8 @@
  * Validates herdctl.yaml fleet configuration
  */
 
-import { z } from "zod";
 import type { HostConfig } from "dockerode";
+import { z } from "zod";
 
 // =============================================================================
 // Permission Schemas

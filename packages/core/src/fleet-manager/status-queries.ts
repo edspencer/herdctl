@@ -8,19 +8,19 @@
  */
 
 import type { ResolvedAgent } from "../config/index.js";
-import type { AgentState, FleetState } from "../state/schemas/fleet-state.js";
-import { readFleetState } from "../state/fleet-state.js";
 import type { Scheduler } from "../scheduler/index.js";
-import type {
-  FleetStatus,
-  AgentInfo,
-  AgentChatStatus,
-  ScheduleInfo,
-  FleetCounts,
-} from "./types.js";
+import { readFleetState } from "../state/fleet-state.js";
+import type { AgentState, FleetState } from "../state/schemas/fleet-state.js";
+import type { IChatManager } from "./chat-manager-interface.js";
 import type { FleetManagerContext } from "./context.js";
 import { AgentNotFoundError } from "./errors.js";
-import type { IChatManager } from "./chat-manager-interface.js";
+import type {
+  AgentChatStatus,
+  AgentInfo,
+  FleetCounts,
+  FleetStatus,
+  ScheduleInfo,
+} from "./types.js";
 
 // =============================================================================
 // Fleet State Snapshot Type
@@ -254,7 +254,7 @@ export function buildAgentInfo(
  * @returns AgentChatStatus object
  */
 function buildChatStatus(
-  platform: string,
+  _platform: string,
   manager: IChatManager,
   agentName: string,
 ): AgentChatStatus {

@@ -1,22 +1,21 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { SessionStateReadError } from "@herdctl/chat";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  USER_ERROR_MESSAGES,
-  ErrorCategory,
   classifyError,
-  withRetry,
+  ErrorCategory,
   ErrorHandler,
   safeExecute,
   safeExecuteWithReply,
-  type RetryResult,
+  USER_ERROR_MESSAGES,
+  withRetry,
 } from "../error-handler.js";
 import {
-  DiscordConnectorError,
-  DiscordConnectionError,
   AlreadyConnectedError,
-  InvalidTokenError,
+  DiscordConnectionError,
+  DiscordConnectorError,
   DiscordErrorCode,
+  InvalidTokenError,
 } from "../errors.js";
-import { SessionManagerError, SessionStateReadError, SessionErrorCode } from "@herdctl/chat";
 
 // =============================================================================
 // USER_ERROR_MESSAGES Tests

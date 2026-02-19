@@ -3,10 +3,10 @@
  */
 
 export {
+  type ChatMessage,
+  type OnChunkCallback,
+  type SendMessageResult,
   WebChatManager,
   type WebChatSession,
   type WebChatSessionDetails,
-  type ChatMessage,
-  type SendMessageResult,
-  type OnChunkCallback,
 } from "./web-chat-manager.js";

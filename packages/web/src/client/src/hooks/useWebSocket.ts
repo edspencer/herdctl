@@ -7,10 +7,10 @@
  */
 
 import { useEffect, useRef } from "react";
+import { fetchAgents, fetchFleetStatus } from "../lib/api";
+import type { ConnectionStatus, ServerMessage } from "../lib/types";
 import { createWebSocketClient, type WebSocketClient } from "../lib/ws";
-import type { ServerMessage, ConnectionStatus } from "../lib/types";
 import { useStore } from "../store";
-import { fetchFleetStatus, fetchAgents } from "../lib/api";
 
 // =============================================================================
 // Hook
@@ -193,7 +193,23 @@ export function useWebSocket() {
       // Clean up global reference
       delete (window as unknown as { __herdWsClient?: WebSocketClient }).__herdWsClient;
     };
-  }, []);
+  }, [
+    addJob,
+    addToast,
+    addToolCallMessage,
+    appendOutput,
+    appendStreamingChunk,
+    cancelJob,
+    completeJob,
+    completeStreaming,
+    failJob,
+    setAgents,
+    setChatError,
+    setConnectionStatus,
+    setFleetStatus,
+    updateAgent, // Refetch schedules to update runCount, lastRunAt, status, etc.
+    updateScheduleFromWS,
+  ]);
 
   return {
     connectionStatus,

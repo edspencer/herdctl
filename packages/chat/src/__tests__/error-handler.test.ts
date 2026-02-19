@@ -2,16 +2,16 @@
  * Tests for error handler utilities
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ErrorCategory,
-  withRetry,
-  isTransientError,
-  isRateLimitError,
   isAuthError,
+  isRateLimitError,
+  isTransientError,
   safeExecute,
   safeExecuteWithReply,
   USER_ERROR_MESSAGES,
+  withRetry,
 } from "../error-handler.js";
 import type { ChatConnectorLogger } from "../types.js";
 

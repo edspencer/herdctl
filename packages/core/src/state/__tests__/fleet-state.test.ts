@@ -1,21 +1,17 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdir, rm, realpath, writeFile, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { StateFileError } from "../errors.js";
 import {
-  readFleetState,
-  writeFleetState,
-  updateAgentState,
   initializeFleetState,
+  readFleetState,
   removeAgentState,
   type StateLogger,
+  updateAgentState,
+  writeFleetState,
 } from "../fleet-state.js";
-import {
-  createInitialFleetState,
-  type FleetState,
-  type AgentState,
-} from "../schemas/fleet-state.js";
-import { StateFileError } from "../errors.js";
+import { createInitialFleetState, type FleetState } from "../schemas/fleet-state.js";
 
 // Helper to create a temp directory
 async function createTempDir(): Promise<string> {

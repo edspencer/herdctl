@@ -4,19 +4,18 @@
  * Tests getFleetStatus(), getAgentInfo(), and getAgentInfoByName() methods.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the Claude SDK to prevent real API calls during tests
 vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
   query: vi.fn(),
 }));
 
-import { mkdtemp, rm, mkdir, writeFile } from "fs/promises";
-import { tmpdir } from "os";
-import { join } from "path";
-import { FleetManager } from "../fleet-manager.js";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { AgentNotFoundError } from "../errors.js";
-import type { FleetStatus, AgentInfo } from "../types.js";
+import { FleetManager } from "../fleet-manager.js";
 
 describe("Fleet Status Query Methods", () => {
   let tempDir: string;

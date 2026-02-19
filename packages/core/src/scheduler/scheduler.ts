@@ -5,31 +5,31 @@
  * due agents according to their configured schedules.
  */
 
-import { createLogger } from "../utils/logger.js";
 import type { ResolvedAgent } from "../config/index.js";
-import { calculateNextTrigger, isScheduleDue } from "./interval.js";
+import { createLogger } from "../utils/logger.js";
 import {
   calculateNextCronTrigger,
   calculatePreviousCronTrigger,
   isValidCronExpression,
 } from "./cron.js";
+import { SchedulerShutdownError } from "./errors.js";
+import { calculateNextTrigger, isScheduleDue } from "./interval.js";
 import {
   getScheduleState,
-  updateScheduleState,
   type ScheduleStateLogger,
+  updateScheduleState,
 } from "./schedule-state.js";
 import type {
-  SchedulerOptions,
-  SchedulerStatus,
-  SchedulerState,
-  SchedulerLogger,
   ScheduleCheckResult,
-  ScheduleSkipReason,
-  TriggerInfo,
+  SchedulerLogger,
+  SchedulerOptions,
+  SchedulerState,
+  SchedulerStatus,
   SchedulerTriggerCallback,
+  ScheduleSkipReason,
   StopOptions,
+  TriggerInfo,
 } from "./types.js";
-import { SchedulerShutdownError } from "./errors.js";
 
 // =============================================================================
 // Constants

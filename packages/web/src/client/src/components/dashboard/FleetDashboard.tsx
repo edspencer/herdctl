@@ -4,12 +4,12 @@
  * Main dashboard page showing fleet overview, agent cards, and recent jobs.
  */
 
+import { History, Server } from "lucide-react";
 import { useEffect } from "react";
-import { Server, History } from "lucide-react";
-import { useFleet, useFleetActions } from "../../store";
 import { useFleetStatus } from "../../hooks/useFleetStatus";
 import { fetchJobs } from "../../lib/api";
-import { StatusBadge, Card, TimeAgo } from "../ui";
+import { useFleet, useFleetActions } from "../../store";
+import { Card, StatusBadge, TimeAgo } from "../ui";
 import { AgentCard } from "./AgentCard";
 import { RecentJobs } from "./RecentJobs";
 

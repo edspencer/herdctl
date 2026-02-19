@@ -1,17 +1,17 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdir, rm, realpath, writeFile, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { StateFileError } from "../errors.js";
 import {
-  getJobOutputPath,
   appendJobOutput,
   appendJobOutputBatch,
+  getJobOutputPath,
+  type JobOutputLogger,
   readJobOutput,
   readJobOutputAll,
-  type JobOutputLogger,
 } from "../job-output.js";
-import { type JobOutputMessage, type JobOutputInput } from "../schemas/job-output.js";
-import { StateFileError } from "../errors.js";
+import type { JobOutputInput, JobOutputMessage } from "../schemas/job-output.js";
 
 // Helper to create a temp directory
 async function createTempDir(): Promise<string> {
@@ -41,7 +41,7 @@ async function readRawJsonl(filePath: string): Promise<string[]> {
 
 // Helper to write raw JSONL content
 async function writeRawJsonl(filePath: string, lines: string[]): Promise<void> {
-  await writeFile(filePath, lines.join("\n") + "\n", "utf-8");
+  await writeFile(filePath, `${lines.join("\n")}\n`, "utf-8");
 }
 
 describe("getJobOutputPath", () => {

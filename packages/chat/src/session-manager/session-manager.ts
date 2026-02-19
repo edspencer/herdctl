@@ -8,28 +8,26 @@
  * Sessions are stored at .herdctl/<platform>-sessions/<agent-name>.yaml
  */
 
-import { mkdir } from "node:fs/promises";
-import { join, dirname } from "node:path";
-import { randomUUID } from "node:crypto";
-import { stringify as stringifyYaml, parse as parseYaml } from "yaml";
-import { readFile, writeFile, rename, unlink } from "node:fs/promises";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { createLogger } from "@herdctl/core";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import {
-  type ChatSessionManagerOptions,
-  type SessionManagerLogger,
-  type IChatSessionManager,
-  type SessionResult,
+  SessionDirectoryCreateError,
+  SessionStateReadError,
+  SessionStateWriteError,
+} from "./errors.js";
+import {
   type ChannelSession,
+  type ChatSessionManagerOptions,
   type ChatSessionState,
   ChatSessionStateSchema,
   createInitialSessionState,
+  type IChatSessionManager,
+  type SessionManagerLogger,
+  type SessionResult,
 } from "./types.js";
-import {
-  SessionStateReadError,
-  SessionStateWriteError,
-  SessionDirectoryCreateError,
-} from "./errors.js";
 
 // =============================================================================
 // Default Logger
@@ -455,7 +453,7 @@ export class ChatSessionManager implements IChatSessionManager {
 
         // Don't delay on the last attempt
         if (attempt < maxRetries) {
-          const delay = baseDelayMs * Math.pow(2, attempt);
+          const delay = baseDelayMs * 2 ** attempt;
           await new Promise((resolve) => setTimeout(resolve, delay));
         }
       }

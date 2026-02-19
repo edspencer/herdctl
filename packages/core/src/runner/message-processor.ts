@@ -6,8 +6,8 @@
  * of malformed or unexpected SDK responses.
  */
 
-import type { SDKMessage, ProcessedMessage } from "./types.js";
 import type { JobOutputInput } from "../state/index.js";
+import type { ProcessedMessage, SDKMessage } from "./types.js";
 
 // =============================================================================
 // Validation Helpers
@@ -34,7 +34,7 @@ function safeString(value: unknown): string | undefined {
 /**
  * Safely extract a boolean value from an unknown field
  */
-function safeBoolean(value: unknown): boolean | undefined {
+function _safeBoolean(value: unknown): boolean | undefined {
   if (typeof value === "boolean") {
     return value;
   }

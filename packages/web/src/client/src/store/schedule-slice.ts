@@ -5,13 +5,13 @@
  */
 
 import type { StateCreator } from "zustand";
-import type { ScheduleInfo } from "../lib/types";
 import {
+  disableSchedule as apiDisableSchedule,
+  enableSchedule as apiEnableSchedule,
   fetchSchedules,
   triggerAgent,
-  enableSchedule as apiEnableSchedule,
-  disableSchedule as apiDisableSchedule,
 } from "../lib/api";
+import type { ScheduleInfo } from "../lib/types";
 
 // =============================================================================
 // Types

@@ -5,8 +5,8 @@
  * including triggering agents and enabling/disabling schedules.
  */
 
-import type { FastifyInstance } from "fastify";
 import type { FleetManager } from "@herdctl/core";
+import type { FastifyInstance } from "fastify";
 
 /**
  * Register schedule-related routes

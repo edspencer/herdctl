@@ -7,18 +7,17 @@
  * @module event-emitters
  */
 
-import type { EventEmitter } from "node:events";
 import type {
-  ConfigReloadedPayload,
   AgentStartedPayload,
   AgentStoppedPayload,
-  ScheduleSkippedPayload,
-  JobCreatedPayload,
-  JobOutputPayload,
-  JobCompletedPayload,
-  JobFailedPayload,
+  ConfigReloadedPayload,
   JobCancelledPayload,
+  JobCompletedPayload,
+  JobCreatedPayload,
+  JobFailedPayload,
   JobForkedPayload,
+  JobOutputPayload,
+  ScheduleSkippedPayload,
 } from "./event-types.js";
 
 // =============================================================================

@@ -1,15 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  GitHubWorkSourceAdapter,
-  GitHubAPIError,
-  GitHubAuthError,
+  calculateBackoffDelay,
   createGitHubAdapter,
   extractRateLimitInfo,
-  isRateLimitResponse,
-  calculateBackoffDelay,
-  type GitHubWorkSourceConfig,
+  GitHubAPIError,
+  GitHubAuthError,
   type GitHubIssue,
-  type RateLimitInfo,
+  GitHubWorkSourceAdapter,
+  type GitHubWorkSourceConfig,
+  isRateLimitResponse,
   type RetryOptions,
 } from "../adapters/github.js";
 

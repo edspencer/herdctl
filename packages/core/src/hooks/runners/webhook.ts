@@ -44,7 +44,7 @@ export interface WebhookHookRunnerOptions {
  * @returns String with environment variables substituted
  */
 function substituteEnvVars(value: string): string {
-  return value.replace(/\$\{([^}]+)\}/g, (match, envVar) => {
+  return value.replace(/\$\{([^}]+)\}/g, (_match, envVar) => {
     const envValue = process.env[envVar];
     if (envValue === undefined) {
       // Return empty string for undefined env vars (silent failure)

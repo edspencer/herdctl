@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { join } from "node:path";
 import { homedir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
 import { encodePathForCli, getCliSessionDir, getCliSessionFile } from "../cli-session-path.js";
 
 describe("encodePathForCli", () => {
@@ -115,7 +115,7 @@ describe("getCliSessionDir", () => {
     const result2 = getCliSessionDir("/workspace/project/");
 
     // Should differ by one trailing hyphen
-    expect(result2).toBe(result1 + "-");
+    expect(result2).toBe(`${result1}-`);
   });
 });
 

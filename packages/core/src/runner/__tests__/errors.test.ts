@@ -1,11 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
+  buildErrorMessage,
+  classifyError,
+  MalformedResponseError,
   RunnerError,
   SDKInitializationError,
   SDKStreamingError,
-  MalformedResponseError,
-  buildErrorMessage,
-  classifyError,
   wrapError,
 } from "../errors.js";
 

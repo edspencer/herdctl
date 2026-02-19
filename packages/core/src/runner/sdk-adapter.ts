@@ -5,8 +5,8 @@
  * the Claude Agent SDK's query function.
  */
 
-import type { ResolvedAgent, McpServer } from "../config/index.js";
-import type { SDKQueryOptions, SDKMcpServerConfig, SDKSystemPrompt } from "./types.js";
+import type { McpServer, ResolvedAgent } from "../config/index.js";
+import type { SDKMcpServerConfig, SDKQueryOptions, SDKSystemPrompt } from "./types.js";
 
 // =============================================================================
 // Constants
@@ -27,7 +27,7 @@ const DEFAULT_SETTING_SOURCES: string[] = [];
 /**
  * Default preset when no system prompt is specified
  */
-const DEFAULT_PRESET = "claude_code";
+const _DEFAULT_PRESET = "claude_code";
 
 // =============================================================================
 // MCP Server Transformation

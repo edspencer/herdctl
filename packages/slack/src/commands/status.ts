@@ -2,8 +2,8 @@
  * !status command — Show agent status and connection info
  */
 
-import type { PrefixCommand, CommandContext } from "./command-handler.js";
-import { formatTimestamp, formatDuration, getStatusEmoji } from "@herdctl/chat";
+import { formatDuration, formatTimestamp, getStatusEmoji } from "@herdctl/chat";
+import type { CommandContext, PrefixCommand } from "./command-handler.js";
 
 export const statusCommand: PrefixCommand = {
   name: "status",

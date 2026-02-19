@@ -5,16 +5,16 @@
  * qualifiedName as the diff key, which supports nested fleet agents.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
+import type { ResolvedAgent, ResolvedConfig } from "../../config/index.js";
 import {
   computeConfigChanges,
   computeScheduleChanges,
   getAddedAgentNames,
-  getRemovedAgentNames,
-  getModifiedAgentNames,
   getChangesSummary,
+  getModifiedAgentNames,
+  getRemovedAgentNames,
 } from "../config-reload.js";
-import type { ResolvedConfig, ResolvedAgent } from "../../config/index.js";
 
 // =============================================================================
 // Helpers
@@ -33,7 +33,7 @@ function makeAgent(
   fleetPath: string[] = [],
   overrides: Record<string, unknown> = {},
 ): ResolvedAgent {
-  const qualifiedName = fleetPath.length > 0 ? fleetPath.join(".") + "." + name : name;
+  const qualifiedName = fleetPath.length > 0 ? `${fleetPath.join(".")}.${name}` : name;
   return {
     name,
     configPath: `/fake/${name}.yaml`,

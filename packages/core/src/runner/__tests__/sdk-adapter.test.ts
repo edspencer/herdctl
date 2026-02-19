@@ -1,11 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
+import type { McpServer, ResolvedAgent } from "../../config/index.js";
 import {
-  toSDKOptions,
-  transformMcpServers,
-  transformMcpServer,
   buildSystemPrompt,
+  toSDKOptions,
+  transformMcpServer,
+  transformMcpServers,
 } from "../sdk-adapter.js";
-import type { ResolvedAgent, McpServer } from "../../config/index.js";
 
 // =============================================================================
 // Helper to create a minimal ResolvedAgent

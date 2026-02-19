@@ -5,14 +5,14 @@
  * Uses dockerode for Docker API communication.
  */
 
-import type { Container, ContainerCreateOptions, Exec, HostConfig } from "dockerode";
-import Dockerode from "dockerode";
-import * as path from "node:path";
 import * as fs from "node:fs";
 import * as os from "node:os";
-import type { DockerConfig, PathMapping } from "./docker-config.js";
+import * as path from "node:path";
+import type { Container, ContainerCreateOptions, Exec, HostConfig } from "dockerode";
+import Dockerode from "dockerode";
 import type { ResolvedAgent } from "../../config/index.js";
 import { createLogger } from "../../utils/logger.js";
+import type { DockerConfig, PathMapping } from "./docker-config.js";
 
 const logger = createLogger("ContainerManager");
 
@@ -397,7 +397,7 @@ async function refreshClaudeOAuthToken(
  * @returns Array of "KEY=value" strings
  */
 export async function buildContainerEnv(
-  agent: ResolvedAgent,
+  _agent: ResolvedAgent,
   config?: DockerConfig,
 ): Promise<string[]> {
   const env: string[] = [];

@@ -1,17 +1,17 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdir, writeFile, rm, realpath } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { UndefinedVariableError } from "../interpolate.js";
 import {
-  loadConfig,
-  safeLoadConfig,
-  findConfigFile,
+  AgentLoadError,
   CONFIG_FILE_NAMES,
   ConfigNotFoundError,
-  AgentLoadError,
+  findConfigFile,
+  loadConfig,
+  safeLoadConfig,
 } from "../loader.js";
 import { FileReadError, SchemaValidationError } from "../parser.js";
-import { UndefinedVariableError } from "../interpolate.js";
 
 // Helper to create a temp directory structure
 async function createTempDir(): Promise<string> {

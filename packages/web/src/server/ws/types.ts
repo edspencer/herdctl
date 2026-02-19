@@ -7,14 +7,14 @@
  */
 
 import type {
-  FleetStatus,
   AgentStartedPayload,
   AgentStoppedPayload,
-  JobCreatedPayload,
-  JobOutputPayload,
-  JobCompletedPayload,
-  JobFailedPayload,
+  FleetStatus,
   JobCancelledPayload,
+  JobCompletedPayload,
+  JobCreatedPayload,
+  JobFailedPayload,
+  JobOutputPayload,
   ScheduleTriggeredPayload,
 } from "@herdctl/core";
 

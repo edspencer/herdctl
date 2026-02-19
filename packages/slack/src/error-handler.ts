@@ -5,17 +5,16 @@
  * the shared error handling infrastructure from @herdctl/chat.
  */
 
-import type { SlackConnectorLogger } from "./types.js";
 import {
-  ErrorCategory,
-  type ClassifiedError,
-  USER_ERROR_MESSAGES,
   safeExecute as baseSafeExecute,
-  safeExecuteWithReply as baseSafeExecuteWithReply,
+  type ClassifiedError,
+  ErrorCategory,
+  USER_ERROR_MESSAGES,
 } from "@herdctl/chat";
+import type { SlackConnectorLogger } from "./types.js";
 
 // Re-export shared types and utilities
-export { ErrorCategory, type ClassifiedError, USER_ERROR_MESSAGES } from "@herdctl/chat";
+export { type ClassifiedError, ErrorCategory, USER_ERROR_MESSAGES } from "@herdctl/chat";
 
 // =============================================================================
 // Slack-specific Error Classification

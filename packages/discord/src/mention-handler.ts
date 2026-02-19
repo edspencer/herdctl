@@ -8,12 +8,12 @@
  */
 
 import type {
-  Message,
   Collection,
+  DMChannel,
+  Message,
+  NewsChannel,
   Snowflake,
   TextChannel,
-  DMChannel,
-  NewsChannel,
   ThreadChannel,
 } from "discord.js";
 

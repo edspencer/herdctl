@@ -1,16 +1,16 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdir, rm, realpath, readFile, writeFile, chmod, stat } from "node:fs/promises";
+import { chmod, mkdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { platform, tmpdir } from "node:os";
 import { join } from "node:path";
-import { tmpdir, platform } from "node:os";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
 
-import { initStateDirectory, getStateDirectory, validateStateDirectory } from "../directory.js";
+import { getStateDirectory, initStateDirectory, validateStateDirectory } from "../directory.js";
 import {
+  getPermissionErrorMessage,
   StateDirectoryCreateError,
   StateDirectoryValidationError,
-  StateFileError,
   StateError,
-  getPermissionErrorMessage,
+  StateFileError,
 } from "../errors.js";
 import { DEFAULT_STATE_DIR_NAME, STATE_FILE_NAME, STATE_SUBDIRECTORIES } from "../types.js";
 
@@ -177,7 +177,7 @@ describe("initStateDirectory", () => {
 
     // Modify the state file
     const stateFilePath = join(stateDirPath, STATE_FILE_NAME);
-    const modifiedState = {
+    const _modifiedState = {
       fleet: { started_at: "2024-01-01T00:00:00Z" },
       agents: {
         "test-agent": {
@@ -202,7 +202,7 @@ describe("initStateDirectory", () => {
     expect(parsed.agents["test-agent"].last_job).toBe("job-123");
   });
 
-  it("throws StateDirectoryCreateError when parent directory is not writable", async function () {
+  it("throws StateDirectoryCreateError when parent directory is not writable", async () => {
     // Skip on Windows - permission model differs
     if (platform() === "win32") {
       return;

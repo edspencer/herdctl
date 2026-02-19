@@ -1,11 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  parseFleetConfig,
-  validateFleetConfig,
-  safeParseFleetConfig,
-  YamlSyntaxError,
-  SchemaValidationError,
   ConfigError,
+  parseFleetConfig,
+  SchemaValidationError,
+  safeParseFleetConfig,
+  validateFleetConfig,
+  YamlSyntaxError,
 } from "../parser.js";
 import type { FleetConfig } from "../schema.js";
 

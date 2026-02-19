@@ -5,8 +5,8 @@
  * Uses the cron-parser library for robust parsing and validation.
  */
 
-import cronParser, { CronExpression } from "cron-parser";
-import { CronParseError, CRON_FIELDS, type CronFieldInfo } from "./errors.js";
+import cronParser, { type CronExpression } from "cron-parser";
+import { CRON_FIELDS, type CronFieldInfo, CronParseError } from "./errors.js";
 
 /**
  * Mapping of common cron shorthands to their 5-field equivalents
@@ -215,7 +215,7 @@ function validateField(value: string, fieldInfo: CronFieldInfo): FieldValidation
   // Handle step syntax (e.g., */15)
   if (value.startsWith("*/")) {
     const step = parseInt(value.slice(2), 10);
-    if (isNaN(step) || step <= 0) {
+    if (Number.isNaN(step) || step <= 0) {
       return {
         reason: `invalid step value "${value}" for ${fieldInfo.name}`,
         field: fieldInfo.name,
@@ -231,7 +231,7 @@ function validateField(value: string, fieldInfo: CronFieldInfo): FieldValidation
     if (parts.length === 2) {
       const start = parseInt(parts[0], 10);
       const end = parseInt(parts[1], 10);
-      if (!isNaN(start) && !isNaN(end)) {
+      if (!Number.isNaN(start) && !Number.isNaN(end)) {
         if (start < fieldInfo.min || start > fieldInfo.max) {
           return {
             reason: `${fieldInfo.name} must be ${fieldInfo.min}-${fieldInfo.max}`,
@@ -256,7 +256,7 @@ function validateField(value: string, fieldInfo: CronFieldInfo): FieldValidation
     const parts = value.split(",");
     for (const part of parts) {
       const num = parseInt(part, 10);
-      if (!isNaN(num) && (num < fieldInfo.min || num > fieldInfo.max)) {
+      if (!Number.isNaN(num) && (num < fieldInfo.min || num > fieldInfo.max)) {
         return {
           reason: `${fieldInfo.name} must be ${fieldInfo.min}-${fieldInfo.max}`,
           field: fieldInfo.name,
@@ -269,7 +269,7 @@ function validateField(value: string, fieldInfo: CronFieldInfo): FieldValidation
 
   // Handle simple numeric values
   const num = parseInt(value, 10);
-  if (!isNaN(num)) {
+  if (!Number.isNaN(num)) {
     if (num < fieldInfo.min || num > fieldInfo.max) {
       return {
         reason: `${fieldInfo.name} must be ${fieldInfo.min}-${fieldInfo.max}`,
@@ -305,7 +305,7 @@ function getExampleForField(fieldInfo: CronFieldInfo): { expression: string; des
 /**
  * Parse error message from cron-parser and extract field info
  */
-function parseErrorMessage(errorMessage: string, expression: string): FieldValidationError {
+function parseErrorMessage(errorMessage: string, _expression: string): FieldValidationError {
   // Try to identify which field failed
   const lowerMsg = errorMessage.toLowerCase();
 
@@ -316,7 +316,7 @@ function parseErrorMessage(errorMessage: string, expression: string): FieldValid
     const rangeMatch = errorMessage.match(/expected range (\d+)-(\d+)/i);
 
     if (valueMatch && rangeMatch) {
-      const value = parseInt(valueMatch[1], 10);
+      const _value = parseInt(valueMatch[1], 10);
       const min = parseInt(rangeMatch[1], 10);
       const max = parseInt(rangeMatch[2], 10);
 

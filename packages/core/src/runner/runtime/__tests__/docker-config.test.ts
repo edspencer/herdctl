@@ -1,14 +1,14 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_DOCKER_IMAGE,
+  DEFAULT_MAX_CONTAINERS,
+  DEFAULT_MEMORY_LIMIT,
+  getHostUser,
   parseMemoryToBytes,
-  parseVolumeMount,
   parsePortBinding,
   parseTmpfsMount,
-  getHostUser,
+  parseVolumeMount,
   resolveDockerConfig,
-  DEFAULT_DOCKER_IMAGE,
-  DEFAULT_MEMORY_LIMIT,
-  DEFAULT_MAX_CONTAINERS,
 } from "../docker-config.js";
 
 describe("parseMemoryToBytes", () => {

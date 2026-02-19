@@ -1,11 +1,11 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DISCORD_MAX_MESSAGE_LENGTH,
-  startTypingIndicator,
-  sendSplitMessage,
-  sendWithTyping,
   escapeMarkdown,
   type SendableChannel,
+  sendSplitMessage,
+  sendWithTyping,
+  startTypingIndicator,
 } from "../formatting.js";
 
 // =============================================================================
@@ -182,7 +182,7 @@ describe("sendSplitMessage", () => {
       return Promise.resolve({ id: "msg" });
     });
 
-    const content = "First part. " + "a".repeat(2000);
+    const content = `First part. ${"a".repeat(2000)}`;
     const promise = sendSplitMessage(channel, content, { delayMs: 1000 });
 
     // First message should be sent immediately
@@ -201,7 +201,7 @@ describe("sendSplitMessage", () => {
     const channel = createMockChannel();
     channel.send = vi.fn().mockResolvedValue({ id: "msg" });
 
-    const content = "First. " + "a".repeat(2000);
+    const content = `First. ${"a".repeat(2000)}`;
     const promise = sendSplitMessage(channel, content, {
       delayMs: 200,
       maxLength: 100,

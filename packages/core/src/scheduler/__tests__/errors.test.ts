@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { SchedulerError, IntervalParseError, ScheduleTriggerError } from "../errors.js";
+import { describe, expect, it } from "vitest";
+import { IntervalParseError, SchedulerError, ScheduleTriggerError } from "../errors.js";
 
 // =============================================================================
 // SchedulerError (Base Class)

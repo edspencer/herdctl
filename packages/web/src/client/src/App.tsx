@@ -6,17 +6,17 @@
  * - Renders routing with layout shell
  */
 
-import { Routes, Route } from "react-router";
-import { useWebSocket } from "./hooks/useWebSocket";
-import { useFleetStatus } from "./hooks/useFleetStatus";
-import { AppLayout } from "./components/layout/AppLayout";
-import { FleetDashboard } from "./components/dashboard/FleetDashboard";
+import { Route, Routes } from "react-router";
 import { AgentDetail } from "./components/agent";
-import { JobHistory } from "./components/jobs";
-import { ScheduleList } from "./components/schedules";
 import { ChatView } from "./components/chat";
+import { FleetDashboard } from "./components/dashboard/FleetDashboard";
+import { JobHistory } from "./components/jobs";
+import { AppLayout } from "./components/layout/AppLayout";
+import { ScheduleList } from "./components/schedules";
 import { ErrorBoundary } from "./components/ui";
 import { ToastContainer } from "./components/ui/Toast";
+import { useFleetStatus } from "./hooks/useFleetStatus";
+import { useWebSocket } from "./hooks/useWebSocket";
 
 // =============================================================================
 // Placeholder Page Components

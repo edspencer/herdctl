@@ -5,12 +5,12 @@
  * optionally selecting a schedule, and optionally providing a prompt override.
  */
 
-import { useState, useEffect, useCallback } from "react";
-import { X, Play, AlertCircle, CheckCircle } from "lucide-react";
-import { useFleet } from "../../store";
+import { AlertCircle, CheckCircle, Play, X } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { triggerAgent } from "../../lib/api";
-import { Spinner } from "../ui";
 import type { ScheduleInfo } from "../../lib/types";
+import { useFleet } from "../../store";
+import { Spinner } from "../ui";
 
 // =============================================================================
 // Types

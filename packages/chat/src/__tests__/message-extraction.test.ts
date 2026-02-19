@@ -2,11 +2,11 @@
  * Tests for message extraction utilities
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   extractMessageContent,
-  isTextContentBlock,
   hasTextContent,
+  isTextContentBlock,
   type SDKMessage,
 } from "../message-extraction.js";
 

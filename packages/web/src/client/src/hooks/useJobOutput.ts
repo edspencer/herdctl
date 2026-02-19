@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useRef } from "react";
-import { useStore, useJobOutput as useJobOutputSelector } from "../store";
+import { useJobOutput as useJobOutputSelector, useStore } from "../store";
 
 // =============================================================================
 // Types
@@ -106,7 +106,7 @@ export function useJobOutput({ agentName, jobId }: UseJobOutputOptions): UseJobO
         setActiveJobView(jobId, false);
       }
     };
-  }, [jobId]);
+  }, [jobId, setActiveJobView]);
 
   return {
     messages,

@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from "vitest";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import { tmpdir } from "node:os";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { startCommand } from "../start.js";
 
 // Store mock FleetManager for access in tests
@@ -88,8 +88,6 @@ vi.mock("@herdctl/core", async () => {
   };
 });
 
-import { ConfigNotFoundError } from "@herdctl/core";
-
 // Helper to create a temp directory
 function createTempDir(): string {
   const baseDir = path.join(
@@ -113,7 +111,7 @@ describe("startCommand", () => {
   let originalConsoleLog: typeof console.log;
   let originalConsoleError: typeof console.error;
   let originalProcessExit: typeof process.exit;
-  let exitCode: number | undefined;
+  let _exitCode: number | undefined;
 
   // Store original signal handlers
   const originalSignalHandlers: Map<string, NodeJS.SignalsListener[]> = new Map();
@@ -132,10 +130,10 @@ describe("startCommand", () => {
     console.error = (...args: unknown[]) => consoleErrors.push(args.join(" "));
 
     // Mock process.exit
-    exitCode = undefined;
+    _exitCode = undefined;
     originalProcessExit = process.exit;
     process.exit = ((code?: number) => {
-      exitCode = code ?? 0;
+      _exitCode = code ?? 0;
       throw new Error(`process.exit(${code})`);
     }) as never;
 

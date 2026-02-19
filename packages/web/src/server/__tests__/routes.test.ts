@@ -5,10 +5,10 @@
  * without needing a real server or network connections.
  */
 
-import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
 import Fastify, { type FastifyInstance } from "fastify";
-import { registerFleetRoutes } from "../routes/fleet.js";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { registerAgentRoutes } from "../routes/agents.js";
+import { registerFleetRoutes } from "../routes/fleet.js";
 import { registerJobRoutes } from "../routes/jobs.js";
 import { registerScheduleRoutes } from "../routes/schedules.js";
 

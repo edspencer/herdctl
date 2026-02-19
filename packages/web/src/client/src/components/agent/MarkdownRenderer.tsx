@@ -5,10 +5,10 @@
  * Uses react-markdown with remark-gfm for GitHub Flavored Markdown support.
  */
 
-import { useState, useCallback, type ReactNode, type ComponentPropsWithoutRef } from "react";
+import { Check, Copy } from "lucide-react";
+import { type ComponentPropsWithoutRef, type ReactNode, useCallback, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Copy, Check } from "lucide-react";
 
 // =============================================================================
 // Types

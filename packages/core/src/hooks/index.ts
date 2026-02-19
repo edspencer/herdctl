@@ -8,55 +8,51 @@
  * @module hooks
  */
 
-// Type exports - Only export types unique to hooks module
-// Note: HookEvent, ShellHookConfig, WebhookHookConfig, DiscordHookConfig, HookConfig
-// are exported from config/schema.ts via config/index.ts to avoid duplication
-export type {
-  HookContext,
-  HookResult,
-  BaseHookConfig,
-  AgentHooksConfig,
-  HookRunner,
-  // Input types for test construction (allow optional fields)
-  ShellHookConfigInput,
-  WebhookHookConfigInput,
-  DiscordHookConfigInput,
-  SlackHookConfigInput,
-  HookConfigInput,
-} from "./types.js";
-
 // Hook Executor
 export {
-  HookExecutor,
-  type HookExecutorOptions,
-  type HookExecutorLogger,
   type HookExecutionResult,
+  HookExecutor,
+  type HookExecutorLogger,
+  type HookExecutorOptions,
 } from "./hook-executor.js";
+// Discord Hook Runner
+export {
+  DiscordHookRunner,
+  type DiscordHookRunnerLogger,
+  type DiscordHookRunnerOptions,
+} from "./runners/discord.js";
 
 // Shell Hook Runner
 export {
   ShellHookRunner,
-  type ShellHookRunnerOptions,
   type ShellHookRunnerLogger,
+  type ShellHookRunnerOptions,
 } from "./runners/shell.js";
-
-// Webhook Hook Runner
-export {
-  WebhookHookRunner,
-  type WebhookHookRunnerOptions,
-  type WebhookHookRunnerLogger,
-} from "./runners/webhook.js";
-
-// Discord Hook Runner
-export {
-  DiscordHookRunner,
-  type DiscordHookRunnerOptions,
-  type DiscordHookRunnerLogger,
-} from "./runners/discord.js";
-
 // Slack Hook Runner
 export {
   SlackHookRunner,
-  type SlackHookRunnerOptions,
   type SlackHookRunnerLogger,
+  type SlackHookRunnerOptions,
 } from "./runners/slack.js";
+// Webhook Hook Runner
+export {
+  WebhookHookRunner,
+  type WebhookHookRunnerLogger,
+  type WebhookHookRunnerOptions,
+} from "./runners/webhook.js";
+// Type exports - Only export types unique to hooks module
+// Note: HookEvent, ShellHookConfig, WebhookHookConfig, DiscordHookConfig, HookConfig
+// are exported from config/schema.ts via config/index.ts to avoid duplication
+export type {
+  AgentHooksConfig,
+  BaseHookConfig,
+  DiscordHookConfigInput,
+  HookConfigInput,
+  HookContext,
+  HookResult,
+  HookRunner,
+  // Input types for test construction (allow optional fields)
+  ShellHookConfigInput,
+  SlackHookConfigInput,
+  WebhookHookConfigInput,
+} from "./types.js";

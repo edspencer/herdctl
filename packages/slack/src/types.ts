@@ -6,7 +6,7 @@
  */
 
 import type { EventEmitter } from "node:events";
-import type { IChatSessionManager, DMConfig } from "@herdctl/chat";
+import type { DMConfig, IChatSessionManager } from "@herdctl/chat";
 
 // =============================================================================
 // Connection Status

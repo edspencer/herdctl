@@ -10,26 +10,24 @@
  * - Configuration error paths
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the Claude SDK to prevent real API calls during tests
 vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
   query: vi.fn(),
 }));
 
-import { mkdtemp, rm, mkdir, writeFile } from "fs/promises";
-import { tmpdir } from "os";
-import { join } from "path";
-import { FleetManager } from "../fleet-manager.js";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
-  ConcurrencyLimitError,
-  JobCancelError,
-  ConfigurationError,
-  FleetManagerStateDirError,
   AgentNotFoundError,
-  ScheduleNotFoundError,
+  ConcurrencyLimitError,
+  ConfigurationError,
   InvalidStateError,
+  ScheduleNotFoundError,
 } from "../errors.js";
+import { FleetManager } from "../fleet-manager.js";
 import type { FleetManagerLogger } from "../types.js";
 
 describe("FleetManager Coverage Tests", () => {

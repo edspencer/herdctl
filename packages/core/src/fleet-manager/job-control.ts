@@ -7,32 +7,31 @@
  * @module job-control
  */
 
-import { join } from "node:path";
 import { readFile } from "node:fs/promises";
-
-import { createJob, getJob, updateJob, readJobOutputAll, getSessionInfo } from "../state/index.js";
+import { join } from "node:path";
+import type { HookEvent, ResolvedAgent } from "../config/index.js";
+import { type HookContext, HookExecutor } from "../hooks/index.js";
 import { JobExecutor, RuntimeFactory } from "../runner/index.js";
-import { HookExecutor, type HookContext } from "../hooks/index.js";
-import type { ResolvedAgent, HookEvent } from "../config/index.js";
+import { createJob, getJob, getSessionInfo, readJobOutputAll, updateJob } from "../state/index.js";
 import type { JobMetadata } from "../state/schemas/job-metadata.js";
-import type {
-  TriggerOptions,
-  TriggerResult,
-  JobModifications,
-  CancelJobResult,
-  ForkJobResult,
-  AgentInfo,
-} from "./types.js";
 import type { FleetManagerContext } from "./context.js";
 import {
   AgentNotFoundError,
-  ScheduleNotFoundError,
   ConcurrencyLimitError,
   InvalidStateError,
-  JobNotFoundError,
   JobCancelError,
   JobForkError,
+  JobNotFoundError,
+  ScheduleNotFoundError,
 } from "./errors.js";
+import type {
+  AgentInfo,
+  CancelJobResult,
+  ForkJobResult,
+  JobModifications,
+  TriggerOptions,
+  TriggerResult,
+} from "./types.js";
 
 // =============================================================================
 // JobControl Class
@@ -248,7 +247,7 @@ export class JobControl {
     }
 
     const jobsDir = join(stateDir, "jobs");
-    const timeout = options?.timeout ?? 10000;
+    const _timeout = options?.timeout ?? 10000;
 
     // Get the job to verify it exists and check its status
     const job = await getJob(jobsDir, jobId, { logger });

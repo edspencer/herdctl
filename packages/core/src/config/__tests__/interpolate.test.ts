@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
+  interpolateConfig,
   interpolateString,
   interpolateValue,
-  interpolateConfig,
   UndefinedVariableError,
 } from "../interpolate.js";
 import { ConfigError } from "../parser.js";

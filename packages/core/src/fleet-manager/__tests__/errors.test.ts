@@ -4,30 +4,30 @@
  * Tests all error classes, their constructors, properties, and type guards.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  FleetManagerErrorCode,
-  FleetManagerError,
-  ConfigurationError,
   AgentNotFoundError,
-  JobNotFoundError,
-  ScheduleNotFoundError,
-  InvalidStateError,
   ConcurrencyLimitError,
-  FleetManagerStateDirError,
+  ConfigurationError,
+  FleetManagerError,
+  FleetManagerErrorCode,
   FleetManagerShutdownError,
-  JobCancelError,
-  JobForkError,
+  FleetManagerStateDirError,
+  InvalidStateError,
+  isAgentNotFoundError,
+  isConcurrencyLimitError,
+  isConfigurationError,
   // Type guards
   isFleetManagerError,
-  isConfigurationError,
-  isAgentNotFoundError,
-  isJobNotFoundError,
-  isScheduleNotFoundError,
   isInvalidStateError,
-  isConcurrencyLimitError,
   isJobCancelError,
   isJobForkError,
+  isJobNotFoundError,
+  isScheduleNotFoundError,
+  JobCancelError,
+  JobForkError,
+  JobNotFoundError,
+  ScheduleNotFoundError,
 } from "../errors.js";
 
 describe("FleetManagerError classes", () => {

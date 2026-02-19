@@ -2,9 +2,9 @@
  * Tests for working directory validation
  */
 
-import { describe, it, expect } from "vitest";
-import { validateWorkingDirectory } from "../working-directory-validation.js";
+import { describe, expect, it } from "vitest";
 import type { SessionInfo } from "../schemas/session-info.js";
+import { validateWorkingDirectory } from "../working-directory-validation.js";
 
 describe("validateWorkingDirectory", () => {
   const baseSession: SessionInfo = {

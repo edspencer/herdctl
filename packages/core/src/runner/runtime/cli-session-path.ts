@@ -6,9 +6,9 @@
  * directories and specific session files.
  */
 
-import * as path from "node:path";
-import * as os from "node:os";
 import { readdir, stat } from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 
 /**
  * Encode a workspace path for CLI session storage

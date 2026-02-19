@@ -5,7 +5,7 @@
  * in the Zustand store.
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { create } from "zustand";
 import { createFleetSlice, type FleetSlice } from "../fleet-slice";
 

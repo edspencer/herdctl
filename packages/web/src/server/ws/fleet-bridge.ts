@@ -7,15 +7,15 @@
  */
 
 import {
-  createLogger,
-  type FleetManager,
   type AgentStartedPayload,
   type AgentStoppedPayload,
-  type JobCreatedPayload,
-  type JobOutputPayload,
-  type JobCompletedPayload,
-  type JobFailedPayload,
+  createLogger,
+  type FleetManager,
   type JobCancelledPayload,
+  type JobCompletedPayload,
+  type JobCreatedPayload,
+  type JobFailedPayload,
+  type JobOutputPayload,
   type ScheduleTriggeredPayload,
 } from "@herdctl/core";
 import type { WebSocketHandler } from "./handler.js";

@@ -6,11 +6,11 @@
  */
 
 import type { ResolvedAgent } from "../../config/index.js";
-import type { RuntimeInterface } from "./interface.js";
-import { SDKRuntime } from "./sdk-runtime.js";
 import { CLIRuntime } from "./cli-runtime.js";
 import { ContainerRunner } from "./container-runner.js";
 import { resolveDockerConfig } from "./docker-config.js";
+import type { RuntimeInterface } from "./interface.js";
+import { SDKRuntime } from "./sdk-runtime.js";
 
 /**
  * Runtime type identifier
@@ -83,14 +83,14 @@ export class RuntimeFactory {
 
       default:
         throw new Error(
-          `Unknown runtime type: ${runtimeType}. ` + "Supported types: 'sdk' (default), 'cli'",
+          `Unknown runtime type: ${runtimeType}. Supported types: 'sdk' (default), 'cli'`,
         );
     }
 
     // Wrap with ContainerRunner if Docker is enabled
     if (agent.docker?.enabled) {
       const dockerConfig = resolveDockerConfig(agent.docker);
-      const stateDir = options.stateDir ?? process.cwd() + "/.herdctl";
+      const stateDir = options.stateDir ?? `${process.cwd()}/.herdctl`;
 
       runtime = new ContainerRunner(runtime, dockerConfig, stateDir);
     }

@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { fetchFleetStatus, fetchAgents } from "../lib/api";
+import { fetchAgents, fetchFleetStatus } from "../lib/api";
 import { useStore } from "../store";
 
 // =============================================================================
@@ -51,7 +51,7 @@ export interface UseFleetStatusResult {
 export function useFleetStatus(): UseFleetStatusResult {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
+  const [_retryCount, setRetryCount] = useState(0);
 
   const setFleetStatus = useStore((state) => state.setFleetStatus);
   const setAgents = useStore((state) => state.setAgents);
@@ -87,7 +87,10 @@ export function useFleetStatus(): UseFleetStatusResult {
     return () => {
       cancelled = true;
     };
-  }, [retryCount]);
+  }, [
+    setAgents, // Update store
+    setFleetStatus,
+  ]);
 
   const retry = (): void => {
     setRetryCount((c) => c + 1);

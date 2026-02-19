@@ -35,7 +35,7 @@ async function readPidFile(stateDir: string): Promise<number | null> {
   try {
     const content = await fs.promises.readFile(pidFile, "utf-8");
     const pid = parseInt(content.trim(), 10);
-    if (isNaN(pid)) {
+    if (Number.isNaN(pid)) {
       return null;
     }
     return pid;

@@ -18,15 +18,15 @@ import { slackifyMarkdown } from "slackify-markdown";
 // Re-export message splitting utilities from @herdctl/chat
 // These are identical between Discord and Slack, just with different max lengths
 export {
-  findSplitPoint,
-  splitMessage,
-  needsSplit,
-  truncateMessage,
-  formatCodeBlock,
   DEFAULT_MESSAGE_DELAY_MS,
-  MIN_CHUNK_SIZE,
+  findSplitPoint,
+  formatCodeBlock,
   type MessageSplitOptions,
+  MIN_CHUNK_SIZE,
+  needsSplit,
   type SplitResult,
+  splitMessage,
+  truncateMessage,
 } from "@herdctl/chat";
 
 // =============================================================================

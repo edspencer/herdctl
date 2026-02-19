@@ -6,16 +6,16 @@
 
 import type { StateCreator } from "zustand";
 import type {
-  FleetStatus,
   AgentInfo,
-  JobSummary,
-  ConnectionStatus,
   AgentStartedPayload,
   AgentStoppedPayload,
-  JobCreatedPayload,
-  JobCompletedPayload,
-  JobFailedPayload,
+  ConnectionStatus,
+  FleetStatus,
   JobCancelledPayload,
+  JobCompletedPayload,
+  JobCreatedPayload,
+  JobFailedPayload,
+  JobSummary,
 } from "../lib/types";
 import { isAgentStartedPayload } from "../lib/types";
 
