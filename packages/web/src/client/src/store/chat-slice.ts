@@ -149,11 +149,27 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (
         preview: "",
       };
 
-      set((state) => ({
-        chatSessions: [newSession, ...state.chatSessions],
-        activeChatSessionId: response.sessionId,
-        chatMessages: [],
-      }));
+      set((state) => {
+        // Update the main session list
+        const chatSessions = [newSession, ...state.chatSessions];
+
+        // Also update sidebar sessions so the new chat appears immediately
+        const agentSessions = state.sidebarSessions[agentName] ?? [];
+        const updatedAgentSessions = [newSession, ...agentSessions].slice(
+          0,
+          SIDEBAR_SESSION_LIMIT
+        );
+
+        return {
+          chatSessions,
+          activeChatSessionId: response.sessionId,
+          chatMessages: [],
+          sidebarSessions: {
+            ...state.sidebarSessions,
+            [agentName]: updatedAgentSessions,
+          },
+        };
+      });
 
       return response.sessionId;
     } catch (error) {
@@ -172,14 +188,24 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (
 
       const { activeChatSessionId } = get();
 
-      set((state) => ({
-        chatSessions: state.chatSessions.filter((s) => s.sessionId !== sessionId),
-        // Clear active session if we deleted it
-        activeChatSessionId:
-          activeChatSessionId === sessionId ? null : activeChatSessionId,
-        // Clear messages if we deleted the active session
-        chatMessages: activeChatSessionId === sessionId ? [] : state.chatMessages,
-      }));
+      set((state) => {
+        // Also remove from sidebar sessions
+        const agentSessions = state.sidebarSessions[agentName];
+        const updatedSidebarSessions = agentSessions
+          ? {
+              ...state.sidebarSessions,
+              [agentName]: agentSessions.filter((s) => s.sessionId !== sessionId),
+            }
+          : state.sidebarSessions;
+
+        return {
+          chatSessions: state.chatSessions.filter((s) => s.sessionId !== sessionId),
+          activeChatSessionId:
+            activeChatSessionId === sessionId ? null : activeChatSessionId,
+          chatMessages: activeChatSessionId === sessionId ? [] : state.chatMessages,
+          sidebarSessions: updatedSidebarSessions,
+        };
+      });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to delete chat session";
