@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "composite": true,
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
@@ -10,10 +11,13 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "declaration": false,
+    "declaration": true,
+    "declarationMap": true,
     "sourceMap": true,
     "isolatedModules": true,
-    "noEmit": true
+    "noEmit": false,
+    "outDir": "dist/client-types",
+    "tsBuildInfoFile": "dist/client-types/.tsbuildinfo"
   },
   "include": ["src/client/src/**/*"],
   "exclude": ["node_modules", "dist"]

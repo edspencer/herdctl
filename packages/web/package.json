@@ -12,11 +12,11 @@
   "scripts": {
     "build": "npm run build:client && npm run build:server",
     "build:client": "vite build",
-    "build:server": "tsc -p tsconfig.json",
+    "build:server": "tsc -p tsconfig.server.json",
     "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
     "dev:client": "vite",
-    "dev:server": "tsc -p tsconfig.json --watch",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.client.json",
+    "dev:server": "tsc -p tsconfig.server.json --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.server.json && tsc --noEmit -p tsconfig.client.json",
     "test": "vitest run --coverage --passWithNoTests",
     "lint": "biome check src/ vite.config.ts"
   },
