@@ -351,7 +351,9 @@ await manager.getAgentInfo(): Promise<AgentInfo[]>
 
 ```typescript
 interface AgentInfo {
-  name: string;                    // Agent name (unique identifier)
+  name: string;                    // Agent local name
+  qualifiedName: string;           // Dot-separated qualified name (e.g., "myfleet.agent-name")
+  fleetPath: string[];             // Fleet hierarchy path (empty for root agents)
   description?: string;            // From configuration
   status: 'idle' | 'running' | 'error';
   currentJobId: string | null;     // Currently running job
@@ -362,7 +364,15 @@ interface AgentInfo {
   scheduleCount: number;           // Number of schedules
   schedules: ScheduleInfo[];       // Schedule details
   model?: string;                  // Model from config
-  workspace?: string;              // Workspace path
+  working_directory?: string;      // Working directory path
+  chat?: Record<string, AgentChatStatus>;  // Chat connector statuses by platform
+}
+
+interface AgentChatStatus {
+  configured: boolean;
+  connectionStatus?: 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'disconnecting' | 'error';
+  botUsername?: string;
+  lastError?: string;
 }
 ```
 

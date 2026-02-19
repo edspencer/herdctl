@@ -158,7 +158,10 @@ herdctl start [options]
 | Option | Description |
 |--------|-------------|
 | `-d, --daemon` | Run in background |
+| `-v, --verbose` | Enable debug-level logging (sets `HERDCTL_LOG_LEVEL=debug`) |
 | `--agent <name>` | Start specific agent only |
+| `--web` | Enable the web dashboard |
+| `--web-port <port>` | Web dashboard port (default: 3232) |
 
 **Examples:**
 
@@ -171,6 +174,12 @@ herdctl start -d
 
 # Start specific agent
 herdctl start --agent price-checker
+
+# Start with verbose debug output
+herdctl start --verbose
+
+# Start with web dashboard
+herdctl start --web
 ```
 
 ### stop
@@ -376,6 +385,8 @@ These options work with all commands:
 | `ANTHROPIC_API_KEY` | **Required.** Claude API key |
 | `HERDCTL_CONFIG` | Path to config file (alternative to `-c`) |
 | `HERDCTL_LOG_LEVEL` | Log level: `debug`, `info`, `warn`, `error` |
+| `NO_COLOR` | Disable colored output (see [no-color.org](https://no-color.org/)) |
+| `FORCE_COLOR` | Force colored output even when not a TTY |
 
 Additional environment variables may be required for integrations:
 

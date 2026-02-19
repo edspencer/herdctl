@@ -66,16 +66,19 @@ It SHOULD flag missing documentation for:
 - Breaking changes to configuration schema
 - New guides or tutorials that would help users
 
-**Documentation site structure:**
-The docs live at `docs/src/content/docs/` in Astro/Starlight format. Key sections:
-- `getting-started/` — Installation and quickstart
-- `concepts/` — Core concepts (agents, jobs, schedules, etc.)
-- `configuration/` — YAML configuration reference
-- `guides/` — How-to guides and recipes
-- `integrations/` — Discord, Slack, web dashboard
-- `library-reference/` — TypeScript API docs
-- `internals/` — Architecture details
-- `cli-reference/` — CLI command reference
+**Documentation locations:**
+Documentation lives in multiple places — not just the docs site:
+- `README.md` — Top-level project README (high-level features, CLI commands, config examples)
+- `packages/*/README.md` — Package-specific READMEs (installation, API, usage)
+- `docs/src/content/docs/` — Astro/Starlight docs site (herdctl.dev), with sections:
+  - `getting-started/` — Installation and quickstart
+  - `concepts/` — Core concepts (agents, jobs, schedules, etc.)
+  - `configuration/` — YAML configuration reference
+  - `guides/` — How-to guides and recipes
+  - `integrations/` — Discord, Slack, web dashboard
+  - `library-reference/` — TypeScript API docs
+  - `internals/` — Architecture details
+  - `cli-reference/` — CLI command reference
 
 **Key inputs/outputs:**
 - Input: `agents/docs/state.md` — persistent state with last checked commit
@@ -132,13 +135,17 @@ Please seed the state file with an initial commit SHA.
 ```
 Do not attempt to analyze the entire history.
 
-**Fetch latest from remote:**
+**Fetch latest and check out main:**
 ```bash
 git fetch origin main --quiet
-echo "Fetched latest main"
+git checkout main --quiet
+git pull origin main --quiet
+echo "On main at $(git rev-parse --short HEAD)"
 ```
 
-**Pre-flight complete:** Working tree clean, original branch saved, state loaded.
+This ensures we're reading the latest state.md and creating branches from up-to-date main.
+
+**Pre-flight complete:** Working tree clean, original branch saved, on main with latest.
 </step>
 
 <step name="phase_1_identify_commits">
@@ -157,10 +164,10 @@ echo "$NEW_COMMITS"
 
 **Early exit if no new commits:**
 If `$COMMIT_COUNT` is 0:
-1. Update state.md: set `last_run` to current ISO timestamp, keep everything else the same
-2. Print: "No new commits since last check. State updated. Exiting."
-3. Skip directly to Phase 5 (restore branch).
-4. Do NOT create any branches or spawn subagents.
+1. Print: "No new commits since last check. Exiting."
+2. Skip directly to Phase 5 (restore branch).
+3. Do NOT create any branches, spawn subagents, or update state.
+4. No state change is needed — `last_checked_commit` is already current.
 
 **Get the diff summary for the subagent:**
 If there are commits, also run:
@@ -224,14 +231,19 @@ Commits to analyze: {LAST_COMMIT}..{LATEST_COMMIT} ({COMMIT_COUNT} commits)
    - Changed behavior described in existing docs
    - New concepts or architectural changes
    - API changes in @herdctl/core that library users would see
+   - Major features that the top-level README.md should mention
+   - Package API changes that a package's README.md should reflect
 
 4. For each gap found, check if documentation ALREADY EXISTS:
    - Search docs/src/content/docs/ for relevant content
+   - Check README.md and packages/*/README.md for relevant content
    - Read existing pages that might already cover the change
    - Only flag as a gap if the docs are genuinely missing or wrong
 
 5. Read the existing documentation structure:
    find docs/src/content/docs/ -name "*.md" -o -name "*.mdx" | sort
+   Also read README.md and check for package READMEs:
+   ls packages/*/README.md 2>/dev/null
 
 ## Output Format
 
@@ -374,10 +386,12 @@ Brief description of all changes made
 IMPORTANT RULES:
 (1) Do NOT create branches or run git checkout — stay on the current branch.
 (2) Do NOT commit changes — the orchestrator handles commits.
-(3) Only write documentation files in docs/src/content/docs/ and potentially
-    docs/astro.config.mjs.
+(3) You may write to: docs/src/content/docs/, docs/astro.config.mjs,
+    README.md, and packages/*/README.md.
 (4) Do NOT modify source code files.
-(5) Match the quality and style of existing documentation.
+(5) Match the quality and style of existing documentation in each location.
+(6) README updates should be concise — READMEs are summaries, not full docs.
+    Link to herdctl.dev pages for details.
 ```
 
 **After subagent completes, verify branch:**
@@ -394,6 +408,8 @@ echo "Verified on branch: $(git branch --show-current)"
 ```bash
 git add docs/src/content/docs/
 git add docs/astro.config.mjs
+git add README.md
+git add packages/*/README.md 2>/dev/null
 
 STAGED=$(git diff --cached --name-only)
 if [ -z "$STAGED" ]; then
@@ -426,8 +442,21 @@ if [ -n "$BRANCH_NAME" ]; then
 fi
 ```
 
-Note: PR creation can be done manually or added later. The branch push is the
-minimum viable output.
+**Create pull request (if changes were pushed):**
+```bash
+if [ -n "$BRANCH_NAME" ]; then
+  gh pr create \
+    --title "docs: auto-update documentation ($TODAY)" \
+    --body "Automated documentation audit found N gap(s) across M commits.
+
+## Gaps Addressed
+{List gaps from Phase 2 analysis}
+
+Generated by docs-audit-daily" \
+    --base main
+  echo "PR created"
+fi
+```
 </step>
 
 <step name="phase_4_update_state">
@@ -437,10 +466,30 @@ Update `agents/docs/state.md` with results from this run.
 
 **Always execute this phase**, even if no gaps were found or Phase 2 was skipped.
 
-**Switch back to original branch for state commit:**
+**IMPORTANT:** Never commit directly to main. The state update goes on the same PR
+branch as the documentation changes. If no branch was created yet (because no gaps
+were found), create one now for the state-only update.
+
+**Ensure we're on a PR branch:**
 ```bash
-git checkout "$ORIGINAL_BRANCH" --quiet
-echo "On branch: $(git branch --show-current)"
+if [ -z "$BRANCH_NAME" ]; then
+  # No branch was created in Phase 3 (no gaps found or phase skipped).
+  # Create one now for the state update.
+  BRANCH_NAME="docs/auto-update-${TODAY}"
+
+  if git rev-parse --verify "$BRANCH_NAME" >/dev/null 2>&1; then
+    COUNTER=2
+    while git rev-parse --verify "${BRANCH_NAME}-${COUNTER}" >/dev/null 2>&1; do
+      COUNTER=$((COUNTER + 1))
+    done
+    BRANCH_NAME="${BRANCH_NAME}-${COUNTER}"
+  fi
+
+  git checkout -b "$BRANCH_NAME" origin/main
+  echo "Created branch for state update: $BRANCH_NAME"
+else
+  echo "On existing branch: $(git branch --show-current)"
+fi
 ```
 
 **Update state.md:**
@@ -461,8 +510,35 @@ Use the Write or Edit tool to update the YAML frontmatter:
 Where action is one of:
 - `no-new-commits` — No commits since last check
 - `no-gaps` — Commits analyzed, no documentation gaps found
-- `created-branch` — Gaps found and branch created with docs
+- `created-branch` — Gaps found and branch created with docs and PR
 - `gaps-found-no-changes` — Gaps found but subagent produced no file changes
+
+**Commit state update:**
+```bash
+git add agents/docs/state.md
+git commit -m "docs: update audit state ($TODAY)
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+echo "State committed on branch $BRANCH_NAME"
+```
+
+**Push and create PR (if not already done in Phase 3):**
+If Phase 3 already pushed the branch and created a PR, the state commit just needs
+to be pushed to the existing branch:
+```bash
+git push origin "$BRANCH_NAME"
+```
+
+If Phase 3 was skipped (no gaps), this is a state-only branch that still needs a PR:
+```bash
+git push -u origin "$BRANCH_NAME"
+gh pr create \
+  --title "docs: update audit state ($TODAY)" \
+  --body "State-only update: $COMMIT_COUNT commits analyzed, no documentation gaps found.
+
+Generated by docs-audit-daily" \
+  --base main
+```
 </step>
 
 <step name="phase_5_cleanup_and_summary">
@@ -520,8 +596,8 @@ If `agents/docs/state.md` does not exist or `last_checked_commit` cannot be pars
 
 ### No New Commits Since Last Check
 If `git log $LAST_COMMIT..origin/main` returns nothing:
-- Update `last_run` timestamp in state.md
-- Print: "No new commits. State updated."
+- Print: "No new commits since last check."
+- Do not update state or create branches — `last_checked_commit` is already current.
 - Exit cleanly. This is normal and expected on quiet days.
 
 ### All Commits Are Skip-Worthy
