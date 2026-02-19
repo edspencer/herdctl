@@ -97,8 +97,8 @@ function AgentItem({ agent, isActive, onNavigate }: AgentItemProps) {
       onClick={onNavigate}
       className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
         isActive
-          ? "text-herd-fg bg-herd-active font-medium"
-          : "text-herd-muted hover:bg-herd-hover hover:text-herd-fg"
+          ? "text-herd-sidebar-fg bg-herd-sidebar-active font-medium"
+          : "text-herd-sidebar-muted hover:bg-herd-sidebar-hover hover:text-herd-sidebar-fg"
       }`}
     >
       <span
@@ -124,8 +124,8 @@ function NavItem({ to, icon, label, isActive, onNavigate }: NavItemProps) {
       onClick={onNavigate}
       className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
         isActive
-          ? "text-herd-fg bg-herd-active font-medium"
-          : "text-herd-muted hover:bg-herd-hover hover:text-herd-fg"
+          ? "text-herd-sidebar-fg bg-herd-sidebar-active font-medium"
+          : "text-herd-sidebar-muted hover:bg-herd-sidebar-hover hover:text-herd-sidebar-fg"
       }`}
     >
       {icon}
@@ -171,11 +171,11 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
   return (
     <div className="h-full flex flex-col">
       {/* Header section */}
-      <div className="p-4 border-b border-herd-border">
+      <div className="p-4 border-b border-herd-sidebar-border">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <img src="/herdctl-logo.svg" alt="herdctl logo" className="w-7 h-7" />
-            <h1 className="text-lg font-semibold text-herd-fg">herdctl</h1>
+            <h1 className="text-lg font-semibold text-herd-sidebar-fg">herdctl</h1>
           </div>
           <div className="flex items-center gap-1.5">
             <span
@@ -197,13 +197,13 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
             />
           ))}
           {sortedAgents.length === 0 && (
-            <p className="text-xs text-herd-muted px-3 py-2">No agents configured</p>
+            <p className="text-xs text-herd-sidebar-muted px-3 py-2">No agents configured</p>
           )}
         </div>
       </div>
 
       {/* Navigation section */}
-      <nav className="p-2 border-t border-herd-border">
+      <nav className="p-2 border-t border-herd-sidebar-border">
         <div className="space-y-1">
           <NavItem
             to="/"
@@ -237,12 +237,12 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
       </nav>
 
       {/* Quick stats bar */}
-      <div className="px-4 py-2 border-t border-herd-border">
-        <p className="text-xs text-herd-muted">
+      <div className="px-4 py-2 border-t border-herd-sidebar-border">
+        <p className="text-xs text-herd-sidebar-muted">
           {counts.runningAgents} running{" "}
-          <span className="text-herd-muted/50">&middot;</span>{" "}
+          <span className="text-herd-sidebar-muted/50">&middot;</span>{" "}
           {counts.idleAgents} idle{" "}
-          <span className="text-herd-muted/50">&middot;</span>{" "}
+          <span className="text-herd-sidebar-muted/50">&middot;</span>{" "}
           {counts.errorAgents} errors
         </p>
       </div>

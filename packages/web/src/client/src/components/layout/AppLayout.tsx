@@ -42,7 +42,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             onClick={() => setSidebarMobileOpen(false)}
           />
           {/* Sidebar drawer */}
-          <div className="absolute inset-y-0 left-0 w-[260px] bg-herd-sidebar border-r border-herd-border animate-fade-slide-in">
+          <div className="absolute inset-y-0 left-0 w-[260px] bg-herd-sidebar border-r border-herd-sidebar-border animate-fade-slide-in">
             <Sidebar onNavigate={() => setSidebarMobileOpen(false)} />
           </div>
         </div>

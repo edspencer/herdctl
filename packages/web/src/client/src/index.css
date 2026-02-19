@@ -9,25 +9,32 @@
   --font-serif: "Lora", Georgia, "Times New Roman", serif;
 
   /* Light mode colors */
-  --color-herd-bg: #f4f1eb;
+  --color-herd-bg: #f7f8fa;
   --color-herd-fg: #1c1b18;
-  --color-herd-card: #fdfcfa;
-  --color-herd-sidebar: #ebe8e1;
-  --color-herd-border: rgba(0, 0, 0, 0.12);
-  --color-herd-input-bg: #fdfcfa;
-  --color-herd-hover: rgba(0, 0, 0, 0.06);
-  --color-herd-active: rgba(0, 0, 0, 0.1);
-  --color-herd-muted: #7a776d;
+  --color-herd-card: #ffffff;
+  --color-herd-sidebar: #1e2330;
+  --color-herd-border: rgba(0, 0, 0, 0.10);
+  --color-herd-input-bg: #ffffff;
+  --color-herd-hover: rgba(0, 0, 0, 0.05);
+  --color-herd-active: rgba(0, 0, 0, 0.08);
+  --color-herd-muted: #6b7280;
   --color-herd-primary: #326CE5;
   --color-herd-primary-hover: #2856B8;
   --color-herd-primary-muted: rgba(50, 108, 229, 0.10);
-  --color-herd-user-bubble: #ddd9d0;
+  --color-herd-user-bubble: #e2e4e9;
   --color-herd-code-bg: #1e1e1e;
   --color-herd-code-fg: #d4d4d4;
   --color-herd-status-running: #2d7d46;
-  --color-herd-status-idle: #7a776d;
+  --color-herd-status-idle: #6b7280;
   --color-herd-status-error: #c53030;
   --color-herd-status-pending: #b7791f;
+
+  /* Sidebar tokens (light-on-dark in light mode) */
+  --color-herd-sidebar-fg: #e2e4e9;
+  --color-herd-sidebar-muted: #8b92a0;
+  --color-herd-sidebar-border: rgba(255, 255, 255, 0.08);
+  --color-herd-sidebar-hover: rgba(255, 255, 255, 0.06);
+  --color-herd-sidebar-active: rgba(255, 255, 255, 0.10);
 
   /* Connector brand colors */
   --color-herd-discord: #5865F2;
@@ -43,7 +50,7 @@
   --color-herd-bg: #1c1b18;
   --color-herd-fg: #e8e6e1;
   --color-herd-card: #252320;
-  --color-herd-sidebar: #1a1917;
+  --color-herd-sidebar: #141516;
   --color-herd-border: rgba(255, 255, 255, 0.08);
   --color-herd-input-bg: #252320;
   --color-herd-hover: rgba(255, 255, 255, 0.05);
@@ -59,6 +66,13 @@
   --color-herd-status-idle: #8a877f;
   --color-herd-status-error: #fc8181;
   --color-herd-status-pending: #f6e05e;
+
+  /* Sidebar tokens (same as main in dark mode) */
+  --color-herd-sidebar-fg: #e8e6e1;
+  --color-herd-sidebar-muted: #8a877f;
+  --color-herd-sidebar-border: rgba(255, 255, 255, 0.08);
+  --color-herd-sidebar-hover: rgba(255, 255, 255, 0.05);
+  --color-herd-sidebar-active: rgba(255, 255, 255, 0.08);
 
   /* Connector brand colors */
   --color-herd-discord: #7289DA;
