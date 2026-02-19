@@ -143,7 +143,7 @@ function AgentSection({
       {sessions.length === 0 ? (
         <p className="text-[11px] text-herd-sidebar-muted/50 text-center py-3">No chats yet</p>
       ) : (
-        <div className="mr-1 mt-0.5 space-y-0.5">
+        <div className="mr-1 mt-0.5 space-y-1">
           {sessions.map((session) => {
             const isSessionActive = session.sessionId === activeSessionId;
             return (
@@ -151,7 +151,7 @@ function AgentSection({
                 key={session.sessionId}
                 to={`/agents/${encodeURIComponent(agent.name)}/chat/${session.sessionId}`}
                 onClick={onNavigate}
-                className={`flex items-center justify-between gap-2 px-3 py-1 rounded text-xs transition-colors ${
+                className={`flex items-center justify-between gap-2 px-3 py-2 rounded text-sm transition-colors ${
                   isSessionActive
                     ? "text-herd-sidebar-fg bg-herd-sidebar-active"
                     : "text-herd-sidebar-muted hover:bg-herd-sidebar-hover hover:text-herd-sidebar-fg"
