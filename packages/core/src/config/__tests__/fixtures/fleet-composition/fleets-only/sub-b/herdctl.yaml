@@ -1,0 +1,5 @@
+version: 1
+fleet:
+  name: sub-b
+agents:
+  - path: ./agents/worker-b.yaml

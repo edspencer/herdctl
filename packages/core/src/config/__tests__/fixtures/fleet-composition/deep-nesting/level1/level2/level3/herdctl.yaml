@@ -1,0 +1,5 @@
+version: 1
+fleet:
+  name: level3
+agents:
+  - path: ./agents/l3-agent.yaml

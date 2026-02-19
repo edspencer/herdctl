@@ -1,0 +1,6 @@
+version: 1
+defaults:
+  model: super-model
+  max_turns: 200
+fleets:
+  - path: ./sub-fleet/herdctl.yaml
