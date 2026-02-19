@@ -1371,12 +1371,12 @@ describe("FleetManager Integration Tests (US-13)", () => {
 
         // Initialize should fail with ConfigurationError
         await expect(manager.initialize()).rejects.toThrow(
-          /Duplicate agent names found.*"duplicate-name"/
+          /Duplicate agent qualified names found.*"duplicate-name"/
         );
 
         // Status should be error
         expect(manager.state.status).toBe("error");
-        expect(manager.state.lastError).toContain("Duplicate agent names");
+        expect(manager.state.lastError).toContain("Duplicate agent qualified names");
       });
     });
   });

@@ -474,21 +474,21 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   }
 
   /**
-   * Validate that all agent names are unique
+   * Validate that all agent qualified names are unique
    *
-   * Agent names are used as primary keys throughout the system (Discord connectors,
-   * session storage, job identification, etc.). Duplicate names cause silent overwrites
-   * and unpredictable behavior.
+   * Qualified names are used as primary keys throughout the system (state storage,
+   * scheduler, Discord connectors, session storage, job identification, etc.).
+   * Duplicate qualified names cause silent overwrites and unpredictable behavior.
    *
    * @param agents - Array of resolved agents to validate
-   * @throws ConfigurationError if duplicate names are found
+   * @throws ConfigurationError if duplicate qualified names are found
    */
   private validateUniqueAgentNames(agents: ResolvedAgent[]): void {
     const nameCount = new Map<string, number>();
 
-    // Count occurrences of each name
+    // Count occurrences of each qualified name
     for (const agent of agents) {
-      nameCount.set(agent.name, (nameCount.get(agent.name) || 0) + 1);
+      nameCount.set(agent.qualifiedName, (nameCount.get(agent.qualifiedName) || 0) + 1);
     }
 
     // Find duplicates
@@ -499,7 +499,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     if (duplicates.length > 0) {
       const duplicateList = duplicates.map(name => `"${name}"`).join(", ");
       throw new ConfigurationError(
-        `Duplicate agent names found: ${duplicateList}. Agent names must be unique across all configuration files.`
+        `Duplicate agent qualified names found: ${duplicateList}. Agent names must be unique within their fleet.`
       );
     }
   }

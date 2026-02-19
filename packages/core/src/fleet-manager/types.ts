@@ -275,9 +275,22 @@ export interface AgentChatStatus {
 
 export interface AgentInfo {
   /**
-   * Agent name (unique identifier)
+   * Agent local name (display name within its fleet)
    */
   name: string;
+
+  /**
+   * Dot-separated qualified name (e.g., "herdctl.security-auditor")
+   * For root-level agents, equals the local name.
+   * This is the primary key used for lookups throughout the system.
+   */
+  qualifiedName: string;
+
+  /**
+   * Fleet hierarchy path segments (e.g., ["herdctl"] or ["other-project", "frontend"])
+   * Empty array for agents directly in the root fleet.
+   */
+  fleetPath: string[];
 
   /**
    * Agent description from configuration

@@ -44,7 +44,7 @@ export class ScheduleManagement {
     const allSchedules: ScheduleInfo[] = [];
 
     for (const agent of agents) {
-      const agentState = fleetState.agents[agent.name];
+      const agentState = fleetState.agents[agent.qualifiedName];
       const schedules = buildScheduleInfoList(agent, agentState);
       allSchedules.push(...schedules);
     }
@@ -64,11 +64,13 @@ export class ScheduleManagement {
   async getSchedule(agentName: string, scheduleName: string): Promise<ScheduleInfo> {
     const config = this.ctx.getConfig();
     const agents = config?.agents ?? [];
-    const agent = agents.find((a) => a.name === agentName);
+    // Try qualified name first, fall back to local name
+    const agent = agents.find((a) => a.qualifiedName === agentName)
+      ?? agents.find((a) => a.name === agentName);
 
     if (!agent) {
       throw new AgentNotFoundError(agentName, {
-        availableAgents: agents.map((a) => a.name),
+        availableAgents: agents.map((a) => a.qualifiedName),
       });
     }
 
@@ -82,7 +84,7 @@ export class ScheduleManagement {
     }
 
     const fleetState = await this.readFleetStateSnapshotFn();
-    const agentState = fleetState.agents[agentName];
+    const agentState = fleetState.agents[agent.qualifiedName];
     const schedule = agent.schedules[scheduleName];
     const scheduleState = agentState?.schedules?.[scheduleName];
 
@@ -119,11 +121,13 @@ export class ScheduleManagement {
 
     // Validate the agent and schedule exist
     const agents = config?.agents ?? [];
-    const agent = agents.find((a) => a.name === agentName);
+    // Try qualified name first, fall back to local name
+    const agent = agents.find((a) => a.qualifiedName === agentName)
+      ?? agents.find((a) => a.name === agentName);
 
     if (!agent) {
       throw new AgentNotFoundError(agentName, {
-        availableAgents: agents.map((a) => a.name),
+        availableAgents: agents.map((a) => a.qualifiedName),
       });
     }
 
@@ -136,20 +140,20 @@ export class ScheduleManagement {
       });
     }
 
-    // Update schedule state to enabled (idle)
+    // Update schedule state to enabled (idle) — use qualifiedName as the state key
     const { updateScheduleState } = await import("../scheduler/schedule-state.js");
     await updateScheduleState(
       stateDir,
-      agentName,
+      agent.qualifiedName,
       scheduleName,
       { status: "idle" },
       { logger: { warn: logger.warn } }
     );
 
-    logger.info(`Enabled schedule ${agentName}/${scheduleName}`);
+    logger.info(`Enabled schedule ${agent.qualifiedName}/${scheduleName}`);
 
     // Return the updated schedule info
-    return this.getSchedule(agentName, scheduleName);
+    return this.getSchedule(agent.qualifiedName, scheduleName);
   }
 
   /**
@@ -173,11 +177,13 @@ export class ScheduleManagement {
 
     // Validate the agent and schedule exist
     const agents = config?.agents ?? [];
-    const agent = agents.find((a) => a.name === agentName);
+    // Try qualified name first, fall back to local name
+    const agent = agents.find((a) => a.qualifiedName === agentName)
+      ?? agents.find((a) => a.name === agentName);
 
     if (!agent) {
       throw new AgentNotFoundError(agentName, {
-        availableAgents: agents.map((a) => a.name),
+        availableAgents: agents.map((a) => a.qualifiedName),
       });
     }
 
@@ -190,19 +196,19 @@ export class ScheduleManagement {
       });
     }
 
-    // Update schedule state to disabled
+    // Update schedule state to disabled — use qualifiedName as the state key
     const { updateScheduleState } = await import("../scheduler/schedule-state.js");
     await updateScheduleState(
       stateDir,
-      agentName,
+      agent.qualifiedName,
       scheduleName,
       { status: "disabled" },
       { logger: { warn: logger.warn } }
     );
 
-    logger.info(`Disabled schedule ${agentName}/${scheduleName}`);
+    logger.info(`Disabled schedule ${agent.qualifiedName}/${scheduleName}`);
 
     // Return the updated schedule info
-    return this.getSchedule(agentName, scheduleName);
+    return this.getSchedule(agent.qualifiedName, scheduleName);
   }
 }
