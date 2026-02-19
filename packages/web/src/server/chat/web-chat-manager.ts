@@ -17,6 +17,9 @@ import {
 import {
   ChatSessionManager,
   extractMessageContent,
+  extractToolUseBlocks,
+  extractToolResults,
+  getToolInputSummary,
   type ChatConnectorLogger,
 } from "@herdctl/chat";
 
@@ -49,11 +52,19 @@ export interface WebChatSession {
  */
 export interface ChatMessage {
   /** Role of the sender */
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "tool";
   /** Message content */
   content: string;
   /** ISO timestamp of the message */
   timestamp: string;
+  /** Tool call data (only when role is "tool") */
+  toolCall?: {
+    toolName: string;
+    inputSummary?: string;
+    output: string;
+    isError: boolean;
+    durationMs?: number;
+  };
 }
 
 /**
@@ -81,6 +92,27 @@ export interface SendMessageResult {
  */
 export type OnChunkCallback = (chunk: string) => void | Promise<void>;
 
+/**
+ * Structured tool call data sent to the client
+ */
+export interface ToolCallData {
+  /** Tool name (e.g., "Bash", "Read", "Write") */
+  toolName: string;
+  /** Human-readable summary of tool input */
+  inputSummary?: string;
+  /** Tool output (may be truncated) */
+  output: string;
+  /** Whether the tool returned an error */
+  isError: boolean;
+  /** Duration in milliseconds */
+  durationMs?: number;
+}
+
+/**
+ * Callback for receiving tool call results
+ */
+export type OnToolCallCallback = (toolCall: ToolCallData) => void | Promise<void>;
+
 // =============================================================================
 // WebChatManager Implementation
 // =============================================================================
@@ -95,6 +127,7 @@ export class WebChatManager {
   private fleetManager: FleetManager | null = null;
   private stateDir: string | null = null;
   private sessionExpiryHours: number = 24;
+  private toolResults: boolean = true;
   private initialized: boolean = false;
 
   /** Per-agent session managers */
@@ -122,6 +155,7 @@ export class WebChatManager {
     this.fleetManager = fleetManager;
     this.stateDir = stateDir;
     this.sessionExpiryHours = config.session_expiry_hours ?? 24;
+    this.toolResults = config.tool_results ?? true;
 
     // Get fleet config to find all agents
     const fleetConfig = await fleetManager.getConfig();
@@ -288,13 +322,15 @@ export class WebChatManager {
    * @param sessionId - Session ID
    * @param message - User message text
    * @param onChunk - Callback for streaming response chunks
+   * @param onToolCall - Optional callback for tool call results
    * @returns Result with jobId
    */
   async sendMessage(
     agentName: string,
     sessionId: string,
     message: string,
-    onChunk: OnChunkCallback
+    onChunk: OnChunkCallback,
+    onToolCall?: OnToolCallCallback,
   ): Promise<SendMessageResult> {
     this.ensureInitialized();
 
@@ -352,6 +388,9 @@ export class WebChatManager {
     let assistantContent = "";
 
     try {
+      // Track pending tool_use blocks so we can pair them with results
+      const pendingToolUses = new Map<string, { name: string; input?: unknown; startTime: number }>();
+
       // Trigger job via FleetManager
       const result = await this.fleetManager.trigger(agentName, undefined, {
         triggerType: "web",
@@ -360,11 +399,73 @@ export class WebChatManager {
         onMessage: async (sdkMessage) => {
           // Extract text content from assistant messages
           if (sdkMessage.type === "assistant") {
-            const content = extractMessageContent(sdkMessage as Parameters<typeof extractMessageContent>[0]);
+            const castMessage = sdkMessage as Parameters<typeof extractMessageContent>[0];
+            const content = extractMessageContent(castMessage);
             if (content) {
               assistantContent += content;
               // Send chunk to client
               await onChunk(content);
+            }
+
+            // Track tool_use blocks for pairing with results later
+            const toolUseBlocks = extractToolUseBlocks(castMessage);
+            for (const block of toolUseBlocks) {
+              if (block.id) {
+                pendingToolUses.set(block.id, {
+                  name: block.name,
+                  input: block.input,
+                  startTime: Date.now(),
+                });
+              }
+            }
+          }
+
+          // Send tool results to client
+          if (sdkMessage.type === "user" && this.toolResults && onToolCall) {
+            const userMessage = sdkMessage as { type: string; message?: { content?: unknown }; tool_use_result?: unknown };
+            const toolResultsList = extractToolResults(userMessage);
+
+            // Flush accumulated assistant text as its own message before tool calls
+            // so that text before and after tools doesn't merge into one bubble
+            if (toolResultsList.length > 0 && assistantContent) {
+              messages.push({
+                role: "assistant",
+                content: assistantContent,
+                timestamp: new Date().toISOString(),
+              });
+              assistantContent = "";
+            }
+
+            for (const toolResult of toolResultsList) {
+              // Look up the matching tool_use for name, input, and timing
+              const toolUse = toolResult.toolUseId
+                ? pendingToolUses.get(toolResult.toolUseId)
+                : undefined;
+              if (toolResult.toolUseId) {
+                pendingToolUses.delete(toolResult.toolUseId);
+              }
+
+              const toolName = toolUse?.name ?? "Tool";
+              const durationMs = toolUse ? Date.now() - toolUse.startTime : undefined;
+              const inputSummary = toolUse ? getToolInputSummary(toolUse.name, toolUse.input) : undefined;
+
+              const toolCallData: ToolCallData = {
+                toolName,
+                inputSummary,
+                output: toolResult.output,
+                isError: toolResult.isError,
+                durationMs,
+              };
+
+              // Persist tool call message to history
+              messages.push({
+                role: "tool",
+                content: toolResult.output,
+                timestamp: new Date().toISOString(),
+                toolCall: toolCallData,
+              });
+
+              await onToolCall(toolCallData);
             }
           }
         },
@@ -378,13 +479,15 @@ export class WebChatManager {
           timestamp: new Date().toISOString(),
         };
         messages.push(assistantMessage);
-        await this.saveMessageHistory(agentName, sessionId, messages);
 
         // Update session metadata
         session.lastMessageAt = assistantMessage.timestamp;
-        session.messageCount = messages.length;
         session.preview = assistantContent.substring(0, 100);
       }
+
+      // Always save history (captures tool call messages even if no assistant text)
+      session.messageCount = messages.length;
+      await this.saveMessageHistory(agentName, sessionId, messages);
 
       // Store SDK session ID for future conversation continuity
       if (sessionManager && result.sessionId && result.success) {

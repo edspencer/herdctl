@@ -5,7 +5,7 @@
  */
 
 import type { StateCreator } from "zustand";
-import type { ChatSession, ChatMessage } from "../lib/types";
+import type { ChatSession, ChatMessage, ChatToolCall } from "../lib/types";
 import {
   fetchChatSessions,
   fetchChatSession,
@@ -60,6 +60,8 @@ export interface ChatActions {
   completeStreaming: () => void;
   /** Add a user message immediately to the messages array */
   addUserMessage: (content: string) => void;
+  /** Add a tool call message to the conversation */
+  addToolCallMessage: (toolCall: ChatToolCall) => void;
   /** Set chat error state */
   setChatError: (error: string | null) => void;
   /** Fetch recent sessions for all agents (sidebar display) */
@@ -263,6 +265,33 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (
     set((state) => ({
       chatMessages: [...state.chatMessages, userMessage],
       chatStreaming: true, // Start streaming state immediately
+      chatStreamingContent: "",
+    }));
+  },
+
+  addToolCallMessage: (toolCall: ChatToolCall) => {
+    const { chatStreamingContent } = get();
+    const newMessages: ChatMessage[] = [];
+
+    // Flush any accumulated streaming text as its own assistant message
+    // so text before and after tool calls renders as separate bubbles
+    if (chatStreamingContent) {
+      newMessages.push({
+        role: "assistant",
+        content: chatStreamingContent,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    newMessages.push({
+      role: "tool",
+      content: toolCall.output,
+      timestamp: new Date().toISOString(),
+      toolCall,
+    });
+
+    set((state) => ({
+      chatMessages: [...state.chatMessages, ...newMessages],
       chatStreamingContent: "",
     }));
   },

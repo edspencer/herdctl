@@ -106,6 +106,23 @@ export {
 } from "./message-extraction.js";
 
 // =============================================================================
+// Tool Parsing
+// =============================================================================
+
+export {
+  // Functions
+  extractToolUseBlocks,
+  extractToolResults,
+  extractToolResultContent,
+  getToolInputSummary,
+  // Types
+  type ToolUseBlock,
+  type ToolResult,
+  // Constants
+  TOOL_EMOJIS,
+} from "./tool-parsing.js";
+
+// =============================================================================
 // DM Filtering
 // =============================================================================
 

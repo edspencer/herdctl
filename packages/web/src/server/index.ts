@@ -67,6 +67,8 @@ export interface WebServerConfigExtended extends WebServerConfig {
   stateDir?: string;
   /** Session expiry in hours for chat sessions */
   sessionExpiryHours?: number;
+  /** Show tool call results in chat conversations (default: true) */
+  toolResults?: boolean;
 }
 
 /**
@@ -116,6 +118,7 @@ export async function createWebServer(
       host: config.host,
       session_expiry_hours: config.sessionExpiryHours ?? 24,
       open_browser: false,
+      tool_results: config.toolResults ?? true,
     });
 
     // Wire up chat manager to WebSocket handler
@@ -278,6 +281,7 @@ export class WebManager implements IChatManager {
         port: webConfig.port,
         stateDir,
         sessionExpiryHours: webConfig.session_expiry_hours,
+        toolResults: webConfig.tool_results,
       });
 
       this.server = result.server;

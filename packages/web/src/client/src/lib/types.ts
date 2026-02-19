@@ -272,6 +272,20 @@ export interface PongMessage {
   type: "pong";
 }
 
+export interface ChatToolCallMessage {
+  type: "chat:tool_call";
+  payload: {
+    agentName: string;
+    sessionId: string;
+    jobId: string;
+    toolName: string;
+    inputSummary?: string;
+    output: string;
+    isError: boolean;
+    durationMs?: number;
+  };
+}
+
 export type ServerMessage =
   | FleetStatusMessage
   | AgentUpdatedMessage
@@ -284,6 +298,7 @@ export type ServerMessage =
   | PongMessage
   | ChatResponseMessage
   | ChatCompleteMessage
+  | ChatToolCallMessage
   | ChatErrorMessage;
 
 // =============================================================================
@@ -334,10 +349,19 @@ export interface ChatSession {
   preview: string;
 }
 
+export interface ChatToolCall {
+  toolName: string;
+  inputSummary?: string;
+  output: string;
+  isError: boolean;
+  durationMs?: number;
+}
+
 export interface ChatMessage {
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "tool";
   content: string;
   timestamp: string;
+  toolCall?: ChatToolCall;
 }
 
 // =============================================================================

@@ -460,6 +460,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
         host: "localhost",
         session_expiry_hours: 24,
         open_browser: false,
+        tool_results: true,
       };
 
       fleet.web = {

@@ -570,7 +570,34 @@ export const DiscordGuildSchema = z.object({
 });
 
 /**
+ * Shared chat output configuration for controlling what gets shown during conversations
+ *
+ * Used as the base schema for platform-specific output configs (Discord, Slack).
+ *
+ * @example
+ * ```yaml
+ * output:
+ *   tool_results: true
+ *   tool_result_max_length: 900
+ *   system_status: true
+ *   errors: true
+ * ```
+ */
+export const ChatOutputSchema = z.object({
+  /** Show tool results (default: true) */
+  tool_results: z.boolean().optional().default(true),
+  /** Max chars of tool output to include (default: 900, max: 1000) */
+  tool_result_max_length: z.number().int().positive().max(1000).optional().default(900),
+  /** Show system status messages like "compacting context..." (default: true) */
+  system_status: z.boolean().optional().default(true),
+  /** Show error messages from the SDK (default: true) */
+  errors: z.boolean().optional().default(true),
+});
+
+/**
  * Discord output configuration for controlling what gets shown during conversations
+ *
+ * Extends the shared ChatOutputSchema with Discord-specific options.
  *
  * @example
  * ```yaml
@@ -582,17 +609,9 @@ export const DiscordGuildSchema = z.object({
  *   errors: true
  * ```
  */
-export const DiscordOutputSchema = z.object({
-  /** Show tool results as embeds (default: true) */
-  tool_results: z.boolean().optional().default(true),
-  /** Max chars of tool output to include in embeds (default: 900, max: 1000) */
-  tool_result_max_length: z.number().int().positive().max(1000).optional().default(900),
-  /** Show system status messages like "compacting context..." (default: true) */
-  system_status: z.boolean().optional().default(true),
+export const DiscordOutputSchema = ChatOutputSchema.extend({
   /** Show a summary embed when the agent finishes a turn (cost, tokens, turns) (default: false) */
   result_summary: z.boolean().optional().default(false),
-  /** Show error messages from the SDK (default: true) */
-  errors: z.boolean().optional().default(true),
 });
 
 /**
@@ -700,6 +719,8 @@ export const AgentChatSlackSchema = z.object({
   channels: z.array(SlackChannelSchema),
   /** DM (direct message) configuration — enable/disable, mode, allowlist/blocklist */
   dm: ChatDMSchema.optional(),
+  /** Output configuration controlling what gets shown during conversations */
+  output: ChatOutputSchema.optional(),
 });
 
 // =============================================================================
@@ -968,6 +989,8 @@ export const WebSchema = z.object({
   session_expiry_hours: z.number().int().positive().optional().default(24),
   /** Automatically open browser when starting (default: false) */
   open_browser: z.boolean().optional().default(false),
+  /** Show tool call results in chat conversations (default: true) */
+  tool_results: z.boolean().optional().default(true),
 });
 
 // =============================================================================
@@ -1030,6 +1053,7 @@ export type ScheduleType = z.infer<typeof ScheduleTypeSchema>;
 export type Schedule = z.infer<typeof ScheduleSchema>;
 export type McpServer = z.infer<typeof McpServerSchema>;
 // Agent Chat types (shared)
+export type ChatOutput = z.infer<typeof ChatOutputSchema>;
 export type ChatDM = z.infer<typeof ChatDMSchema>;
 // Agent Chat Discord types
 export type DiscordPresence = z.infer<typeof DiscordPresenceSchema>;
