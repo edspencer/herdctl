@@ -424,6 +424,18 @@ export class WebChatManager {
           if (sdkMessage.type === "user" && this.toolResults && onToolCall) {
             const userMessage = sdkMessage as { type: string; message?: { content?: unknown }; tool_use_result?: unknown };
             const toolResultsList = extractToolResults(userMessage);
+
+            // Flush accumulated assistant text as its own message before tool calls
+            // so that text before and after tools doesn't merge into one bubble
+            if (toolResultsList.length > 0 && assistantContent) {
+              messages.push({
+                role: "assistant",
+                content: assistantContent,
+                timestamp: new Date().toISOString(),
+              });
+              assistantContent = "";
+            }
+
             for (const toolResult of toolResultsList) {
               // Look up the matching tool_use for name, input, and timing
               const toolUse = toolResult.toolUseId

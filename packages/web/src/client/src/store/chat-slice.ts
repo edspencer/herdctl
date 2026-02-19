@@ -270,15 +270,29 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (
   },
 
   addToolCallMessage: (toolCall: ChatToolCall) => {
-    const toolMessage: ChatMessage = {
+    const { chatStreamingContent } = get();
+    const newMessages: ChatMessage[] = [];
+
+    // Flush any accumulated streaming text as its own assistant message
+    // so text before and after tool calls renders as separate bubbles
+    if (chatStreamingContent) {
+      newMessages.push({
+        role: "assistant",
+        content: chatStreamingContent,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    newMessages.push({
       role: "tool",
       content: toolCall.output,
       timestamp: new Date().toISOString(),
       toolCall,
-    };
+    });
 
     set((state) => ({
-      chatMessages: [...state.chatMessages, toolMessage],
+      chatMessages: [...state.chatMessages, ...newMessages],
+      chatStreamingContent: "",
     }));
   },
 
