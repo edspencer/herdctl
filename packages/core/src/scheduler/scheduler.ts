@@ -315,14 +315,14 @@ export class Scheduler {
     schedule: { type: string; interval?: string; expression?: string; enabled?: boolean }
   ): Promise<ScheduleCheckResult> {
     const baseResult = {
-      agentName: agent.name,
+      agentName: agent.qualifiedName,
       scheduleName,
     };
 
     // Skip disabled schedules (config-level check)
     if (schedule.enabled === false) {
       this.logger.debug(
-        `Skipping ${agent.name}/${scheduleName}: schedule is disabled in config`
+        `Skipping ${agent.qualifiedName}/${scheduleName}: schedule is disabled in config`
       );
       return {
         ...baseResult,
@@ -344,7 +344,7 @@ export class Scheduler {
     const stateLogger: ScheduleStateLogger = { warn: this.logger.warn };
     const scheduleState = await getScheduleState(
       this.stateDir,
-      agent.name,
+      agent.qualifiedName,
       scheduleName,
       { logger: stateLogger }
     );
@@ -352,7 +352,7 @@ export class Scheduler {
     // Skip disabled schedules
     if (scheduleState.status === "disabled") {
       this.logger.debug(
-        `Skipping ${agent.name}/${scheduleName}: schedule is disabled`
+        `Skipping ${agent.qualifiedName}/${scheduleName}: schedule is disabled`
       );
       return {
         ...baseResult,
@@ -362,10 +362,10 @@ export class Scheduler {
     }
 
     // Skip if already running (tracked locally)
-    const agentRunning = this.runningSchedules.get(agent.name);
+    const agentRunning = this.runningSchedules.get(agent.qualifiedName);
     if (agentRunning?.has(scheduleName)) {
       this.logger.debug(
-        `Skipping ${agent.name}/${scheduleName}: already running`
+        `Skipping ${agent.qualifiedName}/${scheduleName}: already running`
       );
       return {
         ...baseResult,
@@ -382,7 +382,7 @@ export class Scheduler {
 
     if (runningCount >= maxConcurrent) {
       this.logger.debug(
-        `Skipping ${agent.name}/${scheduleName}: at max capacity (${runningCount}/${maxConcurrent})`
+        `Skipping ${agent.qualifiedName}/${scheduleName}: at max capacity (${runningCount}/${maxConcurrent})`
       );
       return {
         ...baseResult,
@@ -403,7 +403,7 @@ export class Scheduler {
     if (schedule.type === "interval") {
       if (!schedule.interval) {
         this.logger.warn(
-          `Skipping ${agent.name}/${scheduleName}: interval schedule missing interval value`
+          `Skipping ${agent.qualifiedName}/${scheduleName}: interval schedule missing interval value`
         );
         return {
           ...baseResult,
@@ -416,7 +416,7 @@ export class Scheduler {
       // schedule.type === "cron"
       if (!schedule.expression) {
         this.logger.warn(
-          `Skipping ${agent.name}/${scheduleName}: cron schedule missing expression value`
+          `Skipping ${agent.qualifiedName}/${scheduleName}: cron schedule missing expression value`
         );
         return {
           ...baseResult,
@@ -428,7 +428,7 @@ export class Scheduler {
       // Validate cron expression (defense in depth - should be validated at config load time)
       if (!isValidCronExpression(schedule.expression)) {
         this.logger.warn(
-          `Skipping ${agent.name}/${scheduleName}: invalid cron expression "${schedule.expression}"`
+          `Skipping ${agent.qualifiedName}/${scheduleName}: invalid cron expression "${schedule.expression}"`
         );
         return {
           ...baseResult,
@@ -531,24 +531,24 @@ export class Scheduler {
     scheduleName: string,
     schedule: { type: string; interval?: string; expression?: string; prompt?: string }
   ): Promise<void> {
-    this.logger.info(`Triggering ${agent.name}/${scheduleName}`);
+    this.logger.info(`Triggering ${agent.qualifiedName}/${scheduleName}`);
     this.triggerCount++;
 
     // Create a unique key for this job
-    const jobKey = `${agent.name}/${scheduleName}`;
+    const jobKey = `${agent.qualifiedName}/${scheduleName}`;
 
     // Mark schedule as running
-    if (!this.runningSchedules.has(agent.name)) {
-      this.runningSchedules.set(agent.name, new Set());
+    if (!this.runningSchedules.has(agent.qualifiedName)) {
+      this.runningSchedules.set(agent.qualifiedName, new Set());
     }
-    this.runningSchedules.get(agent.name)!.add(scheduleName);
+    this.runningSchedules.get(agent.qualifiedName)!.add(scheduleName);
 
     const stateLogger: ScheduleStateLogger = { warn: this.logger.warn };
 
     // Update schedule state to running
     await updateScheduleState(
       this.stateDir,
-      agent.name,
+      agent.qualifiedName,
       scheduleName,
       {
         status: "running",
@@ -583,7 +583,7 @@ export class Scheduler {
       // Get current schedule state for trigger info
       const scheduleState = await getScheduleState(
         this.stateDir,
-        agent.name,
+        agent.qualifiedName,
         scheduleName,
         { logger: stateLogger }
       );
@@ -611,7 +611,7 @@ export class Scheduler {
       // Update schedule state to idle with next run time
       await updateScheduleState(
         this.stateDir,
-        agent.name,
+        agent.qualifiedName,
         scheduleName,
         {
           status: "idle",
@@ -621,7 +621,7 @@ export class Scheduler {
         { logger: stateLogger }
       );
 
-      this.logger.info(`Completed ${agent.name}/${scheduleName}`);
+      this.logger.info(`Completed ${agent.qualifiedName}/${scheduleName}`);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -629,7 +629,7 @@ export class Scheduler {
       // Update schedule state with error
       await updateScheduleState(
         this.stateDir,
-        agent.name,
+        agent.qualifiedName,
         scheduleName,
         {
           status: "idle",
@@ -638,10 +638,10 @@ export class Scheduler {
         { logger: stateLogger }
       );
 
-      this.logger.error(`Error in ${agent.name}/${scheduleName}: ${errorMessage}`);
+      this.logger.error(`Error in ${agent.qualifiedName}/${scheduleName}: ${errorMessage}`);
     } finally {
       // Mark schedule as no longer running
-      this.runningSchedules.get(agent.name)?.delete(scheduleName);
+      this.runningSchedules.get(agent.qualifiedName)?.delete(scheduleName);
     }
   }
 }

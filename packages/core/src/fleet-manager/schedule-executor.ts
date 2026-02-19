@@ -69,11 +69,11 @@ export class ScheduleExecutor {
     const emitter = this.ctx.getEmitter();
     const stateDir = this.ctx.getStateDir();
 
-    logger.info(`Triggering ${agent.name}/${scheduleName}`);
+    logger.info(`Triggering ${agent.qualifiedName}/${scheduleName}`);
 
     // Emit typed event with full payload
     emitter.emit("schedule:triggered", {
-      agentName: agent.name,
+      agentName: agent.qualifiedName,
       scheduleName,
       schedule,
       timestamp,
@@ -84,7 +84,7 @@ export class ScheduleExecutor {
       const prompt = schedule.prompt ?? agent.default_prompt ?? "Execute your configured task";
 
       logger.debug(
-        `Schedule ${scheduleName} triggered for agent ${agent.name} ` +
+        `Schedule ${scheduleName} triggered for agent ${agent.qualifiedName} ` +
           `(type: ${schedule.type}, prompt: ${prompt.slice(0, 50)}...)`
       );
 
@@ -108,7 +108,7 @@ export class ScheduleExecutor {
         onJobCreated: (id: string) => {
           // Set jobId early so onMessage can emit events during execution
           jobId = id;
-          logger.debug(`Job ${id} created for ${agent.name}/${scheduleName}`);
+          logger.debug(`Job ${id} created for ${agent.qualifiedName}/${scheduleName}`);
         },
         onMessage: async (message: SDKMessage) => {
           // Emit job:output events for real-time streaming
@@ -119,7 +119,7 @@ export class ScheduleExecutor {
             if (outputContent) {
               this.emitJobOutput({
                 jobId,
-                agentName: agent.name,
+                agentName: agent.qualifiedName,
                 output: outputContent,
                 outputType,
                 timestamp: new Date().toISOString(),
@@ -136,7 +136,7 @@ export class ScheduleExecutor {
       if (jobMetadata) {
         this.emitJobCreated({
           job: jobMetadata,
-          agentName: agent.name,
+          agentName: agent.qualifiedName,
           scheduleName,
           timestamp: new Date().toISOString(),
         });
@@ -145,14 +145,14 @@ export class ScheduleExecutor {
         if (result.success) {
           this.emitJobCompleted({
             job: jobMetadata,
-            agentName: agent.name,
+            agentName: agent.qualifiedName,
             exitReason: "success",
             durationSeconds: result.durationSeconds ?? 0,
             timestamp: new Date().toISOString(),
           });
 
           logger.info(
-            `Job ${result.jobId} completed successfully for ${agent.name}/${scheduleName} ` +
+            `Job ${result.jobId} completed successfully for ${agent.qualifiedName}/${scheduleName} ` +
               `(${result.durationSeconds}s)`
           );
 
@@ -162,7 +162,7 @@ export class ScheduleExecutor {
           const error = result.error ?? new Error("Job failed without error details");
           this.emitJobFailed({
             job: jobMetadata,
-            agentName: agent.name,
+            agentName: agent.qualifiedName,
             error,
             exitReason: "error",
             durationSeconds: result.durationSeconds,
@@ -170,7 +170,7 @@ export class ScheduleExecutor {
           });
 
           logger.warn(
-            `Job ${result.jobId} failed for ${agent.name}/${scheduleName}: ${error.message}`
+            `Job ${result.jobId} failed for ${agent.qualifiedName}/${scheduleName}: ${error.message}`
           );
 
           // Execute hooks for failed jobs (both after_run and on_error)
@@ -179,7 +179,7 @@ export class ScheduleExecutor {
       }
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
-      logger.error(`Error in ${agent.name}/${scheduleName}: ${err.message}`);
+      logger.error(`Error in ${agent.qualifiedName}/${scheduleName}: ${err.message}`);
       // Don't re-throw - we want to continue running the fleet even if a job fails
     }
   }
@@ -328,7 +328,7 @@ export class ScheduleExecutor {
       event,
       job: {
         id: jobMetadata.id,
-        agentId: agent.name,
+        agentId: agent.qualifiedName,
         scheduleName: scheduleName ?? jobMetadata.schedule ?? undefined,
         startedAt: jobMetadata.started_at,
         completedAt,
@@ -340,7 +340,7 @@ export class ScheduleExecutor {
         error: errorMessage,
       },
       agent: {
-        id: agent.name,
+        id: agent.qualifiedName,
         name: agent.identity?.name ?? agent.name,
       },
     };
