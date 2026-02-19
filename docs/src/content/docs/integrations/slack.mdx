@@ -9,7 +9,7 @@ Connect your herdctl agents to Slack, allowing users to interact with AI agents 
 
 ## Overview
 
-herdctl uses a **shared-connector architecture** for Slack. A single Slack App (one bot token) serves your entire workspace, with individual channels routed to specific agents. This is different from the [Discord integration](/integrations/discord/) where each agent has its own bot.
+herdctl uses a **per-agent connector model** for Slack, matching the [Discord integration](/integrations/discord/) architecture. Each agent gets its own `SlackConnector` instance, but all agents share the same Slack App identity (one bot token for the whole workspace). Different channels are assigned to different agents.
 
 <CardGrid>
   <Card title="Single Bot" icon="rocket">
@@ -44,8 +44,8 @@ All channels use the same bot identity. When a user messages or @mentions the bo
 
 | Aspect | Slack | Discord |
 |--------|-------|---------|
-| **Bots per workspace** | 1 shared bot | 1 bot per agent |
-| **Token model** | Bot token + App token (shared) | Separate bot token per agent |
+| **Bots per workspace** | 1 shared bot identity, 1 connector per agent | 1 bot per agent |
+| **Token model** | Bot token + App token (shared across agents) | Separate bot token per agent |
 | **Connection** | Socket Mode (WebSocket) | Gateway (WebSocket) |
 | **Channel structure** | Flat channels | Guild → Channels |
 | **Commands** | Prefix commands (`!help`) | Slash commands (`/help`) |
@@ -546,11 +546,11 @@ Use `!reset` when:
 
 ## Multiple Agents in One Workspace
 
-Unlike Discord (where each agent has its own bot), Slack uses a **single bot** for all agents. Different agents are assigned to different channels.
+Like Discord, Slack creates a separate connector for each agent internally. However, all agents share the **same Slack App identity** (single bot token). Different agents are assigned to different channels.
 
 ### Channel-to-Agent Routing
 
-Each channel maps to exactly one agent. When a message arrives, herdctl looks up which agent owns that channel and routes the message accordingly.
+Each channel maps to exactly one agent. Each agent's connector manages its own channels directly, so messages are handled by the correct agent without centralized routing.
 
 ```yaml
 # agents/support-agent.yaml

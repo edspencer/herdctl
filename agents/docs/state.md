@@ -1,7 +1,7 @@
 ---
-last_checked_commit: 6b09166
-last_run: "2026-02-19T19:56:48Z"
-docs_gaps_found: 2
+last_checked_commit: 4919782
+last_run: "2026-02-19T20:45:00Z"
+docs_gaps_found: 5
 branches_created: []
 status: completed
 ---
@@ -19,9 +19,9 @@ incremental reviews that analyze only new commits since the last check.
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Last checked commit | 6b09166 | chore: version packages (#50) |
-| Last run | 2026-02-19T19:56:48Z | First seeded run (manual, batch 1 of 4) |
-| Gaps found (last run) | 2 | Scheduling troubleshooting fix, Slack events docs |
+| Last checked commit | 4919782 | Extract shared chat infrastructure into @herdctl/chat (#67) |
+| Last run | 2026-02-19T20:45:00Z | Seeded run (manual, batch 2 of 4) |
+| Gaps found (last run) | 5 | CLI flags, env vars, Slack architecture, chat pkg, AgentInfo type |
 | Branches created | None | Changes on docs/audit-first-run branch |
 
 ---
@@ -31,6 +31,7 @@ incremental reviews that analyze only new commits since the last check.
 | Date | Commits Analyzed | Gaps Found | Action | Branch |
 |------|-----------------|------------|--------|--------|
 | 2026-02-19 | 10 | 2 | created-branch | docs/audit-first-run |
+| 2026-02-19 | 10 | 5 | updated-docs | docs/audit-first-run |
 
 ---
 
