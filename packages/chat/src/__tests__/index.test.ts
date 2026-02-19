@@ -11,6 +11,11 @@ import {
   isSessionManagerError,
   createInitialSessionState,
   createChannelSession,
+  extractToolUseBlocks,
+  extractToolResults,
+  extractToolResultContent,
+  getToolInputSummary,
+  TOOL_EMOJIS,
 } from "../index.js";
 
 describe("@herdctl/chat", () => {
@@ -36,5 +41,13 @@ describe("@herdctl/chat", () => {
   it("exports factory functions", () => {
     expect(createInitialSessionState).toBeDefined();
     expect(createChannelSession).toBeDefined();
+  });
+
+  it("exports tool parsing utilities", () => {
+    expect(extractToolUseBlocks).toBeDefined();
+    expect(extractToolResults).toBeDefined();
+    expect(extractToolResultContent).toBeDefined();
+    expect(getToolInputSummary).toBeDefined();
+    expect(TOOL_EMOJIS).toBeDefined();
   });
 });

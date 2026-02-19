@@ -196,7 +196,23 @@ export class WebSocketHandler {
               chunk,
             },
           });
-        }
+        },
+        async (toolCall) => {
+          // Stream tool call results back to the client
+          this.sendToClient(client, {
+            type: "chat:tool_call",
+            payload: {
+              agentName,
+              sessionId,
+              jobId,
+              toolName: toolCall.toolName,
+              inputSummary: toolCall.inputSummary,
+              output: toolCall.output,
+              isError: toolCall.isError,
+              durationMs: toolCall.durationMs,
+            },
+          });
+        },
       );
 
       jobId = result.jobId;

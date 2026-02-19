@@ -5,7 +5,7 @@
  */
 
 import type { StateCreator } from "zustand";
-import type { ChatSession, ChatMessage } from "../lib/types";
+import type { ChatSession, ChatMessage, ChatToolCall } from "../lib/types";
 import {
   fetchChatSessions,
   fetchChatSession,
@@ -60,6 +60,8 @@ export interface ChatActions {
   completeStreaming: () => void;
   /** Add a user message immediately to the messages array */
   addUserMessage: (content: string) => void;
+  /** Add a tool call message to the conversation */
+  addToolCallMessage: (toolCall: ChatToolCall) => void;
   /** Set chat error state */
   setChatError: (error: string | null) => void;
   /** Fetch recent sessions for all agents (sidebar display) */
@@ -264,6 +266,19 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (
       chatMessages: [...state.chatMessages, userMessage],
       chatStreaming: true, // Start streaming state immediately
       chatStreamingContent: "",
+    }));
+  },
+
+  addToolCallMessage: (toolCall: ChatToolCall) => {
+    const toolMessage: ChatMessage = {
+      role: "tool",
+      content: toolCall.output,
+      timestamp: new Date().toISOString(),
+      toolCall,
+    };
+
+    set((state) => ({
+      chatMessages: [...state.chatMessages, toolMessage],
     }));
   },
 

@@ -56,6 +56,7 @@ export function useWebSocket() {
   const appendOutput = useStore((state) => state.appendOutput);
   const appendStreamingChunk = useStore((state) => state.appendStreamingChunk);
   const completeStreaming = useStore((state) => state.completeStreaming);
+  const addToolCallMessage = useStore((state) => state.addToolCallMessage);
   const setChatError = useStore((state) => state.setChatError);
   const updateScheduleFromWS = useStore((state) => state.updateScheduleFromWS);
   const addToast = useStore((state) => state.addToast);
@@ -125,6 +126,17 @@ export function useWebSocket() {
 
         case "chat:complete": {
           completeStreaming();
+          break;
+        }
+
+        case "chat:tool_call": {
+          addToolCallMessage({
+            toolName: message.payload.toolName,
+            inputSummary: message.payload.inputSummary,
+            output: message.payload.output,
+            isError: message.payload.isError,
+            durationMs: message.payload.durationMs,
+          });
           break;
         }
 

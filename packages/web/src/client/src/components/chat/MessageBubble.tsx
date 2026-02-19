@@ -1,10 +1,12 @@
 /**
  * MessageBubble component
  *
- * Displays a single chat message with appropriate styling for user vs assistant.
- * User messages are right-aligned, assistant messages use serif font with markdown.
+ * Displays a single chat message with appropriate styling for user, assistant, or tool call.
+ * User messages are right-aligned, assistant messages use serif font with markdown,
+ * tool call messages show collapsible tool output blocks.
  */
 
+import { useState } from "react";
 import type { ChatMessage } from "../../lib/types";
 import { MarkdownRenderer } from "../agent/MarkdownRenderer";
 
@@ -45,11 +47,115 @@ function formatTimestamp(timestamp: string): string {
   });
 }
 
+/**
+ * Format duration in milliseconds to a human-readable string
+ */
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+}
+
+/** Tool name to emoji mapping */
+const TOOL_EMOJIS: Record<string, string> = {
+  Bash: "\u{1F4BB}",
+  bash: "\u{1F4BB}",
+  Read: "\u{1F4C4}",
+  Write: "\u{270F}\u{FE0F}",
+  Edit: "\u{270F}\u{FE0F}",
+  Glob: "\u{1F50D}",
+  Grep: "\u{1F50D}",
+  WebFetch: "\u{1F310}",
+  WebSearch: "\u{1F310}",
+};
+
+// =============================================================================
+// Tool Call Bubble
+// =============================================================================
+
+function ToolCallBubble({ message }: { message: ChatMessage }) {
+  const [expanded, setExpanded] = useState(false);
+  const toolCall = message.toolCall!;
+  const emoji = TOOL_EMOJIS[toolCall.toolName] ?? "\u{1F527}";
+
+  const outputPreviewLength = 200;
+  const hasLongOutput = toolCall.output.length > outputPreviewLength;
+  const displayOutput = expanded
+    ? toolCall.output
+    : toolCall.output.substring(0, outputPreviewLength) + (hasLongOutput ? "..." : "");
+
+  return (
+    <div className="flex flex-col items-start animate-[fadeSlideIn_150ms_ease-out]">
+      <div
+        className={`max-w-[85%] px-3 py-2 rounded-lg border ${
+          toolCall.isError
+            ? "border-red-500/30 bg-red-500/5"
+            : "border-herd-border bg-herd-hover"
+        }`}
+      >
+        {/* Tool header */}
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center gap-1.5 w-full text-left"
+        >
+          <span className="text-xs">{emoji}</span>
+          <span className="text-xs font-medium text-herd-fg">
+            {toolCall.toolName}
+          </span>
+          {toolCall.isError && (
+            <span className="text-[10px] text-red-500 font-medium">ERROR</span>
+          )}
+          {toolCall.durationMs !== undefined && (
+            <span className="text-[10px] text-herd-muted ml-auto">
+              {formatDuration(toolCall.durationMs)}
+            </span>
+          )}
+          <span className="text-[10px] text-herd-muted">
+            {expanded ? "\u25B2" : "\u25BC"}
+          </span>
+        </button>
+
+        {/* Input summary */}
+        {toolCall.inputSummary && (
+          <div className="mt-1">
+            <code className="text-[11px] text-herd-muted break-all">
+              {toolCall.inputSummary}
+            </code>
+          </div>
+        )}
+
+        {/* Output (collapsed by default for long output) */}
+        {(expanded || !hasLongOutput) && toolCall.output.trim().length > 0 && (
+          <pre className="mt-1.5 text-[11px] text-herd-fg/80 bg-herd-bg rounded px-2 py-1.5 overflow-x-auto max-h-60 overflow-y-auto whitespace-pre-wrap break-all">
+            {displayOutput}
+          </pre>
+        )}
+
+        {/* Collapsed preview for long output */}
+        {!expanded && hasLongOutput && toolCall.output.trim().length > 0 && (
+          <div className="mt-1.5 text-[11px] text-herd-muted">
+            {(toolCall.output.length / 1000).toFixed(1)}k chars
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // =============================================================================
 // Component
 // =============================================================================
 
 export function MessageBubble({ message, isStreaming = false }: MessageBubbleProps) {
+  // Tool call messages get their own rendering
+  if (message.role === "tool" && message.toolCall) {
+    return <ToolCallBubble message={message} />;
+  }
+
   const isUser = message.role === "user";
 
   return (

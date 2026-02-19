@@ -37,6 +37,7 @@ export {
   AgentChatSchema,
   AgentWorkingDirectorySchema,
   // Agent Chat shared schemas
+  ChatOutputSchema,
   ChatDMSchema,
   // Agent Chat Discord schemas
   DiscordPresenceSchema,
@@ -88,6 +89,7 @@ export {
   type AgentChat,
   type AgentWorkingDirectory,
   // Agent Chat shared types
+  type ChatOutput,
   type ChatDM,
   // Agent Chat Discord types
   type DiscordPresence,

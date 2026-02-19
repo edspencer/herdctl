@@ -213,6 +213,34 @@ export interface ChatCompleteMessage {
 }
 
 /**
+ * Chat tool call message
+ *
+ * Server sends this when a tool call result is received during chat.
+ * Contains structured data for the client to render tool calls inline.
+ */
+export interface ChatToolCallMessage {
+  type: "chat:tool_call";
+  payload: {
+    /** Name of the agent */
+    agentName: string;
+    /** Session ID for the chat conversation */
+    sessionId: string;
+    /** Job ID for tracking the execution */
+    jobId: string;
+    /** Tool name (e.g., "Bash", "Read", "Write") */
+    toolName: string;
+    /** Human-readable summary of tool input */
+    inputSummary?: string;
+    /** Tool output (may be truncated) */
+    output: string;
+    /** Whether the tool returned an error */
+    isError: boolean;
+    /** Duration in milliseconds */
+    durationMs?: number;
+  };
+}
+
+/**
  * Chat error message
  *
  * Server sends this when a chat error occurs.
@@ -244,6 +272,7 @@ export type ServerMessage =
   | PongMessage
   | ChatResponseMessage
   | ChatCompleteMessage
+  | ChatToolCallMessage
   | ChatErrorMessage;
 
 // =============================================================================

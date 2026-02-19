@@ -28,6 +28,10 @@ import {
   extractMessageContent,
   splitMessage,
   ChatSessionManager,
+  extractToolUseBlocks,
+  extractToolResults,
+  getToolInputSummary,
+  TOOL_EMOJIS,
   type ChatConnectorLogger,
 } from "@herdctl/chat";
 
@@ -433,6 +437,14 @@ export class SlackManager implements IChatManager {
       injectedMcpServers = { [fileSenderDef.name]: fileSenderDef };
     }
 
+    // Get output configuration (with defaults)
+    const outputConfig = agent.chat?.slack?.output ?? {
+      tool_results: true,
+      tool_result_max_length: 900,
+      system_status: true,
+      errors: true,
+    };
+
     // Create streaming responder for incremental message delivery
     const streamer = new StreamingResponder({
       reply: (content: string) => event.reply(markdownToMrkdwn(content)),
@@ -448,6 +460,9 @@ export class SlackManager implements IChatManager {
     let processingStopped = false;
 
     try {
+      // Track pending tool_use blocks so we can pair them with results
+      const pendingToolUses = new Map<string, { name: string; input?: unknown; startTime: number }>();
+
       // Execute job via FleetManager.trigger() through the context
       // Pass resume option for conversation continuity
       // The onMessage callback streams output incrementally to Slack
@@ -465,6 +480,43 @@ export class SlackManager implements IChatManager {
             if (content) {
               // Each assistant message is a complete turn - send immediately
               await streamer.addMessageAndSend(content);
+            }
+
+            // Track tool_use blocks for pairing with results later
+            const toolUseBlocks = extractToolUseBlocks(sdkMessage);
+            for (const block of toolUseBlocks) {
+              if (block.id) {
+                pendingToolUses.set(block.id, {
+                  name: block.name,
+                  input: block.input,
+                  startTime: Date.now(),
+                });
+              }
+            }
+          }
+
+          // Send tool results as Slack messages
+          if (message.type === "user" && outputConfig.tool_results) {
+            const userMessage = message as { type: string; message?: { content?: unknown }; tool_use_result?: unknown };
+            const toolResultsList = extractToolResults(userMessage);
+            for (const toolResult of toolResultsList) {
+              // Look up the matching tool_use for name, input, and timing
+              const toolUse = toolResult.toolUseId
+                ? pendingToolUses.get(toolResult.toolUseId)
+                : undefined;
+              if (toolResult.toolUseId) {
+                pendingToolUses.delete(toolResult.toolUseId);
+              }
+
+              const formatted = formatToolResultForSlack(
+                toolUse ?? null,
+                toolResult,
+                outputConfig.tool_result_max_length,
+              );
+
+              // Flush any buffered text before sending tool result to preserve ordering
+              await streamer.flush();
+              await event.reply(formatted);
             }
           }
         },
@@ -651,4 +703,72 @@ export class SlackManager implements IChatManager {
 
     return agent.working_directory.root;
   }
+}
+
+// =============================================================================
+// Tool Result Formatting
+// =============================================================================
+
+/**
+ * Format a tool result for display in Slack
+ *
+ * Uses Slack mrkdwn formatting to present tool name, input summary,
+ * duration, and truncated output in a readable format.
+ */
+function formatToolResultForSlack(
+  toolUse: { name: string; input?: unknown; startTime: number } | null,
+  toolResult: { output: string; isError: boolean },
+  maxOutputChars?: number,
+): string {
+  const toolName = toolUse?.name ?? "Tool";
+  const emoji = TOOL_EMOJIS[toolName] ?? "\u{1F527}";
+  const isError = toolResult.isError;
+
+  const parts: string[] = [];
+
+  // Title line
+  parts.push(`${emoji} *${toolName}*${isError ? " \u{274C}" : ""}`);
+
+  // Input summary
+  if (toolUse) {
+    const inputSummary = getToolInputSummary(toolUse.name, toolUse.input);
+    if (inputSummary) {
+      if (toolName === "Bash" || toolName === "bash") {
+        parts.push(`\`> ${inputSummary}\``);
+      } else {
+        parts.push(`\`${inputSummary}\``);
+      }
+    }
+  }
+
+  // Duration
+  if (toolUse) {
+    const durationMs = Date.now() - toolUse.startTime;
+    parts.push(`_${formatDurationMs(durationMs)}_`);
+  }
+
+  // Truncated output
+  const trimmedOutput = toolResult.output.trim();
+  if (trimmedOutput.length > 0) {
+    const maxChars = maxOutputChars ?? 900;
+    let outputText = trimmedOutput;
+    if (outputText.length > maxChars) {
+      outputText = outputText.substring(0, maxChars) + `\n... (${trimmedOutput.length.toLocaleString()} chars total)`;
+    }
+    parts.push(`\`\`\`${outputText}\`\`\``);
+  }
+
+  return parts.join("\n");
+}
+
+/**
+ * Format duration in milliseconds to a human-readable string
+ */
+function formatDurationMs(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
 }
