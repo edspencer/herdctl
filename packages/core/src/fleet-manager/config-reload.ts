@@ -112,7 +112,7 @@ export class ConfigReload {
     // Build the reload payload
     const payload: ConfigReloadedPayload = {
       agentCount: newConfig.agents.length,
-      agentNames: newConfig.agents.map((a) => a.name),
+      agentNames: newConfig.agents.map((a) => a.qualifiedName),
       configPath: newConfig.configPath,
       changes,
       timestamp,
@@ -153,16 +153,17 @@ export function computeConfigChanges(
   const oldAgents = oldConfig?.agents ?? [];
   const newAgents = newConfig.agents;
 
-  const oldAgentNames = new Set(oldAgents.map((a) => a.name));
-  const newAgentNames = new Set(newAgents.map((a) => a.name));
+  // Use qualifiedName as the diff key to support nested fleet agents
+  const oldAgentMap = new Map(oldAgents.map((a) => [a.qualifiedName, a]));
+  const newAgentMap = new Map(newAgents.map((a) => [a.qualifiedName, a]));
 
   // Find added agents
   for (const agent of newAgents) {
-    if (!oldAgentNames.has(agent.name)) {
+    if (!oldAgentMap.has(agent.qualifiedName)) {
       changes.push({
         type: "added",
         category: "agent",
-        name: agent.name,
+        name: agent.qualifiedName,
         details: agent.description,
       });
 
@@ -172,7 +173,7 @@ export function computeConfigChanges(
           changes.push({
             type: "added",
             category: "schedule",
-            name: `${agent.name}/${scheduleName}`,
+            name: `${agent.qualifiedName}/${scheduleName}`,
           });
         }
       }
@@ -181,11 +182,11 @@ export function computeConfigChanges(
 
   // Find removed agents
   for (const agent of oldAgents) {
-    if (!newAgentNames.has(agent.name)) {
+    if (!newAgentMap.has(agent.qualifiedName)) {
       changes.push({
         type: "removed",
         category: "agent",
-        name: agent.name,
+        name: agent.qualifiedName,
       });
 
       // Also mark all schedules as removed
@@ -194,7 +195,7 @@ export function computeConfigChanges(
           changes.push({
             type: "removed",
             category: "schedule",
-            name: `${agent.name}/${scheduleName}`,
+            name: `${agent.qualifiedName}/${scheduleName}`,
           });
         }
       }
@@ -203,7 +204,7 @@ export function computeConfigChanges(
 
   // Find modified agents and schedules
   for (const newAgent of newAgents) {
-    const oldAgent = oldAgents.find((a) => a.name === newAgent.name);
+    const oldAgent = oldAgentMap.get(newAgent.qualifiedName);
     if (!oldAgent) {
       continue; // Already handled as "added"
     }
@@ -214,7 +215,7 @@ export function computeConfigChanges(
       changes.push({
         type: "modified",
         category: "agent",
-        name: newAgent.name,
+        name: newAgent.qualifiedName,
         details: agentModified,
       });
     }
@@ -247,13 +248,16 @@ export function computeScheduleChanges(
     newAgent.schedules ? Object.keys(newAgent.schedules) : []
   );
 
+  // Use qualifiedName for schedule change names
+  const agentKey = newAgent.qualifiedName;
+
   // Added schedules
   for (const scheduleName of newScheduleNames) {
     if (!oldScheduleNames.has(scheduleName)) {
       changes.push({
         type: "added",
         category: "schedule",
-        name: `${newAgent.name}/${scheduleName}`,
+        name: `${agentKey}/${scheduleName}`,
       });
     }
   }
@@ -264,7 +268,7 @@ export function computeScheduleChanges(
       changes.push({
         type: "removed",
         category: "schedule",
-        name: `${newAgent.name}/${scheduleName}`,
+        name: `${agentKey}/${scheduleName}`,
       });
     }
   }
@@ -279,7 +283,7 @@ export function computeScheduleChanges(
         changes.push({
           type: "modified",
           category: "schedule",
-          name: `${newAgent.name}/${scheduleName}`,
+          name: `${agentKey}/${scheduleName}`,
           details: getScheduleModificationDetails(oldSchedule, newSchedule),
         });
       }
