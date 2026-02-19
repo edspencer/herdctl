@@ -153,7 +153,7 @@ export class Scheduler {
     this.agents = agents;
     this.status = "running";
     this.abortController = new AbortController();
-    this.startedAt = new Date().toISOString();
+    this.startedAt = new Date(Date.now()).toISOString();
     this.checkCount = 0;
     this.triggerCount = 0;
     this.runningSchedules.clear();
@@ -289,7 +289,7 @@ export class Scheduler {
    */
   private async checkAllSchedules(): Promise<void> {
     this.checkCount++;
-    this.lastCheckAt = new Date().toISOString();
+    this.lastCheckAt = new Date(Date.now()).toISOString();
 
     for (const agent of this.agents) {
       if (!agent.schedules) {
@@ -552,7 +552,7 @@ export class Scheduler {
       scheduleName,
       {
         status: "running",
-        last_run_at: new Date().toISOString(),
+        last_run_at: new Date(Date.now()).toISOString(),
       },
       { logger: stateLogger }
     );
@@ -603,9 +603,9 @@ export class Scheduler {
       // Calculate next trigger time based on schedule type
       let nextTrigger: Date | null = null;
       if (schedule.type === "interval" && schedule.interval) {
-        nextTrigger = calculateNextTrigger(new Date(), schedule.interval);
+        nextTrigger = calculateNextTrigger(new Date(Date.now()), schedule.interval);
       } else if (schedule.type === "cron" && schedule.expression) {
-        nextTrigger = calculateNextCronTrigger(schedule.expression);
+        nextTrigger = calculateNextCronTrigger(schedule.expression, new Date(Date.now()));
       }
 
       // Update schedule state to idle with next run time
