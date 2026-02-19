@@ -1,0 +1,6 @@
+version: 1
+fleet:
+  name: project-a
+agents:
+  - path: ./agents/security-auditor.yaml
+  - path: ./agents/engineer.yaml

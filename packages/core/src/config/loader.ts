@@ -18,13 +18,16 @@ import { ZodError } from "zod";
 import {
   FleetConfigSchema,
   AgentConfigSchema,
+  AGENT_NAME_PATTERN,
   type FleetConfig,
   type AgentConfig,
 } from "./schema.js";
 import { ConfigError, FileReadError, SchemaValidationError } from "./parser.js";
 import { mergeAgentConfig, deepMerge, type ExtendedDefaults } from "./merge.js";
-import { interpolateConfig, type InterpolateOptions } from "./interpolate.js";
+import { interpolateConfig } from "./interpolate.js";
 import { createLogger } from "../utils/logger.js";
+
+const logger = createLogger("config");
 
 // =============================================================================
 // Constants
@@ -71,6 +74,54 @@ export class AgentLoadError extends ConfigError {
     this.name = "AgentLoadError";
     this.agentPath = agentPath;
     this.agentName = agentName;
+    this.cause = cause;
+  }
+}
+
+/**
+ * Error thrown when a fleet composition cycle is detected
+ */
+export class FleetCycleError extends ConfigError {
+  public readonly pathChain: string[];
+
+  constructor(pathChain: string[]) {
+    super(
+      `Fleet composition cycle detected: ${pathChain.join(" -> ")}`
+    );
+    this.name = "FleetCycleError";
+    this.pathChain = pathChain;
+  }
+}
+
+/**
+ * Error thrown when two sub-fleets at the same level resolve to the same name
+ */
+export class FleetNameCollisionError extends ConfigError {
+  public readonly fleetName: string;
+  public readonly parentConfigPath: string;
+
+  constructor(fleetName: string, parentConfigPath: string) {
+    super(
+      `Fleet name collision: two sub-fleets resolve to the name '${fleetName}' ` +
+        `in '${parentConfigPath}'. Use an explicit 'name' field on one of the ` +
+        `fleet references to disambiguate.`
+    );
+    this.name = "FleetNameCollisionError";
+    this.fleetName = fleetName;
+    this.parentConfigPath = parentConfigPath;
+  }
+}
+
+/**
+ * Error thrown when a sub-fleet fails to load
+ */
+export class FleetLoadError extends ConfigError {
+  public readonly fleetPath: string;
+
+  constructor(fleetPath: string, cause: Error) {
+    super(`Failed to load sub-fleet '${fleetPath}': ${cause.message}`);
+    this.name = "FleetLoadError";
+    this.fleetPath = fleetPath;
     this.cause = cause;
   }
 }
@@ -369,6 +420,321 @@ function resolveAgentPath(agentPath: string, fleetConfigDir: string): string {
 }
 
 // =============================================================================
+// Internal Helpers
+// =============================================================================
+
+/**
+ * Options passed through the recursive fleet loading process
+ */
+interface FleetLoadContext {
+  env: Record<string, string | undefined>;
+  interpolate: boolean;
+  mergeDefaults: boolean;
+}
+
+/**
+ * Normalize working_directory in fleet defaults by resolving relative paths
+ * relative to the fleet config directory.
+ */
+function normalizeFleetDefaultsWorkingDirectory(
+  fleetConfig: FleetConfig,
+  configDir: string
+): void {
+  if (fleetConfig.defaults?.working_directory) {
+    const working_directory = fleetConfig.defaults.working_directory;
+    if (typeof working_directory === "string") {
+      if (!working_directory.startsWith("/")) {
+        fleetConfig.defaults.working_directory = resolve(
+          configDir,
+          working_directory
+        );
+      }
+    } else if (
+      working_directory.root &&
+      !working_directory.root.startsWith("/")
+    ) {
+      working_directory.root = resolve(configDir, working_directory.root);
+    }
+  }
+}
+
+/**
+ * Load and resolve a single agent from a reference, applying defaults and overrides.
+ */
+async function loadAgent(
+  agentRef: { path: string; overrides?: Record<string, unknown> },
+  configDir: string,
+  fleetDefaults: ExtendedDefaults | undefined,
+  fleetPath: string[],
+  ctx: FleetLoadContext
+): Promise<ResolvedAgent> {
+  const agentPath = resolveAgentPath(agentRef.path, configDir);
+
+  // Read agent config file
+  let agentContent: string;
+  try {
+    agentContent = await readFile(agentPath, "utf-8");
+  } catch (error) {
+    throw new AgentLoadError(
+      agentRef.path,
+      new FileReadError(agentPath, error instanceof Error ? error : undefined)
+    );
+  }
+
+  // Parse and validate agent config
+  let agentConfig: AgentConfig;
+  try {
+    agentConfig = parseAgentYaml(agentContent, agentPath);
+  } catch (error) {
+    throw new AgentLoadError(
+      agentRef.path,
+      error instanceof Error ? error : new Error(String(error))
+    );
+  }
+
+  // Interpolate environment variables in agent config
+  if (ctx.interpolate) {
+    agentConfig = interpolateConfig(agentConfig, { env: ctx.env });
+  }
+
+  // Merge fleet defaults into agent config
+  if (ctx.mergeDefaults && fleetDefaults) {
+    agentConfig = mergeAgentConfig(fleetDefaults, agentConfig);
+  }
+
+  // Apply per-agent overrides from the fleet config
+  if (agentRef.overrides) {
+    agentConfig = deepMerge(
+      agentConfig as Record<string, unknown>,
+      agentRef.overrides as Record<string, unknown>
+    ) as AgentConfig;
+  }
+
+  // Normalize working_directory: default to agent config directory, resolve relative paths
+  const agentConfigDir = dirname(agentPath);
+  if (!agentConfig.working_directory) {
+    agentConfig.working_directory = agentConfigDir;
+  } else if (typeof agentConfig.working_directory === "string") {
+    if (!agentConfig.working_directory.startsWith("/")) {
+      agentConfig.working_directory = resolve(
+        agentConfigDir,
+        agentConfig.working_directory
+      );
+    }
+  } else if (agentConfig.working_directory.root) {
+    if (!agentConfig.working_directory.root.startsWith("/")) {
+      agentConfig.working_directory.root = resolve(
+        agentConfigDir,
+        agentConfig.working_directory.root
+      );
+    }
+  }
+
+  // Compute qualified name
+  const qualifiedName =
+    fleetPath.length > 0
+      ? fleetPath.join(".") + "." + agentConfig.name
+      : agentConfig.name;
+
+  return {
+    ...agentConfig,
+    configPath: agentPath,
+    fleetPath: [...fleetPath],
+    qualifiedName,
+  };
+}
+
+/**
+ * Resolve the name for a sub-fleet using the priority order:
+ * 1. Parent's explicit name on the fleet reference (highest priority)
+ * 2. Sub-fleet's own fleet.name
+ * 3. Directory name derived from the config file's directory (fallback)
+ */
+function resolveFleetName(
+  parentName: string | undefined,
+  subFleetConfig: FleetConfig,
+  subFleetConfigPath: string
+): string {
+  if (parentName) {
+    return parentName;
+  }
+  if (subFleetConfig.fleet?.name) {
+    return subFleetConfig.fleet.name;
+  }
+  // Derive from directory name
+  const configDir = dirname(subFleetConfigPath);
+  return configDir.split("/").pop() || "unnamed";
+}
+
+// =============================================================================
+// Recursive Fleet Loading
+// =============================================================================
+
+/**
+ * Process a fleet config's sub-fleets and agents, returning a flat list of
+ * resolved agents. This is the core recursive descent function.
+ *
+ * @param fleetConfig - The already-parsed fleet config
+ * @param configDir - The directory containing this fleet config
+ * @param configPath - Absolute path to this fleet config file
+ * @param fleetPath - Fleet hierarchy path for agents at THIS level
+ * @param visitedPaths - Set of absolute paths already visited (cycle detection)
+ * @param parentDefaults - Effective defaults for this fleet's agents
+ * @param ctx - The fleet load context
+ * @param pathChain - Ordered list of config paths for cycle error messages
+ */
+async function processFleetSubFleets(
+  fleetConfig: FleetConfig,
+  configDir: string,
+  configPath: string,
+  fleetPath: string[],
+  visitedPaths: Set<string>,
+  effectiveDefaults: ExtendedDefaults | undefined,
+  ctx: FleetLoadContext,
+  pathChain: string[]
+): Promise<ResolvedAgent[]> {
+  const agents: ResolvedAgent[] = [];
+  const fleetRefs = fleetConfig.fleets;
+
+  if (fleetRefs.length === 0) {
+    return agents;
+  }
+
+  // Track fleet names at this level for collision detection
+  const fleetNamesAtLevel = new Map<string, string>();
+
+  for (const fleetRef of fleetRefs) {
+    const subFleetAbsPath = resolveAgentPath(fleetRef.path, configDir);
+
+    // Cycle detection
+    if (visitedPaths.has(subFleetAbsPath)) {
+      throw new FleetCycleError([...pathChain, subFleetAbsPath]);
+    }
+
+    // Read and parse sub-fleet config
+    let subFleetContent: string;
+    try {
+      subFleetContent = await readFile(subFleetAbsPath, "utf-8");
+    } catch (error) {
+      throw new FleetLoadError(
+        fleetRef.path,
+        new FileReadError(
+          subFleetAbsPath,
+          error instanceof Error ? error : undefined
+        )
+      );
+    }
+
+    let subFleetConfig: FleetConfig;
+    try {
+      subFleetConfig = parseFleetYaml(subFleetContent, subFleetAbsPath);
+    } catch (error) {
+      throw new FleetLoadError(
+        fleetRef.path,
+        error instanceof Error ? error : new Error(String(error))
+      );
+    }
+
+    if (ctx.interpolate) {
+      subFleetConfig = interpolateConfig(subFleetConfig, { env: ctx.env });
+    }
+
+    // Resolve fleet name using priority order
+    const resolvedName = resolveFleetName(
+      fleetRef.name,
+      subFleetConfig,
+      subFleetAbsPath
+    );
+
+    // Validate fleet name matches agent name pattern (no dots)
+    if (!AGENT_NAME_PATTERN.test(resolvedName)) {
+      throw new ConfigError(
+        `Fleet name '${resolvedName}' is invalid. ` +
+          `Fleet names must start with a letter or number and contain only ` +
+          `letters, numbers, underscores, and hyphens (no dots).`
+      );
+    }
+
+    // Check for fleet name collision at this level
+    if (fleetNamesAtLevel.has(resolvedName)) {
+      throw new FleetNameCollisionError(resolvedName, configPath);
+    }
+    fleetNamesAtLevel.set(resolvedName, subFleetAbsPath);
+
+    // Apply fleet-level overrides from parent's fleets entry
+    if (fleetRef.overrides) {
+      subFleetConfig = deepMerge(
+        subFleetConfig as unknown as Record<string, unknown>,
+        fleetRef.overrides as Record<string, unknown>
+      ) as unknown as FleetConfig;
+    }
+
+    // Suppress sub-fleet web unless parent overrides explicitly set web config
+    const parentOverridesWeb =
+      fleetRef.overrides && "web" in fleetRef.overrides;
+    if (!parentOverridesWeb) {
+      if (subFleetConfig.web) {
+        subFleetConfig.web = { ...subFleetConfig.web, enabled: false };
+      }
+    }
+
+    const subFleetDir = dirname(subFleetAbsPath);
+
+    // Normalize working_directory in sub-fleet defaults
+    normalizeFleetDefaultsWorkingDirectory(subFleetConfig, subFleetDir);
+
+    // Compute effective defaults for sub-fleet agents:
+    // parent effectiveDefaults (gap-filler) + sub-fleet's own defaults
+    let subFleetEffectiveDefaults: ExtendedDefaults | undefined;
+    if (ctx.mergeDefaults) {
+      if (effectiveDefaults && subFleetConfig.defaults) {
+        subFleetEffectiveDefaults = deepMerge(
+          effectiveDefaults as Record<string, unknown>,
+          subFleetConfig.defaults as Record<string, unknown>
+        ) as ExtendedDefaults;
+      } else {
+        subFleetEffectiveDefaults =
+          (subFleetConfig.defaults as ExtendedDefaults) ?? effectiveDefaults;
+      }
+    }
+
+    const subFleetFleetPath = [...fleetPath, resolvedName];
+
+    logger.debug(
+      `Loading sub-fleet '${resolvedName}' from ${subFleetAbsPath}`
+    );
+
+    // Load agents from the sub-fleet
+    for (const agentRef of subFleetConfig.agents) {
+      const agent = await loadAgent(
+        agentRef,
+        subFleetDir,
+        subFleetEffectiveDefaults,
+        subFleetFleetPath,
+        ctx
+      );
+      agents.push(agent);
+    }
+
+    // Mark visited and recurse into sub-fleet's own sub-fleets
+    visitedPaths.add(subFleetAbsPath);
+    const nestedAgents = await processFleetSubFleets(
+      subFleetConfig,
+      subFleetDir,
+      subFleetAbsPath,
+      subFleetFleetPath,
+      visitedPaths,
+      subFleetEffectiveDefaults,
+      ctx,
+      [...pathChain, subFleetAbsPath]
+    );
+    agents.push(...nestedAgents);
+  }
+
+  return agents;
+}
+
+// =============================================================================
 // Main Loading Function
 // =============================================================================
 
@@ -378,10 +744,10 @@ function resolveAgentPath(agentPath: string, fleetConfigDir: string): string {
  * This function:
  * 1. Finds the config file (if not provided, searches up directory tree)
  * 2. Parses and validates the fleet configuration
- * 3. Loads and validates all referenced agent configurations
+ * 3. Recursively loads all referenced sub-fleet and agent configurations
  * 4. Interpolates environment variables (optional)
  * 5. Merges fleet defaults into agent configs (optional)
- * 6. Returns a fully resolved configuration object
+ * 6. Returns a fully resolved configuration with a flat agent list
  *
  * @param configPath - Path to herdctl.yaml, or directory to search from.
  *                     If not provided, searches from current working directory.
@@ -392,6 +758,9 @@ function resolveAgentPath(agentPath: string, fleetConfigDir: string): string {
  * @throws {ConfigError} If YAML syntax is invalid
  * @throws {SchemaValidationError} If configuration fails validation
  * @throws {AgentLoadError} If an agent configuration fails to load
+ * @throws {FleetCycleError} If a fleet composition cycle is detected
+ * @throws {FleetNameCollisionError} If two sub-fleets have the same resolved name
+ * @throws {FleetLoadError} If a sub-fleet fails to load
  *
  * @example
  * ```typescript
@@ -496,108 +865,44 @@ export async function loadConfig(
     fleetConfig = interpolateConfig(fleetConfig, { env });
   }
 
-  // Normalize working_directory in fleet defaults (resolve relative paths relative to fleet config directory)
-  // This ensures fleet-level default working directory paths are resolved consistently before merging into agents
-  if (fleetConfig.defaults?.working_directory) {
-    const working_directory = fleetConfig.defaults.working_directory;
-    if (typeof working_directory === "string") {
-      // Resolve relative string working directory path
-      if (!working_directory.startsWith("/")) {
-        fleetConfig.defaults.working_directory = resolve(
-          configDir,
-          working_directory
-        );
-      }
-    } else if (
-      working_directory.root &&
-      !working_directory.root.startsWith("/")
-    ) {
-      // Resolve relative root in working directory object
-      working_directory.root = resolve(configDir, working_directory.root);
-    }
-  }
+  // Normalize working_directory in fleet defaults
+  normalizeFleetDefaultsWorkingDirectory(fleetConfig, configDir);
 
-  // Load all agent configs
+  const ctx: FleetLoadContext = { env, interpolate, mergeDefaults };
+
+  // Compute effective defaults for the root fleet (just its own defaults)
+  const rootDefaults = mergeDefaults
+    ? (fleetConfig.defaults as ExtendedDefaults) ?? undefined
+    : undefined;
+
+  // Load root-level agents (fleetPath = [], no fleet name prefix)
   const agents: ResolvedAgent[] = [];
 
-  // FleetConfigSchema has default of [], so agents is always defined
-  const agentRefs = fleetConfig.agents;
+  for (const agentRef of fleetConfig.agents) {
+    const agent = await loadAgent(
+      agentRef,
+      configDir,
+      rootDefaults,
+      [], // root fleet agents have empty fleetPath
+      ctx
+    );
+    agents.push(agent);
+  }
 
-  for (const agentRef of agentRefs) {
-    const agentPath = resolveAgentPath(agentRef.path, configDir);
-
-    // Read agent config file
-    let agentContent: string;
-    try {
-      agentContent = await readFile(agentPath, "utf-8");
-    } catch (error) {
-      throw new AgentLoadError(
-        agentRef.path,
-        new FileReadError(agentPath, error instanceof Error ? error : undefined)
-      );
-    }
-
-    // Parse and validate agent config
-    let agentConfig: AgentConfig;
-    try {
-      agentConfig = parseAgentYaml(agentContent, agentPath);
-    } catch (error) {
-      throw new AgentLoadError(
-        agentRef.path,
-        error instanceof Error ? error : new Error(String(error))
-      );
-    }
-
-    // Interpolate environment variables in agent config
-    if (interpolate) {
-      agentConfig = interpolateConfig(agentConfig, { env });
-    }
-
-    // Merge fleet defaults into agent config
-    if (mergeDefaults && fleetConfig.defaults) {
-      agentConfig = mergeAgentConfig(
-        fleetConfig.defaults as ExtendedDefaults,
-        agentConfig
-      );
-    }
-
-    // Apply per-agent overrides from the fleet config
-    if (agentRef.overrides) {
-      agentConfig = deepMerge(
-        agentConfig as Record<string, unknown>,
-        agentRef.overrides as Record<string, unknown>
-      ) as AgentConfig;
-    }
-
-    // Normalize working_directory: default to agent config directory, resolve relative paths
-    const agentConfigDir = dirname(agentPath);
-    if (!agentConfig.working_directory) {
-      // Default: working directory is the directory containing the agent config file
-      agentConfig.working_directory = agentConfigDir;
-    } else if (typeof agentConfig.working_directory === "string") {
-      // If working directory is a relative path, resolve it relative to agent config directory
-      if (!agentConfig.working_directory.startsWith("/")) {
-        agentConfig.working_directory = resolve(
-          agentConfigDir,
-          agentConfig.working_directory
-        );
-      }
-    } else if (agentConfig.working_directory.root) {
-      // If working directory is an object with relative root, resolve root relative to agent config directory
-      if (!agentConfig.working_directory.root.startsWith("/")) {
-        agentConfig.working_directory.root = resolve(
-          agentConfigDir,
-          agentConfig.working_directory.root
-        );
-      }
-    }
-
-    agents.push({
-      ...agentConfig,
-      configPath: agentPath,
-      fleetPath: [],
-      qualifiedName: agentConfig.name,
-    });
+  // Recursively load sub-fleets
+  if (fleetConfig.fleets.length > 0) {
+    const visitedPaths = new Set<string>([resolve(resolvedConfigPath)]);
+    const subFleetAgents = await processFleetSubFleets(
+      fleetConfig,
+      configDir,
+      resolvedConfigPath,
+      [], // root fleet path is empty
+      visitedPaths,
+      rootDefaults,
+      ctx,
+      [resolvedConfigPath]
+    );
+    agents.push(...subFleetAgents);
   }
 
   return {

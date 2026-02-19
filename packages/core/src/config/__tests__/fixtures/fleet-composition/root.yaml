@@ -1,0 +1,12 @@
+version: 1
+fleet:
+  name: all-projects
+web:
+  enabled: true
+  port: 3232
+fleets:
+  - path: ./project-a/herdctl.yaml
+  - path: ./project-b/herdctl.yaml
+    name: renamed-b
+agents:
+  - path: ./agents/monitor.yaml

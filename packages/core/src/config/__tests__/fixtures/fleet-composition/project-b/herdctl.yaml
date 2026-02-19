@@ -1,0 +1,8 @@
+version: 1
+fleet:
+  name: project-b
+web:
+  enabled: true
+  port: 4000
+agents:
+  - path: ./agents/designer.yaml

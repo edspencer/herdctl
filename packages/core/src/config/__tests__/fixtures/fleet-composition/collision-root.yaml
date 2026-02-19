@@ -1,0 +1,7 @@
+version: 1
+fleet:
+  name: collision-root
+fleets:
+  - path: ./collision-a/herdctl.yaml
+  - path: ./collision-b/herdctl.yaml
+agents: []
