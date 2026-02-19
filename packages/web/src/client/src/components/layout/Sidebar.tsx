@@ -187,7 +187,7 @@ function AgentRow({
   onNewChat,
   indent = 0,
 }: AgentRowProps) {
-  const paddingLeft = indent > 0 ? `${indent * 16 + 12}px` : undefined;
+  const paddingLeft = indent > 0 ? `${indent * 16 + 2}px` : undefined;
 
   return (
     <div>
@@ -203,9 +203,6 @@ function AgentRow({
           }`}
           style={paddingLeft ? { paddingLeft } : { paddingLeft: "12px" }}
         >
-          <span
-            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getStatusDotClass(agent.status)}`}
-          />
           <img
             src={getAgentAvatar(agent.name)}
             alt=""
@@ -305,9 +302,6 @@ function FleetSection({
             isExpanded ? "rotate-90" : ""
           }`}
         />
-        <span
-          className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusDotClass}`}
-        />
         <span className="truncate font-semibold uppercase tracking-wide">
           {node.name}
         </span>
@@ -316,9 +310,9 @@ function FleetSection({
         </span>
       </button>
 
-      {/* Expanded content */}
+      {/* Expanded content — left border shows hierarchy */}
       {isExpanded && (
-        <div>
+        <div className="ml-2 border-l-2 border-herd-sidebar-border/60">
           {/* Direct agents in this fleet */}
           {node.agents.map((agent) => (
             <AgentRow
@@ -510,41 +504,48 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
 
       {/* Agent list section (scrollable) */}
       <div className="flex-1 overflow-auto p-2">
-        <div className="space-y-0.5">
-          {/* Fleet-grouped agents */}
-          {fleetNodes.map((node) => (
-            <FleetSection
-              key={node.name}
-              node={node}
-              sidebarSessions={sidebarSessions}
-              currentAgentQualifiedName={currentAgentQualifiedName}
-              activeSessionId={activeSessionId}
-              onNavigate={onNavigate}
-              onNewChat={handleNewChat}
-              expandedFleets={expandedFleets}
-              toggleFleet={toggleFleet}
-            />
-          ))}
+        {/* Fleet-grouped agents — each fleet is a visually distinct group */}
+        {fleetNodes.length > 0 && (
+          <div className="divide-y divide-herd-sidebar-border">
+            {fleetNodes.map((node) => (
+              <div key={node.name} className="py-3 first:pt-0 last:pb-0">
+                <FleetSection
+                  node={node}
+                  sidebarSessions={sidebarSessions}
+                  currentAgentQualifiedName={currentAgentQualifiedName}
+                  activeSessionId={activeSessionId}
+                  onNavigate={onNavigate}
+                  onNewChat={handleNewChat}
+                  expandedFleets={expandedFleets}
+                  toggleFleet={toggleFleet}
+                />
+              </div>
+            ))}
+          </div>
+        )}
 
-          {/* Root-level agents (no fleet grouping) */}
-          {rootAgents.map((agent) => (
-            <AgentRow
-              key={agent.qualifiedName}
-              agent={agent}
-              sessions={sidebarSessions[agent.qualifiedName] ?? []}
-              isActive={currentAgentQualifiedName === agent.qualifiedName}
-              activeSessionId={activeSessionId}
-              onNavigate={onNavigate}
-              onNewChat={handleNewChat}
-            />
-          ))}
+        {/* Root-level agents (no fleet grouping) */}
+        {rootAgents.length > 0 && (
+          <div className="space-y-0.5">
+            {rootAgents.map((agent) => (
+              <AgentRow
+                key={agent.qualifiedName}
+                agent={agent}
+                sessions={sidebarSessions[agent.qualifiedName] ?? []}
+                isActive={currentAgentQualifiedName === agent.qualifiedName}
+                activeSessionId={activeSessionId}
+                onNavigate={onNavigate}
+                onNewChat={handleNewChat}
+              />
+            ))}
+          </div>
+        )}
 
-          {agents.length === 0 && (
-            <p className="text-xs text-herd-sidebar-muted px-3 py-2">
-              No agents configured
-            </p>
-          )}
-        </div>
+        {agents.length === 0 && (
+          <p className="text-xs text-herd-sidebar-muted px-3 py-2">
+            No agents configured
+          </p>
+        )}
       </div>
 
       {/* Navigation section */}
