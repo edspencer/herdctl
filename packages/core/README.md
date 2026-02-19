@@ -99,7 +99,10 @@ For complete API documentation, visit [herdctl.dev](https://herdctl.dev):
 ## Related Packages
 
 - [`herdctl`](https://www.npmjs.com/package/herdctl) - CLI for running agent fleets
+- [`@herdctl/web`](https://www.npmjs.com/package/@herdctl/web) - Web dashboard
 - [`@herdctl/discord`](https://www.npmjs.com/package/@herdctl/discord) - Discord connector
+- [`@herdctl/slack`](https://www.npmjs.com/package/@herdctl/slack) - Slack connector
+- [`@herdctl/chat`](https://www.npmjs.com/package/@herdctl/chat) - Shared chat infrastructure
 
 ## License
 

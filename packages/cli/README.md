@@ -94,7 +94,10 @@ For complete documentation, visit [herdctl.dev](https://herdctl.dev):
 ## Related Packages
 
 - [`@herdctl/core`](https://www.npmjs.com/package/@herdctl/core) - Core library for programmatic fleet management
-- [`@herdctl/discord`](https://www.npmjs.com/package/@herdctl/discord) - Discord connector for chat-based agents
+- [`@herdctl/web`](https://www.npmjs.com/package/@herdctl/web) - Web dashboard
+- [`@herdctl/discord`](https://www.npmjs.com/package/@herdctl/discord) - Discord connector
+- [`@herdctl/slack`](https://www.npmjs.com/package/@herdctl/slack) - Slack connector
+- [`@herdctl/chat`](https://www.npmjs.com/package/@herdctl/chat) - Shared chat infrastructure
 
 ## License
 
