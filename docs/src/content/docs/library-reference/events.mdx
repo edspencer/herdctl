@@ -298,6 +298,93 @@ interface JobForkedPayload {
 
 ---
 
+### Slack Events
+
+Events emitted through the FleetManager when the `@herdctl/slack` integration is active. These events are useful for monitoring Slack message handling, tracking errors, and observing session lifecycle changes.
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `slack:message:handled` | `SlackMessageHandledPayload` | Slack message successfully routed to an agent |
+| `slack:message:error` | `SlackMessageErrorPayload` | Failed to handle a Slack message |
+| `slack:error` | `SlackErrorPayload` | General Slack integration error |
+| `slack:session:lifecycle` | `SlackSessionLifecyclePayload` | Session created, resumed, or reset |
+
+#### SlackMessageHandledPayload
+
+```typescript
+interface SlackMessageHandledPayload {
+  agentName: string;       // Agent that handled the message
+  channelId: string;       // Slack channel ID
+  messageTs: string;       // Slack message timestamp
+  jobId: string;           // Job ID created for this message
+  timestamp: string;       // ISO timestamp
+}
+```
+
+#### SlackMessageErrorPayload
+
+```typescript
+interface SlackMessageErrorPayload {
+  agentName: string;       // Agent that failed to handle the message
+  channelId: string;       // Slack channel ID
+  messageTs: string;       // Slack message timestamp
+  error: string;           // Error message
+  timestamp: string;       // ISO timestamp
+}
+```
+
+#### SlackErrorPayload
+
+```typescript
+interface SlackErrorPayload {
+  agentName: string;       // Agent associated with the error
+  error: string;           // Error message
+  timestamp: string;       // ISO timestamp
+}
+```
+
+#### SlackSessionLifecyclePayload
+
+```typescript
+interface SlackSessionLifecyclePayload {
+  agentName: string;       // Agent name
+  event: 'created' | 'resumed' | 'reset';  // Lifecycle event type
+  channelId: string;       // Slack channel ID
+  sessionId: string;       // Session ID
+  timestamp?: string;      // ISO timestamp
+}
+```
+
+```typescript
+// Monitor Slack message handling
+manager.on('slack:message:handled', (payload) => {
+  console.log(`Slack message in ${payload.channelId} routed to ${payload.agentName}`);
+  console.log(`  Job: ${payload.jobId}`);
+});
+
+// Track Slack errors
+manager.on('slack:message:error', (payload) => {
+  console.error(`Failed to handle Slack message: ${payload.error}`);
+  console.error(`  Channel: ${payload.channelId}, Agent: ${payload.agentName}`);
+});
+
+manager.on('slack:error', (payload) => {
+  console.error(`Slack error for ${payload.agentName}: ${payload.error}`);
+});
+
+// Observe session lifecycle
+manager.on('slack:session:lifecycle', (payload) => {
+  console.log(`Slack session ${payload.event}: ${payload.sessionId}`);
+  console.log(`  Agent: ${payload.agentName}, Channel: ${payload.channelId}`);
+});
+```
+
+<Aside type="note">
+Slack events are only emitted when the `@herdctl/slack` package is installed and a Slack integration is active. The event types are defined in `@herdctl/core` so that any consumer of the FleetManager can subscribe to them without depending on the Slack package directly.
+</Aside>
+
+---
+
 ## Example: Subscribing to Multiple Events
 
 Here's a complete example subscribing to all major events:
@@ -878,6 +965,12 @@ import type {
   JobFailedPayload,
   JobCancelledPayload,
   JobForkedPayload,
+
+  // Slack events
+  SlackMessageHandledPayload,
+  SlackMessageErrorPayload,
+  SlackErrorPayload,
+  SlackSessionLifecyclePayload,
 
   // Supporting types
   JobMetadata,

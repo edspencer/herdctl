@@ -2,24 +2,9 @@
 
 This file provides guidance for Claude Code when working in this repository.
 
-## ⚠️ PRE-MVP PROJECT - NO BACKWARDS COMPATIBILITY
+## ⚠️ LIVE PROJECT - Follow Semver
 
-**This is a pre-MVP project. The following rules MUST be followed:**
-
-1. **NO backwards compatibility** - Do not maintain old APIs, events, or interfaces
-2. **NO deprecation patterns** - Do not mark things as `@deprecated` and keep them around
-3. **NO legacy support** - Remove old code entirely rather than keeping it alongside new code
-4. **NO migration paths** - Just update the code directly; there are no external consumers yet
-5. **Breaking changes are fine** - We have no users to break yet
-
-When refactoring or updating APIs:
-- Delete the old code completely
-- Update all internal usages to the new pattern
-- Do not emit both old and new events "for compatibility"
-- Do not keep old error classes as subclasses of new ones
-- Do not add `@deprecated` JSDoc tags - just remove the code
-
-This directive overrides any instinct to be "safe" with backwards compatibility. We are building fast and will establish stable APIs only when approaching MVP release.
+We are now a live project, so it's important to follow semver properly. Breaking changes require a major version bump.
 
 ---
 

@@ -1,14 +1,14 @@
 ---
-last_checked_commit: 9d3e2a1
-last_run: "not yet run"
-docs_gaps_found: 0
+last_checked_commit: 6b09166
+last_run: "2026-02-19T19:56:48Z"
+docs_gaps_found: 2
 branches_created: []
-status: initialized
+status: completed
 ---
 
 # Documentation Audit State
 
-**Last Updated:** Initial setup
+**Last Updated:** 2026-02-19
 
 This document tracks the state of the documentation audit agent, enabling
 incremental reviews that analyze only new commits since the last check.
@@ -19,22 +19,18 @@ incremental reviews that analyze only new commits since the last check.
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Last checked commit | 9d3e2a1 | Seed commit (feat(web): improve sidebar chat session item readability #85) |
-| Last run | Not yet run | Agent initialized |
-| Gaps found (last run) | 0 | N/A |
-| Branches created | None | No pending documentation PRs |
+| Last checked commit | 6b09166 | chore: version packages (#50) |
+| Last run | 2026-02-19T19:56:48Z | First seeded run (manual, batch 1 of 4) |
+| Gaps found (last run) | 2 | Scheduling troubleshooting fix, Slack events docs |
+| Branches created | None | Changes on docs/audit-first-run branch |
 
 ---
 
 ## Run History
 
-_No history yet - agent has not run._
-
-<!-- Format for history entries:
 | Date | Commits Analyzed | Gaps Found | Action | Branch |
 |------|-----------------|------------|--------|--------|
-| YYYY-MM-DD | N | N | created-pr / no-gaps / skipped | docs/auto-update-YYYY-MM-DD |
--->
+| 2026-02-19 | 10 | 2 | created-branch | docs/audit-first-run |
 
 ---
 

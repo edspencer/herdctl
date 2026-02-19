@@ -99,17 +99,31 @@ schedules:
 
 #### 4. Wrong Schedule Type
 
-The scheduler only processes `interval` type schedules. Cron, webhook, and chat triggers have different execution mechanisms:
+The scheduler processes both `interval` and `cron` type schedules. However, `webhook` and `chat` types are **not** automatically triggered by the scheduler -- they rely on external events (incoming HTTP requests or chat messages).
 
 ```yaml
-# This won't be checked by the interval scheduler
+# These ARE processed by the scheduler
 schedules:
+  my-interval:
+    type: interval
+    interval: "5m"
+    prompt: "Check for updates"
   my-cron:
-    type: cron  # Not processed by interval scheduler
+    type: cron
     expression: "0 9 * * *"
+    prompt: "Run daily report"
+
+# These are NOT processed by the scheduler
+schedules:
+  my-webhook:
+    type: webhook  # Triggered by incoming HTTP requests
+    prompt: "Handle webhook"
+  my-chat:
+    type: chat     # Triggered by chat messages
+    prompt: "Respond to message"
 ```
 
-**Fix**: Use `type: interval` for the scheduler's polling loop, or ensure the appropriate trigger mechanism is running for other types.
+**Fix**: If your schedule is not triggering, verify that you are using `type: interval` or `type: cron`. For `interval` schedules, ensure the `interval` field is set. For `cron` schedules, ensure the `expression` field contains a valid cron expression. Webhook and chat schedules require their respective external trigger mechanisms to be running.
 
 ### Schedule Stuck in "Running" State
 
