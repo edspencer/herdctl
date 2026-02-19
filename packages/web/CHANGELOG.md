@@ -1,5 +1,11 @@
 # @herdctl/web
 
+## 0.3.1
+
+### Patch Changes
+
+- [#93](https://github.com/edspencer/herdctl/pull/93) [`e2dac90`](https://github.com/edspencer/herdctl/commit/e2dac903a90966011957adbda0ee029cbfc9d8ac) Thanks [@edspencer](https://github.com/edspencer)! - Improve sidebar fleet hierarchy visual clarity with divider lines between fleet groups, left border accent on expanded content, and removal of status indicator dots from fleet headers and agent rows
+
 ## 0.3.0
 
 ### Minor Changes
