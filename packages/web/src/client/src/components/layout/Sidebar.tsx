@@ -132,7 +132,7 @@ function AgentSection({
             e.stopPropagation();
             onNewChat(agent.name);
           }}
-          className="flex-shrink-0 p-1.5 mr-1 rounded text-herd-sidebar-muted/50 hover:text-herd-sidebar-fg hover:bg-herd-sidebar-hover transition-colors"
+          className="flex-shrink-0 p-1.5 mr-1 rounded bg-herd-primary/80 text-white hover:bg-herd-primary transition-colors"
           title="New chat"
         >
           <Plus className="w-3.5 h-3.5" />
