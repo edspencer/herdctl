@@ -24,7 +24,7 @@ interface MessageFeedProps {
 // Component
 // =============================================================================
 
-export function MessageFeed({ agentName }: MessageFeedProps) {
+export function MessageFeed(_props: MessageFeedProps) {
   const { chatMessages, chatMessagesLoading, chatStreaming, chatStreamingContent } =
     useChatMessages();
   const feedRef = useRef<HTMLDivElement>(null);

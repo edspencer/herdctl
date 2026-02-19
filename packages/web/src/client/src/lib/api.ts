@@ -206,7 +206,10 @@ export interface PaginatedJobsResponse {
  * GET /api/jobs
  */
 export async function fetchJobs(params?: FetchJobsParams): Promise<PaginatedJobsResponse> {
-  return get<PaginatedJobsResponse>("/api/jobs", params);
+  return get<PaginatedJobsResponse>(
+    "/api/jobs",
+    params as Record<string, string | number | undefined>,
+  );
 }
 
 /**

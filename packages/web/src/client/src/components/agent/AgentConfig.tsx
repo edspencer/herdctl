@@ -47,8 +47,8 @@ function formatScheduleValue(schedule: ScheduleInfo): string {
   if (schedule.interval) {
     return schedule.interval;
   }
-  if (schedule.cron) {
-    return schedule.cron;
+  if (schedule.expression) {
+    return schedule.expression;
   }
   return schedule.type;
 }

@@ -20,7 +20,7 @@ export function ChatView() {
   // Route param `name` now contains the qualified name (e.g., "herdctl.security-auditor")
   const { name: qualifiedName, sessionId } = useParams<{ name: string; sessionId?: string }>();
   const navigate = useNavigate();
-  const { activeChatSessionId, chatError } = useChatMessages();
+  const { chatError } = useChatMessages();
   const { chatSessions } = useChatSessions();
   const { fetchChatMessages, setActiveChatSession, clearChatState, createChatSession } =
     useChatActions();
