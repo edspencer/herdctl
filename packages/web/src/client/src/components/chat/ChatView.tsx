@@ -27,6 +27,7 @@ export function ChatView() {
 
   // Clear active chat session state when leaving the page or changing agents
   // (preserves sidebar sessions so they don't vanish on navigation)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: qualifiedName triggers cleanup on agent change
   useEffect(() => {
     return () => {
       clearActiveChatState();
