@@ -244,11 +244,11 @@ export async function sessionsCommand(options: SessionsOptions): Promise<void> {
         // workspace can be a string or an object with a root property
         const workspace = agent.working_directory;
         if (typeof workspace === "string") {
-          agentWorkspaces.set(agent.name, workspace);
+          agentWorkspaces.set(agent.qualifiedName, workspace);
         } else if (workspace && typeof workspace === "object" && "root" in workspace) {
-          agentWorkspaces.set(agent.name, workspace.root);
+          agentWorkspaces.set(agent.qualifiedName, workspace.root);
         } else {
-          agentWorkspaces.set(agent.name, undefined);
+          agentWorkspaces.set(agent.qualifiedName, undefined);
         }
       }
     } catch {
@@ -310,7 +310,7 @@ async function getAgentWorkspace(
 ): Promise<string | undefined> {
   try {
     const config = await loadConfig(configPath);
-    const agent = config.agents.find((a) => a.name === agentName);
+    const agent = config.agents.find((a) => a.qualifiedName === agentName);
     if (!agent) return undefined;
 
     const workspace = agent.working_directory;

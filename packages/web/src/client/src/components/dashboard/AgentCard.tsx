@@ -150,6 +150,11 @@ export function AgentCard({ agent }: AgentCardProps) {
       {/* Header: Name and Status */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
+          {agent.fleetPath.length > 0 && (
+            <p className="text-[10px] text-herd-muted font-medium uppercase tracking-wide mb-0.5">
+              {agent.fleetPath.join(" / ")}
+            </p>
+          )}
           <h3 className="text-sm font-medium text-herd-fg truncate">
             {agent.name}
           </h3>
@@ -208,14 +213,14 @@ export function AgentCard({ agent }: AgentCardProps) {
       {/* Action buttons */}
       <div className="flex gap-2 pt-1 border-t border-herd-border mt-auto">
         <Link
-          to={`/agents/${agent.name}`}
+          to={`/agents/${encodeURIComponent(agent.qualifiedName)}`}
           className="flex items-center gap-1.5 border border-herd-border hover:bg-herd-hover text-herd-fg rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
         >
           <Eye className="w-3.5 h-3.5" />
           View
         </Link>
         <Link
-          to={`/agents/${agent.name}/chat`}
+          to={`/agents/${encodeURIComponent(agent.qualifiedName)}/chat`}
           className="flex items-center gap-1.5 bg-herd-primary hover:bg-herd-primary-hover text-white rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
         >
           <MessageSquare className="w-3.5 h-3.5" />

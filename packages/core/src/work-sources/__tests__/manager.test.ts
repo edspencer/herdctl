@@ -39,6 +39,8 @@ function createMockAgent(overrides: Partial<ResolvedAgent> = {}): ResolvedAgent 
   return {
     name: "test-agent",
     configPath: "/path/to/agent.yaml",
+    fleetPath: [],
+    qualifiedName: overrides.name ?? "test-agent",
     work_source: {
       type: "github",
       repo: "org/repo",

@@ -99,9 +99,9 @@ export interface IChatManager {
   isInitialized(): boolean;
 
   /**
-   * Get names of all agents with connectors
+   * Get qualified names of all agents with connectors
    *
-   * @returns Array of agent names that have connectors for this platform
+   * @returns Array of agent qualified names that have connectors for this platform
    */
   getConnectorNames(): string[];
 
@@ -115,16 +115,16 @@ export interface IChatManager {
   /**
    * Check if an agent has a connector for this platform
    *
-   * @param agentName - Name of the agent
+   * @param qualifiedName - Qualified name of the agent (e.g., "herdctl.security-auditor")
    * @returns true if the agent has a connector
    */
-  hasAgent(agentName: string): boolean;
+  hasAgent(qualifiedName: string): boolean;
 
   /**
    * Get the state of a connector for a specific agent
    *
-   * @param agentName - Name of the agent
+   * @param qualifiedName - Qualified name of the agent (e.g., "herdctl.security-auditor")
    * @returns The connector state, or undefined if the agent has no connector
    */
-  getState(agentName: string): ChatManagerConnectorState | undefined;
+  getState(qualifiedName: string): ChatManagerConnectorState | undefined;
 }

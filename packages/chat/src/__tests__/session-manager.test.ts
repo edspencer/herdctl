@@ -731,6 +731,33 @@ describe("ChatSessionManager (platform: discord)", () => {
 
       expect(manager.agentName).toBe("my-test-agent");
     });
+
+    it("supports qualified names with dots (fleet composition)", async () => {
+      const qualifiedName = "herdctl.security-auditor";
+      const manager = new ChatSessionManager({
+        platform,
+        agentName: qualifiedName,
+        stateDir: testDir,
+        logger: mockLogger,
+      });
+
+      expect(manager.agentName).toBe(qualifiedName);
+
+      // Create session and verify it works end-to-end
+      const result = await manager.getOrCreateSession("channel-123");
+      expect(result.isNew).toBe(true);
+      expect(result.sessionId).toMatch(new RegExp(`^${platform}-${qualifiedName}-`));
+
+      // Verify state file is written with qualified name
+      const stateFilePath = join(
+        testDir,
+        `${platform}-sessions`,
+        `${qualifiedName}.yaml`
+      );
+      const content = await readFile(stateFilePath, "utf-8");
+      const state = parseYaml(content) as ChatSessionState;
+      expect(state.agentName).toBe(qualifiedName);
+    });
   });
 
   // ===========================================================================

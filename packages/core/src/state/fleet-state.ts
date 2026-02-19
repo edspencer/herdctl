@@ -172,7 +172,7 @@ export type AgentStateUpdates = Partial<AgentState>;
  * If the agent doesn't exist, it will be created with the provided updates.
  *
  * @param stateFilePath - Path to state.yaml file
- * @param agentName - Name of the agent to update
+ * @param agentName - Qualified name of the agent (e.g., "herdctl.security-auditor" or just "my-agent" for root-level)
  * @param updates - Partial AgentState updates to apply
  * @param options - Options for read/write operations
  * @returns The updated FleetState
@@ -259,7 +259,7 @@ export async function initializeFleetState(
  * Remove an agent from the fleet state
  *
  * @param stateFilePath - Path to state.yaml file
- * @param agentName - Name of the agent to remove
+ * @param agentName - Qualified name of the agent to remove
  * @param options - Options for read/write operations
  * @returns The updated FleetState
  */

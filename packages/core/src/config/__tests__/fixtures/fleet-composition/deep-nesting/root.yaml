@@ -1,0 +1,8 @@
+version: 1
+defaults:
+  model: root-model
+  max_turns: 100
+fleets:
+  - path: ./level1/herdctl.yaml
+agents:
+  - path: ./agents/root-agent.yaml

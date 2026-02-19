@@ -1,0 +1,4 @@
+version: 1
+fleets:
+  - path: ./sub-a/herdctl.yaml
+  - path: ./sub-b/herdctl.yaml

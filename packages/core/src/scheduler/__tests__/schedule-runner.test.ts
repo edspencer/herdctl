@@ -68,6 +68,8 @@ function createTestAgent(
 ): ResolvedAgent {
   return {
     name,
+    qualifiedName: name,
+    fleetPath: [],
     configPath: `/fake/path/${name}.yaml`,
     ...overrides,
   } as ResolvedAgent;

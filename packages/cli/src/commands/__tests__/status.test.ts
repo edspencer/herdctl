@@ -38,10 +38,15 @@ const mockFleetStatus = {
   lastError: null,
 };
 
+// Current agent info to return (can be overridden per test)
+let currentAgentInfo: typeof mockAgentInfo;
+
 // Mock AgentInfo data
 const mockAgentInfo = [
   {
     name: "code-reviewer",
+    qualifiedName: "code-reviewer",
+    fleetPath: [] as string[],
     description: "Reviews pull requests",
     status: "running",
     currentJobId: "job-2024-01-15-abc123",
@@ -77,6 +82,8 @@ const mockAgentInfo = [
   },
   {
     name: "issue-triage",
+    qualifiedName: "issue-triage",
+    fleetPath: [] as string[],
     description: "Triages GitHub issues",
     status: "idle",
     currentJobId: null,
@@ -116,9 +123,9 @@ vi.mock("@herdctl/core", async () => {
     constructor() {
       this.initialize = vi.fn().mockResolvedValue(undefined);
       this.getFleetStatus = vi.fn().mockResolvedValue(mockFleetStatus);
-      this.getAgentInfo = vi.fn().mockResolvedValue(mockAgentInfo);
+      this.getAgentInfo = vi.fn().mockImplementation(() => Promise.resolve(currentAgentInfo));
       this.getAgentInfoByName = vi.fn().mockImplementation((name: string) => {
-        const agent = mockAgentInfo.find((a) => a.name === name);
+        const agent = currentAgentInfo.find((a) => a.name === name || a.qualifiedName === name);
         if (!agent) {
           const error = new (actual as { AgentNotFoundError: new (message: string) => Error }).AgentNotFoundError(
             `Agent '${name}' not found`
@@ -170,6 +177,9 @@ describe("statusCommand", () => {
     tempDir = createTempDir();
     originalCwd = process.cwd();
     process.chdir(tempDir);
+
+    // Reset agent info to default for each test
+    currentAgentInfo = mockAgentInfo;
 
     // Capture console output
     consoleLogs = [];
@@ -249,6 +259,70 @@ describe("statusCommand", () => {
       expect(consoleLogs.some((log) => log.includes("code-reviewer"))).toBe(true);
       expect(consoleLogs.some((log) => log.includes("issue-triage"))).toBe(true);
     });
+
+    it("uses flat table for single-fleet configs (no sub-fleets)", async () => {
+      await statusCommand(undefined, {});
+
+      // Should show flat table with NAME header
+      expect(consoleLogs.some((log) => log.includes("NAME"))).toBe(true);
+      // Should NOT show fleet grouping arrows
+      expect(consoleLogs.some((log) => log.includes("▼"))).toBe(false);
+    });
+
+    it("shows hierarchical display when sub-fleets are present", async () => {
+      currentAgentInfo = [
+        {
+          name: "security-auditor",
+          qualifiedName: "herdctl.security-auditor",
+          fleetPath: ["herdctl"],
+          description: "Audits security",
+          status: "running",
+          currentJobId: null,
+          lastJobId: null,
+          maxConcurrent: 1,
+          runningCount: 0,
+          errorMessage: null,
+          scheduleCount: 1,
+          schedules: [],
+        },
+        {
+          name: "engineer",
+          qualifiedName: "herdctl.engineer",
+          fleetPath: ["herdctl"],
+          description: "Writes code",
+          status: "idle",
+          currentJobId: null,
+          lastJobId: null,
+          maxConcurrent: 1,
+          runningCount: 0,
+          errorMessage: null,
+          scheduleCount: 0,
+          schedules: [],
+        },
+        {
+          name: "monitor",
+          qualifiedName: "monitor",
+          fleetPath: [],
+          description: "Monitors everything",
+          status: "idle",
+          currentJobId: null,
+          lastJobId: null,
+          maxConcurrent: 1,
+          runningCount: 0,
+          errorMessage: null,
+          scheduleCount: 0,
+          schedules: [],
+        },
+      ] as unknown as typeof mockAgentInfo;
+
+      await statusCommand(undefined, {});
+
+      // Should show fleet grouping with arrows
+      expect(consoleLogs.some((log) => log.includes("herdctl"))).toBe(true);
+      expect(consoleLogs.some((log) => log.includes("security-auditor"))).toBe(true);
+      expect(consoleLogs.some((log) => log.includes("engineer"))).toBe(true);
+      expect(consoleLogs.some((log) => log.includes("monitor"))).toBe(true);
+    });
   });
 
   describe("agent detail view (herdctl status <agent>)", () => {
@@ -303,6 +377,33 @@ describe("statusCommand", () => {
       expect(consoleLogs.some((log) => log.includes("daily"))).toBe(true);
       expect(consoleLogs.some((log) => log.includes("Interval:"))).toBe(true);
       expect(consoleLogs.some((log) => log.includes("Cron:"))).toBe(true);
+    });
+
+    it("shows qualified name in header for sub-fleet agents", async () => {
+      currentAgentInfo = [
+        {
+          name: "security-auditor",
+          qualifiedName: "herdctl.security-auditor",
+          fleetPath: ["herdctl"],
+          description: "Audits security",
+          status: "running",
+          currentJobId: null,
+          lastJobId: null,
+          maxConcurrent: 1,
+          runningCount: 0,
+          errorMessage: null,
+          scheduleCount: 0,
+          schedules: [],
+          model: undefined,
+          working_directory: undefined,
+        },
+      ] as unknown as typeof mockAgentInfo;
+
+      await statusCommand("herdctl.security-auditor", {});
+
+      expect(consoleLogs.some((log) => log.includes("Agent: herdctl.security-auditor"))).toBe(true);
+      expect(consoleLogs.some((log) => log.includes("Fleet:"))).toBe(true);
+      expect(consoleLogs.some((log) => log.includes("herdctl"))).toBe(true);
     });
 
     it("handles agent not found", async () => {

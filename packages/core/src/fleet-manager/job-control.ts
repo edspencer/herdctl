@@ -86,13 +86,13 @@ export class JobControl {
       );
     }
 
-    // Find the agent
+    // Find the agent by qualified name
     const agents = config?.agents ?? [];
-    const agent = agents.find((a) => a.name === agentName);
+    const agent = agents.find((a) => a.qualifiedName === agentName);
 
     if (!agent) {
       throw new AgentNotFoundError(agentName, {
-        availableAgents: agents.map((a) => a.name),
+        availableAgents: agents.map((a) => a.qualifiedName),
       });
     }
 
@@ -139,17 +139,17 @@ export class JobControl {
         const sessionsDir = join(stateDir, "sessions");
         // Use session timeout config for expiry validation (default: 24h)
         const sessionTimeout = agent.session?.timeout ?? "24h";
-        const existingSession = await getSessionInfo(sessionsDir, agent.name, {
+        const existingSession = await getSessionInfo(sessionsDir, agent.qualifiedName, {
           timeout: sessionTimeout,
           logger,
         });
         if (existingSession?.session_id) {
           sessionId = existingSession.session_id;
-          logger.debug(`Found valid session for ${agent.name}: ${sessionId}`);
+          logger.debug(`Found valid session for ${agent.qualifiedName}: ${sessionId}`);
         }
       } catch (error) {
         logger.warn(
-          `Failed to get session info for ${agent.name}: ${(error as Error).message}`
+          `Failed to get session info for ${agent.qualifiedName}: ${(error as Error).message}`
         );
         // Continue without resume - session failure shouldn't block execution
       }
@@ -387,7 +387,7 @@ export class JobControl {
 
     // Verify the agent exists in config
     const agents = config?.agents ?? [];
-    const agent = agents.find((a) => a.name === originalJob.agent);
+    const agent = agents.find((a) => a.qualifiedName === originalJob.agent);
 
     if (!agent) {
       throw new JobForkError(jobId, 'agent_not_found', {
@@ -585,7 +585,7 @@ export class JobControl {
       event,
       job: {
         id: jobMetadata.id,
-        agentId: agent.name,
+        agentId: agent.qualifiedName,
         scheduleName: scheduleName ?? jobMetadata.schedule ?? undefined,
         startedAt: jobMetadata.started_at,
         completedAt,
@@ -597,7 +597,7 @@ export class JobControl {
         error: errorMessage,
       },
       agent: {
-        id: agent.name,
+        id: agent.qualifiedName,
         name: agent.identity?.name ?? agent.name,
       },
       metadata,

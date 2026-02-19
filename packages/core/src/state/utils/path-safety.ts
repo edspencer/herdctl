@@ -27,10 +27,12 @@ export class PathTraversalError extends Error {
 }
 
 /**
- * Pattern for valid identifiers (agent names, etc.)
- * Must start with alphanumeric, can contain alphanumeric, underscore, hyphen
+ * Pattern for valid identifiers (agent names, qualified names, etc.)
+ * Must start with alphanumeric, can contain alphanumeric, underscore, hyphen, dot.
+ * Dots are allowed for qualified names (e.g., "herdctl.security-auditor").
+ * Must not start or end with a dot, and must not contain consecutive dots.
  */
-export const SAFE_IDENTIFIER_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/;
+export const SAFE_IDENTIFIER_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9_.-]*[a-zA-Z0-9])?$/;
 
 /**
  * Validate that an identifier is safe for use in file paths

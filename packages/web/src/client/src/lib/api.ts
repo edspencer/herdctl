@@ -153,9 +153,11 @@ export async function fetchAgents(): Promise<AgentInfo[]> {
 }
 
 /**
- * Fetch a single agent by name
+ * Fetch a single agent by qualified name
  *
  * GET /api/agents/:name
+ *
+ * @param name - Agent qualified name (e.g., "herdctl.security-auditor") or local name
  */
 export async function fetchAgent(name: string): Promise<AgentInfo> {
   return get<AgentInfo>(`/api/agents/${encodeURIComponent(name)}`);
@@ -169,7 +171,7 @@ export interface FetchJobsParams {
   limit?: number;
   /** Number of jobs to skip (for pagination) */
   offset?: number;
-  /** Filter by agent name */
+  /** Filter by agent qualified name (e.g., "herdctl.security-auditor") */
   agentName?: string;
   /** Filter by job status */
   status?: string;

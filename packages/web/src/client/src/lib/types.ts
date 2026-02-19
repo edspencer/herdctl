@@ -79,6 +79,10 @@ export interface ChatConnectorStatus {
 
 export interface AgentInfo {
   name: string;
+  /** Dot-separated qualified name (e.g., "herdctl.security-auditor"). Equals name for root-level agents. */
+  qualifiedName: string;
+  /** Fleet hierarchy path segments (e.g., ["herdctl"]). Empty for root-level agents. */
+  fleetPath: string[];
   description?: string;
   status: AgentStatus;
   currentJobId: string | null;

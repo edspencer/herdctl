@@ -883,6 +883,39 @@ export const AgentConfigSchema = z
 export const AgentOverridesSchema = z.record(z.string(), z.unknown());
 
 // =============================================================================
+// Fleet Reference Schema (for composing sub-fleets)
+// =============================================================================
+
+/**
+ * Schema for fleet references in the `fleets` array.
+ * Each entry references a sub-fleet YAML file, with optional name override
+ * and top-level config overrides.
+ *
+ * @example
+ * ```yaml
+ * fleets:
+ *   - path: ./herdctl/herdctl.yaml
+ *     name: herdctl
+ *     overrides:
+ *       web:
+ *         enabled: false
+ * ```
+ */
+export const FleetReferenceSchema = z.object({
+  /** Path to a sub-fleet YAML file (relative to parent fleet config) */
+  path: z.string(),
+  /** Optional name override for the sub-fleet (must match agent name pattern — no dots) */
+  name: z.string().regex(AGENT_NAME_PATTERN, {
+    message:
+      "Fleet name must start with a letter or number and contain only letters, numbers, underscores, and hyphens (no dots)",
+  }).optional(),
+  /** Optional top-level config overrides applied to the sub-fleet */
+  overrides: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type FleetReference = z.infer<typeof FleetReferenceSchema>;
+
+// =============================================================================
 // Chat Schemas
 // =============================================================================
 
@@ -953,6 +986,7 @@ export const FleetConfigSchema = z
       .optional(),
     defaults: DefaultsSchema.optional(),
     working_directory: WorkingDirectorySchema.optional(),
+    fleets: z.array(FleetReferenceSchema).optional().default([]),
     agents: z.array(AgentReferenceSchema).optional().default([]),
     chat: ChatSchema.optional(),
     webhooks: WebhooksSchema.optional(),

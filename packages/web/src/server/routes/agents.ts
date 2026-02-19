@@ -22,7 +22,8 @@ export function registerAgentRoutes(
    *
    * Returns a list of all agents with their current status.
    * Each agent includes:
-   * - Name and description
+   * - Name, qualifiedName, and fleetPath
+   * - Description
    * - Current status (idle, running, error)
    * - Current/last job IDs
    * - Schedule information
@@ -45,8 +46,9 @@ export function registerAgentRoutes(
    * GET /api/agents/:name
    *
    * Returns detailed information for a single agent.
+   * The response includes `qualifiedName` and `fleetPath` fields.
    *
-   * @param name - Agent name (URL parameter)
+   * @param name - Agent qualified name (e.g., "herdctl.security-auditor") or local name (URL parameter)
    */
   server.get<{
     Params: { name: string };

@@ -31,7 +31,7 @@ herdctl trigger <agent-name> [options]
 
 | Argument | Description |
 |----------|-------------|
-| `agent-name` | Name of the agent to trigger |
+| `agent-name` | Name of the agent to trigger (use qualified name for sub-fleet agents) |
 
 **Options:**
 
@@ -49,6 +49,9 @@ herdctl trigger price-checker
 
 # Trigger with custom prompt
 herdctl trigger hurricane-watcher --prompt "Check for storms near Miami"
+
+# Trigger a sub-fleet agent using qualified name
+herdctl trigger herdctl.security-auditor
 
 # Quiet mode - no streaming, just final result
 herdctl trigger my-agent -q
@@ -106,7 +109,12 @@ herdctl status
 
 # Show specific agent
 herdctl status price-checker
+
+# Show sub-fleet agent using qualified name
+herdctl status herdctl.security-auditor
 ```
+
+When using [fleet composition](/configuration/fleet-config/#fleets), status output groups agents by their fleet hierarchy.
 
 ### logs
 

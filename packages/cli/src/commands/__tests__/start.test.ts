@@ -10,6 +10,7 @@ let mockFleetManagerInstance: {
   start: Mock;
   stop: Mock;
   getFleetStatus: Mock;
+  getAgentInfo: Mock;
   streamLogs: Mock;
 };
 
@@ -23,6 +24,7 @@ vi.mock("@herdctl/core", async () => {
     start: Mock;
     stop: Mock;
     getFleetStatus: Mock;
+    getAgentInfo: Mock;
     streamLogs: Mock;
 
     constructor() {
@@ -53,6 +55,24 @@ vi.mock("@herdctl/core", async () => {
         },
         lastError: null,
       });
+      this.getAgentInfo = vi.fn().mockResolvedValue([
+        {
+          name: "agent-a",
+          qualifiedName: "agent-a",
+          fleetPath: [],
+          status: "idle",
+          scheduleCount: 2,
+          schedules: [],
+        },
+        {
+          name: "agent-b",
+          qualifiedName: "agent-b",
+          fleetPath: [],
+          status: "idle",
+          scheduleCount: 1,
+          schedules: [],
+        },
+      ]);
       this.streamLogs = vi.fn().mockImplementation(async function* () {
         // Immediately return to complete the generator
       });

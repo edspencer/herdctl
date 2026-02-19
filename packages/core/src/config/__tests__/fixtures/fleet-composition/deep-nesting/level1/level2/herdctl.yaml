@@ -1,0 +1,9 @@
+version: 1
+fleet:
+  name: level2
+defaults:
+  model: level2-model
+fleets:
+  - path: ./level3/herdctl.yaml
+agents:
+  - path: ./agents/l2-agent.yaml

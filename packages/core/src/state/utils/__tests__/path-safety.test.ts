@@ -45,6 +45,9 @@ describe("SAFE_IDENTIFIER_PATTERN", () => {
       "agent_with_many_underscores",
       "MixedCase-And_Symbols123",
       "job-2024-01-15-abc123", // Job ID format
+      "herdctl.security-auditor", // Qualified name (dot-separated)
+      "project.sub-fleet.agent", // Deeply nested qualified name
+      "a.b", // Minimal qualified name
     ];
 
     it.each(validCases)("accepts '%s'", (identifier) => {
@@ -63,7 +66,8 @@ describe("SAFE_IDENTIFIER_PATTERN", () => {
       ["-starts-with-hyphen", "starts with hyphen"],
       ["_starts-with-underscore", "starts with underscore"],
       ["", "empty string"],
-      ["has.dot", "contains dot"],
+      [".starts-with-dot", "starts with dot"],
+      ["ends-with-dot.", "ends with dot"],
       ["has:colon", "contains colon"],
       ["has@at", "contains at symbol"],
       ["has$dollar", "contains dollar sign"],
@@ -82,12 +86,14 @@ describe("isValidIdentifier", () => {
     expect(isValidIdentifier("my-agent")).toBe(true);
     expect(isValidIdentifier("agent_1")).toBe(true);
     expect(isValidIdentifier("Agent")).toBe(true);
+    expect(isValidIdentifier("herdctl.security-auditor")).toBe(true);
   });
 
   it("returns false for invalid identifiers", () => {
     expect(isValidIdentifier("../evil")).toBe(false);
     expect(isValidIdentifier("")).toBe(false);
     expect(isValidIdentifier("with space")).toBe(false);
+    expect(isValidIdentifier(".starts-with-dot")).toBe(false);
   });
 });
 
@@ -130,6 +136,16 @@ describe("buildSafeFilePath", () => {
     it("handles numeric identifiers", () => {
       const result = buildSafeFilePath(baseDir, "123", ".json");
       expect(result).toBe(join(baseDir, "123.json"));
+    });
+
+    it("builds path for qualified agent name (dot-separated)", () => {
+      const result = buildSafeFilePath(baseDir, "herdctl.security-auditor", ".json");
+      expect(result).toBe(join(baseDir, "herdctl.security-auditor.json"));
+    });
+
+    it("builds path for deeply nested qualified name", () => {
+      const result = buildSafeFilePath(baseDir, "project.frontend.designer", ".yaml");
+      expect(result).toBe(join(baseDir, "project.frontend.designer.yaml"));
     });
   });
 
@@ -209,10 +225,9 @@ describe("buildSafeFilePath", () => {
       );
     });
 
-    it("throws for identifier with dots", () => {
-      expect(() => buildSafeFilePath(baseDir, "my.agent", ".json")).toThrow(
-        PathTraversalError
-      );
+    it("accepts identifiers with dots (qualified names)", () => {
+      const result = buildSafeFilePath(baseDir, "herdctl.security-auditor", ".json");
+      expect(result).toBe(join(baseDir, "herdctl.security-auditor.json"));
     });
 
     it("throws for identifier with special characters", () => {

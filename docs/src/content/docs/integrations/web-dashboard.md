@@ -85,6 +85,27 @@ The main dashboard page shows a summary of your fleet at a glance:
 
 Agent cards display the agent name, current status, running job count, and schedule count. Click an agent card to navigate to its detail page.
 
+### Sidebar Fleet Grouping
+
+When using [fleet composition](/configuration/fleet-config/#fleets), the sidebar groups agents by their fleet hierarchy:
+
+```
+▼ herdctl
+    ● security-auditor   (running)
+    ○ engineer           (idle)
+▼ bragdoc
+    ○ developer          (idle)
+    ○ marketer           (idle)
+○ monitor                (idle)
+```
+
+- **Fleet sections** are collapsible and show the sub-fleet name
+- **Agents within a fleet** display their local name (not the full qualified name)
+- **Root-level agents** (those defined directly on the super-fleet) appear ungrouped
+- **Status indicators** show running (filled dot) or idle (empty dot) state
+
+Agent URLs use the qualified name (e.g., `/agents/herdctl.security-auditor`), ensuring unique paths even when multiple sub-fleets have agents with the same local name.
+
 ### Agent Detail
 
 The agent detail page provides deep visibility into a single agent:

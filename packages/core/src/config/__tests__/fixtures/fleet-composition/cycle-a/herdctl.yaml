@@ -1,0 +1,6 @@
+version: 1
+fleet:
+  name: cycle-a
+fleets:
+  - path: ../cycle-b/herdctl.yaml
+agents: []

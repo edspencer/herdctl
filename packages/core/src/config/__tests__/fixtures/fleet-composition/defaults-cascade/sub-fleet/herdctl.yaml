@@ -1,0 +1,8 @@
+version: 1
+fleet:
+  name: sub
+defaults:
+  model: sub-model
+agents:
+  - path: ./agents/inheritor.yaml
+  - path: ./agents/own-model.yaml

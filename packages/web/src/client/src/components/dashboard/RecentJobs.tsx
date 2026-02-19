@@ -116,7 +116,7 @@ export function RecentJobs({ jobs, pageSize = 10 }: RecentJobsProps) {
                   >
                     <td className="py-2 px-3 text-herd-fg">
                       <Link
-                        to={`/agents/${job.agentName}`}
+                        to={`/agents/${encodeURIComponent(job.agentName)}`}
                         className="hover:text-herd-primary transition-colors"
                       >
                         {job.agentName}

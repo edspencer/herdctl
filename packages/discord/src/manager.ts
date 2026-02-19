@@ -111,7 +111,7 @@ export class DiscordManager implements IChatManager {
         const botToken = process.env[discordConfig.bot_token_env];
         if (!botToken) {
           logger.warn(
-            `Discord bot token not found in environment variable '${discordConfig.bot_token_env}' for agent '${agent.name}'`
+            `Discord bot token not found in environment variable '${discordConfig.bot_token_env}' for agent '${agent.qualifiedName}'`
           );
           continue;
         }
@@ -128,13 +128,13 @@ export class DiscordManager implements IChatManager {
             logger.error(`${prefix} ${msg}${data ? ` ${JSON.stringify(data)}` : ""}`),
         });
 
-        // Create session manager for this agent
+        // Create session manager for this agent (keyed by qualifiedName)
         const sessionManager = new ChatSessionManager({
           platform: "discord",
-          agentName: agent.name,
+          agentName: agent.qualifiedName,
           stateDir,
           sessionExpiryHours: discordConfig.session_expiry_hours,
-          logger: createAgentLogger(`[discord:${agent.name}:session]`),
+          logger: createAgentLogger(`[discord:${agent.qualifiedName}:session]`),
         });
 
         // Create the connector
@@ -147,14 +147,14 @@ export class DiscordManager implements IChatManager {
           fleetManager: this.ctx.getEmitter() as unknown as import("@herdctl/core").FleetManager,
           sessionManager,
           stateDir,
-          logger: createAgentLogger(`[discord:${agent.name}]`),
+          logger: createAgentLogger(`[discord:${agent.qualifiedName}]`),
         });
 
-        this.connectors.set(agent.name, connector);
-        logger.debug(`Created Discord connector for agent '${agent.name}'`);
+        this.connectors.set(agent.qualifiedName, connector);
+        logger.debug(`Created Discord connector for agent '${agent.qualifiedName}'`);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.error(`Failed to create Discord connector for agent '${agent.name}': ${errorMessage}`);
+        logger.error(`Failed to create Discord connector for agent '${agent.qualifiedName}': ${errorMessage}`);
         // Continue with other agents - don't fail the whole initialization
       }
     }
@@ -181,22 +181,22 @@ export class DiscordManager implements IChatManager {
 
     const connectPromises: Promise<void>[] = [];
 
-    for (const [agentName, connector] of this.connectors) {
+    for (const [qualifiedName, connector] of this.connectors) {
       // Subscribe to connector events before connecting
       connector.on("message", (event: DiscordMessageEvent) => {
-        this.handleMessage(agentName, event).catch((error: unknown) => {
-          this.handleError(agentName, error);
+        this.handleMessage(qualifiedName, event).catch((error: unknown) => {
+          this.handleError(qualifiedName, error);
         });
       });
 
       connector.on("error", (event: DiscordErrorEvent) => {
-        this.handleError(agentName, event.error);
+        this.handleError(qualifiedName, event.error);
       });
 
       connectPromises.push(
         connector.connect().catch((error: unknown) => {
           const errorMessage = error instanceof Error ? error.message : String(error);
-          logger.error(`Failed to connect Discord for agent '${agentName}': ${errorMessage}`);
+          logger.error(`Failed to connect Discord for agent '${qualifiedName}': ${errorMessage}`);
           // Don't re-throw - we want to continue connecting other agents
         })
       );
@@ -230,26 +230,26 @@ export class DiscordManager implements IChatManager {
     logger.debug(`Stopping ${this.connectors.size} Discord connector(s)...`);
 
     // Log session state before shutdown (sessions are already persisted to disk)
-    for (const [agentName, connector] of this.connectors) {
+    for (const [qualifiedName, connector] of this.connectors) {
       try {
         const activeSessionCount = await connector.sessionManager.getActiveSessionCount();
         if (activeSessionCount > 0) {
-          logger.debug(`Preserving ${activeSessionCount} active session(s) for agent '${agentName}'`);
+          logger.debug(`Preserving ${activeSessionCount} active session(s) for agent '${qualifiedName}'`);
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.warn(`Failed to get session count for agent '${agentName}': ${errorMessage}`);
+        logger.warn(`Failed to get session count for agent '${qualifiedName}': ${errorMessage}`);
         // Continue with shutdown - this is just informational logging
       }
     }
 
     const disconnectPromises: Promise<void>[] = [];
 
-    for (const [agentName, connector] of this.connectors) {
+    for (const [qualifiedName, connector] of this.connectors) {
       disconnectPromises.push(
         connector.disconnect().catch((error: unknown) => {
           const errorMessage = error instanceof Error ? error.message : String(error);
-          logger.error(`Error disconnecting Discord for agent '${agentName}': ${errorMessage}`);
+          logger.error(`Error disconnecting Discord for agent '${qualifiedName}': ${errorMessage}`);
           // Don't re-throw - graceful shutdown should continue
         })
       );
@@ -262,17 +262,17 @@ export class DiscordManager implements IChatManager {
   /**
    * Get a connector for a specific agent
    *
-   * @param agentName - Name of the agent
+   * @param qualifiedName - Qualified name of the agent (e.g., "herdctl.security-auditor")
    * @returns The DiscordConnector instance, or undefined if not found
    */
-  getConnector(agentName: string): DiscordConnector | undefined {
-    return this.connectors.get(agentName);
+  getConnector(qualifiedName: string): DiscordConnector | undefined {
+    return this.connectors.get(qualifiedName);
   }
 
   /**
    * Get all connector names
    *
-   * @returns Array of agent names that have Discord connectors
+   * @returns Array of agent qualified names that have Discord connectors
    */
   getConnectorNames(): string[] {
     return Array.from(this.connectors.keys());
@@ -299,31 +299,31 @@ export class DiscordManager implements IChatManager {
   /**
    * Check if a specific agent has a Discord connector
    *
-   * @param agentName - Name of the agent
+   * @param qualifiedName - Qualified name of the agent (e.g., "herdctl.security-auditor")
    * @returns true if the agent has a Discord connector
    */
-  hasConnector(agentName: string): boolean {
-    return this.connectors.has(agentName);
+  hasConnector(qualifiedName: string): boolean {
+    return this.connectors.has(qualifiedName);
   }
 
   /**
    * Check if a specific agent has a connector (alias for hasConnector)
    *
-   * @param agentName - Name of the agent
+   * @param qualifiedName - Qualified name of the agent (e.g., "herdctl.security-auditor")
    * @returns true if the agent has a connector
    */
-  hasAgent(agentName: string): boolean {
-    return this.connectors.has(agentName);
+  hasAgent(qualifiedName: string): boolean {
+    return this.connectors.has(qualifiedName);
   }
 
   /**
    * Get the state of a connector for a specific agent
    *
-   * @param agentName - Name of the agent
+   * @param qualifiedName - Qualified name of the agent (e.g., "herdctl.security-auditor")
    * @returns The connector state, or undefined if not found
    */
-  getState(agentName: string): ChatManagerConnectorState | undefined {
-    const connector = this.connectors.get(agentName);
+  getState(qualifiedName: string): ChatManagerConnectorState | undefined {
+    const connector = this.connectors.get(qualifiedName);
     if (!connector) return undefined;
 
     const state = connector.getState();
@@ -351,24 +351,24 @@ export class DiscordManager implements IChatManager {
    * 3. Executes the job via trigger
    * 4. Sends the response back to Discord
    *
-   * @param agentName - Name of the agent handling the message
+   * @param qualifiedName - Qualified name of the agent handling the message
    * @param event - The Discord message event
    */
   private async handleMessage(
-    agentName: string,
+    qualifiedName: string,
     event: DiscordMessageEvent
   ): Promise<void> {
     const logger = this.ctx.getLogger();
     const emitter = this.ctx.getEmitter();
 
-    logger.info(`Discord message for agent '${agentName}': ${event.prompt.substring(0, 50)}...`);
+    logger.info(`Discord message for agent '${qualifiedName}': ${event.prompt.substring(0, 50)}...`);
 
-    // Get the agent configuration
+    // Get the agent configuration (lookup by qualifiedName)
     const config = this.ctx.getConfig();
-    const agent = config?.agents.find((a) => a.name === agentName);
+    const agent = config?.agents.find((a) => a.qualifiedName === qualifiedName);
 
     if (!agent) {
-      logger.error(`Agent '${agentName}' not found in configuration`);
+      logger.error(`Agent '${qualifiedName}' not found in configuration`);
       try {
         await event.reply("Sorry, I'm not properly configured. Please contact an administrator.");
       } catch (replyError) {
@@ -387,7 +387,7 @@ export class DiscordManager implements IChatManager {
     };
 
     // Get existing session for this channel (for conversation continuity)
-    const connector = this.connectors.get(agentName);
+    const connector = this.connectors.get(qualifiedName);
     let existingSessionId: string | undefined;
     if (connector) {
       try {
@@ -409,7 +409,7 @@ export class DiscordManager implements IChatManager {
     const streamer = new StreamingResponder({
       reply: (content: string) => event.reply(content),
       logger: logger as ChatConnectorLogger,
-      agentName,
+      agentName: qualifiedName,
       maxMessageLength: 2000, // Discord's limit
       maxBufferSize: 1500,
       platformName: "Discord",
@@ -429,7 +429,7 @@ export class DiscordManager implements IChatManager {
       // Execute job via FleetManager.trigger() through the context
       // Pass resume option for conversation continuity
       // The onMessage callback streams output incrementally to Discord
-      const result = await this.ctx.trigger(agentName, undefined, {
+      const result = await this.ctx.trigger(qualifiedName, undefined, {
         triggerType: "discord",
         prompt: event.prompt,
         resume: existingSessionId,
@@ -589,7 +589,7 @@ export class DiscordManager implements IChatManager {
       // Flush any remaining buffered content
       await streamer.flush();
 
-      logger.debug(`Discord job completed: ${result.jobId} for agent '${agentName}'${result.sessionId ? ` (session: ${result.sessionId})` : ""}`);
+      logger.debug(`Discord job completed: ${result.jobId} for agent '${qualifiedName}'${result.sessionId ? ` (session: ${result.sessionId})` : ""}`);
 
       // If no messages were sent (text or embeds), send an appropriate fallback
       if (!streamer.hasSentMessages() && embedsSent === 0) {
@@ -625,7 +625,7 @@ export class DiscordManager implements IChatManager {
 
       // Emit event for tracking
       emitter.emit("discord:message:handled", {
-        agentName,
+        agentName: qualifiedName,
         channelId: event.metadata.channelId,
         messageId: event.metadata.messageId,
         jobId: result.jobId,
@@ -633,7 +633,7 @@ export class DiscordManager implements IChatManager {
       });
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
-      logger.error(`Discord message handling failed for agent '${agentName}': ${err.message}`);
+      logger.error(`Discord message handling failed for agent '${qualifiedName}': ${err.message}`);
 
       // Send user-friendly error message using the formatted error method
       try {
@@ -644,7 +644,7 @@ export class DiscordManager implements IChatManager {
 
       // Emit error event for tracking
       emitter.emit("discord:message:error", {
-        agentName,
+        agentName: qualifiedName,
         channelId: event.metadata.channelId,
         messageId: event.metadata.messageId,
         error: err.message,
@@ -964,19 +964,19 @@ export class DiscordManager implements IChatManager {
    *
    * Logs errors without crashing the connector
    *
-   * @param agentName - Name of the agent that encountered the error
+   * @param qualifiedName - Qualified name of the agent that encountered the error
    * @param error - The error that occurred
    */
-  private handleError(agentName: string, error: unknown): void {
+  private handleError(qualifiedName: string, error: unknown): void {
     const logger = this.ctx.getLogger();
     const emitter = this.ctx.getEmitter();
 
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error(`Discord connector error for agent '${agentName}': ${errorMessage}`);
+    logger.error(`Discord connector error for agent '${qualifiedName}': ${errorMessage}`);
 
     // Emit error event for monitoring
     emitter.emit("discord:error", {
-      agentName,
+      agentName: qualifiedName,
       error: errorMessage,
       timestamp: new Date().toISOString(),
     });

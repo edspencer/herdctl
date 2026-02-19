@@ -88,6 +88,8 @@ describe("Fleet Slice", () => {
       const agents = [
         {
           name: "coder",
+          qualifiedName: "coder",
+          fleetPath: [] as string[],
           status: "running" as const,
           currentJobId: "job-1",
           lastJobId: null,
@@ -107,11 +109,11 @@ describe("Fleet Slice", () => {
 
     it("replaces existing agents", () => {
       store.getState().setAgents([
-        { name: "old-agent", status: "idle" as const, currentJobId: null, lastJobId: null, maxConcurrent: 1, runningCount: 0, errorMessage: null, scheduleCount: 0, schedules: [] },
+        { name: "old-agent", qualifiedName: "old-agent", fleetPath: [], status: "idle" as const, currentJobId: null, lastJobId: null, maxConcurrent: 1, runningCount: 0, errorMessage: null, scheduleCount: 0, schedules: [] },
       ]);
 
       const newAgents = [
-        { name: "new-agent", status: "running" as const, currentJobId: "j1", lastJobId: null, maxConcurrent: 2, runningCount: 1, errorMessage: null, scheduleCount: 1, schedules: [] },
+        { name: "new-agent", qualifiedName: "new-agent", fleetPath: [], status: "running" as const, currentJobId: "j1", lastJobId: null, maxConcurrent: 2, runningCount: 1, errorMessage: null, scheduleCount: 1, schedules: [] },
       ];
 
       store.getState().setAgents(newAgents);
@@ -126,6 +128,8 @@ describe("Fleet Slice", () => {
       const payload = {
         agent: {
           name: "coder",
+          qualifiedName: "coder",
+          fleetPath: [] as string[],
           status: "running" as const,
           currentJobId: "job-1",
           lastJobId: null,
@@ -141,16 +145,19 @@ describe("Fleet Slice", () => {
 
       expect(store.getState().agents).toHaveLength(1);
       expect(store.getState().agents[0].name).toBe("coder");
+      expect(store.getState().agents[0].qualifiedName).toBe("coder");
     });
 
-    it("updates existing agent on agent:started", () => {
+    it("updates existing agent on agent:started using qualifiedName", () => {
       store.getState().setAgents([
-        { name: "coder", status: "idle" as const, currentJobId: null, lastJobId: null, maxConcurrent: 1, runningCount: 0, errorMessage: null, scheduleCount: 0, schedules: [] },
+        { name: "coder", qualifiedName: "herdctl.coder", fleetPath: ["herdctl"], status: "idle" as const, currentJobId: null, lastJobId: null, maxConcurrent: 1, runningCount: 0, errorMessage: null, scheduleCount: 0, schedules: [] },
       ]);
 
       store.getState().updateAgent({
         agent: {
           name: "coder",
+          qualifiedName: "herdctl.coder",
+          fleetPath: ["herdctl"],
           status: "running" as const,
           currentJobId: "job-1",
           lastJobId: null,
@@ -167,13 +174,13 @@ describe("Fleet Slice", () => {
       expect(store.getState().agents[0].currentJobId).toBe("job-1");
     });
 
-    it("updates agent on agent:stopped", () => {
+    it("updates agent on agent:stopped using qualifiedName", () => {
       store.getState().setAgents([
-        { name: "coder", status: "running" as const, currentJobId: "job-1", lastJobId: null, maxConcurrent: 1, runningCount: 1, errorMessage: null, scheduleCount: 0, schedules: [] },
+        { name: "coder", qualifiedName: "herdctl.coder", fleetPath: ["herdctl"], status: "running" as const, currentJobId: "job-1", lastJobId: null, maxConcurrent: 1, runningCount: 1, errorMessage: null, scheduleCount: 0, schedules: [] },
       ]);
 
       store.getState().updateAgent({
-        agentName: "coder",
+        agentName: "herdctl.coder",
         reason: "completed",
       } as any);
 

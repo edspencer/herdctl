@@ -1,0 +1,3 @@
+version: 1
+agents:
+  - path: ./agents/worker.yaml

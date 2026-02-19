@@ -252,12 +252,12 @@ export async function runSchedule(
 
   const stateLogger: ScheduleStateLogger = { warn: logger.warn };
 
-  logger.info(`Running schedule ${agent.name}/${scheduleName}`);
+  logger.info(`Running schedule ${agent.qualifiedName}/${scheduleName}`);
 
   // Step 1: Update schedule state to 'running'
   await updateScheduleState(
     stateDir,
-    agent.name,
+    agent.qualifiedName,
     scheduleName,
     {
       status: "running",
@@ -273,7 +273,7 @@ export async function runSchedule(
     // Step 2: Fetch work item if schedule has work_source configured
     if (schedule.work_source && workSourceManager) {
       logger.debug(
-        `Fetching work item for ${agent.name}/${scheduleName} from ${schedule.work_source.type}`
+        `Fetching work item for ${agent.qualifiedName}/${scheduleName} from ${schedule.work_source.type}`
       );
 
       const workResult = await workSourceManager.getNextWorkItem(agent, {
@@ -294,7 +294,7 @@ export async function runSchedule(
       } else {
         // No work available
         logger.debug(
-          `No work items available for ${agent.name}/${scheduleName}`
+          `No work items available for ${agent.qualifiedName}/${scheduleName}`
         );
       }
     }
@@ -324,7 +324,7 @@ export async function runSchedule(
         // Use session timeout config for expiry validation to prevent resuming stale sessions
         // Default to 24h if not configured - this prevents unexpected logouts from expired server-side sessions
         const sessionTimeout = agent.session?.timeout ?? "24h";
-        const existingSession = await getSessionInfo(sessionsDir, agent.name, {
+        const existingSession = await getSessionInfo(sessionsDir, agent.qualifiedName, {
           timeout: sessionTimeout,
           logger,
           runtime: agent.runtime ?? "sdk",
@@ -332,16 +332,16 @@ export async function runSchedule(
         if (existingSession?.session_id) {
           sessionId = existingSession.session_id;
           logger.debug(
-            `Found valid session for ${agent.name}: ${sessionId}`
+            `Found valid session for ${agent.qualifiedName}: ${sessionId}`
           );
         } else {
           logger.debug(
-            `No valid session for ${agent.name} (expired or not found), starting fresh`
+            `No valid session for ${agent.qualifiedName} (expired or not found), starting fresh`
           );
         }
       } catch (error) {
         logger.warn(
-          `Failed to get session info for ${agent.name}: ${(error as Error).message}`
+          `Failed to get session info for ${agent.qualifiedName}: ${(error as Error).message}`
         );
         // Continue without resume - session failure shouldn't block execution
       }
@@ -385,7 +385,7 @@ export async function runSchedule(
     // Step 9: Update schedule state with success
     await updateScheduleState(
       stateDir,
-      agent.name,
+      agent.qualifiedName,
       scheduleName,
       {
         status: "idle",
@@ -396,7 +396,7 @@ export async function runSchedule(
     );
 
     logger.info(
-      `Completed schedule ${agent.name}/${scheduleName}: ${runnerResult.success ? "success" : "failed"}`
+      `Completed schedule ${agent.qualifiedName}/${scheduleName}: ${runnerResult.success ? "success" : "failed"}`
     );
 
     return {
@@ -409,7 +409,7 @@ export async function runSchedule(
       error instanceof Error ? error.message : String(error);
 
     logger.error(
-      `Error running schedule ${agent.name}/${scheduleName}: ${errorMessage}`
+      `Error running schedule ${agent.qualifiedName}/${scheduleName}: ${errorMessage}`
     );
 
     // Release work item if we claimed one and execution failed unexpectedly
@@ -434,7 +434,7 @@ export async function runSchedule(
     // Update schedule state with error
     await updateScheduleState(
       stateDir,
-      agent.name,
+      agent.qualifiedName,
       scheduleName,
       {
         status: "idle",

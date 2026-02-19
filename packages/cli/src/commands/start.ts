@@ -17,6 +17,7 @@ import {
   shouldLog,
   type FleetConfigOverrides,
   type FleetStatus,
+  type AgentInfo,
   type LogEntry,
   type LogLevel,
 } from "@herdctl/core";
@@ -45,7 +46,7 @@ const DEFAULT_STATE_DIR = ".herdctl";
 /**
  * Format a FleetStatus for startup display
  */
-function formatStartupStatus(status: FleetStatus): string {
+function formatStartupStatus(status: FleetStatus, agents?: AgentInfo[]): string {
   const lines: string[] = [];
 
   lines.push("");
@@ -57,6 +58,38 @@ function formatStartupStatus(status: FleetStatus): string {
 
   if (status.startedAt) {
     lines.push(`Started: ${new Date(status.startedAt).toLocaleString()}`);
+  }
+
+  // Show fleet hierarchy if sub-fleets are present
+  if (agents && agents.some(a => a.fleetPath && a.fleetPath.length > 0)) {
+    lines.push("");
+    lines.push("Agent Hierarchy:");
+
+    // Group by fleet path
+    const rootAgents: AgentInfo[] = [];
+    const fleetGroups = new Map<string, AgentInfo[]>();
+
+    for (const agent of agents) {
+      if (!agent.fleetPath || agent.fleetPath.length === 0) {
+        rootAgents.push(agent);
+      } else {
+        const key = agent.fleetPath.join(".");
+        const group = fleetGroups.get(key) ?? [];
+        group.push(agent);
+        fleetGroups.set(key, group);
+      }
+    }
+
+    for (const [fleetKey, groupAgents] of fleetGroups) {
+      lines.push(`  ${fleetKey}/`);
+      for (const agent of groupAgents) {
+        lines.push(`    - ${agent.name}`);
+      }
+    }
+
+    for (const agent of rootAgents) {
+      lines.push(`  - ${agent.name}`);
+    }
   }
 
   lines.push("");
@@ -231,7 +264,8 @@ export async function startCommand(options: StartOptions): Promise<void> {
 
     // Get and display startup status
     const status = await manager.getFleetStatus();
-    console.log(formatStartupStatus(status));
+    const agents = await manager.getAgentInfo();
+    console.log(formatStartupStatus(status, agents));
 
     // Stream logs to stdout
     // This keeps the process running since it's an async iterator

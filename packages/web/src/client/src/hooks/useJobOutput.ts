@@ -13,7 +13,7 @@ import { useStore, useJobOutput as useJobOutputSelector } from "../store";
 // =============================================================================
 
 interface UseJobOutputOptions {
-  /** Agent name to subscribe to */
+  /** Agent qualified name to subscribe to */
   agentName: string | null;
   /** Current job ID to display output for */
   jobId: string | null;

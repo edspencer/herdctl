@@ -144,13 +144,17 @@ export class StatusQueries {
     const chatManagers = this.ctx.getChatManagers?.() ?? new Map<string, IChatManager>();
 
     return agents.map((agent) => {
-      const agentState = fleetState.agents[agent.name];
+      const agentState = fleetState.agents[agent.qualifiedName];
       return buildAgentInfo(agent, agentState, this.ctx.getScheduler(), chatManagers);
     });
   }
 
   /**
    * Get information about a specific agent by name
+   *
+   * Accepts either a qualified name (e.g., "herdctl.security-auditor") or a
+   * local name (e.g., "security-auditor"). Qualified names are matched first;
+   * if no match is found, falls back to matching by local name.
    *
    * Returns detailed information for the specified agent including:
    * - Current status and job information
@@ -160,14 +164,16 @@ export class StatusQueries {
    *
    * This method works whether the fleet is running or stopped.
    *
-   * @param name - The agent name to look up
+   * @param name - The agent qualified name or local name to look up
    * @returns AgentInfo for the specified agent
    * @throws {AgentNotFoundError} If no agent with that name exists
    */
   async getAgentInfoByName(name: string): Promise<AgentInfo> {
     const config = this.ctx.getConfig();
     const agents = config?.agents ?? [];
-    const agent = agents.find((a) => a.name === name);
+    // Try qualified name first, fall back to local name
+    const agent = agents.find((a) => a.qualifiedName === name)
+      ?? agents.find((a) => a.name === name);
 
     if (!agent) {
       throw new AgentNotFoundError(name);
@@ -175,7 +181,7 @@ export class StatusQueries {
 
     // Read fleet state for runtime information
     const fleetState = await this.readFleetStateSnapshot();
-    const agentState = fleetState.agents[name];
+    const agentState = fleetState.agents[agent.qualifiedName];
 
     // Get chat managers for connection status
     const chatManagers = this.ctx.getChatManagers?.() ?? new Map<string, IChatManager>();
@@ -206,8 +212,8 @@ export function buildAgentInfo(
   // Build schedule info
   const schedules = buildScheduleInfoList(agent, agentState);
 
-  // Get running count from scheduler or state
-  const runningCount = scheduler?.getRunningJobCount(agent.name) ?? 0;
+  // Get running count from scheduler or state (use qualifiedName as the key)
+  const runningCount = scheduler?.getRunningJobCount(agent.qualifiedName) ?? 0;
 
   // Determine working directory path
   let working_directory: string | undefined;
@@ -222,6 +228,8 @@ export function buildAgentInfo(
 
   return {
     name: agent.name,
+    qualifiedName: agent.qualifiedName,
+    fleetPath: agent.fleetPath,
     description: agent.description,
     status: agentState?.status ?? "idle",
     currentJobId: agentState?.current_job ?? null,
@@ -298,7 +306,7 @@ function buildChatStatuses(
       hasAny = true;
       const manager = chatManagers?.get(platform);
       if (manager) {
-        result[platform] = buildChatStatus(platform, manager, agent.name);
+        result[platform] = buildChatStatus(platform, manager, agent.qualifiedName);
       } else {
         result[platform] = {
           configured: true,
@@ -331,7 +339,7 @@ export function buildScheduleInfoList(
 
     return {
       name,
-      agentName: agent.name,
+      agentName: agent.qualifiedName,
       type: schedule.type,
       interval: schedule.interval,
       expression: schedule.expression,

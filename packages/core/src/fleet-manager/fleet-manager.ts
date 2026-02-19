@@ -474,21 +474,25 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   }
 
   /**
-   * Validate that all agent names are unique
+   * Validate that all agent qualified names are unique
    *
-   * Agent names are used as primary keys throughout the system (Discord connectors,
-   * session storage, job identification, etc.). Duplicate names cause silent overwrites
-   * and unpredictable behavior.
+   * Qualified names are used as primary keys throughout the system (state storage,
+   * scheduler, Discord connectors, session storage, job identification, etc.).
+   * Duplicate qualified names cause silent overwrites and unpredictable behavior.
+   *
+   * Error format examples:
+   * - Single duplicate: Duplicate agent qualified name "project-a.security-auditor". Agent names must be unique within a fleet.
+   * - Multiple duplicates: Duplicate agent qualified names found: "project-a.foo", "project-b.bar". Agent names must be unique within a fleet.
    *
    * @param agents - Array of resolved agents to validate
-   * @throws ConfigurationError if duplicate names are found
+   * @throws ConfigurationError if duplicate qualified names are found
    */
   private validateUniqueAgentNames(agents: ResolvedAgent[]): void {
     const nameCount = new Map<string, number>();
 
-    // Count occurrences of each name
+    // Count occurrences of each qualified name
     for (const agent of agents) {
-      nameCount.set(agent.name, (nameCount.get(agent.name) || 0) + 1);
+      nameCount.set(agent.qualifiedName, (nameCount.get(agent.qualifiedName) || 0) + 1);
     }
 
     // Find duplicates
@@ -496,10 +500,16 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       .filter(([, count]) => count > 1)
       .map(([name]) => name);
 
-    if (duplicates.length > 0) {
+    if (duplicates.length === 1) {
+      // Single duplicate - use spec format with "found" for backward compatibility
+      throw new ConfigurationError(
+        `Duplicate agent qualified name found: "${duplicates[0]}". Agent names must be unique within a fleet.`
+      );
+    } else if (duplicates.length > 1) {
+      // Multiple duplicates - list all of them
       const duplicateList = duplicates.map(name => `"${name}"`).join(", ");
       throw new ConfigurationError(
-        `Duplicate agent names found: ${duplicateList}. Agent names must be unique across all configuration files.`
+        `Duplicate agent qualified names found: ${duplicateList}. Agent names must be unique within a fleet.`
       );
     }
   }

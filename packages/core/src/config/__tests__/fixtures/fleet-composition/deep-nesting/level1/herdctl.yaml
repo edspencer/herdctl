@@ -1,0 +1,10 @@
+version: 1
+fleet:
+  name: level1
+defaults:
+  model: level1-model
+  max_turns: 50
+fleets:
+  - path: ./level2/herdctl.yaml
+agents:
+  - path: ./agents/l1-agent.yaml
