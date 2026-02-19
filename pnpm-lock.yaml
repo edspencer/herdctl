@@ -190,6 +190,12 @@ importers:
 
   packages/web:
     dependencies:
+      '@dicebear/bottts':
+        specifier: ^9.3.1
+        version: 9.3.1(@dicebear/core@9.3.1)
+      '@dicebear/core':
+        specifier: ^9.3.1
+        version: 9.3.1
       '@fastify/cors':
         specifier: ^10.0.3
         version: 10.1.0
@@ -520,6 +526,16 @@ packages:
   '@ctrl/tinycolor@4.2.0':
     resolution: {integrity: sha512-kzyuwOAQnXJNLS9PSyrk0CWk35nWJW/zl/6KvnTBMFK65gm7U1/Z5BqjxeapjZCIhQcM/DsrEmcbRwDyXyXK4A==}
     engines: {node: '>=14'}
+
+  '@dicebear/bottts@9.3.1':
+    resolution: {integrity: sha512-qIPokserYLIwpScbsvFADwspBfa1Mg8JFEtYcXYcbPLnNek8bZiAhpQSc1bHSqHjm10bFEjvTr0opSNr72CBzw==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      '@dicebear/core': ^9.0.0
+
+  '@dicebear/core@9.3.1':
+    resolution: {integrity: sha512-N6Gl9z3SxYp1OVtOzQegtURFqr0D62l3QcXgvshDAVXDNjkziZ5gWj//JxYJRWldNZfVp9/pm97V3ExKI5AXPg==}
+    engines: {node: '>=18.0.0'}
 
   '@discordjs/builders@1.13.1':
     resolution: {integrity: sha512-cOU0UDHc3lp/5nKByDxkmRiNZBpdp0kx55aarbiAfakfKJHlxv/yFW1zmIqCAmwH5CRlrH9iMFKJMpvW4DPB+w==}
@@ -1778,6 +1794,9 @@ packages:
 
   '@types/js-yaml@4.0.9':
     resolution: {integrity: sha512-k4MGaQl5TGo/iipqb2UDG2UwjXziSWkh0uysQelTlJpX1qGlpUZYm8PnO4DxG1qBomtJUdYJ6qR6xdIah10JLg==}
+
+  '@types/json-schema@7.0.15':
+    resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
 
   '@types/jsonwebtoken@9.0.10':
     resolution: {integrity: sha512-asx5hIG9Qmf/1oStypjanR7iKTv0gXQ1Ov/jfrX6kS/EO0OFni8orbmGCn0672NHR3kXHwpAwR+B368ZGN/2rA==}
@@ -5157,6 +5176,14 @@ snapshots:
 
   '@ctrl/tinycolor@4.2.0': {}
 
+  '@dicebear/bottts@9.3.1(@dicebear/core@9.3.1)':
+    dependencies:
+      '@dicebear/core': 9.3.1
+
+  '@dicebear/core@9.3.1':
+    dependencies:
+      '@types/json-schema': 7.0.15
+
   '@discordjs/builders@1.13.1':
     dependencies:
       '@discordjs/formatters': 0.6.2
@@ -6254,6 +6281,8 @@ snapshots:
   '@types/http-errors@2.0.5': {}
 
   '@types/js-yaml@4.0.9': {}
+
+  '@types/json-schema@7.0.15': {}
 
   '@types/jsonwebtoken@9.0.10':
     dependencies:

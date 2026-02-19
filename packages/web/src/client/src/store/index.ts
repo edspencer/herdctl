@@ -276,7 +276,20 @@ export function useChatActions() {
       completeStreaming: state.completeStreaming,
       addUserMessage: state.addUserMessage,
       setChatError: state.setChatError,
+      fetchSidebarSessions: state.fetchSidebarSessions,
       clearChatState: state.clearChatState,
+    }))
+  );
+}
+
+/**
+ * Select sidebar sessions state (recent chats per agent)
+ */
+export function useSidebarSessions() {
+  return useStore(
+    useShallow((state) => ({
+      sidebarSessions: state.sidebarSessions,
+      sidebarSessionsLoading: state.sidebarSessionsLoading,
     }))
   );
 }

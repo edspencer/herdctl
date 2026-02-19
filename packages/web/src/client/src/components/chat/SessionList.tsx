@@ -9,6 +9,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router";
 import { Plus, Trash2, MessageSquare } from "lucide-react";
 import { useChatSessions, useChatActions } from "../../store";
+import { formatRelativeTime } from "../../lib/format";
 
 // =============================================================================
 // Types
@@ -19,32 +20,6 @@ interface SessionListProps {
   agentName: string;
   /** Currently active session ID */
   activeSessionId: string | null;
-}
-
-// =============================================================================
-// Helpers
-// =============================================================================
-
-/**
- * Format timestamp as relative time
- */
-function formatRelativeTime(timestamp: string): string {
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return "just now";
-  if (diffMins < 60) return `${diffMins}m`;
-  if (diffHours < 24) return `${diffHours}h`;
-  if (diffDays < 7) return `${diffDays}d`;
-
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
 }
 
 // =============================================================================
@@ -100,7 +75,7 @@ export function SessionList({ agentName, activeSessionId }: SessionListProps) {
   }, []);
 
   return (
-    <div className="w-[250px] border-r border-herd-border bg-herd-sidebar flex flex-col h-full">
+    <div className="w-[250px] border-r border-herd-border bg-herd-card flex flex-col h-full">
       {/* Header with New Chat button */}
       <div className="p-3 border-b border-herd-border">
         <button

@@ -17,6 +17,9 @@ import {
 // Types
 // =============================================================================
 
+/** Maximum number of sessions shown per agent in the sidebar */
+const SIDEBAR_SESSION_LIMIT = 5;
+
 export interface ChatState {
   /** List of chat sessions for the current agent */
   chatSessions: ChatSession[];
@@ -34,6 +37,10 @@ export interface ChatState {
   chatStreamingContent: string;
   /** Error message for chat operations */
   chatError: string | null;
+  /** Recent sessions per agent for sidebar display */
+  sidebarSessions: Record<string, ChatSession[]>;
+  /** Loading state for sidebar session fetch */
+  sidebarSessionsLoading: boolean;
 }
 
 export interface ChatActions {
@@ -55,6 +62,8 @@ export interface ChatActions {
   addUserMessage: (content: string) => void;
   /** Set chat error state */
   setChatError: (error: string | null) => void;
+  /** Fetch recent sessions for all agents (sidebar display) */
+  fetchSidebarSessions: (agentNames: string[]) => Promise<void>;
   /** Clear all chat state */
   clearChatState: () => void;
 }
@@ -74,6 +83,8 @@ const initialChatState: ChatState = {
   chatStreaming: false,
   chatStreamingContent: "",
   chatError: null,
+  sidebarSessions: {},
+  sidebarSessionsLoading: false,
 };
 
 // =============================================================================
@@ -236,6 +247,29 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (
       chatStreaming: false,
       chatStreamingContent: "",
     });
+  },
+
+  fetchSidebarSessions: async (agentNames: string[]) => {
+    set({ sidebarSessionsLoading: true });
+
+    try {
+      const results = await Promise.all(
+        agentNames.map((name) =>
+          fetchChatSessions(name)
+            .then((r) => ({ name, sessions: r.sessions.slice(0, SIDEBAR_SESSION_LIMIT) }))
+            .catch(() => ({ name, sessions: [] as ChatSession[] }))
+        )
+      );
+
+      const sidebarSessions: Record<string, ChatSession[]> = {};
+      for (const { name, sessions } of results) {
+        sidebarSessions[name] = sessions;
+      }
+
+      set({ sidebarSessions, sidebarSessionsLoading: false });
+    } catch {
+      set({ sidebarSessionsLoading: false });
+    }
   },
 
   clearChatState: () => {
