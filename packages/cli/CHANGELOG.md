@@ -1,5 +1,12 @@
 # herdctl
 
+## 1.3.2
+
+### Patch Changes
+
+- Updated dependencies [[`e2dac90`](https://github.com/edspencer/herdctl/commit/e2dac903a90966011957adbda0ee029cbfc9d8ac)]:
+  - @herdctl/web@0.3.1
+
 ## 1.3.1
 
 ### Patch Changes
