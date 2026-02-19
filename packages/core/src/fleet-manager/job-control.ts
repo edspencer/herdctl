@@ -166,7 +166,7 @@ export class JobControl {
       agent,
       prompt,
       stateDir,
-      triggerType: "manual",
+      triggerType: (options?.triggerType ?? "manual") as import("../state/schemas/job-metadata.js").TriggerType,
       schedule: scheduleName,
       outputToFile: schedule?.outputToFile ?? false,
       onMessage: options?.onMessage,

@@ -41,7 +41,7 @@ The only exception is if you're explicitly told to work on main AND you're alrea
 
 **ALWAYS create a changeset when modifying any npm package code.** Without a changeset, changes won't be released to npm, making the work pointless.
 
-After making changes to `packages/core/`, `packages/cli/`, or `packages/discord/`:
+After making changes to `packages/core/`, `packages/cli/`, `packages/web/`, `packages/chat/`, `packages/discord/`, or `packages/slack/`:
 
 ```bash
 pnpm changeset
@@ -63,8 +63,10 @@ If you forget the changeset, the PR will be incomplete and the release pipeline 
 **herdctl** is a TypeScript-based system for managing fleets of autonomous Claude Code agents. It provides:
 - `@herdctl/core` - Core library for programmatic fleet management
 - `herdctl` - CLI for command-line fleet operations
-- `@herdctl/web` - Web dashboard (future)
-- `@herdctl/discord` - Discord connector (future)
+- `@herdctl/web` - Web dashboard (Vite + React + Tailwind)
+- `@herdctl/discord` - Discord connector
+- `@herdctl/slack` - Slack connector
+- `@herdctl/chat` - Shared chat infrastructure
 
 ## Architecture Principles
 
@@ -79,8 +81,10 @@ herdctl/
 ├── packages/
 │   ├── core/           # @herdctl/core - FleetManager, config, scheduler, state
 │   ├── cli/            # herdctl CLI - thin wrapper on FleetManager
-│   ├── web/            # @herdctl/web - Next.js dashboard (future)
-│   └── discord/        # @herdctl/discord - Discord bot (future)
+│   ├── web/            # @herdctl/web - Vite+React dashboard (see web/DESIGN_SYSTEM.md)
+│   ├── chat/           # @herdctl/chat - Shared chat infrastructure
+│   ├── discord/        # @herdctl/discord - Discord bot
+│   └── slack/          # @herdctl/slack - Slack bot
 ├── docs/               # Documentation site (Astro/Starlight) → herdctl.dev
 ├── examples/           # Example configurations
 ├── tasks/              # PRD drafts and task tracking
@@ -169,6 +173,8 @@ As of December 2025, we use OIDC instead of npm tokens:
 | `packages/core/src/scheduler/` | Job scheduling |
 | `packages/core/src/state/` | State persistence (.herdctl/) |
 | `packages/core/src/utils/logger.ts` | Centralized logger (`createLogger`) |
+| `packages/web/DESIGN_SYSTEM.md` | Web UI visual design system (colors, typography, components) |
+| `tasks/web-ui-implementation-plan.md` | Web UI phased implementation plan |
 
 ## Quality Gates
 
@@ -186,6 +192,16 @@ Documentation lives in `docs/` and deploys to herdctl.dev. When adding features:
 
 
 DO NOT use `git add -A` or `git add .` to stage changes. Stage just the files you definitely want to commit.
+
+---
+
+## ⚠️ CRITICAL: Web UI Design System
+
+**When working on `packages/web/` (the @herdctl/web dashboard), you MUST read and follow `packages/web/DESIGN_SYSTEM.md` before writing any UI code.**
+
+This design system defines colors, typography, spacing, component patterns, animation, and dark mode implementation. Every UI component must use `herd-*` color tokens (never raw hex values), follow the canonical component patterns, and pass the checklist at the bottom of the document.
+
+Do not improvise visual design. Do not use default Tailwind colors. Do not use Inter/Roboto/Arial. The design system is the single source of truth for how the web app looks.
 
 ---
 

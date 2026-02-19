@@ -1,0 +1,278 @@
+/**
+ * Chat slice for Zustand store
+ *
+ * Manages chat sessions, messages, and streaming state for agent conversations.
+ */
+
+import type { StateCreator } from "zustand";
+import type { ChatSession, ChatMessage } from "../lib/types";
+import {
+  fetchChatSessions,
+  fetchChatSession,
+  createChatSession as apiCreateChatSession,
+  deleteChatSession as apiDeleteChatSession,
+} from "../lib/api";
+
+// =============================================================================
+// Types
+// =============================================================================
+
+/** Maximum number of sessions shown per agent in the sidebar */
+const SIDEBAR_SESSION_LIMIT = 5;
+
+export interface ChatState {
+  /** List of chat sessions for the current agent */
+  chatSessions: ChatSession[];
+  /** Loading state for session list */
+  chatSessionsLoading: boolean;
+  /** Messages for the active session */
+  chatMessages: ChatMessage[];
+  /** Loading state for message fetch */
+  chatMessagesLoading: boolean;
+  /** Currently active session ID */
+  activeChatSessionId: string | null;
+  /** Whether the agent is currently streaming a response */
+  chatStreaming: boolean;
+  /** Accumulated content from streaming chunks */
+  chatStreamingContent: string;
+  /** Error message for chat operations */
+  chatError: string | null;
+  /** Recent sessions per agent for sidebar display */
+  sidebarSessions: Record<string, ChatSession[]>;
+  /** Loading state for sidebar session fetch */
+  sidebarSessionsLoading: boolean;
+}
+
+export interface ChatActions {
+  /** Fetch all sessions for an agent */
+  fetchChatSessions: (agentName: string) => Promise<void>;
+  /** Fetch messages for a specific session */
+  fetchChatMessages: (agentName: string, sessionId: string) => Promise<void>;
+  /** Create a new chat session */
+  createChatSession: (agentName: string) => Promise<string | null>;
+  /** Delete a chat session */
+  deleteChatSession: (agentName: string, sessionId: string) => Promise<void>;
+  /** Set the active session */
+  setActiveChatSession: (sessionId: string | null) => void;
+  /** Append a chunk to streaming content */
+  appendStreamingChunk: (chunk: string) => void;
+  /** Complete streaming: move content to messages, reset streaming state */
+  completeStreaming: () => void;
+  /** Add a user message immediately to the messages array */
+  addUserMessage: (content: string) => void;
+  /** Set chat error state */
+  setChatError: (error: string | null) => void;
+  /** Fetch recent sessions for all agents (sidebar display) */
+  fetchSidebarSessions: (agentNames: string[]) => Promise<void>;
+  /** Clear all chat state */
+  clearChatState: () => void;
+}
+
+export type ChatSlice = ChatState & ChatActions;
+
+// =============================================================================
+// Initial State
+// =============================================================================
+
+const initialChatState: ChatState = {
+  chatSessions: [],
+  chatSessionsLoading: false,
+  chatMessages: [],
+  chatMessagesLoading: false,
+  activeChatSessionId: null,
+  chatStreaming: false,
+  chatStreamingContent: "",
+  chatError: null,
+  sidebarSessions: {},
+  sidebarSessionsLoading: false,
+};
+
+// =============================================================================
+// Slice Creator
+// =============================================================================
+
+export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (
+  set,
+  get
+) => ({
+  ...initialChatState,
+
+  fetchChatSessions: async (agentName: string) => {
+    set({ chatSessionsLoading: true, chatError: null });
+
+    try {
+      const response = await fetchChatSessions(agentName);
+      set({
+        chatSessions: response.sessions,
+        chatSessionsLoading: false,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to fetch chat sessions";
+      set({
+        chatSessionsLoading: false,
+        chatError: message,
+      });
+    }
+  },
+
+  fetchChatMessages: async (agentName: string, sessionId: string) => {
+    set({ chatMessagesLoading: true, chatError: null });
+
+    try {
+      const response = await fetchChatSession(agentName, sessionId);
+      set({
+        chatMessages: response.messages,
+        chatMessagesLoading: false,
+        activeChatSessionId: sessionId,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to fetch chat messages";
+      set({
+        chatMessagesLoading: false,
+        chatError: message,
+      });
+    }
+  },
+
+  createChatSession: async (agentName: string) => {
+    set({ chatError: null });
+
+    try {
+      const response = await apiCreateChatSession(agentName);
+      const newSession: ChatSession = {
+        sessionId: response.sessionId,
+        createdAt: response.createdAt,
+        lastMessageAt: response.createdAt,
+        messageCount: 0,
+        preview: "",
+      };
+
+      set((state) => ({
+        chatSessions: [newSession, ...state.chatSessions],
+        activeChatSessionId: response.sessionId,
+        chatMessages: [],
+      }));
+
+      return response.sessionId;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to create chat session";
+      set({ chatError: message });
+      return null;
+    }
+  },
+
+  deleteChatSession: async (agentName: string, sessionId: string) => {
+    set({ chatError: null });
+
+    try {
+      await apiDeleteChatSession(agentName, sessionId);
+
+      const { activeChatSessionId } = get();
+
+      set((state) => ({
+        chatSessions: state.chatSessions.filter((s) => s.sessionId !== sessionId),
+        // Clear active session if we deleted it
+        activeChatSessionId:
+          activeChatSessionId === sessionId ? null : activeChatSessionId,
+        // Clear messages if we deleted the active session
+        chatMessages: activeChatSessionId === sessionId ? [] : state.chatMessages,
+      }));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to delete chat session";
+      set({ chatError: message });
+    }
+  },
+
+  setActiveChatSession: (sessionId: string | null) => {
+    set({
+      activeChatSessionId: sessionId,
+      // Clear messages when switching sessions (will be fetched separately)
+      chatMessages: sessionId === null ? [] : get().chatMessages,
+      chatStreaming: false,
+      chatStreamingContent: "",
+    });
+  },
+
+  appendStreamingChunk: (chunk: string) => {
+    set((state) => ({
+      chatStreaming: true,
+      chatStreamingContent: state.chatStreamingContent + chunk,
+    }));
+  },
+
+  completeStreaming: () => {
+    const { chatStreamingContent } = get();
+
+    if (chatStreamingContent) {
+      const assistantMessage: ChatMessage = {
+        role: "assistant",
+        content: chatStreamingContent,
+        timestamp: new Date().toISOString(),
+      };
+
+      set((state) => ({
+        chatMessages: [...state.chatMessages, assistantMessage],
+        chatStreaming: false,
+        chatStreamingContent: "",
+      }));
+    } else {
+      set({
+        chatStreaming: false,
+        chatStreamingContent: "",
+      });
+    }
+  },
+
+  addUserMessage: (content: string) => {
+    const userMessage: ChatMessage = {
+      role: "user",
+      content,
+      timestamp: new Date().toISOString(),
+    };
+
+    set((state) => ({
+      chatMessages: [...state.chatMessages, userMessage],
+      chatStreaming: true, // Start streaming state immediately
+      chatStreamingContent: "",
+    }));
+  },
+
+  setChatError: (error: string | null) => {
+    set({
+      chatError: error,
+      chatStreaming: false,
+      chatStreamingContent: "",
+    });
+  },
+
+  fetchSidebarSessions: async (agentNames: string[]) => {
+    set({ sidebarSessionsLoading: true });
+
+    try {
+      const results = await Promise.all(
+        agentNames.map((name) =>
+          fetchChatSessions(name)
+            .then((r) => ({ name, sessions: r.sessions.slice(0, SIDEBAR_SESSION_LIMIT) }))
+            .catch(() => ({ name, sessions: [] as ChatSession[] }))
+        )
+      );
+
+      const sidebarSessions: Record<string, ChatSession[]> = {};
+      for (const { name, sessions } of results) {
+        sidebarSessions[name] = sessions;
+      }
+
+      set({ sidebarSessions, sidebarSessionsLoading: false });
+    } catch {
+      set({ sidebarSessionsLoading: false });
+    }
+  },
+
+  clearChatState: () => {
+    set(initialChatState);
+  },
+});

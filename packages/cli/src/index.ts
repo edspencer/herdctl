@@ -74,6 +74,8 @@ program
   .option("-c, --config <path>", "Path to config file or directory")
   .option("-s, --state <path>", "Path to state directory (default: .herdctl)")
   .option("-v, --verbose", "Enable verbose debug logging")
+  .option("--web", "Enable the web dashboard")
+  .option("--web-port <port>", "Web dashboard port (default: 3232)", parseInt)
   .action(async (options) => {
     try {
       await startCommand(options);

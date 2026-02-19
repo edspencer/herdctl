@@ -27,6 +27,7 @@ import { Scheduler, type TriggerInfo } from "../scheduler/index.js";
 import type { FleetManagerContext } from "./context.js";
 import type {
   FleetManagerOptions,
+  FleetConfigOverrides,
   FleetManagerState,
   FleetManagerStatus,
   FleetManagerLogger,
@@ -79,6 +80,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   private readonly stateDir: string;
   private readonly logger: FleetManagerLogger;
   private readonly checkInterval: number;
+  private readonly configOverrides?: FleetConfigOverrides;
 
   // Internal state
   private status: FleetManagerStatus = "uninitialized";
@@ -110,6 +112,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     this.stateDir = resolve(options.stateDir);
     this.logger = options.logger ?? createDefaultLogger();
     this.checkInterval = options.checkInterval ?? DEFAULT_CHECK_INTERVAL;
+    this.configOverrides = options.configOverrides;
 
     // Initialize modules in constructor so they work before initialize() is called
     this.initializeModules();
@@ -368,8 +371,8 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
         this.chatManagers.set("discord", manager);
         this.logger.debug("Discord chat manager created");
       } catch {
-        // Package not installed - skip Discord integration
-        this.logger.debug("@herdctl/discord not installed, skipping Discord integration");
+        // Package not installed - warn since Discord is explicitly configured
+        this.logger.warn("@herdctl/discord not installed, skipping Discord integration — install it with: pnpm add @herdctl/discord");
       }
     }
 
@@ -390,15 +393,34 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
         this.chatManagers.set("slack", manager);
         this.logger.debug("Slack chat manager created");
       } catch {
-        // Package not installed - skip Slack integration
-        this.logger.debug("@herdctl/slack not installed, skipping Slack integration");
+        // Package not installed - warn since Slack is explicitly configured
+        this.logger.warn("@herdctl/slack not installed, skipping Slack integration — install it with: pnpm add @herdctl/slack");
+      }
+    }
+
+    // Check if web UI is configured (web config is at fleet level, not per-agent)
+    if (this.config.fleet.web?.enabled) {
+      try {
+        // Dynamic import of @herdctl/web
+        // Use `as string` to prevent TypeScript from resolving types at compile time
+        // This allows core to build without web installed (optional peer dependency)
+        const mod = (await import("@herdctl/web" as string)) as unknown as {
+          WebManager: new (ctx: FleetManagerContext) => IChatManager;
+        };
+        const manager = new mod.WebManager(this);
+        this.chatManagers.set("web", manager);
+        this.logger.debug("Web chat manager created");
+      } catch {
+        // Package not installed - warn since web is explicitly enabled in config
+        this.logger.warn("@herdctl/web not installed, skipping web dashboard — install it with: pnpm add @herdctl/web");
       }
     }
   }
 
   private async loadConfiguration(): Promise<ResolvedConfig> {
+    let config: ResolvedConfig;
     try {
-      return await loadConfig(this.configPath);
+      config = await loadConfig(this.configPath);
     } catch (error) {
       if (error instanceof ConfigNotFoundError) {
         throw new ConfigurationError(`Configuration file not found. ${error.message}`, { configPath: this.configPath, cause: error });
@@ -408,6 +430,47 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       }
       throw new ConfigurationError(`Failed to load configuration: ${error instanceof Error ? error.message : String(error)}`, { configPath: this.configPath, cause: error instanceof Error ? error : undefined });
     }
+
+    // Apply runtime config overrides (e.g., from CLI flags)
+    if (this.configOverrides) {
+      config = this.applyConfigOverrides(config);
+    }
+
+    return config;
+  }
+
+  /**
+   * Apply runtime configuration overrides to the loaded config
+   *
+   * This enables CLI flags like --web and --web-port to override
+   * values from the config file.
+   */
+  private applyConfigOverrides(config: ResolvedConfig): ResolvedConfig {
+    const overrides = this.configOverrides;
+    if (!overrides) return config;
+
+    // Deep clone the fleet config to avoid mutating the original
+    const fleet = { ...config.fleet };
+
+    // Apply web overrides
+    if (overrides.web) {
+      const existingWeb = fleet.web ?? {
+        enabled: false,
+        port: 3232,
+        host: "localhost",
+        session_expiry_hours: 24,
+        open_browser: false,
+      };
+
+      fleet.web = {
+        ...existingWeb,
+        ...(overrides.web.enabled !== undefined && { enabled: overrides.web.enabled }),
+        ...(overrides.web.port !== undefined && { port: overrides.web.port }),
+        ...(overrides.web.host !== undefined && { host: overrides.web.host }),
+      };
+    }
+
+    return { ...config, fleet };
   }
 
   /**

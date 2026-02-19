@@ -137,6 +137,7 @@ export default defineConfig({
 					label: 'Integrations',
 					collapsed: true,
 					items: [
+						{ label: 'Web Dashboard', slug: 'integrations/web-dashboard' },
 						{ label: 'Discord', slug: 'integrations/discord' },
 						{ label: 'Slack', slug: 'integrations/slack' },
 					],

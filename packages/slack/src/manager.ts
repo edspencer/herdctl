@@ -452,6 +452,7 @@ export class SlackManager implements IChatManager {
       // Pass resume option for conversation continuity
       // The onMessage callback streams output incrementally to Slack
       const result = await this.ctx.trigger(agentName, undefined, {
+        triggerType: "slack",
         prompt: event.prompt,
         resume: existingSessionId,
         injectedMcpServers,
