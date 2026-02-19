@@ -66,16 +66,19 @@ It SHOULD flag missing documentation for:
 - Breaking changes to configuration schema
 - New guides or tutorials that would help users
 
-**Documentation site structure:**
-The docs live at `docs/src/content/docs/` in Astro/Starlight format. Key sections:
-- `getting-started/` — Installation and quickstart
-- `concepts/` — Core concepts (agents, jobs, schedules, etc.)
-- `configuration/` — YAML configuration reference
-- `guides/` — How-to guides and recipes
-- `integrations/` — Discord, Slack, web dashboard
-- `library-reference/` — TypeScript API docs
-- `internals/` — Architecture details
-- `cli-reference/` — CLI command reference
+**Documentation locations:**
+Documentation lives in multiple places — not just the docs site:
+- `README.md` — Top-level project README (high-level features, CLI commands, config examples)
+- `packages/*/README.md` — Package-specific READMEs (installation, API, usage)
+- `docs/src/content/docs/` — Astro/Starlight docs site (herdctl.dev), with sections:
+  - `getting-started/` — Installation and quickstart
+  - `concepts/` — Core concepts (agents, jobs, schedules, etc.)
+  - `configuration/` — YAML configuration reference
+  - `guides/` — How-to guides and recipes
+  - `integrations/` — Discord, Slack, web dashboard
+  - `library-reference/` — TypeScript API docs
+  - `internals/` — Architecture details
+  - `cli-reference/` — CLI command reference
 
 **Key inputs/outputs:**
 - Input: `agents/docs/state.md` — persistent state with last checked commit
@@ -228,14 +231,19 @@ Commits to analyze: {LAST_COMMIT}..{LATEST_COMMIT} ({COMMIT_COUNT} commits)
    - Changed behavior described in existing docs
    - New concepts or architectural changes
    - API changes in @herdctl/core that library users would see
+   - Major features that the top-level README.md should mention
+   - Package API changes that a package's README.md should reflect
 
 4. For each gap found, check if documentation ALREADY EXISTS:
    - Search docs/src/content/docs/ for relevant content
+   - Check README.md and packages/*/README.md for relevant content
    - Read existing pages that might already cover the change
    - Only flag as a gap if the docs are genuinely missing or wrong
 
 5. Read the existing documentation structure:
    find docs/src/content/docs/ -name "*.md" -o -name "*.mdx" | sort
+   Also read README.md and check for package READMEs:
+   ls packages/*/README.md 2>/dev/null
 
 ## Output Format
 
@@ -378,10 +386,12 @@ Brief description of all changes made
 IMPORTANT RULES:
 (1) Do NOT create branches or run git checkout — stay on the current branch.
 (2) Do NOT commit changes — the orchestrator handles commits.
-(3) Only write documentation files in docs/src/content/docs/ and potentially
-    docs/astro.config.mjs.
+(3) You may write to: docs/src/content/docs/, docs/astro.config.mjs,
+    README.md, and packages/*/README.md.
 (4) Do NOT modify source code files.
-(5) Match the quality and style of existing documentation.
+(5) Match the quality and style of existing documentation in each location.
+(6) README updates should be concise — READMEs are summaries, not full docs.
+    Link to herdctl.dev pages for details.
 ```
 
 **After subagent completes, verify branch:**
@@ -398,6 +408,8 @@ echo "Verified on branch: $(git branch --show-current)"
 ```bash
 git add docs/src/content/docs/
 git add docs/astro.config.mjs
+git add README.md
+git add packages/*/README.md 2>/dev/null
 
 STAGED=$(git diff --cached --name-only)
 if [ -z "$STAGED" ]; then
