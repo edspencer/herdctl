@@ -1,5 +1,15 @@
 # @herdctl/slack
 
+## 1.1.1
+
+### Patch Changes
+
+- [#72](https://github.com/edspencer/herdctl/pull/72) [`de00c6b`](https://github.com/edspencer/herdctl/commit/de00c6bf971f582703d3720cc2546173e1b074ea) Thanks [@edspencer](https://github.com/edspencer)! - Pass triggerType to job triggers so jobs are correctly tagged with their source (discord/slack)
+
+- Updated dependencies [[`de00c6b`](https://github.com/edspencer/herdctl/commit/de00c6bf971f582703d3720cc2546173e1b074ea)]:
+  - @herdctl/core@5.2.0
+  - @herdctl/chat@0.2.2
+
 ## 1.1.0
 
 ### Minor Changes
