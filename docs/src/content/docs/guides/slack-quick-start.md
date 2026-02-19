@@ -25,6 +25,7 @@ Go to **OAuth & Permissions** > **Bot Token Scopes** and add:
 - `chat:write`
 - `channels:history`
 - `files:write`
+- `im:history` (for DM support)
 
 ## 4. Subscribe to Events
 
@@ -32,6 +33,7 @@ Go to **Event Subscriptions** > toggle **Enable Events** on > **Subscribe to bot
 
 - `app_mention`
 - `message.channels`
+- `message.im`
 
 Click **Save Changes**.
 
@@ -109,4 +111,5 @@ Slack uses prefix commands (`!help`) rather than slash commands (`/help`). Just 
 - See the [Slack Chat Bot example](/guides/examples/#slack-chat-bot) for a complete working example
 - Read the [full Slack reference](/integrations/slack/) for advanced configuration
 - Learn about [session management](/integrations/slack/#session-management) for conversation context
+- Configure [direct message support](/integrations/slack/#direct-messages) for one-on-one agent conversations
 - Compare with the [Discord integration](/integrations/discord/) if you need both platforms

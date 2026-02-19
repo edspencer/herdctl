@@ -49,7 +49,7 @@ All channels use the same bot identity. When a user messages or @mentions the bo
 | **Connection** | Socket Mode (WebSocket) | Gateway (WebSocket) |
 | **Channel structure** | Flat channels | Guild → Channels |
 | **Commands** | Prefix commands (`!help`) | Slash commands (`/help`) |
-| **DM support** | Not supported | Supported |
+| **DM support** | Supported | Supported |
 | **Public URL needed** | No | No |
 
 ### Response Modes
@@ -155,6 +155,7 @@ Before setting up Slack integration, ensure you have:
    | `chat:write` | Send messages and replies |
    | `channels:history` | Read channel messages for context |
    | `files:write` | Upload files (for long responses) |
+   | `im:history` | Read DM messages for direct message support |
 
 5. **Subscribe to Events**
 
@@ -168,6 +169,7 @@ Before setting up Slack integration, ensure you have:
    |-------|---------|
    | `app_mention` | Triggers when the bot is @mentioned |
    | `message.channels` | Triggers on all channel messages (for `auto` mode) |
+   | `message.im` | Triggers on direct messages to the bot |
 
    Click **Save Changes**.
 
@@ -281,6 +283,15 @@ chat:
         name: "#dev-help"
         mode: auto
         context_messages: 5
+
+    # Direct message settings (optional)
+    dm:
+      enabled: true                   # Accept DMs (default: true)
+      mode: auto                      # mention or auto (default: auto)
+      allowlist:                      # Only accept DMs from these user IDs (optional)
+        - "U0123456789"
+      blocklist:                      # Block DMs from these user IDs (optional)
+        - "U9876543210"
 ```
 
 ### Configuration Options
@@ -304,8 +315,17 @@ chat:
 | `mode` | string | `mention` | Response mode: `mention` or `auto` |
 | `context_messages` | number | `10` | Number of recent messages to include as context |
 
+#### DM Settings
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `dm.enabled` | boolean | `true` | Whether to accept direct messages |
+| `dm.mode` | string | `auto` | Response mode for DMs: `mention` or `auto` |
+| `dm.allowlist` | string[] | — | Only accept DMs from these Slack user IDs |
+| `dm.blocklist` | string[] | — | Block DMs from these Slack user IDs |
+
 <Aside type="note">
-  Unlike Discord, Slack does not have guild (server) hierarchy, DM configuration, presence settings, or output formatting options. The configuration is simpler — just list your channels directly.
+  Unlike Discord, Slack does not have guild (server) hierarchy, presence settings, or output formatting options. Slack DM configuration uses the same `dm` schema as Discord.
 </Aside>
 
 ## Environment Variables
@@ -679,6 +699,57 @@ channels:
 ```
 
 More context = better continuity but higher token usage.
+
+## Direct Messages
+
+Slack agents can receive and respond to direct messages (DMs) from users.
+
+### Enabling DM Support
+
+DM support is enabled by default. To configure it:
+
+```yaml
+chat:
+  slack:
+    bot_token_env: SLACK_BOT_TOKEN
+    app_token_env: SLACK_APP_TOKEN
+    channels:
+      - id: "C0123456789"
+        mode: mention
+    dm:
+      enabled: true
+      mode: auto
+```
+
+### DM Configuration Patterns
+
+```yaml
+# Accept DMs from everyone (default)
+dm:
+  enabled: true
+  mode: auto
+
+# Only accept DMs from specific users
+dm:
+  enabled: true
+  allowlist:
+    - "U0123456789"
+    - "U9876543210"
+
+# Block specific users
+dm:
+  enabled: true
+  blocklist:
+    - "UBADUSER001"
+
+# Disable DMs entirely
+dm:
+  enabled: false
+```
+
+<Aside type="note">
+  DM support requires the `im:history` bot scope and the `message.im` event subscription in your Slack App configuration. See the [setup instructions](#creating-a-slack-app) above.
+</Aside>
 
 ## Formatting
 

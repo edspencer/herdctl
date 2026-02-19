@@ -1,7 +1,7 @@
 ---
-last_checked_commit: 4919782
-last_run: "2026-02-19T20:45:00Z"
-docs_gaps_found: 5
+last_checked_commit: 7fe5595
+last_run: "2026-02-19T21:15:00Z"
+docs_gaps_found: 4
 branches_created: []
 status: completed
 ---
@@ -19,9 +19,9 @@ incremental reviews that analyze only new commits since the last check.
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Last checked commit | 4919782 | Extract shared chat infrastructure into @herdctl/chat (#67) |
-| Last run | 2026-02-19T20:45:00Z | Seeded run (manual, batch 2 of 4) |
-| Gaps found (last run) | 5 | CLI flags, env vars, Slack architecture, chat pkg, AgentInfo type |
+| Last checked commit | 7fe5595 | chore: version packages (#78) |
+| Last run | 2026-02-19T21:15:00Z | Seeded run (manual, batch 3 of 4) |
+| Gaps found (last run) | 4 | Slack DM support, DM agent-config, DM quick-start, web open_browser |
 | Branches created | None | Changes on docs/audit-first-run branch |
 
 ---
@@ -32,6 +32,7 @@ incremental reviews that analyze only new commits since the last check.
 |------|-----------------|------------|--------|--------|
 | 2026-02-19 | 10 | 2 | created-branch | docs/audit-first-run |
 | 2026-02-19 | 10 | 5 | updated-docs | docs/audit-first-run |
+| 2026-02-19 | 10 | 4 | updated-docs | docs/audit-first-run |
 
 ---
 

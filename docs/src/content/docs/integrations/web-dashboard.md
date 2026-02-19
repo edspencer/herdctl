@@ -35,6 +35,7 @@ fleet:
   web:
     enabled: true
     port: 3232
+    open_browser: true
 ```
 
 | Field | Type | Default | Description |
@@ -43,6 +44,7 @@ fleet:
 | `port` | number | `3232` | Port to listen on |
 | `host` | string | `"localhost"` | Host to bind to |
 | `session_expiry_hours` | number | `24` | Chat session expiry in hours |
+| `open_browser` | boolean | `false` | Automatically open browser when starting |
 
 ### CLI Flags
 

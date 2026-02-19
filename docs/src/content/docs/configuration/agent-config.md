@@ -601,6 +601,9 @@ chat:
     channels:
       - id: "C0123456789"
         mode: mention
+    dm:
+      enabled: true
+      mode: auto
 ```
 
 | Field | Type | Default | Description |
@@ -612,6 +615,10 @@ chat:
 | `channels` | array | — | Slack channels this agent monitors |
 | `channels[].id` | string | — | Slack channel ID (starts with `C`) |
 | `channels[].mode` | string | `mention` | `mention` (respond when @mentioned) or `auto` (respond to all) |
+| `dm.enabled` | boolean | `true` | Accept direct messages |
+| `dm.mode` | string | `auto` | DM response mode: `mention` or `auto` |
+| `dm.allowlist` | string[] | — | Only accept DMs from these user IDs |
+| `dm.blocklist` | string[] | — | Block DMs from these user IDs |
 
 :::note[Slack Bot Setup]
 Slack uses a shared bot — all agents in a workspace share one Slack App and bot token. Different channels route to different agents. See the [Slack integration guide](/integrations/slack/) for setup instructions.
