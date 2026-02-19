@@ -75,6 +75,36 @@ export function getLevelColor(level: LogLevel): ColorName {
 }
 
 /**
+ * Brand colors for connector platforms (true-color ANSI)
+ *
+ * These use 24-bit RGB escape sequences for accurate brand colors.
+ * Terminals that don't support true color will typically fall back
+ * to the nearest 256-color or 16-color equivalent automatically.
+ */
+const brandColors = {
+  discord: "\x1b[38;2;88;101;242m",  // Discord Blurple #5865F2
+  slack: "\x1b[38;2;54;197;240m",    // Slack Blue #36C5F0
+  web: "\x1b[38;2;59;130;246m",      // Web Blue #3B82F6
+} as const;
+
+/**
+ * Get a brand color escape sequence for a log message based on its connector prefix.
+ *
+ * Messages from connector loggers are prefixed with `[discord:...]`, `[slack:...]`,
+ * or `[web:...]` by the createAgentLogger adapter in each manager.
+ *
+ * Returns the ANSI escape to open the color (caller must append reset).
+ * Returns empty string if no brand color applies or colors are disabled.
+ */
+export function getMessageColor(message: string): string {
+  if (!shouldUseColor()) return "";
+  if (message.startsWith("[discord:")) return brandColors.discord;
+  if (message.startsWith("[slack:")) return brandColors.slack;
+  if (message.startsWith("[web:")) return brandColors.web;
+  return "";
+}
+
+/**
  * Get color for log source (output type)
  */
 export function getSourceColor(source: string, data?: Record<string, unknown>): ColorName {
