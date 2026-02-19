@@ -1,6 +1,6 @@
 {
   "name": "@herdctl/discord",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Discord connector for herdctl fleet management",
   "license": "MIT",
   "type": "module",

@@ -1,5 +1,17 @@
 # herdctl
 
+## 1.2.1
+
+### Patch Changes
+
+- [#75](https://github.com/edspencer/herdctl/pull/75) [`11ec259`](https://github.com/edspencer/herdctl/commit/11ec2593986e0f33a7e69ca4f7d56946c03197c5) Thanks [@edspencer](https://github.com/edspencer)! - Add README files for slack, web, and chat packages; update Related Packages in all package READMEs
+
+- Updated dependencies [[`11ec259`](https://github.com/edspencer/herdctl/commit/11ec2593986e0f33a7e69ca4f7d56946c03197c5)]:
+  - @herdctl/core@5.2.1
+  - @herdctl/discord@1.0.3
+  - @herdctl/slack@1.1.2
+  - @herdctl/web@0.1.1
+
 ## 1.2.0
 
 ### Minor Changes
