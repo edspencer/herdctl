@@ -15,7 +15,6 @@ import { AgentDetail } from "./components/agent";
 import { JobHistory } from "./components/jobs";
 import { ScheduleList } from "./components/schedules";
 import { ChatView } from "./components/chat";
-import { SettingsPage } from "./components/settings";
 import { ErrorBoundary } from "./components/ui";
 import { ToastContainer } from "./components/ui/Toast";
 
@@ -64,7 +63,6 @@ export default function App() {
           <Route path="/agents/:name/chat/:sessionId" element={<ErrorBoundary><ChatView /></ErrorBoundary>} />
           <Route path="/jobs" element={<ErrorBoundary><JobsPage /></ErrorBoundary>} />
           <Route path="/schedules" element={<ErrorBoundary><SchedulesPage /></ErrorBoundary>} />
-          <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
         </Routes>
       </AppLayout>
       <ToastContainer />

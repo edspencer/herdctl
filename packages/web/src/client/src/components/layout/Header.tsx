@@ -7,9 +7,9 @@
  */
 
 import { useLocation, useParams } from "react-router";
-import { Menu } from "lucide-react";
-import { useFleet, useUIActions } from "../../store";
-import type { ConnectionStatus } from "../../lib/types";
+import { Menu, Sun, Moon, Monitor } from "lucide-react";
+import { useFleet, useUI, useUIActions } from "../../store";
+import type { ConnectionStatus, Theme } from "../../lib/types";
 
 // =============================================================================
 // Helper Functions
@@ -56,9 +56,6 @@ function getPageTitle(pathname: string, agentName?: string): string {
   if (pathname === "/schedules") {
     return "Schedules";
   }
-  if (pathname === "/settings") {
-    return "Settings";
-  }
   if (pathname.startsWith("/agents/") && agentName) {
     if (pathname.endsWith("/chat")) {
       return `${agentName} Chat`;
@@ -72,9 +69,16 @@ function getPageTitle(pathname: string, agentName?: string): string {
 // Component
 // =============================================================================
 
+const themeOptions: { value: Theme; icon: typeof Sun; label: string }[] = [
+  { value: "light", icon: Sun, label: "Light mode" },
+  { value: "dark", icon: Moon, label: "Dark mode" },
+  { value: "system", icon: Monitor, label: "System theme" },
+];
+
 export function Header() {
   const { connectionStatus } = useFleet();
-  const { toggleSidebarMobile } = useUIActions();
+  const { theme } = useUI();
+  const { toggleSidebarMobile, setTheme } = useUIActions();
   const location = useLocation();
   const params = useParams<{ name?: string }>();
 
@@ -95,14 +99,37 @@ export function Header() {
         <h1 className="text-lg font-semibold text-herd-fg">{pageTitle}</h1>
       </div>
 
-      {/* Connection status */}
-      <div className="flex items-center gap-2">
-        <span
-          className={`w-2 h-2 rounded-full ${getConnectionDotClass(connectionStatus)}`}
-        />
-        <span className="text-xs text-herd-muted">
-          {getConnectionLabel(connectionStatus)}
-        </span>
+      {/* Right: theme toggle + connection status */}
+      <div className="flex items-center gap-3">
+        {/* Theme toggle */}
+        <div className="flex items-center bg-herd-hover rounded-lg p-0.5">
+          {themeOptions.map(({ value, icon: Icon, label }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setTheme(value)}
+              className={`p-1.5 rounded-md transition-colors ${
+                theme === value
+                  ? "bg-herd-card text-herd-fg shadow-sm"
+                  : "text-herd-muted hover:text-herd-fg"
+              }`}
+              title={label}
+              aria-label={label}
+            >
+              <Icon className="w-3.5 h-3.5" />
+            </button>
+          ))}
+        </div>
+
+        {/* Connection status */}
+        <div className="flex items-center gap-1.5">
+          <span
+            className={`w-2 h-2 rounded-full ${getConnectionDotClass(connectionStatus)}`}
+          />
+          <span className="text-xs text-herd-muted">
+            {getConnectionLabel(connectionStatus)}
+          </span>
+        </div>
       </div>
     </header>
   );

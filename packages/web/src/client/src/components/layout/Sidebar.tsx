@@ -4,7 +4,7 @@
  * Contains:
  * - Fleet name header with connection status
  * - Agent sections with nested recent chats
- * - Navigation links (Dashboard, Jobs, Schedules, Settings)
+ * - Navigation links (Dashboard, Jobs, Schedules)
  * - Quick stats bar showing agent counts
  */
 
@@ -14,7 +14,6 @@ import {
   LayoutDashboard,
   Briefcase,
   Calendar,
-  Settings,
   Plus,
 } from "lucide-react";
 import { useFleet, useSidebarSessions, useChatActions } from "../../store";
@@ -320,13 +319,6 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
             icon={<Calendar className="w-4 h-4" />}
             label="Schedules"
             isActive={location.pathname === "/schedules"}
-            onNavigate={onNavigate}
-          />
-          <NavItem
-            to="/settings"
-            icon={<Settings className="w-4 h-4" />}
-            label="Settings"
-            isActive={location.pathname === "/settings"}
             onNavigate={onNavigate}
           />
         </div>
