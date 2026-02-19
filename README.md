@@ -243,14 +243,72 @@ chat:
 - **Role-Based Access**: Control who can interact with each agent
 - **Typing Indicators**: Visual feedback while the agent thinks
 
+### Slack (Available Now)
+
+Your agents can respond in Slack channels and DMs. Uses Socket Mode — no public URL needed:
+
+```yaml
+# agents/support-bot.yaml
+chat:
+  slack:
+    bot_token_env: SLACK_BOT_TOKEN
+    app_token_env: SLACK_APP_TOKEN
+    channels:
+      - id: "C1234567890"
+        mode: auto
+    dm:
+      enabled: true
+```
+
+**Features:**
+- **Channels and DMs**: Route agents to specific channels or enable direct messages
+- **Socket Mode**: No public URL or webhook endpoint needed
+- **Session Persistence**: Conversation context maintained across messages
+- **Message Threading**: Responses in threads keep channels organized
+- **Markdown Conversion**: Agent output automatically converted to Slack's mrkdwn format
+
+### Web Dashboard (Available Now)
+
+Monitor your fleet and chat with agents from your browser. Enable the web dashboard with a single flag:
+
+```bash
+herdctl start --web
+```
+
+Or in your fleet config:
+
+```yaml
+web:
+  enabled: true
+  port: 3232
+```
+
+The dashboard provides real-time fleet status, agent detail views, schedule management, job history, and interactive chat — all updated live over WebSocket.
+
 ### Coming Soon
 
-- **Slack**: Workspace integration with thread support
 - **WhatsApp**: Personal assistant on your phone
 - **iMessage**: Native Apple Messages integration
-- **Web Widget**: Embed chat on your website
+- **Telegram**: Bot API integration
 
-The architecture is designed for multiple connectors—Discord is the first of many.
+## Web Dashboard
+
+<div align="center">
+  <img src="docs/src/assets/screenshots/fleet-overview.png" alt="herdctl web dashboard" width="800">
+  <p><em>Fleet overview showing agents, status, and recent jobs</em></p>
+</div>
+
+The web dashboard gives you a browser-based control panel for your fleet. Enable it with `herdctl start --web` or `web.enabled: true` in your config.
+
+**What you get:**
+- **Fleet overview** — real-time status of all agents and recent jobs
+- **Agent detail** — live output streaming, schedule controls, job history
+- **Interactive chat** — message any agent directly from the browser
+- **Schedule management** — trigger, enable, and disable schedules
+- **Job management** — cancel, fork, and inspect jobs
+- **Dark mode** — light, dark, and system theme support
+
+See the [web dashboard documentation](https://herdctl.dev/integrations/web-dashboard/) for full details.
 
 ## Session Continuity
 
@@ -479,16 +537,21 @@ The Claude SDK's full capabilities flow through to your agents. Any MCP server, 
 ┌─────────────────────────────────────────────────────────────────┐
 │                         Your Application                         │
 ├─────────────────────────────────────────────────────────────────┤
-│  herdctl CLI    │    @herdctl/core    │    @herdctl/discord     │
-│  (Commands)     │    (Library)        │    (Chat Connector)     │
-├─────────────────┴───────────────────────────────────────────────┤
+│  herdctl CLI   │  @herdctl/core  │  @herdctl/web               │
+│  (Commands)    │  (Library)      │  (Dashboard)                 │
+├────────────────┴─────────────────┴──────────────────────────────┤
 │                        FleetManager                              │
 │  ┌──────────┐  ┌───────────┐  ┌──────────┐  ┌───────────────┐  │
 │  │ Scheduler │  │ JobRunner │  │  State   │  │ HookExecutor  │  │
 │  │ (cron,   │  │ (spawns   │  │ Manager  │  │ (shell,       │  │
-│  │ interval)│  │ agents)   │  │ (.herd/) │  │ webhook,      │  │
-│  └──────────┘  └───────────┘  └──────────┘  │ discord)      │  │
-│                                              └───────────────┘  │
+│  │ interval)│  │ agents)   │  │ (.herd/) │  │ webhook)      │  │
+│  └──────────┘  └───────────┘  └──────────┘  └───────────────┘  │
+├─────────────────────────────────────────────────────────────────┤
+│                      @herdctl/chat                               │
+│              (Session management, streaming)                     │
+├─────────────────────────────────────────────────────────────────┤
+│  @herdctl/discord  │  @herdctl/slack  │  @herdctl/web (chat)   │
+│  (Discord Bot)     │  (Slack Bot)     │  (Browser chat)        │
 ├─────────────────────────────────────────────────────────────────┤
 │                        Claude SDK                                │
 │              (Sessions, Tools, MCP Servers)                      │
@@ -506,7 +569,10 @@ The Claude SDK's full capabilities flow through to your agents. Any MCP server, 
 |---------|-------------|
 | [`herdctl`](https://www.npmjs.com/package/herdctl) | CLI for fleet management. Install globally, run `herdctl start`. |
 | [`@herdctl/core`](https://www.npmjs.com/package/@herdctl/core) | Core library. Embed fleet management in your own applications. |
-| [`@herdctl/discord`](https://www.npmjs.com/package/@herdctl/discord) | Discord connector. Automatically loaded when agents have Discord chat config. |
+| [`@herdctl/web`](https://www.npmjs.com/package/@herdctl/web) | Web dashboard. Real-time fleet monitoring, agent chat, and job management in your browser. |
+| [`@herdctl/discord`](https://www.npmjs.com/package/@herdctl/discord) | Discord connector. Chat with your agents via Discord DMs and channels. |
+| [`@herdctl/slack`](https://www.npmjs.com/package/@herdctl/slack) | Slack connector. Chat with your agents via Slack channels and DMs. |
+| [`@herdctl/chat`](https://www.npmjs.com/package/@herdctl/chat) | Shared chat infrastructure. Session management, streaming, and message handling used by all connectors. |
 
 ### Using the Library
 
@@ -625,11 +691,10 @@ herdctl fork <job-id>     # Fork a job with new instructions
 
 We're building toward a future where AI agents are first-class participants in your development workflow:
 
-- **More Chat Integrations**: Slack, WhatsApp, iMessage, web widgets
+- **More Chat Integrations**: WhatsApp, iMessage, Telegram
 - **Dynamic Scheduling**: Agents request their own next run time
 - **Persistent Agent Memory**: Context files that survive across jobs
 - **Agent Self-Modification**: Update own configs, write skills
-- **Web Dashboard**: Real-time fleet monitoring with streaming output
 - **Agent-to-Agent Communication**: Agents that delegate to other agents
 - **Marketplace**: Share and discover agent configurations
 

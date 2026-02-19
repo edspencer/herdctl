@@ -13,6 +13,8 @@ It lets you run agents **locally or in the cloud**, **isolated in Docker or on b
 
 Each agent can be triggered on **any number of schedules**, exposed in **any number of Discord or Slack channels**, and you can run as many of them as you want in a **fleet**.
 
+Every fleet can be monitored via the built-in **[web dashboard](/integrations/web-dashboard/)** — real-time status, live output streaming, agent chat, and schedule controls, all in your browser.
+
 herdctl is not an AI system. It's not trying to solve AI problems. It's a thin orchestration layer for people who are **building and using AI agents built on Claude Code**.
 
 ## Intro Video
@@ -59,7 +61,7 @@ herdctl is deliberately minimal. It does not:
 - Provide its own AI capabilities (it runs Claude Code)
 - Manage prompts or prompt engineering (that's your agent's system prompt)
 - Handle tool development (use MCP servers)
-- Provide a UI for building agents (write YAML config)
+- Provide a drag-and-drop agent builder (agents are defined in YAML)
 
 If you want to build AI agents on Claude Code and need infrastructure to run them, herdctl is for you. If you want an all-in-one AI platform, look elsewhere.
 
@@ -190,6 +192,16 @@ This keeps secrets out of source control while letting you route the right crede
     title="Core Concepts"
     description="Learn about agents, schedules, jobs, and sessions"
     href="/concepts/agents/"
+  />
+  <LinkCard
+    title="Web Dashboard"
+    description="Monitor your fleet and chat with agents from the browser"
+    href="/integrations/web-dashboard/"
+  />
+  <LinkCard
+    title="Chat Integrations"
+    description="Connect agents to Discord, Slack, or the web dashboard"
+    href="/integrations/discord/"
   />
 </CardGrid>
 

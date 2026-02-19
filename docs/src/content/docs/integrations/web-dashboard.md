@@ -5,6 +5,8 @@ description: Real-time web dashboard for monitoring and controlling your herdctl
 
 The web dashboard provides a browser-based interface for monitoring your herdctl fleet in real-time, interacting with agents via chat, and managing schedules and jobs.
 
+![Fleet overview showing agents, status, and recent jobs](../../../assets/screenshots/fleet-overview.png)
+
 ## Overview
 
 The `@herdctl/web` package embeds a full web dashboard into herdctl. When enabled, it serves a React-based single-page application alongside a REST API and WebSocket server. The dashboard provides:
@@ -87,6 +89,8 @@ Agent cards display the agent name, current status, running job count, and sched
 
 The agent detail page provides deep visibility into a single agent:
 
+![Agent detail page showing status, schedules, and job history](../../../assets/screenshots/agent-detail.png)
+
 - **Status and metadata** including model, working directory, and permission mode
 - **Live output streaming** for the current running job, updated in real-time over WebSocket
 - **Schedule list** with controls to trigger, enable, or disable each schedule
@@ -111,6 +115,8 @@ Chat messages are sent via WebSocket for low-latency streaming, with the full re
 
 The schedules page lists all schedules across all agents with:
 
+![Schedule management page](../../../assets/screenshots/schedules.png)
+
 - **Schedule type** (interval, cron, webhook, chat)
 - **Current status** (idle, running, disabled)
 - **Timing details** (interval, cron expression, last run, next run)
@@ -130,14 +136,6 @@ The jobs page provides a paginated, filterable list of all jobs:
   - **Fork** a completed/failed job to re-run it with optional prompt changes
   - **Copy CLI command** to reproduce the job from the command line
 
-### Settings
-
-The settings page shows:
-
-- **Fleet information** (name, state, uptime, agent/job counts)
-- **Scheduler status** (check count, trigger count, check interval)
-- **Theme toggle** to switch between light, dark, and system themes
-
 ### Theme Support
 
 The dashboard supports three theme modes:
@@ -145,6 +143,12 @@ The dashboard supports three theme modes:
 - **Light** - bright background with dark text
 - **Dark** - dark background with light text
 - **System** - automatically follows your operating system preference
+
+The fleet overview in light and dark mode:
+
+| Light Mode | Dark Mode |
+|-----------|----------|
+| ![Light mode](../../../assets/screenshots/fleet-overview.png) | ![Dark mode](../../../assets/screenshots/fleet-overview-dark.png) |
 
 Theme selection persists across sessions via local storage.
 
