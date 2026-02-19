@@ -14,8 +14,7 @@
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --coverage",
-    "lint": "biome check src/",
-    "format:check": "biome format --check src/"
+    "lint": "biome check src/"
   },
   "dependencies": {
     "@herdctl/chat": "workspace:*",

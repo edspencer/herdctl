@@ -102,7 +102,6 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
     this._agentConfig = options.agentConfig;
     this._discordConfig = options.discordConfig;
     this._botToken = options.botToken;
-    this._fleetManager = options.fleetManager;
     this._sessionManager = options.sessionManager;
 
     // Create logger from config if not provided

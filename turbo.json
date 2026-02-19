@@ -6,9 +6,6 @@
     "lint": {
       "inputs": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.css", "../../biome.json"]
     },
-    "format:check": {
-      "inputs": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.css", "../../biome.json"]
-    },
     "test": {},
     "typecheck": { "dependsOn": ["^build"] }
   }

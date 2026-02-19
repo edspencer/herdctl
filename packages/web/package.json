@@ -18,8 +18,7 @@
     "dev:server": "tsc -p tsconfig.json --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --coverage --passWithNoTests",
-    "lint": "biome check src/ vite.config.ts",
-    "format:check": "biome format --check src/ vite.config.ts"
+    "lint": "biome check src/ vite.config.ts"
   },
   "dependencies": {
     "@dicebear/bottts": "^9.3.1",

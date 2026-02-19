@@ -7,7 +7,6 @@
     "dev": "turbo dev",
     "lint": "turbo lint",
     "format": "biome format --write packages/",
-    "format:check": "turbo format:check",
     "test": "turbo test",
     "typecheck": "turbo typecheck",
     "security": "npx tsx .security/tools/scan.ts",
