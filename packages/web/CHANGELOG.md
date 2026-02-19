@@ -1,5 +1,11 @@
 # @herdctl/web
 
+## 0.3.2
+
+### Patch Changes
+
+- [#95](https://github.com/edspencer/herdctl/pull/95) [`97764a2`](https://github.com/edspencer/herdctl/commit/97764a24833fcdc2fda163e86c3a0d971334682b) Thanks [@edspencer](https://github.com/edspencer)! - fix: sidebar chats no longer vanish when navigating to agent details page
+
 ## 0.3.1
 
 ### Patch Changes
