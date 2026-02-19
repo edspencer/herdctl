@@ -1,5 +1,15 @@
 # @herdctl/web
 
+## 0.1.4
+
+### Patch Changes
+
+- [#83](https://github.com/edspencer/herdctl/pull/83) [`c433165`](https://github.com/edspencer/herdctl/commit/c4331652ab7e2ffbf00ec496ed9ac46308fbb7cd) Thanks [@edspencer](https://github.com/edspencer)! - Remove duplicate inner sidebar from chat page, move chat title and session ID to top-level header bar, and make the global sidebar new-chat button blue
+
+- [#81](https://github.com/edspencer/herdctl/pull/81) [`7b78a4e`](https://github.com/edspencer/herdctl/commit/7b78a4e8008baf3536a0d13ac57342df3411bb45) Thanks [@edspencer](https://github.com/edspencer)! - Fix sidebar chat list not updating when creating or deleting chat sessions
+
+- [#85](https://github.com/edspencer/herdctl/pull/85) [`9d3e2a1`](https://github.com/edspencer/herdctl/commit/9d3e2a1c2757a504c8dcd693aeba8e2a9650609d) Thanks [@edspencer](https://github.com/edspencer)! - Increase font size, padding, and spacing of chat session items in the global sidebar so they are easier to read and click
+
 ## 0.1.3
 
 ### Patch Changes

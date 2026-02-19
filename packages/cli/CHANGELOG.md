@@ -1,5 +1,12 @@
 # herdctl
 
+## 1.2.4
+
+### Patch Changes
+
+- Updated dependencies [[`c433165`](https://github.com/edspencer/herdctl/commit/c4331652ab7e2ffbf00ec496ed9ac46308fbb7cd), [`7b78a4e`](https://github.com/edspencer/herdctl/commit/7b78a4e8008baf3536a0d13ac57342df3411bb45), [`9d3e2a1`](https://github.com/edspencer/herdctl/commit/9d3e2a1c2757a504c8dcd693aeba8e2a9650609d)]:
+  - @herdctl/web@0.1.4
+
 ## 1.2.3
 
 ### Patch Changes
