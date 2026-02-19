@@ -1,5 +1,11 @@
 # @herdctl/core
 
+## 5.2.2
+
+### Patch Changes
+
+- [#77](https://github.com/edspencer/herdctl/pull/77) [`04afb3b`](https://github.com/edspencer/herdctl/commit/04afb3bd0b918413351a2e3c88009d803948ddfa) Thanks [@edspencer](https://github.com/edspencer)! - Fix inconsistent Date usage in scheduler that caused flaky cron tests
+
 ## 5.2.1
 
 ### Patch Changes
