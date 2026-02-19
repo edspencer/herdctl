@@ -175,6 +175,9 @@ For complete setup instructions, visit [herdctl.dev](https://herdctl.dev):
 
 - [`herdctl`](https://www.npmjs.com/package/herdctl) - CLI for running agent fleets
 - [`@herdctl/core`](https://www.npmjs.com/package/@herdctl/core) - Core library for programmatic use
+- [`@herdctl/chat`](https://www.npmjs.com/package/@herdctl/chat) - Shared chat infrastructure (used internally)
+- [`@herdctl/slack`](https://www.npmjs.com/package/@herdctl/slack) - Slack connector
+- [`@herdctl/web`](https://www.npmjs.com/package/@herdctl/web) - Web dashboard
 
 ## License
 
