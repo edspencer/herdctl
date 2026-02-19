@@ -337,7 +337,7 @@ export class WebManager implements IChatManager {
       this.connectorState.lastError = null;
 
       const url = `http://${webConfig.host}:${webConfig.port}`;
-      log.info(`Web dashboard available at ${url}`);
+      logger.info(`Web dashboard available at ${url}`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.connectorState.status = "error";

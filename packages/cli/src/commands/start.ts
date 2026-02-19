@@ -154,7 +154,7 @@ export async function startCommand(options: StartOptions): Promise<void> {
     const levelStr = colorize(level.toUpperCase().padEnd(5), getLevelColor(level));
     const prefixStr = colorize(`[${prefix}]`, getSourceColor(prefix));
     const dataStr = data ? ` ${JSON.stringify(data)}` : "";
-    const msgColor = getMessageColor(message);
+    const msgColor = getMessageColor(message, prefix);
     const msgStr = msgColor ? `${msgColor}${message}${dataStr}${colors.reset}` : `${message}${dataStr}`;
     console.log(`${levelStr} ${prefixStr} ${msgStr}`);
   });
