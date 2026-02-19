@@ -2,7 +2,10 @@
  * Session state persistence operations
  *
  * Provides CRUD operations for session info files stored at
- * .herdctl/sessions/<agent-name>.json
+ * .herdctl/sessions/<qualified-name>.json
+ *
+ * For single-fleet configs, qualified name equals agent name (e.g., "my-agent.json").
+ * For composed fleets, qualified names use dot-separated paths (e.g., "herdctl.security-auditor.json").
  */
 
 import { readdir, unlink } from "node:fs/promises";

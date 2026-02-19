@@ -1,8 +1,11 @@
 /**
- * Zod schemas for session info (sessions/<agent-name>.json)
+ * Zod schemas for session info (sessions/<qualified-name>.json)
  *
  * Defines the schema for tracking Claude session information per agent,
  * enabling session resume and fork capabilities.
+ *
+ * The agent_name field stores the agent's qualified name (e.g., "herdctl.security-auditor"
+ * for composed fleets, or just "my-agent" for single-fleet configs).
  */
 
 import { z } from "zod";
@@ -32,7 +35,7 @@ export const RuntimeTypeSchema = z.enum(["sdk", "cli"]);
 /**
  * Session info schema for individual agent session files
  *
- * Each session is stored as .herdctl/sessions/<agent-name>.json
+ * Each session is stored as .herdctl/sessions/<qualified-name>.json
  */
 export const SessionInfoSchema = z.object({
   /** Name of the agent this session belongs to */

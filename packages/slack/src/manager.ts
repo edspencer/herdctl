@@ -115,7 +115,7 @@ export class SlackManager implements IChatManager {
         const botToken = process.env[slackConfig.bot_token_env];
         if (!botToken) {
           logger.warn(
-            `Slack bot token not found in environment variable '${slackConfig.bot_token_env}' for agent '${agent.name}'`
+            `Slack bot token not found in environment variable '${slackConfig.bot_token_env}' for agent '${agent.qualifiedName}'`
           );
           continue;
         }
@@ -124,7 +124,7 @@ export class SlackManager implements IChatManager {
         const appToken = process.env[slackConfig.app_token_env];
         if (!appToken) {
           logger.warn(
-            `Slack app token not found in environment variable '${slackConfig.app_token_env}' for agent '${agent.name}'`
+            `Slack app token not found in environment variable '${slackConfig.app_token_env}' for agent '${agent.qualifiedName}'`
           );
           continue;
         }
@@ -141,31 +141,31 @@ export class SlackManager implements IChatManager {
             logger.error(`${prefix} ${msg}${data ? ` ${JSON.stringify(data)}` : ""}`),
         });
 
-        // Create session manager for this agent
+        // Create session manager for this agent (keyed by qualifiedName)
         const sessionManager = new ChatSessionManager({
           platform: "slack",
-          agentName: agent.name,
+          agentName: agent.qualifiedName,
           stateDir,
           sessionExpiryHours: slackConfig.session_expiry_hours,
-          logger: createAgentLogger(`[slack:${agent.name}:session]`),
+          logger: createAgentLogger(`[slack:${agent.qualifiedName}:session]`),
         });
 
         // Create the connector
         const connector = new SlackConnector({
-          agentName: agent.name,
+          agentName: agent.qualifiedName,
           botToken,
           appToken,
           channels: slackConfig.channels.map((ch) => ({ id: ch.id, mode: ch.mode })),
           dm: slackConfig.dm,
           sessionManager,
-          logger: createAgentLogger(`[slack:${agent.name}]`),
+          logger: createAgentLogger(`[slack:${agent.qualifiedName}]`),
         });
 
-        this.connectors.set(agent.name, connector);
-        logger.debug(`Created Slack connector for agent '${agent.name}'`);
+        this.connectors.set(agent.qualifiedName, connector);
+        logger.debug(`Created Slack connector for agent '${agent.qualifiedName}'`);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.error(`Failed to create Slack connector for agent '${agent.name}': ${errorMessage}`);
+        logger.error(`Failed to create Slack connector for agent '${agent.qualifiedName}': ${errorMessage}`);
         // Continue with other agents - don't fail the whole initialization
       }
     }
@@ -192,11 +192,11 @@ export class SlackManager implements IChatManager {
 
     const connectPromises: Promise<void>[] = [];
 
-    for (const [agentName, connector] of this.connectors) {
+    for (const [qualifiedName, connector] of this.connectors) {
       // Subscribe to connector events before connecting
       connector.on("message", (event: SlackMessageEventType) => {
-        this.handleMessage(agentName, event).catch((error: unknown) => {
-          this.handleError(agentName, error);
+        this.handleMessage(qualifiedName, event).catch((error: unknown) => {
+          this.handleError(qualifiedName, error);
         });
       });
 
@@ -207,7 +207,7 @@ export class SlackManager implements IChatManager {
       connectPromises.push(
         connector.connect().catch((error: unknown) => {
           const errorMessage = error instanceof Error ? error.message : String(error);
-          logger.error(`Failed to connect Slack for agent '${agentName}': ${errorMessage}`);
+          logger.error(`Failed to connect Slack for agent '${qualifiedName}': ${errorMessage}`);
           // Don't re-throw - we want to continue connecting other agents
         })
       );
@@ -241,26 +241,26 @@ export class SlackManager implements IChatManager {
     logger.debug(`Stopping ${this.connectors.size} Slack connector(s)...`);
 
     // Log session state before shutdown (sessions are already persisted to disk)
-    for (const [agentName, connector] of this.connectors) {
+    for (const [qualifiedName, connector] of this.connectors) {
       try {
         const activeSessionCount = await connector.sessionManager.getActiveSessionCount();
         if (activeSessionCount > 0) {
-          logger.debug(`Preserving ${activeSessionCount} active Slack session(s) for agent '${agentName}'`);
+          logger.debug(`Preserving ${activeSessionCount} active Slack session(s) for agent '${qualifiedName}'`);
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.warn(`Failed to get Slack session count for agent '${agentName}': ${errorMessage}`);
+        logger.warn(`Failed to get Slack session count for agent '${qualifiedName}': ${errorMessage}`);
         // Continue with shutdown - this is just informational logging
       }
     }
 
     const disconnectPromises: Promise<void>[] = [];
 
-    for (const [agentName, connector] of this.connectors) {
+    for (const [qualifiedName, connector] of this.connectors) {
       disconnectPromises.push(
         connector.disconnect().catch((error: unknown) => {
           const errorMessage = error instanceof Error ? error.message : String(error);
-          logger.error(`Error disconnecting Slack for agent '${agentName}': ${errorMessage}`);
+          logger.error(`Error disconnecting Slack for agent '${qualifiedName}': ${errorMessage}`);
           // Don't re-throw - graceful shutdown should continue
         })
       );
@@ -273,17 +273,17 @@ export class SlackManager implements IChatManager {
   /**
    * Get a connector for a specific agent
    *
-   * @param agentName - Name of the agent
+   * @param qualifiedName - Qualified name of the agent (e.g., "herdctl.security-auditor")
    * @returns The SlackConnector instance, or undefined if not found
    */
-  getConnector(agentName: string): SlackConnector | undefined {
-    return this.connectors.get(agentName);
+  getConnector(qualifiedName: string): SlackConnector | undefined {
+    return this.connectors.get(qualifiedName);
   }
 
   /**
    * Get all connector names
    *
-   * @returns Array of agent names that have Slack connectors
+   * @returns Array of agent qualified names that have Slack connectors
    */
   getConnectorNames(): string[] {
     return Array.from(this.connectors.keys());
@@ -310,31 +310,31 @@ export class SlackManager implements IChatManager {
   /**
    * Check if a specific agent has a Slack connector
    *
-   * @param agentName - Name of the agent
+   * @param qualifiedName - Qualified name of the agent (e.g., "herdctl.security-auditor")
    * @returns true if the agent has a Slack connector
    */
-  hasConnector(agentName: string): boolean {
-    return this.connectors.has(agentName);
+  hasConnector(qualifiedName: string): boolean {
+    return this.connectors.has(qualifiedName);
   }
 
   /**
    * Check if a specific agent has a connector (alias for hasConnector)
    *
-   * @param agentName - Name of the agent
+   * @param qualifiedName - Qualified name of the agent (e.g., "herdctl.security-auditor")
    * @returns true if the agent has a connector
    */
-  hasAgent(agentName: string): boolean {
-    return this.connectors.has(agentName);
+  hasAgent(qualifiedName: string): boolean {
+    return this.connectors.has(qualifiedName);
   }
 
   /**
    * Get the state of a connector for a specific agent
    *
-   * @param agentName - Name of the agent
+   * @param qualifiedName - Qualified name of the agent (e.g., "herdctl.security-auditor")
    * @returns The connector state, or undefined if not found
    */
-  getState(agentName: string): ChatManagerConnectorState | undefined {
-    const connector = this.connectors.get(agentName);
+  getState(qualifiedName: string): ChatManagerConnectorState | undefined {
+    const connector = this.connectors.get(qualifiedName);
     if (!connector) return undefined;
 
     const state = connector.getState();
@@ -362,24 +362,24 @@ export class SlackManager implements IChatManager {
    * 3. Executes the job via trigger
    * 4. Sends the response back to Slack
    *
-   * @param agentName - Name of the agent handling the message
+   * @param qualifiedName - Qualified name of the agent handling the message
    * @param event - The Slack message event
    */
   private async handleMessage(
-    agentName: string,
+    qualifiedName: string,
     event: SlackMessageEvent
   ): Promise<void> {
     const logger = this.ctx.getLogger();
     const emitter = this.ctx.getEmitter();
 
-    logger.info(`Slack message for agent '${agentName}': ${event.prompt.substring(0, 50)}...`);
+    logger.info(`Slack message for agent '${qualifiedName}': ${event.prompt.substring(0, 50)}...`);
 
-    // Get the agent configuration
+    // Get the agent configuration (lookup by qualifiedName)
     const config = this.ctx.getConfig();
-    const agent = config?.agents.find((a) => a.name === agentName);
+    const agent = config?.agents.find((a) => a.qualifiedName === qualifiedName);
 
     if (!agent) {
-      logger.error(`Agent '${agentName}' not found in configuration`);
+      logger.error(`Agent '${qualifiedName}' not found in configuration`);
       try {
         await event.reply("Sorry, I'm not properly configured. Please contact an administrator.");
       } catch (replyError) {
@@ -389,7 +389,7 @@ export class SlackManager implements IChatManager {
     }
 
     // Get existing session for this channel (for conversation continuity)
-    const connector = this.connectors.get(agentName);
+    const connector = this.connectors.get(qualifiedName);
     let existingSessionId: string | null = null;
     if (connector) {
       try {
@@ -398,7 +398,7 @@ export class SlackManager implements IChatManager {
           existingSessionId = existingSession.sessionId;
           logger.debug(`Resuming session for channel ${event.metadata.channelId}: ${existingSessionId}`);
           emitter.emit("slack:session:lifecycle", {
-            agentName,
+            agentName: qualifiedName,
             event: "resumed",
             channelId: event.metadata.channelId,
             sessionId: existingSessionId,
@@ -437,7 +437,7 @@ export class SlackManager implements IChatManager {
     const streamer = new StreamingResponder({
       reply: (content: string) => event.reply(markdownToMrkdwn(content)),
       logger: logger as ChatConnectorLogger,
-      agentName,
+      agentName: qualifiedName,
       maxMessageLength: 4000, // Slack's limit
       maxBufferSize: 3500,
       platformName: "Slack",
@@ -451,7 +451,7 @@ export class SlackManager implements IChatManager {
       // Execute job via FleetManager.trigger() through the context
       // Pass resume option for conversation continuity
       // The onMessage callback streams output incrementally to Slack
-      const result = await this.ctx.trigger(agentName, undefined, {
+      const result = await this.ctx.trigger(qualifiedName, undefined, {
         triggerType: "slack",
         prompt: event.prompt,
         resume: existingSessionId,
@@ -479,7 +479,7 @@ export class SlackManager implements IChatManager {
       // Flush any remaining buffered content
       await streamer.flush();
 
-      logger.info(`Slack job completed: ${result.jobId} for agent '${agentName}'${result.sessionId ? ` (session: ${result.sessionId})` : ""}`);
+      logger.info(`Slack job completed: ${result.jobId} for agent '${qualifiedName}'${result.sessionId ? ` (session: ${result.sessionId})` : ""}`);
 
       // If no messages were sent, send an appropriate fallback
       if (!streamer.hasSentMessages()) {
@@ -508,7 +508,7 @@ export class SlackManager implements IChatManager {
 
           if (isNewSession) {
             emitter.emit("slack:session:lifecycle", {
-              agentName,
+              agentName: qualifiedName,
               event: "created",
               channelId: event.metadata.channelId,
               sessionId: result.sessionId,
@@ -525,7 +525,7 @@ export class SlackManager implements IChatManager {
 
       // Emit event for tracking
       emitter.emit("slack:message:handled", {
-        agentName,
+        agentName: qualifiedName,
         channelId: event.metadata.channelId,
         messageTs: event.metadata.messageTs,
         jobId: result.jobId,
@@ -533,7 +533,7 @@ export class SlackManager implements IChatManager {
       });
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
-      logger.error(`Slack message handling failed for agent '${agentName}': ${err.message}`);
+      logger.error(`Slack message handling failed for agent '${qualifiedName}': ${err.message}`);
 
       // Send user-friendly error message
       try {
@@ -544,7 +544,7 @@ export class SlackManager implements IChatManager {
 
       // Emit error event for tracking
       emitter.emit("slack:message:error", {
-        agentName,
+        agentName: qualifiedName,
         channelId: event.metadata.channelId,
         messageTs: event.metadata.messageTs,
         error: err.message,
@@ -563,19 +563,19 @@ export class SlackManager implements IChatManager {
    *
    * Logs errors without crashing the connector
    *
-   * @param agentName - Name of the agent that encountered the error
+   * @param qualifiedName - Qualified name of the agent that encountered the error
    * @param error - The error that occurred
    */
-  private handleError(agentName: string, error: unknown): void {
+  private handleError(qualifiedName: string, error: unknown): void {
     const logger = this.ctx.getLogger();
     const emitter = this.ctx.getEmitter();
 
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error(`Slack connector error for agent '${agentName}': ${errorMessage}`);
+    logger.error(`Slack connector error for agent '${qualifiedName}': ${errorMessage}`);
 
     // Emit error event for monitoring
     emitter.emit("slack:error", {
-      agentName,
+      agentName: qualifiedName,
       error: errorMessage,
       timestamp: new Date().toISOString(),
     });

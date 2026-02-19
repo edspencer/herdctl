@@ -684,4 +684,38 @@ describe("file path handling", () => {
     expect(result).not.toBeNull();
     expect(result!.agent_name).toBe("my-special_agent-123");
   });
+
+  it("stores sessions at correct path for qualified names (dot-separated)", async () => {
+    await updateSessionInfo(tempDir, "herdctl.security-auditor", {
+      session_id: "test-session",
+    });
+
+    const expectedPath = join(tempDir, "herdctl.security-auditor.json");
+    const content = await readFile(expectedPath, "utf-8");
+    expect(content).toContain("herdctl.security-auditor");
+  });
+
+  it("handles qualified names in get/update/clear cycle", async () => {
+    const qualifiedName = "project.sub-fleet.agent";
+
+    // Create
+    await updateSessionInfo(tempDir, qualifiedName, {
+      session_id: "qualified-session-1",
+      mode: "autonomous",
+    });
+
+    // Read
+    const session = await getSessionInfo(tempDir, qualifiedName);
+    expect(session).not.toBeNull();
+    expect(session!.agent_name).toBe(qualifiedName);
+    expect(session!.session_id).toBe("qualified-session-1");
+
+    // Clear
+    const cleared = await clearSession(tempDir, qualifiedName);
+    expect(cleared).toBe(true);
+
+    // Verify cleared
+    const afterClear = await getSessionInfo(tempDir, qualifiedName);
+    expect(afterClear).toBeNull();
+  });
 });
