@@ -636,6 +636,7 @@ describe("FleetManager Integration Tests (US-13)", () => {
           check: {
             type: "interval",
             interval: "1h",
+            enabled: false,
           },
         },
       });
