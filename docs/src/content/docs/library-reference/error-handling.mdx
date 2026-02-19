@@ -44,6 +44,11 @@ WorkSourceError (base)
 ├── DuplicateWorkSourceError  // Duplicate registration
 ├── GitHubAPIError            // GitHub API failures
 └── GitHubAuthError           // GitHub authentication failures
+
+ConfigError (base — config file parsing/loading)
+├── FleetCycleError              // Circular fleet references detected
+├── FleetNameCollisionError      // Duplicate sub-fleet names at same level
+└── FleetLoadError               // Sub-fleet file missing or invalid
 ```
 
 ---
@@ -828,6 +833,64 @@ function handleByCode(error: unknown): void {
   }
 }
 ```
+
+---
+
+## Configuration Errors
+
+Errors thrown during configuration loading, particularly during [fleet composition](/configuration/fleet-config/#fleets) resolution. These extend `ConfigError` (a separate hierarchy from `FleetManagerError`).
+
+### FleetCycleError
+
+Thrown when circular fleet references are detected during recursive fleet loading.
+
+```typescript
+class FleetCycleError extends ConfigError {
+  readonly pathChain: string[];  // The cycle path, e.g. ["a.yaml", "b.yaml", "a.yaml"]
+}
+```
+
+**When it's thrown:** During `loadConfig()` when a sub-fleet references (directly or transitively) an ancestor fleet config file.
+
+**How to fix:** Remove the circular reference in your `fleets` configuration. The `pathChain` property shows the full cycle.
+
+### FleetNameCollisionError
+
+Thrown when two sub-fleets at the same level resolve to the same fleet name.
+
+```typescript
+class FleetNameCollisionError extends ConfigError {
+  readonly fleetName: string;              // The duplicated name
+  readonly parentConfigPath: string;       // Parent config that references both
+  readonly conflictingPaths: [string, string]; // The two paths that collide
+}
+```
+
+**When it's thrown:** During `loadConfig()` when two entries in the `fleets` array produce the same fleet name (via explicit `name` or directory-based resolution).
+
+**How to fix:** Add an explicit `name` override to one of the conflicting fleet references:
+
+```yaml
+fleets:
+  - path: ../project-a/herdctl.yaml
+    name: project-a-main    # Explicit name to avoid collision
+  - path: ../project-b/herdctl.yaml
+```
+
+### FleetLoadError
+
+Thrown when a referenced sub-fleet config file cannot be loaded.
+
+```typescript
+class FleetLoadError extends ConfigError {
+  readonly fleetPath: string;          // Path to the failed config
+  readonly referencedFrom?: string;    // Parent config that referenced it
+}
+```
+
+**When it's thrown:** During `loadConfig()` when a fleet reference points to a missing or invalid YAML file.
+
+**How to fix:** Verify the `path` in your fleet reference is correct and the file exists. The path is resolved relative to the parent config file's directory.
 
 ---
 

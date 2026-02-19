@@ -647,6 +647,16 @@ Host to bind the web dashboard to.
 
 Hours before web chat sessions expire.
 
+#### fleet.web.open_browser
+
+| Property | Value |
+|----------|-------|
+| **Type** | `boolean` |
+| **Default** | `false` |
+| **Required** | No |
+
+Automatically open the dashboard in the default browser when the fleet starts with `herdctl start --web`.
+
 ```yaml
 fleet:
   web:
@@ -654,6 +664,7 @@ fleet:
     port: 3232
     host: "localhost"
     session_expiry_hours: 24
+    open_browser: false
 ```
 
 ---

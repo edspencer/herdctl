@@ -1,7 +1,7 @@
 ---
-last_checked_commit: 7fe5595
-last_run: "2026-02-19T21:15:00Z"
-docs_gaps_found: 4
+last_checked_commit: 0f74b63
+last_run: "2026-02-19T22:00:00Z"
+docs_gaps_found: 2
 branches_created: []
 status: completed
 ---
@@ -19,9 +19,9 @@ incremental reviews that analyze only new commits since the last check.
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Last checked commit | 7fe5595 | chore: version packages (#78) |
-| Last run | 2026-02-19T21:15:00Z | Seeded run (manual, batch 3 of 4) |
-| Gaps found (last run) | 4 | Slack DM support, DM agent-config, DM quick-start, web open_browser |
+| Last checked commit | 0f74b63 | feat: add fleet composition and documentation audit agent (#86) |
+| Last run | 2026-02-19T22:00:00Z | Seeded run (manual, batch 4 of 4 — FINAL) |
+| Gaps found (last run) | 2 | Fleet composition errors in error-handling, open_browser in fleet-config |
 | Branches created | None | Changes on docs/audit-first-run branch |
 
 ---
@@ -33,6 +33,7 @@ incremental reviews that analyze only new commits since the last check.
 | 2026-02-19 | 10 | 2 | created-branch | docs/audit-first-run |
 | 2026-02-19 | 10 | 5 | updated-docs | docs/audit-first-run |
 | 2026-02-19 | 10 | 4 | updated-docs | docs/audit-first-run |
+| 2026-02-19 | 8 | 2 | updated-docs | docs/audit-first-run |
 
 ---
 
