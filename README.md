@@ -40,6 +40,8 @@ herdctl allows you to interact with all of your existing Claude Code projects vi
 
 - **Self-Invoking Agents** — Define agents that wake themselves up on schedules or triggers. Coordinate an entire fleet from a single `herdctl start` command.
 
+- **Fleet Composition** — Build "super-fleets" from multiple project fleets. Each project keeps its own agent configurations, but they all run together with a unified web dashboard and CLI.
+
 - **Full Claude Code Power** — If Claude Code can do it, your herdctl agent can do it. Same tools, same MCP servers, same capabilities. herdctl is a thin orchestration layer, not a sandbox.
 
 - **Two Runtimes** — CLI runtime uses your Claude Max subscription (much cheaper per token). SDK runtime uses API pricing. Both support Docker isolation with resource limits and network controls.
@@ -619,6 +621,37 @@ hooks:
     - type: webhook
       url: https://api.example.com/fleet-activity
 ```
+
+### Fleet Composition
+
+Compose multiple project fleets into a single "super-fleet":
+
+```yaml
+version: 1
+
+fleet:
+  name: engineering
+  web:
+    enabled: true
+    port: 3232
+
+fleets:
+  - path: ~/projects/herdctl/herdctl.yaml
+  - path: ~/projects/bragdoc/herdctl.yaml
+  - path: ~/projects/webapp/herdctl.yaml
+
+agents:
+  - path: ./agents/overseer.yaml  # Fleet-wide agent
+```
+
+Agents get qualified names like `herdctl.security-auditor` or `bragdoc.developer`. Use these with CLI commands:
+
+```bash
+herdctl trigger herdctl.security-auditor
+herdctl status bragdoc.developer
+```
+
+See [Fleet Composition](https://herdctl.dev/configuration/fleet-config/#fleets) for full documentation.
 
 ### Agent Configuration
 

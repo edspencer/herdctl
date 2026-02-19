@@ -370,6 +370,146 @@ workspace:
 
 ---
 
+### fleets
+
+| Property | Value |
+|----------|-------|
+| **Type** | `array` of fleet references |
+| **Default** | `[]` |
+| **Required** | No |
+
+List of sub-fleet configuration file references. Fleet composition allows you to build "super-fleets" from multiple project fleets, each with their own agents.
+
+#### Fleet Reference Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `path` | string | **Yes** | Path to sub-fleet config file (relative or absolute) |
+| `name` | string | No | Override the sub-fleet's name (for qualified name computation) |
+| `overrides` | object | No | Fleet-level configuration overrides |
+
+```yaml
+version: 1
+
+fleet:
+  name: all-projects
+  web:
+    enabled: true
+    port: 3232
+
+fleets:
+  - path: ./herdctl/herdctl.yaml
+  - path: ./bragdoc/herdctl.yaml
+    name: bragdoc                    # Override sub-fleet's name
+  - path: ./other-project/herdctl.yaml
+    overrides:
+      defaults:
+        model: claude-opus-4-20250514
+
+agents:                               # Direct agents still supported
+  - path: ./global-agents/monitor.yaml
+```
+
+#### Qualified Names
+
+When composing fleets, agents receive a **qualified name** that includes their fleet hierarchy:
+
+| Fleet Path | Agent Name | Qualified Name |
+|---|---|---|
+| `["herdctl"]` | `security-auditor` | `herdctl.security-auditor` |
+| `["bragdoc"]` | `developer` | `bragdoc.developer` |
+| `["project", "frontend"]` | `designer` | `project.frontend.designer` |
+| `[]` (root) | `monitor` | `monitor` |
+
+The root fleet's name is not included in qualified names. Agents directly on the root fleet have a qualified name equal to their local name, so single-fleet setups are unaffected.
+
+Use qualified names with CLI commands:
+
+```bash
+# Trigger a sub-fleet agent
+herdctl trigger herdctl.security-auditor
+
+# Check status
+herdctl status bragdoc.developer
+```
+
+#### Fleet Name Resolution
+
+Sub-fleet names are resolved in this priority order:
+
+1. **Parent's explicit `name`** — the `name` field on the fleet reference (highest priority)
+2. **Sub-fleet's own `fleet.name`** — from the sub-fleet's configuration
+3. **Directory name** — derived from the config file path (e.g., `./herdctl/herdctl.yaml` yields `herdctl`)
+
+Fleet names must match the pattern `^[a-zA-Z0-9][a-zA-Z0-9_-]*$` (no dots allowed, since dots are the hierarchy separator).
+
+#### Defaults Merging
+
+When composing fleets, defaults merge across levels with this priority (lowest to highest):
+
+1. Super-fleet `defaults` (gap-filler)
+2. Sub-fleet `defaults`
+3. Agent's own config
+4. Per-agent `overrides` from the sub-fleet's `agents` entry
+5. Per-fleet `overrides` from the super-fleet's `fleets` entry (highest priority)
+
+```yaml
+# Super-fleet sets a default model
+defaults:
+  model: claude-sonnet-4-20250514
+
+fleets:
+  - path: ./project/herdctl.yaml
+    overrides:
+      defaults:
+        model: claude-opus-4-20250514  # Forces all agents in this sub-fleet to use Opus
+```
+
+#### Web Suppression
+
+Only the **root fleet's** web configuration is honored. Sub-fleet web configurations are automatically suppressed to ensure a single dashboard serves all agents. This is handled automatically during fleet loading.
+
+#### Cycle Detection
+
+The config loader detects cycles in fleet references. If fleet A references fleet B which references fleet A, loading fails with a clear error message showing the cycle chain.
+
+#### Example: Multi-Project Super-Fleet
+
+```yaml
+version: 1
+
+fleet:
+  name: engineering
+  description: All engineering project agents
+
+web:
+  enabled: true
+  port: 3232
+
+defaults:
+  model: claude-sonnet-4-20250514
+  permission_mode: acceptEdits
+
+fleets:
+  - path: ~/projects/herdctl/herdctl.yaml
+    name: herdctl
+  - path: ~/projects/bragdoc/herdctl.yaml
+    name: bragdoc
+  - path: ~/projects/webapp/herdctl.yaml
+    name: webapp
+
+agents:
+  - path: ./agents/overseer.yaml  # Fleet-wide monitoring agent
+```
+
+This creates a unified fleet where:
+- All agents are visible in one web dashboard
+- Agents are grouped by project in the sidebar (herdctl, bragdoc, webapp)
+- Each project's agents retain their own defaults and configurations
+- The overseer agent monitors the entire fleet
+
+---
+
 ### agents
 
 | Property | Value |
@@ -729,3 +869,4 @@ herdctl config validate
 - [Permissions](/configuration/permissions/) - Permission system details
 - [Workspaces](/concepts/workspaces/) - Workspace isolation concepts
 - [Environment Variables](/configuration/environment/) - Using environment variables
+- [Web Dashboard](/integrations/web-dashboard/) - Fleet monitoring and chat interface
