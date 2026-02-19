@@ -22,15 +22,16 @@ export function ChatView() {
   const navigate = useNavigate();
   const { chatError } = useChatMessages();
   const { chatSessions } = useChatSessions();
-  const { fetchChatMessages, setActiveChatSession, clearChatState, createChatSession } =
+  const { fetchChatMessages, setActiveChatSession, clearActiveChatState, createChatSession } =
     useChatActions();
 
-  // Clear chat state when leaving the page or changing agents
+  // Clear active chat session state when leaving the page or changing agents
+  // (preserves sidebar sessions so they don't vanish on navigation)
   useEffect(() => {
     return () => {
-      clearChatState();
+      clearActiveChatState();
     };
-  }, [clearChatState]);
+  }, [qualifiedName, clearActiveChatState]);
 
   // Fetch messages when session ID changes
   useEffect(() => {

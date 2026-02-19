@@ -66,6 +66,8 @@ export interface ChatActions {
   setChatError: (error: string | null) => void;
   /** Fetch recent sessions for all agents (sidebar display) */
   fetchSidebarSessions: (agentNames: string[]) => Promise<void>;
+  /** Clear active chat session state (preserves sidebar sessions) */
+  clearActiveChatState: () => void;
   /** Clear all chat state */
   clearChatState: () => void;
 }
@@ -314,6 +316,20 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
     } catch {
       set({ sidebarSessionsLoading: false });
     }
+  },
+
+  clearActiveChatState: () => {
+    set({
+      chatSessions: [],
+      chatSessionsLoading: false,
+      chatMessages: [],
+      chatMessagesLoading: false,
+      activeChatSessionId: null,
+      chatStreaming: false,
+      chatStreamingContent: "",
+      chatError: null,
+      // sidebarSessions intentionally preserved
+    });
   },
 
   clearChatState: () => {
