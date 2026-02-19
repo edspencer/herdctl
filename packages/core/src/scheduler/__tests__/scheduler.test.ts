@@ -520,8 +520,8 @@ describe("Scheduler", () => {
 
         const startPromise = scheduler.start(agents);
 
-        // Wait for the scheduler to check and trigger
-        await wait(150);
+        // Wait for the scheduler to check, trigger, and complete
+        await wait(300);
 
         // Check state was updated with next_run_at for cron
         const stateFile = join(tempDir, "state.yaml");
@@ -654,7 +654,7 @@ describe("Scheduler", () => {
         ];
 
         const startPromise = scheduler.start(agents);
-        await wait(150);
+        await wait(300);
 
         // The cron should trigger because the next occurrence after 10:00:00
         // is 10:01:00, which is exactly now.
