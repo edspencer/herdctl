@@ -1,0 +1,34 @@
+/* Cap the right-hand TOC sidebar at 350px and let the content area fill the rest. */
+@media (min-width: 72rem) {
+	/* Let the main content area expand to fill all remaining space */
+	[data-has-sidebar][data-has-toc] .main-pane {
+		flex: 1 1 0% !important;
+		width: auto !important;
+	}
+
+	/* Remove the content max-width so text fills the wider main pane */
+	.main-pane .content-panel > .sl-container {
+		max-width: none;
+	}
+
+	/* Cap the right sidebar layout slot */
+	.right-sidebar-container {
+		width: min(
+			21.875rem,
+			calc(var(--sl-sidebar-width) + (100% - var(--sl-content-width) - var(--sl-sidebar-width)) / 2)
+		) !important;
+		flex-shrink: 0 !important;
+	}
+
+	/* Match the fixed sidebar width to the container cap */
+	.right-sidebar {
+		width: min(
+			21.875rem,
+			calc(var(--sl-sidebar-width) + (100vw - var(--sl-content-width) - var(--sl-sidebar-width)) / 2)
+		) !important;
+	}
+
+	.right-sidebar-panel .sl-container {
+		width: auto;
+	}
+}
