@@ -62,6 +62,8 @@ function createSlackAgent(
     schedules: {},
     chat: { slack: slackConfig },
     configPath: "/test/herdctl.yaml",
+    fleetPath: [],
+    qualifiedName: name,
   } as ResolvedAgent;
 }
 
@@ -71,6 +73,8 @@ function createNonSlackAgent(name: string): ResolvedAgent {
     model: "sonnet",
     schedules: {},
     configPath: "/test/herdctl.yaml",
+    fleetPath: [],
+    qualifiedName: name,
   } as ResolvedAgent;
 }
 

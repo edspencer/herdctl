@@ -16,6 +16,7 @@ import {
   WebSchema,
   InstancesSchema,
   AgentReferenceSchema,
+  FleetReferenceSchema,
   // Discord chat schemas
   DiscordPresenceSchema,
   ChatDMSchema,
@@ -32,6 +33,7 @@ describe("FleetConfigSchema", () => {
     if (result.success) {
       expect(result.data.version).toBe(1);
       expect(result.data.agents).toEqual([]);
+      expect(result.data.fleets).toEqual([]);
     }
   });
 
@@ -1152,6 +1154,192 @@ describe("AgentReferenceSchema", () => {
     if (result.success) {
       expect(result.data.path).toBe("/etc/herdctl/agent.yaml");
     }
+  });
+});
+
+// =============================================================================
+// Fleet Reference Schema Tests (fleet composition)
+// =============================================================================
+
+describe("FleetReferenceSchema", () => {
+  it("requires path", () => {
+    const result = FleetReferenceSchema.safeParse({});
+    expect(result.success).toBe(false);
+  });
+
+  it("parses minimal fleet reference with path only", () => {
+    const result = FleetReferenceSchema.safeParse({
+      path: "./sub-fleet/herdctl.yaml",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.path).toBe("./sub-fleet/herdctl.yaml");
+      expect(result.data.name).toBeUndefined();
+      expect(result.data.overrides).toBeUndefined();
+    }
+  });
+
+  it("accepts a valid name override", () => {
+    const result = FleetReferenceSchema.safeParse({
+      path: "./herdctl/herdctl.yaml",
+      name: "my-project",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.name).toBe("my-project");
+    }
+  });
+
+  it("accepts a name with underscores and hyphens", () => {
+    const result = FleetReferenceSchema.safeParse({
+      path: "./fleet.yaml",
+      name: "my_project-v2",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.name).toBe("my_project-v2");
+    }
+  });
+
+  it("rejects a name containing dots", () => {
+    const result = FleetReferenceSchema.safeParse({
+      path: "./herdctl/herdctl.yaml",
+      name: "my.project",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a name starting with a hyphen", () => {
+    const result = FleetReferenceSchema.safeParse({
+      path: "./fleet.yaml",
+      name: "-invalid",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a name starting with an underscore", () => {
+    const result = FleetReferenceSchema.safeParse({
+      path: "./fleet.yaml",
+      name: "_invalid",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts overrides as a record of unknown values", () => {
+    const result = FleetReferenceSchema.safeParse({
+      path: "./herdctl/herdctl.yaml",
+      overrides: {
+        web: { enabled: false },
+        defaults: { model: "claude-sonnet-4-20250514" },
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.overrides).toEqual({
+        web: { enabled: false },
+        defaults: { model: "claude-sonnet-4-20250514" },
+      });
+    }
+  });
+
+  it("accepts empty overrides", () => {
+    const result = FleetReferenceSchema.safeParse({
+      path: "./fleet.yaml",
+      overrides: {},
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.overrides).toEqual({});
+    }
+  });
+
+  it("parses complete fleet reference with all fields", () => {
+    const result = FleetReferenceSchema.safeParse({
+      path: "./herdctl/herdctl.yaml",
+      name: "herdctl",
+      overrides: {
+        web: { enabled: false },
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.path).toBe("./herdctl/herdctl.yaml");
+      expect(result.data.name).toBe("herdctl");
+      expect(result.data.overrides).toEqual({ web: { enabled: false } });
+    }
+  });
+});
+
+describe("FleetConfigSchema fleets field", () => {
+  it("defaults fleets to empty array when not provided", () => {
+    const result = FleetConfigSchema.safeParse({
+      version: 1,
+      agents: [],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.fleets).toEqual([]);
+    }
+  });
+
+  it("parses config with empty fleets array", () => {
+    const result = FleetConfigSchema.safeParse({
+      version: 1,
+      fleets: [],
+      agents: [],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.fleets).toEqual([]);
+    }
+  });
+
+  it("parses config with fleets array", () => {
+    const config = {
+      version: 1,
+      fleet: { name: "super-fleet" },
+      fleets: [
+        { path: "./herdctl/herdctl.yaml", name: "herdctl" },
+        {
+          path: "./other-project/herdctl.yaml",
+          overrides: { web: { enabled: false } },
+        },
+      ],
+      agents: [{ path: "./global-agents/monitor.yaml" }],
+    };
+    const result = FleetConfigSchema.safeParse(config);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.fleets).toHaveLength(2);
+      expect(result.data.fleets[0].path).toBe("./herdctl/herdctl.yaml");
+      expect(result.data.fleets[0].name).toBe("herdctl");
+      expect(result.data.fleets[1].overrides).toEqual({
+        web: { enabled: false },
+      });
+      expect(result.data.agents).toHaveLength(1);
+    }
+  });
+
+  it("parses config with only fleets and no agents", () => {
+    const config = {
+      version: 1,
+      fleets: [{ path: "./sub-fleet/herdctl.yaml" }],
+    };
+    const result = FleetConfigSchema.safeParse(config);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.fleets).toHaveLength(1);
+      expect(result.data.agents).toEqual([]);
+    }
+  });
+
+  it("rejects fleet reference with invalid name (contains dots)", () => {
+    const config = {
+      version: 1,
+      fleets: [{ path: "./fleet.yaml", name: "my.project" }],
+    };
+    const result = FleetConfigSchema.safeParse(config);
+    expect(result.success).toBe(false);
   });
 });
 

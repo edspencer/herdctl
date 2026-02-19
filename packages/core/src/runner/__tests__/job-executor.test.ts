@@ -30,6 +30,8 @@ function createTestAgent(overrides: Partial<ResolvedAgent> = {}): ResolvedAgent 
   return {
     name: "test-agent",
     configPath: "/path/to/agent.yaml",
+    fleetPath: [],
+    qualifiedName: overrides.name ?? "test-agent",
     ...overrides,
   };
 }

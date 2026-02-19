@@ -87,6 +87,20 @@ export interface ResolvedAgent extends AgentConfig {
    * The absolute path to the agent configuration file
    */
   configPath: string;
+
+  /**
+   * The fleet hierarchy path for this agent.
+   * Empty array for agents directly in the root fleet.
+   * e.g., ["herdctl"] or ["other-project", "frontend"]
+   */
+  fleetPath: string[];
+
+  /**
+   * Dot-separated qualified name computed from fleetPath and agent name.
+   * For root-level agents, equals the agent's local name.
+   * e.g., "herdctl.security-auditor" or just "engineer" for root-level
+   */
+  qualifiedName: string;
 }
 
 /**
@@ -581,6 +595,8 @@ export async function loadConfig(
     agents.push({
       ...agentConfig,
       configPath: agentPath,
+      fleetPath: [],
+      qualifiedName: agentConfig.name,
     });
   }
 

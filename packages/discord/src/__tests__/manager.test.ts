@@ -66,6 +66,8 @@ function createDiscordAgent(
       discord: discordConfig,
     },
     configPath: "/test/herdctl.yaml",
+    fleetPath: [],
+    qualifiedName: name,
   } as ResolvedAgent;
 }
 
@@ -76,6 +78,8 @@ function createNonDiscordAgent(name: string): ResolvedAgent {
     model: "sonnet",
     schedules: {},
     configPath: "/test/herdctl.yaml",
+    fleetPath: [],
+    qualifiedName: name,
   } as ResolvedAgent;
 }
 
@@ -3572,6 +3576,8 @@ describe.skip("DiscordManager output configuration", () => {
             },
           },
           configPath: "/test/herdctl.yaml",
+          fleetPath: [],
+          qualifiedName: "no-tool-results-agent",
         } as ResolvedAgent,
       ],
       configPath: "/test/herdctl.yaml",
@@ -3713,6 +3719,8 @@ describe.skip("DiscordManager output configuration", () => {
             },
           },
           configPath: "/test/herdctl.yaml",
+          fleetPath: [],
+          qualifiedName: "system-status-agent",
         } as ResolvedAgent,
       ],
       configPath: "/test/herdctl.yaml",
@@ -3853,6 +3861,8 @@ describe.skip("DiscordManager output configuration", () => {
             },
           },
           configPath: "/test/herdctl.yaml",
+          fleetPath: [],
+          qualifiedName: "no-system-status-agent",
         } as ResolvedAgent,
       ],
       configPath: "/test/herdctl.yaml",
@@ -3994,6 +4004,8 @@ describe.skip("DiscordManager output configuration", () => {
             },
           },
           configPath: "/test/herdctl.yaml",
+          fleetPath: [],
+          qualifiedName: "result-summary-agent",
         } as ResolvedAgent,
       ],
       configPath: "/test/herdctl.yaml",
@@ -4138,6 +4150,8 @@ describe.skip("DiscordManager output configuration", () => {
             },
           },
           configPath: "/test/herdctl.yaml",
+          fleetPath: [],
+          qualifiedName: "error-agent",
         } as ResolvedAgent,
       ],
       configPath: "/test/herdctl.yaml",
@@ -4277,6 +4291,8 @@ describe.skip("DiscordManager output configuration", () => {
             },
           },
           configPath: "/test/herdctl.yaml",
+          fleetPath: [],
+          qualifiedName: "no-errors-agent",
         } as ResolvedAgent,
       ],
       configPath: "/test/herdctl.yaml",
