@@ -1,5 +1,14 @@
 # herdctl
 
+## 1.2.3
+
+### Patch Changes
+
+- [#79](https://github.com/edspencer/herdctl/pull/79) [`58edb6a`](https://github.com/edspencer/herdctl/commit/58edb6abf88231104757e83ebd6cdf250ba241bd) Thanks [@edspencer](https://github.com/edspencer)! - Colorize Discord, Slack, and web connector log messages with platform brand colors
+
+- Updated dependencies [[`58edb6a`](https://github.com/edspencer/herdctl/commit/58edb6abf88231104757e83ebd6cdf250ba241bd)]:
+  - @herdctl/web@0.1.3
+
 ## 1.2.2
 
 ### Patch Changes
