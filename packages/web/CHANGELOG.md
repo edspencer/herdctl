@@ -1,5 +1,13 @@
 # @herdctl/web
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [[`04afb3b`](https://github.com/edspencer/herdctl/commit/04afb3bd0b918413351a2e3c88009d803948ddfa)]:
+  - @herdctl/core@5.2.2
+  - @herdctl/chat@0.2.4
+
 ## 0.1.1
 
 ### Patch Changes
