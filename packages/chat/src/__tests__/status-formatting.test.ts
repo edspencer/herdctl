@@ -68,7 +68,9 @@ describe("status-formatting", () => {
     });
 
     it("formats days and hours", () => {
-      const timestamp = new Date(now - (3 * 24 * 60 * 60 * 1000 + 12 * 60 * 60 * 1000)).toISOString();
+      const timestamp = new Date(
+        now - (3 * 24 * 60 * 60 * 1000 + 12 * 60 * 60 * 1000),
+      ).toISOString();
       expect(formatDuration(timestamp)).toBe("3d 12h");
     });
 

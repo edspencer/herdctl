@@ -91,10 +91,7 @@ function sendSignal(pid: number, signal: NodeJS.Signals): boolean {
 /**
  * Wait for a process to exit with timeout
  */
-async function waitForProcessExit(
-  pid: number,
-  timeoutSeconds: number
-): Promise<boolean> {
+async function waitForProcessExit(pid: number, timeoutSeconds: number): Promise<boolean> {
   const startTime = Date.now();
   const timeoutMs = timeoutSeconds * 1000;
 

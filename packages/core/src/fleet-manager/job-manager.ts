@@ -20,11 +20,7 @@ import {
   type JobMetadataOptions,
 } from "../state/index.js";
 import type { JobMetadata, JobStatus } from "../state/schemas/job-metadata.js";
-import {
-  readJobOutput,
-  readJobOutputAll,
-  getJobOutputPath,
-} from "../state/job-output.js";
+import { readJobOutput, readJobOutputAll, getJobOutputPath } from "../state/job-output.js";
 import type { JobOutputMessage } from "../state/schemas/job-output.js";
 import { JobNotFoundError } from "./errors.js";
 
@@ -142,12 +138,12 @@ export interface JobOutputStream {
   /** Subscribe to output events */
   on<K extends keyof JobOutputStreamEvents>(
     event: K,
-    listener: (...args: JobOutputStreamEvents[K]) => void
+    listener: (...args: JobOutputStreamEvents[K]) => void,
   ): this;
   /** Unsubscribe from output events */
   off<K extends keyof JobOutputStreamEvents>(
     event: K,
-    listener: (...args: JobOutputStreamEvents[K]) => void
+    listener: (...args: JobOutputStreamEvents[K]) => void,
   ): this;
 }
 
@@ -389,7 +385,7 @@ export class JobManager {
       () => lastReadPosition,
       (pos) => {
         lastReadPosition = pos;
-      }
+      },
     ).catch((error) => {
       if (!stopped) {
         emitter.emit("error", error instanceof Error ? error : new Error(String(error)));
@@ -409,17 +405,12 @@ export class JobManager {
     isStopped: () => boolean,
     setWatcher: (w: FSWatcher | null) => void,
     getPosition: () => number,
-    setPosition: (pos: number) => void
+    setPosition: (pos: number) => void,
   ): Promise<void> {
     // First, read all existing output
     try {
       const stats = await stat(outputPath);
-      await this.readOutputFromPosition(
-        emitter,
-        outputPath,
-        0,
-        isStopped
-      );
+      await this.readOutputFromPosition(emitter, outputPath, 0, isStopped);
       setPosition(stats.size);
     } catch (error) {
       // File doesn't exist yet - that's fine for running jobs
@@ -446,19 +437,12 @@ export class JobManager {
 
             if (currentStats.size > currentPosition) {
               // New data available
-              await this.readOutputFromPosition(
-                emitter,
-                outputPath,
-                currentPosition,
-                isStopped
-              );
+              await this.readOutputFromPosition(emitter, outputPath, currentPosition, isStopped);
               setPosition(currentStats.size);
             }
           } catch (err) {
             if (!isStopped()) {
-              this.logger.warn(
-                `Error reading output file: ${(err as Error).message}`
-              );
+              this.logger.warn(`Error reading output file: ${(err as Error).message}`);
             }
           }
         }
@@ -489,7 +473,7 @@ export class JobManager {
     emitter: EventEmitter,
     outputPath: string,
     startPosition: number,
-    isStopped: () => boolean
+    isStopped: () => boolean,
   ): Promise<void> {
     const fileStream = createReadStream(outputPath, {
       encoding: "utf-8",
@@ -529,7 +513,7 @@ export class JobManager {
     emitter: EventEmitter,
     jobId: string,
     isStopped: () => boolean,
-    onComplete: () => void
+    onComplete: () => void,
   ): void {
     const pollInterval = setInterval(async () => {
       if (isStopped()) {
@@ -576,9 +560,13 @@ export class JobManager {
     let totalDeleted = 0;
 
     // Get all jobs grouped by agent
-    const result = await listJobsFromState(this.jobsDir, {}, {
-      logger: this.logger,
-    });
+    const result = await listJobsFromState(
+      this.jobsDir,
+      {},
+      {
+        logger: this.logger,
+      },
+    );
 
     // Group jobs by agent
     const jobsByAgent = new Map<string, JobMetadata[]>();
@@ -597,9 +585,7 @@ export class JobManager {
           const deleted = await this.deleteJobAndOutput(job.id);
           if (deleted) {
             totalDeleted++;
-            this.logger.debug?.(
-              `Deleted old job ${job.id} for agent ${agent} (retention)`
-            );
+            this.logger.debug?.(`Deleted old job ${job.id} for agent ${agent} (retention)`);
           }
         }
       }
@@ -608,9 +594,13 @@ export class JobManager {
     // Apply fleet-wide retention if configured
     if (this.retention.maxTotalJobs > 0) {
       // Re-fetch remaining jobs
-      const remainingResult = await listJobsFromState(this.jobsDir, {}, {
-        logger: this.logger,
-      });
+      const remainingResult = await listJobsFromState(
+        this.jobsDir,
+        {},
+        {
+          logger: this.logger,
+        },
+      );
 
       if (remainingResult.jobs.length > this.retention.maxTotalJobs) {
         const toDelete = remainingResult.jobs.slice(this.retention.maxTotalJobs);
@@ -618,9 +608,7 @@ export class JobManager {
           const deleted = await this.deleteJobAndOutput(job.id);
           if (deleted) {
             totalDeleted++;
-            this.logger.debug?.(
-              `Deleted old job ${job.id} (fleet-wide retention)`
-            );
+            this.logger.debug?.(`Deleted old job ${job.id} (fleet-wide retention)`);
           }
         }
       }

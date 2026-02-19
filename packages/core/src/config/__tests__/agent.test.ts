@@ -222,11 +222,7 @@ describe("AgentConfigSchema", () => {
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.allowed_tools).toEqual([
-        "WebSearch",
-        "WebFetch",
-        "Bash(git *)",
-      ]);
+      expect(result.data.allowed_tools).toEqual(["WebSearch", "WebFetch", "Bash(git *)"]);
       expect(result.data.denied_tools).toEqual(["Bash(rm *)"]);
     }
   });
@@ -513,9 +509,7 @@ max_turns: 100
 name: test-agent
   bad: indentation
 `;
-    expect(() => parseAgentConfig(yaml, "/path/to/agent.yaml")).toThrow(
-      AgentYamlSyntaxError
-    );
+    expect(() => parseAgentConfig(yaml, "/path/to/agent.yaml")).toThrow(AgentYamlSyntaxError);
   });
 
   it("includes file path in AgentYamlSyntaxError", () => {
@@ -536,9 +530,7 @@ name: test-agent
     const yaml = `
 description: An agent without a name
 `;
-    expect(() => parseAgentConfig(yaml, "/path/to/agent.yaml")).toThrow(
-      AgentValidationError
-    );
+    expect(() => parseAgentConfig(yaml, "/path/to/agent.yaml")).toThrow(AgentValidationError);
   });
 
   it("includes file path and field info in AgentValidationError", () => {
@@ -560,9 +552,7 @@ description: Missing name field
 
   it("throws AgentValidationError for empty file", () => {
     const yaml = "";
-    expect(() => parseAgentConfig(yaml, "/path/to/agent.yaml")).toThrow(
-      AgentValidationError
-    );
+    expect(() => parseAgentConfig(yaml, "/path/to/agent.yaml")).toThrow(AgentValidationError);
   });
 
   it("throws AgentValidationError for invalid permission mode", () => {
@@ -615,9 +605,7 @@ describe("validateAgentConfig", () => {
     const config = {
       description: "Missing name",
     };
-    expect(() => validateAgentConfig(config, "/path/to/agent.yaml")).toThrow(
-      AgentValidationError
-    );
+    expect(() => validateAgentConfig(config, "/path/to/agent.yaml")).toThrow(AgentValidationError);
   });
 
   it("includes file path in error", () => {
@@ -711,7 +699,7 @@ describe("loadAgentConfig", () => {
 name: test-agent
 description: A test agent
 model: claude-sonnet-4-20250514
-`
+`,
     );
 
     const config = await loadAgentConfig(agentPath);
@@ -728,7 +716,7 @@ model: claude-sonnet-4-20250514
       agentPath,
       `
 name: relative-agent
-`
+`,
     );
 
     const fleetConfigPath = join(testDir, "herdctl.yaml");
@@ -737,9 +725,7 @@ name: relative-agent
   });
 
   it("throws FileReadError for non-existent file", async () => {
-    await expect(loadAgentConfig("/non/existent/agent.yaml")).rejects.toThrow(
-      FileReadError
-    );
+    await expect(loadAgentConfig("/non/existent/agent.yaml")).rejects.toThrow(FileReadError);
   });
 
   it("includes file path in FileReadError", async () => {
@@ -762,12 +748,10 @@ name: relative-agent
       `
 name: test
   bad: indent
-`
+`,
     );
 
-    await expect(loadAgentConfig(agentPath)).rejects.toThrow(
-      AgentYamlSyntaxError
-    );
+    await expect(loadAgentConfig(agentPath)).rejects.toThrow(AgentYamlSyntaxError);
   });
 
   it("throws AgentValidationError for invalid config file", async () => {
@@ -776,12 +760,10 @@ name: test
       agentPath,
       `
 description: Missing name field
-`
+`,
     );
 
-    await expect(loadAgentConfig(agentPath)).rejects.toThrow(
-      AgentValidationError
-    );
+    await expect(loadAgentConfig(agentPath)).rejects.toThrow(AgentValidationError);
   });
 
   it("handles complex agent with all fields", async () => {
@@ -836,7 +818,7 @@ chat:
 
 model: claude-sonnet-4-20250514
 max_turns: 100
-`
+`,
     );
 
     const config = await loadAgentConfig(agentPath);

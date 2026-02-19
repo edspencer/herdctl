@@ -15,7 +15,7 @@ const createMockLogger = () => ({
 });
 
 const createMockSessionManager = (
-  overrides: Partial<IChatSessionManager> = {}
+  overrides: Partial<IChatSessionManager> = {},
 ): IChatSessionManager => ({
   agentName: AGENT_NAME,
   platform: "slack",
@@ -667,14 +667,8 @@ describe("SlackConnector registerEventHandlers", () => {
       const { mockApp } = createTestConnector();
 
       expect(mockApp.event).toHaveBeenCalledTimes(2);
-      expect(mockApp.event).toHaveBeenCalledWith(
-        "app_mention",
-        expect.any(Function)
-      );
-      expect(mockApp.event).toHaveBeenCalledWith(
-        "message",
-        expect.any(Function)
-      );
+      expect(mockApp.event).toHaveBeenCalledWith("app_mention", expect.any(Function));
+      expect(mockApp.event).toHaveBeenCalledWith("message", expect.any(Function));
     });
   });
 });

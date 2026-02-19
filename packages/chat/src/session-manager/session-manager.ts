@@ -35,10 +35,7 @@ import {
 // Default Logger
 // =============================================================================
 
-function createDefaultLogger(
-  platform: string,
-  agentName: string
-): SessionManagerLogger {
+function createDefaultLogger(platform: string, agentName: string): SessionManagerLogger {
   return createLogger(`${platform}-session:${agentName}`);
 }
 
@@ -94,15 +91,10 @@ export class ChatSessionManager implements IChatSessionManager {
     this.agentName = options.agentName;
     this.stateDir = options.stateDir;
     this.sessionExpiryHours = options.sessionExpiryHours ?? 24;
-    this.logger =
-      options.logger ?? createDefaultLogger(options.platform, options.agentName);
+    this.logger = options.logger ?? createDefaultLogger(options.platform, options.agentName);
 
     // Compute state file path: .herdctl/<platform>-sessions/<agent>.yaml
-    this.stateFilePath = join(
-      this.stateDir,
-      `${this.platform}-sessions`,
-      `${this.agentName}.yaml`
-    );
+    this.stateFilePath = join(this.stateDir, `${this.platform}-sessions`, `${this.agentName}.yaml`);
   }
 
   // ===========================================================================
@@ -444,7 +436,7 @@ export class ChatSessionManager implements IChatSessionManager {
     oldPath: string,
     newPath: string,
     maxRetries = 3,
-    baseDelayMs = 50
+    baseDelayMs = 50,
   ): Promise<void> {
     let lastError: Error | undefined;
 

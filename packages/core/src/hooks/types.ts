@@ -29,8 +29,21 @@ import type {
 
 // Re-export for convenience within the hooks module
 // Export both output types (for processed config) and input types (for test construction)
-export type { HookEvent, HookConfig, ShellHookConfig, WebhookHookConfig, DiscordHookConfig, SlackHookConfig };
-export type { ShellHookConfigInput, WebhookHookConfigInput, DiscordHookConfigInput, SlackHookConfigInput, HookConfigInput };
+export type {
+  HookEvent,
+  HookConfig,
+  ShellHookConfig,
+  WebhookHookConfig,
+  DiscordHookConfig,
+  SlackHookConfig,
+};
+export type {
+  ShellHookConfigInput,
+  WebhookHookConfigInput,
+  DiscordHookConfigInput,
+  SlackHookConfigInput,
+  HookConfigInput,
+};
 
 // =============================================================================
 // Hook Context (Runtime Type)

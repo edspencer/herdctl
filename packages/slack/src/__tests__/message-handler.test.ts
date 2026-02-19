@@ -23,23 +23,17 @@ describe("isBotMentioned", () => {
   });
 
   it("returns true when bot is mentioned in the middle", () => {
-    expect(
-      isBotMentioned(`hey <@${BOT_USER_ID}> do something`, BOT_USER_ID)
-    ).toBe(true);
+    expect(isBotMentioned(`hey <@${BOT_USER_ID}> do something`, BOT_USER_ID)).toBe(true);
   });
 });
 
 describe("stripBotMention", () => {
   it("removes bot mention from start", () => {
-    expect(stripBotMention(`<@${BOT_USER_ID}> hello`, BOT_USER_ID)).toBe(
-      "hello"
-    );
+    expect(stripBotMention(`<@${BOT_USER_ID}> hello`, BOT_USER_ID)).toBe("hello");
   });
 
   it("removes bot mention from middle", () => {
-    expect(
-      stripBotMention(`hey <@${BOT_USER_ID}> do this`, BOT_USER_ID)
-    ).toBe("hey  do this");
+    expect(stripBotMention(`hey <@${BOT_USER_ID}> do this`, BOT_USER_ID)).toBe("hey  do this");
   });
 
   it("removes multiple bot mentions", () => {
@@ -72,59 +66,41 @@ describe("stripMentions", () => {
 
 describe("shouldProcessMessage", () => {
   it("returns true for regular user messages", () => {
-    expect(
-      shouldProcessMessage({ user: "UUSER123" }, BOT_USER_ID)
-    ).toBe(true);
+    expect(shouldProcessMessage({ user: "UUSER123" }, BOT_USER_ID)).toBe(true);
   });
 
   it("returns false for bot messages", () => {
-    expect(
-      shouldProcessMessage({ bot_id: "BBOT123" }, BOT_USER_ID)
-    ).toBe(false);
+    expect(shouldProcessMessage({ bot_id: "BBOT123" }, BOT_USER_ID)).toBe(false);
   });
 
   it("returns false for bot_message subtype", () => {
-    expect(
-      shouldProcessMessage(
-        { subtype: "bot_message", user: "UUSER123" },
-        BOT_USER_ID
-      )
-    ).toBe(false);
+    expect(shouldProcessMessage({ subtype: "bot_message", user: "UUSER123" }, BOT_USER_ID)).toBe(
+      false,
+    );
   });
 
   it("returns false for messages from the bot itself", () => {
-    expect(
-      shouldProcessMessage({ user: BOT_USER_ID }, BOT_USER_ID)
-    ).toBe(false);
+    expect(shouldProcessMessage({ user: BOT_USER_ID }, BOT_USER_ID)).toBe(false);
   });
 
   it("returns true for thread replies from users", () => {
     expect(
-      shouldProcessMessage(
-        { user: "UUSER123", thread_ts: "1707930000.123456" },
-        BOT_USER_ID
-      )
+      shouldProcessMessage({ user: "UUSER123", thread_ts: "1707930000.123456" }, BOT_USER_ID),
     ).toBe(true);
   });
 });
 
 describe("processMessage", () => {
   it("strips bot mention and returns prompt", () => {
-    expect(processMessage(`<@${BOT_USER_ID}> help me`, BOT_USER_ID)).toBe(
-      "help me"
-    );
+    expect(processMessage(`<@${BOT_USER_ID}> help me`, BOT_USER_ID)).toBe("help me");
   });
 
   it("trims whitespace", () => {
-    expect(processMessage(`  <@${BOT_USER_ID}>   hello  `, BOT_USER_ID)).toBe(
-      "hello"
-    );
+    expect(processMessage(`  <@${BOT_USER_ID}>   hello  `, BOT_USER_ID)).toBe("hello");
   });
 
   it("returns full text if no bot mention", () => {
-    expect(processMessage("just a message", BOT_USER_ID)).toBe(
-      "just a message"
-    );
+    expect(processMessage("just a message", BOT_USER_ID)).toBe("just a message");
   });
 
   it("handles empty text after mention removal", () => {

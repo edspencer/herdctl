@@ -7,11 +7,7 @@
  */
 
 import type { ResolvedAgent, Schedule } from "../config/index.js";
-import type {
-  JobMetadata,
-  JobStatus,
-  ExitReason,
-} from "../state/schemas/job-metadata.js";
+import type { JobMetadata, JobStatus, ExitReason } from "../state/schemas/job-metadata.js";
 
 // =============================================================================
 // Event Payload Types
@@ -173,7 +169,7 @@ export interface JobCancelledPayload {
   /** Name of the agent that was executing the job */
   agentName: string;
   /** How the job was terminated: 'graceful' (SIGTERM), 'forced' (SIGKILL), or 'already_stopped' */
-  terminationType: 'graceful' | 'forced' | 'already_stopped';
+  terminationType: "graceful" | "forced" | "already_stopped";
   /** Duration of the job in seconds before cancellation */
   durationSeconds?: number;
   /** ISO timestamp when the job was cancelled */

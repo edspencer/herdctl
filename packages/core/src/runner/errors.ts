@@ -18,10 +18,7 @@ export class RunnerError extends Error {
   /** The agent name associated with this error, if available */
   public readonly agentName?: string;
 
-  constructor(
-    message: string,
-    options?: { jobId?: string; agentName?: string; cause?: Error }
-  ) {
+  constructor(message: string, options?: { jobId?: string; agentName?: string; cause?: Error }) {
     super(message);
     this.name = "RunnerError";
     this.jobId = options?.jobId;
@@ -49,7 +46,7 @@ export class SDKInitializationError extends RunnerError {
 
   constructor(
     message: string,
-    options?: { jobId?: string; agentName?: string; cause?: Error; code?: string }
+    options?: { jobId?: string; agentName?: string; cause?: Error; code?: string },
   ) {
     super(message, options);
     this.name = "SDKInitializationError";
@@ -107,7 +104,7 @@ export class SDKStreamingError extends RunnerError {
       cause?: Error;
       code?: string;
       messagesReceived?: number;
-    }
+    },
   ) {
     super(message, options);
     this.name = "SDKStreamingError";
@@ -172,7 +169,7 @@ export class MalformedResponseError extends RunnerError {
       cause?: Error;
       rawResponse?: unknown;
       expected?: string;
-    }
+    },
   ) {
     super(message, options);
     this.name = "MalformedResponseError";
@@ -190,7 +187,7 @@ export class MalformedResponseError extends RunnerError {
  */
 export function buildErrorMessage(
   baseMessage: string,
-  context?: { jobId?: string; agentName?: string }
+  context?: { jobId?: string; agentName?: string },
 ): string {
   const parts: string[] = [baseMessage];
 
@@ -230,16 +227,17 @@ export function classifyError(error: Error): ErrorExitReason {
   }
 
   // Check for cancellation
-  if (
-    msg.includes("abort") ||
-    msg.includes("cancel") ||
-    error.name === "AbortError"
-  ) {
+  if (msg.includes("abort") || msg.includes("cancel") || error.name === "AbortError") {
     return "cancelled";
   }
 
   // Check for max turns
-  if (msg.includes("max turns") || msg.includes("max_turns") || msg.includes("turn limit") || msg.includes("maximum turns")) {
+  if (
+    msg.includes("max turns") ||
+    msg.includes("max_turns") ||
+    msg.includes("turn limit") ||
+    msg.includes("maximum turns")
+  ) {
     return "max_turns";
   }
 
@@ -252,7 +250,7 @@ export function classifyError(error: Error): ErrorExitReason {
  */
 export function wrapError(
   error: unknown,
-  context: { jobId?: string; agentName?: string; phase?: "init" | "streaming" }
+  context: { jobId?: string; agentName?: string; phase?: "init" | "streaming" },
 ): RunnerError {
   // Already a RunnerError
   if (error instanceof RunnerError) {
@@ -260,22 +258,18 @@ export function wrapError(
   }
 
   // Convert to Error if needed
-  const baseError =
-    error instanceof Error ? error : new Error(String(error));
+  const baseError = error instanceof Error ? error : new Error(String(error));
 
   // Determine error type based on phase and characteristics
   const message = baseError.message.toLowerCase();
   const phase = context.phase ?? "streaming";
 
   if (phase === "init") {
-    return new SDKInitializationError(
-      buildErrorMessage(baseError.message, context),
-      {
-        jobId: context.jobId,
-        agentName: context.agentName,
-        cause: baseError,
-      }
-    );
+    return new SDKInitializationError(buildErrorMessage(baseError.message, context), {
+      jobId: context.jobId,
+      agentName: context.agentName,
+      cause: baseError,
+    });
   }
 
   // Check for malformed response indicators
@@ -285,23 +279,17 @@ export function wrapError(
     message.includes("parse error") ||
     message.includes("malformed")
   ) {
-    return new MalformedResponseError(
-      buildErrorMessage(baseError.message, context),
-      {
-        jobId: context.jobId,
-        agentName: context.agentName,
-        cause: baseError,
-      }
-    );
-  }
-
-  // Default to streaming error for runtime errors
-  return new SDKStreamingError(
-    buildErrorMessage(baseError.message, context),
-    {
+    return new MalformedResponseError(buildErrorMessage(baseError.message, context), {
       jobId: context.jobId,
       agentName: context.agentName,
       cause: baseError,
-    }
-  );
+    });
+  }
+
+  // Default to streaming error for runtime errors
+  return new SDKStreamingError(buildErrorMessage(baseError.message, context), {
+    jobId: context.jobId,
+    agentName: context.agentName,
+    cause: baseError,
+  });
 }

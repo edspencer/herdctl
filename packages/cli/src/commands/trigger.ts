@@ -198,10 +198,7 @@ interface JobCompletionJson {
 /**
  * Trigger an agent (herdctl trigger)
  */
-export async function triggerCommand(
-  agentName: string,
-  options: TriggerOptions
-): Promise<void> {
+export async function triggerCommand(agentName: string, options: TriggerOptions): Promise<void> {
   const stateDir = options.state || DEFAULT_STATE_DIR;
   const isJsonOutput = options.json === true;
   const isWaitMode = options.wait === true;
@@ -285,7 +282,7 @@ export async function triggerCommand(
                 message: error.message,
                 agentName: agentName,
               },
-            })
+            }),
           );
           process.exit(1);
         }
@@ -306,7 +303,7 @@ export async function triggerCommand(
                 agentName: agentName,
                 scheduleName: options.schedule,
               },
-            })
+            }),
           );
           process.exit(1);
         }
@@ -326,7 +323,7 @@ export async function triggerCommand(
                 message: error.message,
                 agentName: agentName,
               },
-            })
+            }),
           );
           process.exit(1);
         }
@@ -369,9 +366,7 @@ export async function triggerCommand(
       }
       if (result.prompt) {
         const truncatedPrompt =
-          result.prompt.length > 60
-            ? result.prompt.substring(0, 60) + "..."
-            : result.prompt;
+          result.prompt.length > 60 ? result.prompt.substring(0, 60) + "..." : result.prompt;
         console.log(`Prompt:   ${colorize(truncatedPrompt, "dim")}`);
       }
       console.log("");
@@ -386,7 +381,9 @@ export async function triggerCommand(
           const remaining = finalOutput.length - MAX_OUTPUT_CHARS;
           console.log(finalOutput.substring(0, MAX_OUTPUT_CHARS));
           console.log("");
-          console.log(colorize(`... [truncated: ${remaining.toLocaleString()} more characters]`, "yellow"));
+          console.log(
+            colorize(`... [truncated: ${remaining.toLocaleString()} more characters]`, "yellow"),
+          );
         } else {
           console.log(finalOutput);
         }
@@ -480,7 +477,7 @@ export async function triggerCommand(
               message: "No configuration file found",
               startDirectory: error.startDirectory,
             },
-          })
+          }),
         );
         process.exit(1);
       }
@@ -500,7 +497,7 @@ export async function triggerCommand(
               code: error.code,
               message: error.message,
             },
-          })
+          }),
         );
         process.exit(1);
       }
@@ -525,7 +522,7 @@ export async function triggerCommand(
             code: "UNKNOWN_ERROR",
             message: error instanceof Error ? error.message : String(error),
           },
-        })
+        }),
       );
       process.exit(1);
     }

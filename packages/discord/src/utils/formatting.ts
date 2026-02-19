@@ -9,16 +9,8 @@
  * Message splitting utilities are provided by @herdctl/chat.
  */
 
-import type {
-  TextChannel,
-  DMChannel,
-  NewsChannel,
-  ThreadChannel,
-} from "discord.js";
-import {
-  splitMessage,
-  DEFAULT_MESSAGE_DELAY_MS,
-} from "@herdctl/chat";
+import type { TextChannel, DMChannel, NewsChannel, ThreadChannel } from "discord.js";
+import { splitMessage, DEFAULT_MESSAGE_DELAY_MS } from "@herdctl/chat";
 
 // =============================================================================
 // Constants
@@ -36,11 +28,7 @@ export const DISCORD_MAX_MESSAGE_LENGTH = 2000;
 /**
  * Supported text-based channel types that can receive messages
  */
-export type SendableChannel =
-  | TextChannel
-  | DMChannel
-  | NewsChannel
-  | ThreadChannel;
+export type SendableChannel = TextChannel | DMChannel | NewsChannel | ThreadChannel;
 
 /**
  * Options for sending split messages
@@ -112,7 +100,7 @@ export interface TypingController {
  */
 export function startTypingIndicator(
   channel: SendableChannel,
-  refreshInterval: number = 5000
+  refreshInterval: number = 5000,
 ): TypingController {
   let isActive = true;
   let intervalId: ReturnType<typeof setInterval> | null = null;
@@ -169,7 +157,7 @@ export function startTypingIndicator(
 export async function sendSplitMessage(
   channel: SendableChannel,
   content: string,
-  options: SendSplitOptions = {}
+  options: SendSplitOptions = {},
 ): Promise<string[]> {
   const {
     delayMs = DEFAULT_MESSAGE_DELAY_MS,
@@ -223,7 +211,7 @@ export async function sendSplitMessage(
 export async function sendWithTyping(
   channel: SendableChannel,
   contentProvider: () => Promise<string>,
-  options: SendSplitOptions = {}
+  options: SendSplitOptions = {},
 ): Promise<string[]> {
   const typing = startTypingIndicator(channel);
 

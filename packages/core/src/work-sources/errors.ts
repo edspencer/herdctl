@@ -36,17 +36,9 @@ export class UnknownWorkSourceError extends WorkSourceError {
   /** List of currently registered work source types */
   public readonly availableTypes: string[];
 
-  constructor(
-    sourceType: string,
-    availableTypes: string[],
-    options?: { cause?: Error }
-  ) {
-    const availableList =
-      availableTypes.length > 0 ? availableTypes.join(", ") : "none";
-    super(
-      `Unknown work source type: "${sourceType}". Available types: ${availableList}`,
-      options
-    );
+  constructor(sourceType: string, availableTypes: string[], options?: { cause?: Error }) {
+    const availableList = availableTypes.length > 0 ? availableTypes.join(", ") : "none";
+    super(`Unknown work source type: "${sourceType}". Available types: ${availableList}`, options);
     this.name = "UnknownWorkSourceError";
     this.sourceType = sourceType;
     this.availableTypes = availableTypes;
@@ -63,7 +55,7 @@ export class DuplicateWorkSourceError extends WorkSourceError {
   constructor(sourceType: string, options?: { cause?: Error }) {
     super(
       `Work source type "${sourceType}" is already registered. Use a different type name or unregister the existing one first.`,
-      options
+      options,
     );
     this.name = "DuplicateWorkSourceError";
     this.sourceType = sourceType;

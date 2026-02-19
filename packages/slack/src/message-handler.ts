@@ -70,7 +70,7 @@ export function shouldProcessMessage(
     user?: string;
     thread_ts?: string;
   },
-  botUserId: string
+  botUserId: string,
 ): boolean {
   // Ignore bot messages
   if (event.bot_id || event.subtype === "bot_message") {

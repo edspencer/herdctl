@@ -14,9 +14,7 @@ export const resetCommand: PrefixCommand = {
     const cleared = await sessionManager.clearSession(channelId);
 
     if (cleared) {
-      await reply(
-        "Session cleared. The next message will start a fresh conversation."
-      );
+      await reply("Session cleared. The next message will start a fresh conversation.");
     } else {
       await reply("No active session in this channel.");
     }

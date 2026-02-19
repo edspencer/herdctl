@@ -176,10 +176,7 @@ describe("Configuration Hot Reload (US-9)", () => {
       // Update config to include new agent
       await createConfig({
         version: 1,
-        agents: [
-          { path: "./agents/agent-1.yaml" },
-          { path: "./agents/agent-2.yaml" },
-        ],
+        agents: [{ path: "./agents/agent-1.yaml" }, { path: "./agents/agent-2.yaml" }],
       });
 
       const result = await manager.reload();
@@ -189,7 +186,7 @@ describe("Configuration Hot Reload (US-9)", () => {
           type: "added",
           category: "agent",
           name: "agent-2",
-        })
+        }),
       );
       expect(result.agentCount).toBe(2);
     });
@@ -204,10 +201,7 @@ describe("Configuration Hot Reload (US-9)", () => {
 
       const configPath = await createConfig({
         version: 1,
-        agents: [
-          { path: "./agents/agent-1.yaml" },
-          { path: "./agents/agent-2.yaml" },
-        ],
+        agents: [{ path: "./agents/agent-1.yaml" }, { path: "./agents/agent-2.yaml" }],
       });
 
       const manager = createTestManager(configPath);
@@ -226,7 +220,7 @@ describe("Configuration Hot Reload (US-9)", () => {
           type: "removed",
           category: "agent",
           name: "agent-2",
-        })
+        }),
       );
       expect(result.agentCount).toBe(1);
     });
@@ -260,7 +254,7 @@ describe("Configuration Hot Reload (US-9)", () => {
           type: "modified",
           category: "agent",
           name: "mod-agent",
-        })
+        }),
       );
     });
 
@@ -295,7 +289,7 @@ describe("Configuration Hot Reload (US-9)", () => {
           type: "added",
           category: "schedule",
           name: "schedule-agent/hourly",
-        })
+        }),
       );
     });
 
@@ -340,7 +334,7 @@ describe("Configuration Hot Reload (US-9)", () => {
           type: "removed",
           category: "schedule",
           name: "schedule-agent/daily",
-        })
+        }),
       );
     });
 
@@ -383,7 +377,7 @@ describe("Configuration Hot Reload (US-9)", () => {
           type: "modified",
           category: "schedule",
           name: "mod-schedule/check",
-        })
+        }),
       );
     });
 
@@ -430,10 +424,7 @@ describe("Configuration Hot Reload (US-9)", () => {
       });
       await createConfig({
         version: 1,
-        agents: [
-          { path: "./agents/event-agent.yaml" },
-          { path: "./agents/new-agent.yaml" },
-        ],
+        agents: [{ path: "./agents/event-agent.yaml" }, { path: "./agents/new-agent.yaml" }],
       });
 
       await manager.reload();
@@ -450,7 +441,7 @@ describe("Configuration Hot Reload (US-9)", () => {
               name: "new-agent",
             }),
           ]),
-        })
+        }),
       );
     });
 
@@ -578,7 +569,7 @@ describe("Configuration Hot Reload (US-9)", () => {
 
       expect(logger.error).toHaveBeenCalled();
       expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining("Keeping existing configuration")
+        expect.stringContaining("Keeping existing configuration"),
       );
     });
   });
@@ -702,7 +693,7 @@ describe("Configuration Hot Reload (US-9)", () => {
           type: "modified",
           category: "schedule",
           name: "schedule-update/original",
-        })
+        }),
       );
 
       // Verify the agent config was updated
@@ -753,7 +744,7 @@ describe("Configuration Hot Reload (US-9)", () => {
           type: "modified",
           category: "agent",
           name: "isolation-test",
-        })
+        }),
       );
 
       // The original job metadata is unchanged - it was captured at trigger time

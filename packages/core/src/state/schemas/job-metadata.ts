@@ -14,13 +14,7 @@ import { z } from "zod";
 /**
  * Possible states for a job
  */
-export const JobStatusSchema = z.enum([
-  "pending",
-  "running",
-  "completed",
-  "failed",
-  "cancelled",
-]);
+export const JobStatusSchema = z.enum(["pending", "running", "completed", "failed", "cancelled"]);
 
 /**
  * How the job was triggered
@@ -39,13 +33,7 @@ export const TriggerTypeSchema = z.enum([
 /**
  * Reason why a job exited
  */
-export const ExitReasonSchema = z.enum([
-  "success",
-  "error",
-  "timeout",
-  "cancelled",
-  "max_turns",
-]);
+export const ExitReasonSchema = z.enum(["success", "error", "timeout", "cancelled", "max_turns"]);
 
 // =============================================================================
 // Job Metadata Schema
@@ -143,7 +131,7 @@ export interface CreateJobOptions {
  */
 export function generateJobId(
   date: Date = new Date(),
-  randomFn: () => string = () => Math.random().toString(36).slice(2, 8)
+  randomFn: () => string = () => Math.random().toString(36).slice(2, 8),
 ): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -161,7 +149,7 @@ export function generateJobId(
  */
 export function createJobMetadata(
   options: CreateJobOptions,
-  idGenerator: () => string = generateJobId
+  idGenerator: () => string = generateJobId,
 ): JobMetadata {
   const now = new Date().toISOString();
 

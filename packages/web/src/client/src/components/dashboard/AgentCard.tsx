@@ -155,9 +155,7 @@ export function AgentCard({ agent }: AgentCardProps) {
               {agent.fleetPath.join(" / ")}
             </p>
           )}
-          <h3 className="text-sm font-medium text-herd-fg truncate">
-            {agent.name}
-          </h3>
+          <h3 className="text-sm font-medium text-herd-fg truncate">{agent.name}</h3>
           {agent.description && (
             <p className="text-xs text-herd-muted mt-0.5 line-clamp-2">
               {truncate(agent.description, 80)}
@@ -171,9 +169,7 @@ export function AgentCard({ agent }: AgentCardProps) {
       <div className="min-h-[32px]">
         {agent.status === "running" && agent.currentJobId && (
           <div className="bg-herd-hover rounded-lg px-2 py-1.5">
-            <p className="text-xs text-herd-muted font-mono truncate">
-              Job active
-            </p>
+            <p className="text-xs text-herd-muted font-mono truncate">Job active</p>
           </div>
         )}
         {agent.status === "idle" && (

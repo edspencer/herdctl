@@ -405,10 +405,7 @@ describe("WorkSourceAdapter interface", () => {
         // Implementation would update external system
       },
 
-      async releaseWork(
-        workItemId: string,
-        options?: ReleaseOptions
-      ): Promise<ReleaseResult> {
+      async releaseWork(workItemId: string, options?: ReleaseOptions): Promise<ReleaseResult> {
         return { success: true };
       },
 

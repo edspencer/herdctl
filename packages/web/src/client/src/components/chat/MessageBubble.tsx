@@ -91,9 +91,7 @@ function ToolCallBubble({ message }: { message: ChatMessage }) {
     <div className="flex flex-col items-start animate-[fadeSlideIn_150ms_ease-out]">
       <div
         className={`max-w-[85%] px-3 py-2 rounded-lg border ${
-          toolCall.isError
-            ? "border-red-500/30 bg-red-500/5"
-            : "border-herd-border bg-herd-hover"
+          toolCall.isError ? "border-red-500/30 bg-red-500/5" : "border-herd-border bg-herd-hover"
         }`}
       >
         {/* Tool header */}
@@ -103,28 +101,20 @@ function ToolCallBubble({ message }: { message: ChatMessage }) {
           className="flex items-center gap-1.5 w-full text-left"
         >
           <span className="text-xs">{emoji}</span>
-          <span className="text-xs font-medium text-herd-fg">
-            {toolCall.toolName}
-          </span>
-          {toolCall.isError && (
-            <span className="text-[10px] text-red-500 font-medium">ERROR</span>
-          )}
+          <span className="text-xs font-medium text-herd-fg">{toolCall.toolName}</span>
+          {toolCall.isError && <span className="text-[10px] text-red-500 font-medium">ERROR</span>}
           {toolCall.durationMs !== undefined && (
             <span className="text-[10px] text-herd-muted ml-auto">
               {formatDuration(toolCall.durationMs)}
             </span>
           )}
-          <span className="text-[10px] text-herd-muted">
-            {expanded ? "\u25B2" : "\u25BC"}
-          </span>
+          <span className="text-[10px] text-herd-muted">{expanded ? "\u25B2" : "\u25BC"}</span>
         </button>
 
         {/* Input summary */}
         {toolCall.inputSummary && (
           <div className="mt-1">
-            <code className="text-[11px] text-herd-muted break-all">
-              {toolCall.inputSummary}
-            </code>
+            <code className="text-[11px] text-herd-muted break-all">{toolCall.inputSummary}</code>
           </div>
         )}
 

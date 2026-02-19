@@ -216,9 +216,7 @@ export interface SDKMcpServerConfig {
  * - A plain string for custom prompts
  * - An object with type: 'preset' for using Claude Code's default prompt
  */
-export type SDKSystemPrompt =
-  | string
-  | { type: "preset"; preset: "claude_code"; append?: string };
+export type SDKSystemPrompt = string | { type: "preset"; preset: "claude_code"; append?: string };
 
 /**
  * SDK query options (matching Claude Agent SDK types)
@@ -226,7 +224,13 @@ export type SDKSystemPrompt =
 export interface SDKQueryOptions {
   allowedTools?: string[];
   deniedTools?: string[];
-  permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "delegate" | "dontAsk";
+  permissionMode?:
+    | "default"
+    | "acceptEdits"
+    | "bypassPermissions"
+    | "plan"
+    | "delegate"
+    | "dontAsk";
   systemPrompt?: SDKSystemPrompt;
   settingSources?: string[];
   mcpServers?: Record<string, SDKMcpServerConfig>;

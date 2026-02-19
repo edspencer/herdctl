@@ -15,7 +15,12 @@ import type {
   DiscordReplyPayload,
   DiscordConnectorEventMap,
 } from "../types.js";
-import type { FleetManagerContext, ResolvedConfig, ResolvedAgent, AgentChatDiscord } from "@herdctl/core";
+import type {
+  FleetManagerContext,
+  ResolvedConfig,
+  ResolvedAgent,
+  AgentChatDiscord,
+} from "@herdctl/core";
 
 // Define event types from the connector event map
 type DiscordMessageEvent = DiscordConnectorEventMap["message"];
@@ -48,15 +53,18 @@ function createMockContext(config: ResolvedConfig | null = null): FleetManagerCo
     getCheckInterval: () => 1000,
     emit: (event: string, ...args: unknown[]) => mockEmitter.emit(event, ...args),
     getEmitter: () => mockEmitter,
-    trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
+    trigger: vi.fn().mockResolvedValue({
+      jobId: "test-job",
+      agentName: "test",
+      scheduleName: null,
+      startedAt: new Date().toISOString(),
+      success: true,
+    }),
   };
 }
 
 // Create a mock agent with Discord config
-function createDiscordAgent(
-  name: string,
-  discordConfig: AgentChatDiscord
-): ResolvedAgent {
+function createDiscordAgent(name: string, discordConfig: AgentChatDiscord): ResolvedAgent {
   return {
     name,
     model: "sonnet",
@@ -108,7 +116,7 @@ describe("DiscordManager", () => {
       await manager.initialize();
 
       expect(mockLogger.debug).toHaveBeenCalledWith(
-        "No config available, skipping Discord initialization"
+        "No config available, skipping Discord initialization",
       );
       expect(manager.getConnectorNames()).toEqual([]);
     });
@@ -116,10 +124,7 @@ describe("DiscordManager", () => {
     it("skips initialization when no agents have Discord configured", async () => {
       const config: ResolvedConfig = {
         fleet: { name: "test-fleet" } as unknown as ResolvedConfig["fleet"],
-        agents: [
-          createNonDiscordAgent("agent1"),
-          createNonDiscordAgent("agent2"),
-        ],
+        agents: [createNonDiscordAgent("agent1"), createNonDiscordAgent("agent2")],
         configPath: "/test/herdctl.yaml",
         configDir: "/test",
       };
@@ -138,9 +143,8 @@ describe("DiscordManager", () => {
       expect(
         debugCalls.some(
           (msg) =>
-            msg.includes("not installed") ||
-            msg.includes("No agents with Discord configured")
-        )
+            msg.includes("not installed") || msg.includes("No agents with Discord configured"),
+        ),
       ).toBe(true);
     });
 
@@ -169,7 +173,13 @@ describe("DiscordManager", () => {
         bot_token_env: "NONEXISTENT_BOT_TOKEN_VAR",
         session_expiry_hours: 24,
         log_level: "standard",
-        output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
+        output: {
+          tool_results: true,
+          tool_result_max_length: 900,
+          system_status: true,
+          result_summary: false,
+          errors: true,
+        },
         guilds: [],
       };
       const config: ResolvedConfig = {
@@ -198,12 +208,8 @@ describe("DiscordManager", () => {
       const debugCalls = mockLogger.debug.mock.calls;
 
       // Either the package is not installed (debug log) or the token is missing (warn log)
-      const packageNotInstalled = debugCalls.some(
-        (call) => call[0].includes("not installed")
-      );
-      const tokenMissing = warnCalls.some(
-        (call) => call[0].includes("bot token not found")
-      );
+      const packageNotInstalled = debugCalls.some((call) => call[0].includes("not installed"));
+      const tokenMissing = warnCalls.some((call) => call[0].includes("bot token not found"));
 
       expect(packageNotInstalled || tokenMissing || warnCalls.length === 0).toBe(true);
     });
@@ -217,9 +223,7 @@ describe("DiscordManager", () => {
       await manager.initialize();
       await manager.start();
 
-      expect(mockLogger.debug).toHaveBeenCalledWith(
-        "No Discord connectors to start"
-      );
+      expect(mockLogger.debug).toHaveBeenCalledWith("No Discord connectors to start");
     });
   });
 
@@ -231,9 +235,7 @@ describe("DiscordManager", () => {
       await manager.initialize();
       await manager.stop();
 
-      expect(mockLogger.debug).toHaveBeenCalledWith(
-        "No Discord connectors to stop"
-      );
+      expect(mockLogger.debug).toHaveBeenCalledWith("No Discord connectors to stop");
     });
   });
 
@@ -566,7 +568,8 @@ describe.skip("DiscordManager response splitting", () => {
     it("handles code block that opens and closes within split region", () => {
       // Create text where a code block opens and then closes before split point
       // This tests the code path where insideBlock becomes false after closing
-      const text = "Some intro text\n```js\nconst x = 1;\n```\nMore text here " + "padding ".repeat(250);
+      const text =
+        "Some intro text\n```js\nconst x = 1;\n```\nMore text here " + "padding ".repeat(250);
       const result = manager.splitResponse(text);
 
       expect(result.length).toBeGreaterThanOrEqual(1);
@@ -595,7 +598,8 @@ describe.skip("DiscordManager response splitting", () => {
 
     it("handles multiple code blocks opening and closing", () => {
       // Multiple code blocks that open and close
-      const text = "```js\ncode1\n```\n" + "text ".repeat(100) + "\n```py\ncode2\n```\n" + "more ".repeat(200);
+      const text =
+        "```js\ncode1\n```\n" + "text ".repeat(100) + "\n```py\ncode2\n```\n" + "more ".repeat(200);
       const result = manager.splitResponse(text);
 
       expect(result.length).toBeGreaterThanOrEqual(1);
@@ -724,7 +728,13 @@ describe.skip("DiscordManager message handling", () => {
           bot_token_env: "TEST_BOT_TOKEN",
           session_expiry_hours: 24,
           log_level: "standard",
-          output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
+          output: {
+            tool_results: true,
+            tool_result_max_length: 900,
+            system_status: true,
+            result_summary: false,
+            errors: true,
+          },
           guilds: [],
         }),
       ],
@@ -746,7 +756,13 @@ describe.skip("DiscordManager message handling", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => emitterWithTrigger.emit(event, ...args),
       getEmitter: () => emitterWithTrigger,
-      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
+      trigger: vi.fn().mockResolvedValue({
+        jobId: "test-job",
+        agentName: "test",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+      }),
     };
 
     manager = new DiscordManager(mockContext);
@@ -772,7 +788,12 @@ describe.skip("DiscordManager message handling", () => {
         reconnectAttempts: 0,
         lastError: null,
         botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-        rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+        rateLimits: {
+          totalCount: 0,
+          lastRateLimitAt: null,
+          isRateLimited: false,
+          currentResetTime: 0,
+        },
         messageStats: { received: 0, sent: 0, ignored: 0 },
       } satisfies DiscordConnectorState);
       mockConnector.agentName = "test-agent";
@@ -810,7 +831,12 @@ describe.skip("DiscordManager message handling", () => {
         reconnectAttempts: 0,
         lastError: null,
         botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-        rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+        rateLimits: {
+          totalCount: 0,
+          lastRateLimitAt: null,
+          isRateLimited: false,
+          currentResetTime: 0,
+        },
         messageStats: { received: 0, sent: 0, ignored: 0 },
       } satisfies DiscordConnectorState);
       mockConnector.agentName = "test-agent";
@@ -857,22 +883,24 @@ describe.skip("DiscordManager message handling", () => {
         undefined,
         expect.objectContaining({
           prompt: "Hello bot!",
-        })
+        }),
       );
     });
 
     it("streams each assistant message immediately via onMessage callback", async () => {
       // Create trigger mock that invokes onMessage callback with streaming content
-      const customTriggerMock = vi.fn().mockImplementation(async (_agentName, _scheduleName, options) => {
-        // Simulate streaming messages from the agent - each is sent immediately
-        if (options?.onMessage) {
-          await options.onMessage({ type: "assistant", content: "Hello! " });
-          await options.onMessage({ type: "assistant", content: "How can I help you today?" });
-          // Non-assistant message should be ignored
-          await options.onMessage({ type: "system", content: "System message" });
-        }
-        return { jobId: "streaming-job-123" };
-      });
+      const customTriggerMock = vi
+        .fn()
+        .mockImplementation(async (_agentName, _scheduleName, options) => {
+          // Simulate streaming messages from the agent - each is sent immediately
+          if (options?.onMessage) {
+            await options.onMessage({ type: "assistant", content: "Hello! " });
+            await options.onMessage({ type: "assistant", content: "How can I help you today?" });
+            // Non-assistant message should be ignored
+            await options.onMessage({ type: "system", content: "System message" });
+          }
+          return { jobId: "streaming-job-123" };
+        });
 
       const streamingEmitter = Object.assign(new EventEmitter(), {
         trigger: customTriggerMock,
@@ -885,7 +913,13 @@ describe.skip("DiscordManager message handling", () => {
             bot_token_env: "TEST_BOT_TOKEN",
             session_expiry_hours: 24,
             log_level: "standard",
-            output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
+            output: {
+              tool_results: true,
+              tool_result_max_length: 900,
+              system_status: true,
+              result_summary: false,
+              errors: true,
+            },
             guilds: [],
           }),
         ],
@@ -907,7 +941,13 @@ describe.skip("DiscordManager message handling", () => {
         getCheckInterval: () => 1000,
         emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
         getEmitter: () => streamingEmitter,
-      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
+        trigger: vi.fn().mockResolvedValue({
+          jobId: "test-job",
+          agentName: "test",
+          scheduleName: null,
+          startedAt: new Date().toISOString(),
+          success: true,
+        }),
       };
 
       const streamingManager = new DiscordManager(streamingContext);
@@ -936,13 +976,20 @@ describe.skip("DiscordManager message handling", () => {
         reconnectAttempts: 0,
         lastError: null,
         botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-        rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+        rateLimits: {
+          totalCount: 0,
+          lastRateLimitAt: null,
+          isRateLimited: false,
+          currentResetTime: 0,
+        },
         messageStats: { received: 0, sent: 0, ignored: 0 },
       } satisfies DiscordConnectorState);
       mockConnector.agentName = "streaming-agent";
       mockConnector.sessionManager = {
         getOrCreateSession: vi.fn().mockResolvedValue({ sessionId: "s1", isNew: false }),
-        getSession: vi.fn().mockResolvedValue({ sessionId: "s1", lastMessageAt: new Date().toISOString() }),
+        getSession: vi
+          .fn()
+          .mockResolvedValue({ sessionId: "s1", lastMessageAt: new Date().toISOString() }),
         setSession: vi.fn().mockResolvedValue(undefined),
         touchSession: vi.fn().mockResolvedValue(undefined),
         getActiveSessionCount: vi.fn().mockResolvedValue(0),
@@ -993,12 +1040,14 @@ describe.skip("DiscordManager message handling", () => {
     it("sends long streaming response with splitResponse", async () => {
       // Create trigger mock that produces a long response
       const longResponse = "This is a very long response. ".repeat(100); // About 3100 chars
-      const customTriggerMock = vi.fn().mockImplementation(async (_agentName, _scheduleName, options) => {
-        if (options?.onMessage) {
-          await options.onMessage({ type: "assistant", content: longResponse });
-        }
-        return { jobId: "long-job-123" };
-      });
+      const customTriggerMock = vi
+        .fn()
+        .mockImplementation(async (_agentName, _scheduleName, options) => {
+          if (options?.onMessage) {
+            await options.onMessage({ type: "assistant", content: longResponse });
+          }
+          return { jobId: "long-job-123" };
+        });
 
       const streamingEmitter = Object.assign(new EventEmitter(), {
         trigger: customTriggerMock,
@@ -1011,7 +1060,13 @@ describe.skip("DiscordManager message handling", () => {
             bot_token_env: "TEST_BOT_TOKEN",
             session_expiry_hours: 24,
             log_level: "standard",
-            output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
+            output: {
+              tool_results: true,
+              tool_result_max_length: 900,
+              system_status: true,
+              result_summary: false,
+              errors: true,
+            },
             guilds: [],
           }),
         ],
@@ -1033,7 +1088,13 @@ describe.skip("DiscordManager message handling", () => {
         getCheckInterval: () => 1000,
         emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
         getEmitter: () => streamingEmitter,
-      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
+        trigger: vi.fn().mockResolvedValue({
+          jobId: "test-job",
+          agentName: "test",
+          scheduleName: null,
+          startedAt: new Date().toISOString(),
+          success: true,
+        }),
       };
 
       const streamingManager = new DiscordManager(streamingContext);
@@ -1062,13 +1123,20 @@ describe.skip("DiscordManager message handling", () => {
         reconnectAttempts: 0,
         lastError: null,
         botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-        rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+        rateLimits: {
+          totalCount: 0,
+          lastRateLimitAt: null,
+          isRateLimited: false,
+          currentResetTime: 0,
+        },
         messageStats: { received: 0, sent: 0, ignored: 0 },
       } satisfies DiscordConnectorState);
       mockConnector.agentName = "long-agent";
       mockConnector.sessionManager = {
         getOrCreateSession: vi.fn().mockResolvedValue({ sessionId: "s1", isNew: false }),
-        getSession: vi.fn().mockResolvedValue({ sessionId: "s1", lastMessageAt: new Date().toISOString() }),
+        getSession: vi
+          .fn()
+          .mockResolvedValue({ sessionId: "s1", lastMessageAt: new Date().toISOString() }),
         setSession: vi.fn().mockResolvedValue(undefined),
         touchSession: vi.fn().mockResolvedValue(undefined),
         getActiveSessionCount: vi.fn().mockResolvedValue(0),
@@ -1116,43 +1184,48 @@ describe.skip("DiscordManager message handling", () => {
 
     it("streams tool results from user messages to Discord", async () => {
       // Create trigger mock that sends assistant message with tool_use, then user message with tool_result
-      const customTriggerMock = vi.fn().mockImplementation(async (_agentName, _scheduleName, options) => {
-        if (options?.onMessage) {
-          // Claude decides to use Bash tool
-          await options.onMessage({
-            type: "assistant",
-            message: {
-              content: [
-                { type: "text", text: "Let me check that for you." },
-                { type: "tool_use", name: "Bash", id: "tool-1", input: { command: "ls -la /tmp" } },
-              ],
-            },
-          });
-          // Tool result comes back as a user message
-          await options.onMessage({
-            type: "user",
-            message: {
-              content: [
-                {
-                  type: "tool_result",
-                  tool_use_id: "tool-1",
-                  content: "total 48\ndrwxr-xr-x  5 user  staff  160 Jan 20 10:00 .",
-                },
-              ],
-            },
-          });
-          // Claude sends final response
-          await options.onMessage({
-            type: "assistant",
-            message: {
-              content: [
-                { type: "text", text: "Here are the files in /tmp." },
-              ],
-            },
-          });
-        }
-        return { jobId: "tool-job-123", success: true };
-      });
+      const customTriggerMock = vi
+        .fn()
+        .mockImplementation(async (_agentName, _scheduleName, options) => {
+          if (options?.onMessage) {
+            // Claude decides to use Bash tool
+            await options.onMessage({
+              type: "assistant",
+              message: {
+                content: [
+                  { type: "text", text: "Let me check that for you." },
+                  {
+                    type: "tool_use",
+                    name: "Bash",
+                    id: "tool-1",
+                    input: { command: "ls -la /tmp" },
+                  },
+                ],
+              },
+            });
+            // Tool result comes back as a user message
+            await options.onMessage({
+              type: "user",
+              message: {
+                content: [
+                  {
+                    type: "tool_result",
+                    tool_use_id: "tool-1",
+                    content: "total 48\ndrwxr-xr-x  5 user  staff  160 Jan 20 10:00 .",
+                  },
+                ],
+              },
+            });
+            // Claude sends final response
+            await options.onMessage({
+              type: "assistant",
+              message: {
+                content: [{ type: "text", text: "Here are the files in /tmp." }],
+              },
+            });
+          }
+          return { jobId: "tool-job-123", success: true };
+        });
 
       const streamingEmitter = Object.assign(new EventEmitter(), {
         trigger: customTriggerMock,
@@ -1165,7 +1238,13 @@ describe.skip("DiscordManager message handling", () => {
             bot_token_env: "TEST_BOT_TOKEN",
             session_expiry_hours: 24,
             log_level: "standard",
-            output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
+            output: {
+              tool_results: true,
+              tool_result_max_length: 900,
+              system_status: true,
+              result_summary: false,
+              errors: true,
+            },
             guilds: [],
           }),
         ],
@@ -1187,7 +1266,13 @@ describe.skip("DiscordManager message handling", () => {
         getCheckInterval: () => 1000,
         emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
         getEmitter: () => streamingEmitter,
-      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
+        trigger: vi.fn().mockResolvedValue({
+          jobId: "test-job",
+          agentName: "test",
+          scheduleName: null,
+          startedAt: new Date().toISOString(),
+          success: true,
+        }),
       };
 
       const streamingManager = new DiscordManager(streamingContext);
@@ -1216,7 +1301,12 @@ describe.skip("DiscordManager message handling", () => {
         reconnectAttempts: 0,
         lastError: null,
         botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-        rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+        rateLimits: {
+          totalCount: 0,
+          lastRateLimitAt: null,
+          isRateLimited: false,
+          currentResetTime: 0,
+        },
         messageStats: { received: 0, sent: 0, ignored: 0 },
       } satisfies DiscordConnectorState);
       mockConnector.agentName = "tool-agent";
@@ -1286,15 +1376,17 @@ describe.skip("DiscordManager message handling", () => {
 
     it("streams tool results from top-level tool_use_result", async () => {
       // Test the alternative SDK format where tool_use_result is at the top level
-      const customTriggerMock = vi.fn().mockImplementation(async (_agentName, _scheduleName, options) => {
-        if (options?.onMessage) {
-          await options.onMessage({
-            type: "user",
-            tool_use_result: "output from tool execution",
-          });
-        }
-        return { jobId: "tool-job-456", success: true };
-      });
+      const customTriggerMock = vi
+        .fn()
+        .mockImplementation(async (_agentName, _scheduleName, options) => {
+          if (options?.onMessage) {
+            await options.onMessage({
+              type: "user",
+              tool_use_result: "output from tool execution",
+            });
+          }
+          return { jobId: "tool-job-456", success: true };
+        });
 
       const streamingEmitter = Object.assign(new EventEmitter(), {
         trigger: customTriggerMock,
@@ -1307,7 +1399,13 @@ describe.skip("DiscordManager message handling", () => {
             bot_token_env: "TEST_BOT_TOKEN",
             session_expiry_hours: 24,
             log_level: "standard",
-            output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
+            output: {
+              tool_results: true,
+              tool_result_max_length: 900,
+              system_status: true,
+              result_summary: false,
+              errors: true,
+            },
             guilds: [],
           }),
         ],
@@ -1329,7 +1427,13 @@ describe.skip("DiscordManager message handling", () => {
         getCheckInterval: () => 1000,
         emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
         getEmitter: () => streamingEmitter,
-      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
+        trigger: vi.fn().mockResolvedValue({
+          jobId: "test-job",
+          agentName: "test",
+          scheduleName: null,
+          startedAt: new Date().toISOString(),
+          success: true,
+        }),
       };
 
       const streamingManager = new DiscordManager(streamingContext);
@@ -1358,7 +1462,12 @@ describe.skip("DiscordManager message handling", () => {
         reconnectAttempts: 0,
         lastError: null,
         botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-        rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+        rateLimits: {
+          totalCount: 0,
+          lastRateLimitAt: null,
+          isRateLimited: false,
+          currentResetTime: 0,
+        },
         messageStats: { received: 0, sent: 0, ignored: 0 },
       } satisfies DiscordConnectorState);
       mockConnector.agentName = "tool-agent-2";
@@ -1445,7 +1554,13 @@ describe.skip("DiscordManager message handling", () => {
         getCheckInterval: () => 1000,
         emit: (event: string, ...args: unknown[]) => errorEmitter.emit(event, ...args),
         getEmitter: () => errorEmitter,
-      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
+        trigger: vi.fn().mockResolvedValue({
+          jobId: "test-job",
+          agentName: "test",
+          scheduleName: null,
+          startedAt: new Date().toISOString(),
+          success: true,
+        }),
       };
 
       const errorManager = new DiscordManager(errorContext);
@@ -1470,7 +1585,12 @@ describe.skip("DiscordManager message handling", () => {
         reconnectAttempts: 0,
         lastError: null,
         botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-        rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+        rateLimits: {
+          totalCount: 0,
+          lastRateLimitAt: null,
+          isRateLimited: false,
+          currentResetTime: 0,
+        },
         messageStats: { received: 0, sent: 0, ignored: 0 },
       } satisfies DiscordConnectorState);
       mockConnector.agentName = "missing-agent";
@@ -1539,7 +1659,12 @@ describe.skip("DiscordManager message handling", () => {
         reconnectAttempts: 0,
         lastError: null,
         botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-        rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+        rateLimits: {
+          totalCount: 0,
+          lastRateLimitAt: null,
+          isRateLimited: false,
+          currentResetTime: 0,
+        },
         messageStats: { received: 0, sent: 0, ignored: 0 },
       } satisfies DiscordConnectorState);
       mockConnector.agentName = "test-agent";
@@ -1563,7 +1688,7 @@ describe.skip("DiscordManager message handling", () => {
 
       // Should have logged the error
       expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining("Discord connector error")
+        expect.stringContaining("Discord connector error"),
       );
     });
 
@@ -1586,7 +1711,12 @@ describe.skip("DiscordManager message handling", () => {
         reconnectAttempts: 0,
         lastError: null,
         botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-        rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+        rateLimits: {
+          totalCount: 0,
+          lastRateLimitAt: null,
+          isRateLimited: false,
+          currentResetTime: 0,
+        },
         messageStats: { received: 0, sent: 0, ignored: 0 },
       } satisfies DiscordConnectorState);
       mockConnector.agentName = "test-agent";
@@ -1631,15 +1761,9 @@ describe.skip("DiscordManager message handling", () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Should have sent a formatted error reply
-      expect(replyMock).toHaveBeenCalledWith(
-        expect.stringContaining("❌ **Error**:")
-      );
-      expect(replyMock).toHaveBeenCalledWith(
-        expect.stringContaining("Agent execution failed")
-      );
-      expect(replyMock).toHaveBeenCalledWith(
-        expect.stringContaining("/reset")
-      );
+      expect(replyMock).toHaveBeenCalledWith(expect.stringContaining("❌ **Error**:"));
+      expect(replyMock).toHaveBeenCalledWith(expect.stringContaining("Agent execution failed"));
+      expect(replyMock).toHaveBeenCalledWith(expect.stringContaining("/reset"));
     });
 
     it("handles error reply failure when trigger fails", async () => {
@@ -1661,7 +1785,12 @@ describe.skip("DiscordManager message handling", () => {
         reconnectAttempts: 0,
         lastError: null,
         botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-        rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+        rateLimits: {
+          totalCount: 0,
+          lastRateLimitAt: null,
+          isRateLimited: false,
+          currentResetTime: 0,
+        },
         messageStats: { received: 0, sent: 0, ignored: 0 },
       } satisfies DiscordConnectorState);
       mockConnector.agentName = "test-agent";
@@ -1707,10 +1836,10 @@ describe.skip("DiscordManager message handling", () => {
 
       // Should have logged both errors
       expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining("Discord message handling failed")
+        expect.stringContaining("Discord message handling failed"),
       );
       expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining("Failed to send error reply")
+        expect.stringContaining("Failed to send error reply"),
       );
     });
 
@@ -1733,7 +1862,12 @@ describe.skip("DiscordManager message handling", () => {
         reconnectAttempts: 0,
         lastError: null,
         botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-        rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+        rateLimits: {
+          totalCount: 0,
+          lastRateLimitAt: null,
+          isRateLimited: false,
+          currentResetTime: 0,
+        },
         messageStats: { received: 0, sent: 0, ignored: 0 },
       } satisfies DiscordConnectorState);
       mockConnector.agentName = "unknown-agent";
@@ -1775,11 +1909,9 @@ describe.skip("DiscordManager message handling", () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Should have sent an error reply
-      expect(replyMock).toHaveBeenCalledWith(
-        expect.stringContaining("not properly configured")
-      );
+      expect(replyMock).toHaveBeenCalledWith(expect.stringContaining("not properly configured"));
       expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining("Agent 'unknown-agent' not found")
+        expect.stringContaining("Agent 'unknown-agent' not found"),
       );
     });
   });
@@ -1830,9 +1962,7 @@ describe.skip("DiscordManager message handling", () => {
       const result = manager.extractMessageContent({
         type: "assistant",
         message: {
-          content: [
-            { type: "tool_use", name: "some_tool" },
-          ],
+          content: [{ type: "tool_use", name: "some_tool" }],
         },
       });
       expect(result).toBeUndefined();
@@ -1952,9 +2082,7 @@ describe.skip("DiscordManager message handling", () => {
       const result = manager.extractToolUseBlocks({
         type: "assistant",
         message: {
-          content: [
-            { type: "tool_use", name: "some_tool" },
-          ],
+          content: [{ type: "tool_use", name: "some_tool" }],
         },
       });
       expect(result).toHaveLength(1);
@@ -1967,9 +2095,7 @@ describe.skip("DiscordManager message handling", () => {
       const result = manager.extractToolUseBlocks({
         type: "assistant",
         message: {
-          content: [
-            { type: "text", text: "Just a text response" },
-          ],
+          content: [{ type: "text", text: "Just a text response" }],
         },
       });
       expect(result).toHaveLength(0);
@@ -2183,9 +2309,7 @@ describe.skip("DiscordManager message handling", () => {
       const results = manager.extractToolResults({
         type: "user",
         message: {
-          content: [
-            { type: "text", text: "Just a regular user message" },
-          ],
+          content: [{ type: "text", text: "Just a regular user message" }],
         },
       });
       expect(results).toHaveLength(0);
@@ -2211,12 +2335,12 @@ describe.skip("DiscordManager message handling", () => {
       expect(embed.description).toContain("ls -la");
       expect(embed.color).toBe(0x5865f2);
       expect(embed.fields).toBeDefined();
-      const fieldNames = embed.fields!.map(f => f.name);
+      const fieldNames = embed.fields!.map((f) => f.name);
       expect(fieldNames).toContain("Duration");
       expect(fieldNames).toContain("Output");
       expect(fieldNames).toContain("Result");
       // Result field should contain the output in a code block
-      const resultField = embed.fields!.find(f => f.name === "Result");
+      const resultField = embed.fields!.find((f) => f.name === "Result");
       expect(resultField!.value).toContain("file1.txt");
     });
 
@@ -2227,21 +2351,21 @@ describe.skip("DiscordManager message handling", () => {
         { output: "Permission denied", isError: true },
       );
       expect(embed.color).toBe(0xef4444);
-      const errorField = embed.fields!.find(f => f.name === "Error");
+      const errorField = embed.fields!.find((f) => f.name === "Error");
       expect(errorField).toBeDefined();
       expect(errorField!.value).toContain("Permission denied");
     });
 
     it("builds embed without tool_use info (fallback)", () => {
       // @ts-expect-error - accessing private method for testing
-      const embed: DiscordReplyEmbed = manager.buildToolEmbed(
-        null,
-        { output: "some output", isError: false },
-      );
+      const embed: DiscordReplyEmbed = manager.buildToolEmbed(null, {
+        output: "some output",
+        isError: false,
+      });
       expect(embed.title).toContain("Tool");
       expect(embed.description).toBeUndefined();
       // No Duration field when no tool_use info
-      const fieldNames = embed.fields!.map(f => f.name);
+      const fieldNames = embed.fields!.map((f) => f.name);
       expect(fieldNames).not.toContain("Duration");
       expect(fieldNames).toContain("Output");
     });
@@ -2253,7 +2377,7 @@ describe.skip("DiscordManager message handling", () => {
         { name: "Bash", input: { command: "cat bigfile" }, startTime: Date.now() - 100 },
         { output: longOutput, isError: false },
       );
-      const resultField = embed.fields!.find(f => f.name === "Result");
+      const resultField = embed.fields!.find((f) => f.name === "Result");
       expect(resultField).toBeDefined();
       expect(resultField!.value).toContain("chars total");
       // Total field value should fit in Discord embed field limit (1024)
@@ -2267,7 +2391,7 @@ describe.skip("DiscordManager message handling", () => {
         { name: "Read", input: { file_path: "/big.txt" }, startTime: Date.now() - 200 },
         { output, isError: false },
       );
-      const outputField = embed.fields!.find(f => f.name === "Output");
+      const outputField = embed.fields!.find((f) => f.name === "Output");
       expect(outputField!.value).toContain("k chars");
     });
 
@@ -2287,7 +2411,7 @@ describe.skip("DiscordManager message handling", () => {
         { name: "Bash", input: { command: "true" }, startTime: Date.now() - 10 },
         { output: "   \n\n  ", isError: false },
       );
-      const fieldNames = embed.fields!.map(f => f.name);
+      const fieldNames = embed.fields!.map((f) => f.name);
       expect(fieldNames).not.toContain("Result");
     });
   });
@@ -2318,7 +2442,9 @@ describe.skip("DiscordManager session integration", () => {
     mockSessionManager = {
       agentName: "test-agent",
       getOrCreateSession: vi.fn().mockResolvedValue({ sessionId: "session-123", isNew: false }),
-      getSession: vi.fn().mockResolvedValue({ sessionId: "session-123", lastMessageAt: new Date().toISOString() }),
+      getSession: vi
+        .fn()
+        .mockResolvedValue({ sessionId: "session-123", lastMessageAt: new Date().toISOString() }),
       setSession: vi.fn().mockResolvedValue(undefined),
       touchSession: vi.fn().mockResolvedValue(undefined),
       clearSession: vi.fn().mockResolvedValue(true),
@@ -2327,7 +2453,9 @@ describe.skip("DiscordManager session integration", () => {
     };
 
     // Create a mock FleetManager (emitter) with trigger method
-    triggerMock = vi.fn().mockResolvedValue({ jobId: "job-123", success: true, sessionId: "sdk-session-456" });
+    triggerMock = vi
+      .fn()
+      .mockResolvedValue({ jobId: "job-123", success: true, sessionId: "sdk-session-456" });
     emitterWithTrigger = Object.assign(new EventEmitter(), {
       trigger: triggerMock,
     });
@@ -2339,7 +2467,13 @@ describe.skip("DiscordManager session integration", () => {
           bot_token_env: "TEST_BOT_TOKEN",
           session_expiry_hours: 24,
           log_level: "standard",
-          output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
+          output: {
+            tool_results: true,
+            tool_result_max_length: 900,
+            system_status: true,
+            result_summary: false,
+            errors: true,
+          },
           guilds: [],
         }),
       ],
@@ -2361,7 +2495,13 @@ describe.skip("DiscordManager session integration", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => emitterWithTrigger.emit(event, ...args),
       getEmitter: () => emitterWithTrigger,
-      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
+      trigger: vi.fn().mockResolvedValue({
+        jobId: "test-job",
+        agentName: "test",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+      }),
     };
 
     manager = new DiscordManager(mockContext);
@@ -2387,7 +2527,12 @@ describe.skip("DiscordManager session integration", () => {
       reconnectAttempts: 0,
       lastError: null,
       botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
       messageStats: { received: 0, sent: 0, ignored: 0 },
     } satisfies DiscordConnectorState);
     mockConnector.agentName = "test-agent";
@@ -2453,7 +2598,12 @@ describe.skip("DiscordManager session integration", () => {
       reconnectAttempts: 0,
       lastError: null,
       botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
       messageStats: { received: 0, sent: 0, ignored: 0 },
     } satisfies DiscordConnectorState);
     mockConnector.agentName = "test-agent";
@@ -2521,7 +2671,12 @@ describe.skip("DiscordManager session integration", () => {
       reconnectAttempts: 0,
       lastError: null,
       botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
       messageStats: { received: 0, sent: 0, ignored: 0 },
     } satisfies DiscordConnectorState);
     mockConnector.agentName = "test-agent";
@@ -2564,9 +2719,7 @@ describe.skip("DiscordManager session integration", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     // Should have logged a warning but continued processing
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("Failed to get session")
-    );
+    expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("Failed to get session"));
     // Should still have called trigger
     expect(triggerMock).toHaveBeenCalled();
   });
@@ -2593,7 +2746,12 @@ describe.skip("DiscordManager session integration", () => {
       reconnectAttempts: 0,
       lastError: null,
       botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
       messageStats: { received: 0, sent: 0, ignored: 0 },
     } satisfies DiscordConnectorState);
     mockConnector.agentName = "test-agent";
@@ -2637,7 +2795,7 @@ describe.skip("DiscordManager session integration", () => {
 
     // Should have logged a warning but continued
     expect(mockLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("Failed to store session")
+      expect.stringContaining("Failed to store session"),
     );
     // Reply should still have been sent
     expect(replyMock).toHaveBeenCalled();
@@ -2663,7 +2821,12 @@ describe.skip("DiscordManager session integration", () => {
       reconnectAttempts: 0,
       lastError: null,
       botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
       messageStats: { received: 0, sent: 0, ignored: 0 },
     } satisfies DiscordConnectorState);
     mockConnector.agentName = "test-agent";
@@ -2680,7 +2843,7 @@ describe.skip("DiscordManager session integration", () => {
     expect(mockSessionManager.getActiveSessionCount).toHaveBeenCalled();
     // Should have logged about preserving sessions
     expect(mockLogger.debug).toHaveBeenCalledWith(
-      expect.stringContaining("Preserving 5 active session(s)")
+      expect.stringContaining("Preserving 5 active session(s)"),
     );
   });
 
@@ -2706,7 +2869,12 @@ describe.skip("DiscordManager session integration", () => {
       reconnectAttempts: 0,
       lastError: null,
       botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
       messageStats: { received: 0, sent: 0, ignored: 0 },
     } satisfies DiscordConnectorState);
     mockConnector.agentName = "test-agent";
@@ -2721,7 +2889,7 @@ describe.skip("DiscordManager session integration", () => {
 
     // Should have warned about the error
     expect(mockLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("Failed to get session count")
+      expect.stringContaining("Failed to get session count"),
     );
     // Should still disconnect
     expect(mockConnector.disconnect).toHaveBeenCalled();
@@ -2749,7 +2917,12 @@ describe.skip("DiscordManager session integration", () => {
       reconnectAttempts: 0,
       lastError: null,
       botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
       messageStats: { received: 0, sent: 0, ignored: 0 },
     } satisfies DiscordConnectorState);
     mockConnector.agentName = "test-agent";
@@ -2763,9 +2936,7 @@ describe.skip("DiscordManager session integration", () => {
     await manager.stop();
 
     // Should NOT have logged about preserving sessions (0 sessions)
-    expect(mockLogger.debug).not.toHaveBeenCalledWith(
-      expect.stringContaining("Preserving")
-    );
+    expect(mockLogger.debug).not.toHaveBeenCalledWith(expect.stringContaining("Preserving"));
   });
 });
 
@@ -2797,7 +2968,12 @@ describe.skip("DiscordManager lifecycle", () => {
       reconnectAttempts: 0,
       lastError: "Connection failed",
       botUser: null,
-      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
       messageStats: { received: 0, sent: 0, ignored: 0 },
     } satisfies DiscordConnectorState);
     mockConnector.agentName = "test-agent";
@@ -2818,7 +2994,7 @@ describe.skip("DiscordManager lifecycle", () => {
 
     // Should have logged the error
     expect(mockLogger.error).toHaveBeenCalledWith(
-      expect.stringContaining("Failed to connect Discord")
+      expect.stringContaining("Failed to connect Discord"),
     );
   });
 
@@ -2843,7 +3019,12 @@ describe.skip("DiscordManager lifecycle", () => {
       reconnectAttempts: 0,
       lastError: null,
       botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
       messageStats: { received: 0, sent: 0, ignored: 0 },
     } satisfies DiscordConnectorState);
     mockConnector.agentName = "test-agent";
@@ -2864,7 +3045,7 @@ describe.skip("DiscordManager lifecycle", () => {
 
     // Should have logged the error
     expect(mockLogger.error).toHaveBeenCalledWith(
-      expect.stringContaining("Error disconnecting Discord")
+      expect.stringContaining("Error disconnecting Discord"),
     );
   });
 
@@ -2889,7 +3070,12 @@ describe.skip("DiscordManager lifecycle", () => {
       reconnectAttempts: 0,
       lastError: null,
       botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
       messageStats: { received: 0, sent: 0, ignored: 0 },
     } satisfies DiscordConnectorState);
     connectedConnector.agentName = "connected-agent";
@@ -2917,7 +3103,12 @@ describe.skip("DiscordManager lifecycle", () => {
       reconnectAttempts: 0,
       lastError: "Failed",
       botUser: null,
-      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
       messageStats: { received: 0, sent: 0, ignored: 0 },
     } satisfies DiscordConnectorState);
     disconnectedConnector.agentName = "disconnected-agent";
@@ -2963,7 +3154,13 @@ describe.skip("DiscordManager lifecycle", () => {
           bot_token_env: "TEST_BOT_TOKEN",
           session_expiry_hours: 24,
           log_level: "standard",
-          output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
+          output: {
+            tool_results: true,
+            tool_result_max_length: 900,
+            system_status: true,
+            result_summary: false,
+            errors: true,
+          },
           guilds: [],
         }),
       ],
@@ -2985,7 +3182,13 @@ describe.skip("DiscordManager lifecycle", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => emitterWithTrigger.emit(event, ...args),
       getEmitter: () => emitterWithTrigger,
-      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
+      trigger: vi.fn().mockResolvedValue({
+        jobId: "test-job",
+        agentName: "test",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+      }),
     };
 
     const manager = new DiscordManager(mockContext);
@@ -3012,7 +3215,12 @@ describe.skip("DiscordManager lifecycle", () => {
       reconnectAttempts: 0,
       lastError: null,
       botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
       messageStats: { received: 0, sent: 0, ignored: 0 },
     } satisfies DiscordConnectorState);
     mockConnector.agentName = "test-agent";
@@ -3090,7 +3298,13 @@ describe.skip("DiscordManager lifecycle", () => {
           bot_token_env: "TEST_BOT_TOKEN",
           session_expiry_hours: 24,
           log_level: "standard",
-          output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
+          output: {
+            tool_results: true,
+            tool_result_max_length: 900,
+            system_status: true,
+            result_summary: false,
+            errors: true,
+          },
           guilds: [],
         }),
       ],
@@ -3112,7 +3326,13 @@ describe.skip("DiscordManager lifecycle", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => emitterWithTrigger.emit(event, ...args),
       getEmitter: () => emitterWithTrigger,
-      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
+      trigger: vi.fn().mockResolvedValue({
+        jobId: "test-job",
+        agentName: "test",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+      }),
     };
 
     const manager = new DiscordManager(mockContext);
@@ -3139,7 +3359,12 @@ describe.skip("DiscordManager lifecycle", () => {
       reconnectAttempts: 0,
       lastError: null,
       botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
       messageStats: { received: 0, sent: 0, ignored: 0 },
     } satisfies DiscordConnectorState);
     mockConnector.agentName = "test-agent";
@@ -3219,7 +3444,13 @@ describe.skip("DiscordManager lifecycle", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => eventEmitter.emit(event, ...args),
       getEmitter: () => eventEmitter,
-      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
+      trigger: vi.fn().mockResolvedValue({
+        jobId: "test-job",
+        agentName: "test",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+      }),
     };
 
     const manager = new DiscordManager(mockContext);
@@ -3244,7 +3475,12 @@ describe.skip("DiscordManager lifecycle", () => {
       reconnectAttempts: 0,
       lastError: null,
       botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
       messageStats: { received: 0, sent: 0, ignored: 0 },
     } satisfies DiscordConnectorState);
     mockConnector.agentName = "test-agent";
@@ -3281,7 +3517,7 @@ describe.skip("DiscordManager lifecycle", () => {
   it("handles reply failure when agent not found", async () => {
     const config: ResolvedConfig = {
       fleet: { name: "test-fleet" } as unknown as ResolvedConfig["fleet"],
-      agents: [],  // No agents!
+      agents: [], // No agents!
       configPath: "/test/herdctl.yaml",
       configDir: "/test",
     };
@@ -3300,7 +3536,13 @@ describe.skip("DiscordManager lifecycle", () => {
       getCheckInterval: () => 1000,
       emit: () => true,
       getEmitter: () => new EventEmitter(),
-      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
+      trigger: vi.fn().mockResolvedValue({
+        jobId: "test-job",
+        agentName: "test",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+      }),
     };
 
     const manager = new DiscordManager(mockContext);
@@ -3325,7 +3567,12 @@ describe.skip("DiscordManager lifecycle", () => {
       reconnectAttempts: 0,
       lastError: null,
       botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
       messageStats: { received: 0, sent: 0, ignored: 0 },
     } satisfies DiscordConnectorState);
     mockConnector.agentName = "unknown-agent";
@@ -3371,10 +3618,10 @@ describe.skip("DiscordManager lifecycle", () => {
 
     // Should have logged both the agent not found error and the reply failure
     expect(mockLogger.error).toHaveBeenCalledWith(
-      expect.stringContaining("Agent 'unknown-agent' not found")
+      expect.stringContaining("Agent 'unknown-agent' not found"),
     );
     expect(mockLogger.error).toHaveBeenCalledWith(
-      expect.stringContaining("Failed to send error reply")
+      expect.stringContaining("Failed to send error reply"),
     );
   });
 
@@ -3401,7 +3648,13 @@ describe.skip("DiscordManager lifecycle", () => {
           bot_token_env: "TEST_BOT_TOKEN",
           session_expiry_hours: 24,
           log_level: "standard",
-          output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
+          output: {
+            tool_results: true,
+            tool_result_max_length: 900,
+            system_status: true,
+            result_summary: false,
+            errors: true,
+          },
           guilds: [],
         }),
       ],
@@ -3423,7 +3676,13 @@ describe.skip("DiscordManager lifecycle", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => emitterWithTrigger.emit(event, ...args),
       getEmitter: () => emitterWithTrigger,
-      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
+      trigger: vi.fn().mockResolvedValue({
+        jobId: "test-job",
+        agentName: "test",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+      }),
     };
 
     const manager = new DiscordManager(mockContext);
@@ -3450,7 +3709,12 @@ describe.skip("DiscordManager lifecycle", () => {
       reconnectAttempts: 0,
       lastError: null,
       botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
       messageStats: { received: 0, sent: 0, ignored: 0 },
     } satisfies DiscordConnectorState);
     mockConnector.agentName = "test-agent";
@@ -3498,7 +3762,7 @@ describe.skip("DiscordManager lifecycle", () => {
 
     // Should have sent the default "no output" message
     expect(replyMock).toHaveBeenCalledWith(
-      "I've completed the task, but I don't have a specific response to share."
+      "I've completed the task, but I don't have a specific response to share.",
     );
   });
 });
@@ -3515,37 +3779,45 @@ describe.skip("DiscordManager output configuration", () => {
   });
 
   it("does not send tool result embeds when tool_results is disabled", async () => {
-    const customTriggerMock = vi.fn().mockImplementation(async (_agentName: string, _scheduleName: string | undefined, options: { onMessage?: (msg: unknown) => Promise<void> }) => {
-      if (options?.onMessage) {
-        // Claude decides to use Bash tool
-        await options.onMessage({
-          type: "assistant",
-          message: {
-            content: [
-              { type: "text", text: "Let me run that." },
-              { type: "tool_use", name: "Bash", id: "tool-1", input: { command: "ls" } },
-            ],
-          },
-        });
-        // Tool result
-        await options.onMessage({
-          type: "user",
-          message: {
-            content: [
-              { type: "tool_result", tool_use_id: "tool-1", content: "file1.txt\nfile2.txt" },
-            ],
-          },
-        });
-        // Final response
-        await options.onMessage({
-          type: "assistant",
-          message: {
-            content: [{ type: "text", text: "Done!" }],
-          },
-        });
-      }
-      return { jobId: "job-123", success: true };
-    });
+    const customTriggerMock = vi
+      .fn()
+      .mockImplementation(
+        async (
+          _agentName: string,
+          _scheduleName: string | undefined,
+          options: { onMessage?: (msg: unknown) => Promise<void> },
+        ) => {
+          if (options?.onMessage) {
+            // Claude decides to use Bash tool
+            await options.onMessage({
+              type: "assistant",
+              message: {
+                content: [
+                  { type: "text", text: "Let me run that." },
+                  { type: "tool_use", name: "Bash", id: "tool-1", input: { command: "ls" } },
+                ],
+              },
+            });
+            // Tool result
+            await options.onMessage({
+              type: "user",
+              message: {
+                content: [
+                  { type: "tool_result", tool_use_id: "tool-1", content: "file1.txt\nfile2.txt" },
+                ],
+              },
+            });
+            // Final response
+            await options.onMessage({
+              type: "assistant",
+              message: {
+                content: [{ type: "text", text: "Done!" }],
+              },
+            });
+          }
+          return { jobId: "job-123", success: true };
+        },
+      );
 
     const streamingEmitter = Object.assign(new EventEmitter(), {
       trigger: customTriggerMock,
@@ -3598,7 +3870,13 @@ describe.skip("DiscordManager output configuration", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
       getEmitter: () => streamingEmitter,
-      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
+      trigger: vi.fn().mockResolvedValue({
+        jobId: "test-job",
+        agentName: "test",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+      }),
     };
 
     const manager = new DiscordManager(mockContext);
@@ -3627,7 +3905,12 @@ describe.skip("DiscordManager output configuration", () => {
       reconnectAttempts: 0,
       lastError: null,
       botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
       messageStats: { received: 0, sent: 0, ignored: 0 },
     } satisfies DiscordConnectorState);
     mockConnector.agentName = "no-tool-results-agent";
@@ -3679,17 +3962,25 @@ describe.skip("DiscordManager output configuration", () => {
   }, 10000);
 
   it("sends system status embed when system_status is enabled", async () => {
-    const customTriggerMock = vi.fn().mockImplementation(async (_agentName: string, _scheduleName: string | undefined, options: { onMessage?: (msg: unknown) => Promise<void> }) => {
-      if (options?.onMessage) {
-        // Send a system status message
-        await options.onMessage({
-          type: "system",
-          subtype: "status",
-          status: "compacting",
-        });
-      }
-      return { jobId: "job-123", success: true };
-    });
+    const customTriggerMock = vi
+      .fn()
+      .mockImplementation(
+        async (
+          _agentName: string,
+          _scheduleName: string | undefined,
+          options: { onMessage?: (msg: unknown) => Promise<void> },
+        ) => {
+          if (options?.onMessage) {
+            // Send a system status message
+            await options.onMessage({
+              type: "system",
+              subtype: "status",
+              status: "compacting",
+            });
+          }
+          return { jobId: "job-123", success: true };
+        },
+      );
 
     const streamingEmitter = Object.assign(new EventEmitter(), {
       trigger: customTriggerMock,
@@ -3741,7 +4032,13 @@ describe.skip("DiscordManager output configuration", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
       getEmitter: () => streamingEmitter,
-      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
+      trigger: vi.fn().mockResolvedValue({
+        jobId: "test-job",
+        agentName: "test",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+      }),
     };
 
     const manager = new DiscordManager(mockContext);
@@ -3770,7 +4067,12 @@ describe.skip("DiscordManager output configuration", () => {
       reconnectAttempts: 0,
       lastError: null,
       botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
       messageStats: { received: 0, sent: 0, ignored: 0 },
     } satisfies DiscordConnectorState);
     mockConnector.agentName = "system-status-agent";
@@ -3822,16 +4124,24 @@ describe.skip("DiscordManager output configuration", () => {
   }, 10000);
 
   it("does not send system status embed when system_status is disabled", async () => {
-    const customTriggerMock = vi.fn().mockImplementation(async (_agentName: string, _scheduleName: string | undefined, options: { onMessage?: (msg: unknown) => Promise<void> }) => {
-      if (options?.onMessage) {
-        await options.onMessage({
-          type: "system",
-          subtype: "status",
-          status: "compacting",
-        });
-      }
-      return { jobId: "job-123", success: true };
-    });
+    const customTriggerMock = vi
+      .fn()
+      .mockImplementation(
+        async (
+          _agentName: string,
+          _scheduleName: string | undefined,
+          options: { onMessage?: (msg: unknown) => Promise<void> },
+        ) => {
+          if (options?.onMessage) {
+            await options.onMessage({
+              type: "system",
+              subtype: "status",
+              status: "compacting",
+            });
+          }
+          return { jobId: "job-123", success: true };
+        },
+      );
 
     const streamingEmitter = Object.assign(new EventEmitter(), {
       trigger: customTriggerMock,
@@ -3883,7 +4193,13 @@ describe.skip("DiscordManager output configuration", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
       getEmitter: () => streamingEmitter,
-      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
+      trigger: vi.fn().mockResolvedValue({
+        jobId: "test-job",
+        agentName: "test",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+      }),
     };
 
     const manager = new DiscordManager(mockContext);
@@ -3912,7 +4228,12 @@ describe.skip("DiscordManager output configuration", () => {
       reconnectAttempts: 0,
       lastError: null,
       botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
       messageStats: { received: 0, sent: 0, ignored: 0 },
     } satisfies DiscordConnectorState);
     mockConnector.agentName = "no-system-status-agent";
@@ -3961,20 +4282,28 @@ describe.skip("DiscordManager output configuration", () => {
   }, 10000);
 
   it("sends result summary embed when result_summary is enabled", async () => {
-    const customTriggerMock = vi.fn().mockImplementation(async (_agentName: string, _scheduleName: string | undefined, options: { onMessage?: (msg: unknown) => Promise<void> }) => {
-      if (options?.onMessage) {
-        await options.onMessage({
-          type: "result",
-          subtype: "success",
-          is_error: false,
-          duration_ms: 5000,
-          total_cost_usd: 0.0123,
-          num_turns: 3,
-          usage: { input_tokens: 1000, output_tokens: 500 },
-        });
-      }
-      return { jobId: "job-123", success: true };
-    });
+    const customTriggerMock = vi
+      .fn()
+      .mockImplementation(
+        async (
+          _agentName: string,
+          _scheduleName: string | undefined,
+          options: { onMessage?: (msg: unknown) => Promise<void> },
+        ) => {
+          if (options?.onMessage) {
+            await options.onMessage({
+              type: "result",
+              subtype: "success",
+              is_error: false,
+              duration_ms: 5000,
+              total_cost_usd: 0.0123,
+              num_turns: 3,
+              usage: { input_tokens: 1000, output_tokens: 500 },
+            });
+          }
+          return { jobId: "job-123", success: true };
+        },
+      );
 
     const streamingEmitter = Object.assign(new EventEmitter(), {
       trigger: customTriggerMock,
@@ -4026,7 +4355,13 @@ describe.skip("DiscordManager output configuration", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
       getEmitter: () => streamingEmitter,
-      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
+      trigger: vi.fn().mockResolvedValue({
+        jobId: "test-job",
+        agentName: "test",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+      }),
     };
 
     const manager = new DiscordManager(mockContext);
@@ -4055,7 +4390,12 @@ describe.skip("DiscordManager output configuration", () => {
       reconnectAttempts: 0,
       lastError: null,
       botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
       messageStats: { received: 0, sent: 0, ignored: 0 },
     } satisfies DiscordConnectorState);
     mockConnector.agentName = "result-summary-agent";
@@ -4112,15 +4452,23 @@ describe.skip("DiscordManager output configuration", () => {
   }, 10000);
 
   it("sends error embed for SDK error messages", async () => {
-    const customTriggerMock = vi.fn().mockImplementation(async (_agentName: string, _scheduleName: string | undefined, options: { onMessage?: (msg: unknown) => Promise<void> }) => {
-      if (options?.onMessage) {
-        await options.onMessage({
-          type: "error",
-          content: "Something went wrong",
-        });
-      }
-      return { jobId: "job-123", success: false };
-    });
+    const customTriggerMock = vi
+      .fn()
+      .mockImplementation(
+        async (
+          _agentName: string,
+          _scheduleName: string | undefined,
+          options: { onMessage?: (msg: unknown) => Promise<void> },
+        ) => {
+          if (options?.onMessage) {
+            await options.onMessage({
+              type: "error",
+              content: "Something went wrong",
+            });
+          }
+          return { jobId: "job-123", success: false };
+        },
+      );
 
     const streamingEmitter = Object.assign(new EventEmitter(), {
       trigger: customTriggerMock,
@@ -4172,7 +4520,13 @@ describe.skip("DiscordManager output configuration", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
       getEmitter: () => streamingEmitter,
-      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
+      trigger: vi.fn().mockResolvedValue({
+        jobId: "test-job",
+        agentName: "test",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+      }),
     };
 
     const manager = new DiscordManager(mockContext);
@@ -4201,7 +4555,12 @@ describe.skip("DiscordManager output configuration", () => {
       reconnectAttempts: 0,
       lastError: null,
       botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
       messageStats: { received: 0, sent: 0, ignored: 0 },
     } satisfies DiscordConnectorState);
     mockConnector.agentName = "error-agent";
@@ -4253,15 +4612,23 @@ describe.skip("DiscordManager output configuration", () => {
   }, 10000);
 
   it("does not send error embed when errors is disabled", async () => {
-    const customTriggerMock = vi.fn().mockImplementation(async (_agentName: string, _scheduleName: string | undefined, options: { onMessage?: (msg: unknown) => Promise<void> }) => {
-      if (options?.onMessage) {
-        await options.onMessage({
-          type: "error",
-          content: "Something went wrong",
-        });
-      }
-      return { jobId: "job-123", success: false };
-    });
+    const customTriggerMock = vi
+      .fn()
+      .mockImplementation(
+        async (
+          _agentName: string,
+          _scheduleName: string | undefined,
+          options: { onMessage?: (msg: unknown) => Promise<void> },
+        ) => {
+          if (options?.onMessage) {
+            await options.onMessage({
+              type: "error",
+              content: "Something went wrong",
+            });
+          }
+          return { jobId: "job-123", success: false };
+        },
+      );
 
     const streamingEmitter = Object.assign(new EventEmitter(), {
       trigger: customTriggerMock,
@@ -4313,7 +4680,13 @@ describe.skip("DiscordManager output configuration", () => {
       getCheckInterval: () => 1000,
       emit: (event: string, ...args: unknown[]) => streamingEmitter.emit(event, ...args),
       getEmitter: () => streamingEmitter,
-      trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
+      trigger: vi.fn().mockResolvedValue({
+        jobId: "test-job",
+        agentName: "test",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+      }),
     };
 
     const manager = new DiscordManager(mockContext);
@@ -4342,7 +4715,12 @@ describe.skip("DiscordManager output configuration", () => {
       reconnectAttempts: 0,
       lastError: null,
       botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
-      rateLimits: { totalCount: 0, lastRateLimitAt: null, isRateLimited: false, currentResetTime: 0 },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
       messageStats: { received: 0, sent: 0, ignored: 0 },
     } satisfies DiscordConnectorState);
     mockConnector.agentName = "no-errors-agent";
@@ -4402,7 +4780,7 @@ describe.skip("DiscordManager output configuration", () => {
       const embed: DiscordReplyEmbed = manager.buildToolEmbed(
         { name: "Bash", input: { command: "cat bigfile" }, startTime: Date.now() - 100 },
         { output: longOutput, isError: false },
-        400 // Custom max length
+        400, // Custom max length
       );
 
       const resultField = embed.fields!.find((f: DiscordReplyEmbedField) => f.name === "Result");

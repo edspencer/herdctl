@@ -213,9 +213,7 @@ export interface IChatSessionManager {
 /**
  * Create initial session state for a new agent
  */
-export function createInitialSessionState(
-  agentName: string
-): ChatSessionState {
+export function createInitialSessionState(agentName: string): ChatSessionState {
   return {
     version: 1,
     agentName,

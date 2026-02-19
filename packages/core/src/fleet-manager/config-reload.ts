@@ -8,10 +8,7 @@
  */
 
 import type { ResolvedAgent, ResolvedConfig } from "../config/index.js";
-import type {
-  ConfigChange,
-  ConfigReloadedPayload,
-} from "./types.js";
+import type { ConfigChange, ConfigReloadedPayload } from "./types.js";
 import type { FleetManagerContext } from "./context.js";
 import { InvalidStateError } from "./errors.js";
 
@@ -43,7 +40,7 @@ export class ConfigReload {
   constructor(
     private ctx: FleetManagerContext,
     private loadConfiguration: () => Promise<ResolvedConfig>,
-    private setConfig: (config: ResolvedConfig) => void
+    private setConfig: (config: ResolvedConfig) => void,
   ) {}
 
   /**
@@ -68,11 +65,13 @@ export class ConfigReload {
 
     // Validate state - must be at least initialized
     if (status === "uninitialized") {
-      throw new InvalidStateError(
-        "reload",
-        status,
-        ["initialized", "starting", "running", "stopping", "stopped"]
-      );
+      throw new InvalidStateError("reload", status, [
+        "initialized",
+        "starting",
+        "running",
+        "stopping",
+        "stopped",
+      ]);
     }
 
     logger.info("Reloading configuration...");
@@ -87,7 +86,7 @@ export class ConfigReload {
     } catch (error) {
       // Log the error but don't update config - fail gracefully
       logger.error(
-        `Failed to reload configuration: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to reload configuration: ${error instanceof Error ? error.message : String(error)}`,
       );
       logger.info("Keeping existing configuration");
 
@@ -122,7 +121,7 @@ export class ConfigReload {
     this.ctx.emit("config:reloaded", payload);
 
     logger.info(
-      `Configuration reloaded: ${newConfig.agents.length} agents, ${changes.length} changes`
+      `Configuration reloaded: ${newConfig.agents.length} agents, ${changes.length} changes`,
     );
 
     return payload;
@@ -146,7 +145,7 @@ export class ConfigReload {
  */
 export function computeConfigChanges(
   oldConfig: ResolvedConfig | null,
-  newConfig: ResolvedConfig
+  newConfig: ResolvedConfig,
 ): ConfigChange[] {
   const changes: ConfigChange[] = [];
 
@@ -237,16 +236,12 @@ export function computeConfigChanges(
  */
 export function computeScheduleChanges(
   oldAgent: ResolvedAgent,
-  newAgent: ResolvedAgent
+  newAgent: ResolvedAgent,
 ): ConfigChange[] {
   const changes: ConfigChange[] = [];
 
-  const oldScheduleNames = new Set(
-    oldAgent.schedules ? Object.keys(oldAgent.schedules) : []
-  );
-  const newScheduleNames = new Set(
-    newAgent.schedules ? Object.keys(newAgent.schedules) : []
-  );
+  const oldScheduleNames = new Set(oldAgent.schedules ? Object.keys(oldAgent.schedules) : []);
+  const newScheduleNames = new Set(newAgent.schedules ? Object.keys(newAgent.schedules) : []);
 
   // Use qualifiedName for schedule change names
   const agentKey = newAgent.qualifiedName;
@@ -308,7 +303,7 @@ export function computeScheduleChanges(
  */
 export function getAgentModifications(
   oldAgent: ResolvedAgent,
-  newAgent: ResolvedAgent
+  newAgent: ResolvedAgent,
 ): string | null {
   const modifications: string[] = [];
 
@@ -356,10 +351,7 @@ export function getAgentModifications(
  * @param newAgent - New agent configuration
  * @returns True if the agent has been modified
  */
-export function isAgentModified(
-  oldAgent: ResolvedAgent,
-  newAgent: ResolvedAgent
-): boolean {
+export function isAgentModified(oldAgent: ResolvedAgent, newAgent: ResolvedAgent): boolean {
   return getAgentModifications(oldAgent, newAgent) !== null;
 }
 
@@ -376,7 +368,7 @@ export function isAgentModified(
  */
 export function isScheduleModified(
   oldSchedule: ScheduleForComparison,
-  newSchedule: ScheduleForComparison
+  newSchedule: ScheduleForComparison,
 ): boolean {
   return (
     oldSchedule.type !== newSchedule.type ||
@@ -395,7 +387,7 @@ export function isScheduleModified(
  */
 export function getScheduleModificationDetails(
   oldSchedule: ScheduleForComparison,
-  newSchedule: ScheduleForComparison
+  newSchedule: ScheduleForComparison,
 ): string {
   const details: string[] = [];
 
@@ -406,7 +398,9 @@ export function getScheduleModificationDetails(
     details.push(`interval: ${oldSchedule.interval ?? "none"} → ${newSchedule.interval ?? "none"}`);
   }
   if (oldSchedule.expression !== newSchedule.expression) {
-    details.push(`expression: ${oldSchedule.expression ?? "none"} → ${newSchedule.expression ?? "none"}`);
+    details.push(
+      `expression: ${oldSchedule.expression ?? "none"} → ${newSchedule.expression ?? "none"}`,
+    );
   }
   if (oldSchedule.prompt !== newSchedule.prompt) {
     details.push("prompt changed");
@@ -464,10 +458,14 @@ export function getChangesSummary(changes: ConfigChange[]): string {
     parts.push(`${counts.schedulesAdded} schedule${counts.schedulesAdded > 1 ? "s" : ""} added`);
   }
   if (counts.schedulesRemoved > 0) {
-    parts.push(`${counts.schedulesRemoved} schedule${counts.schedulesRemoved > 1 ? "s" : ""} removed`);
+    parts.push(
+      `${counts.schedulesRemoved} schedule${counts.schedulesRemoved > 1 ? "s" : ""} removed`,
+    );
   }
   if (counts.schedulesModified > 0) {
-    parts.push(`${counts.schedulesModified} schedule${counts.schedulesModified > 1 ? "s" : ""} modified`);
+    parts.push(
+      `${counts.schedulesModified} schedule${counts.schedulesModified > 1 ? "s" : ""} modified`,
+    );
   }
 
   return parts.length > 0 ? parts.join(", ") : "no changes";
@@ -482,7 +480,7 @@ export function getChangesSummary(changes: ConfigChange[]): string {
  */
 export function filterChangesByCategory(
   changes: ConfigChange[],
-  category: "agent" | "schedule"
+  category: "agent" | "schedule",
 ): ConfigChange[] {
   return changes.filter((c) => c.category === category);
 }
@@ -496,7 +494,7 @@ export function filterChangesByCategory(
  */
 export function filterChangesByType(
   changes: ConfigChange[],
-  type: "added" | "removed" | "modified"
+  type: "added" | "removed" | "modified",
 ): ConfigChange[] {
   return changes.filter((c) => c.type === type);
 }
@@ -528,9 +526,7 @@ export function hasScheduleChanges(changes: ConfigChange[]): boolean {
  * @returns Array of added agent names
  */
 export function getAddedAgentNames(changes: ConfigChange[]): string[] {
-  return changes
-    .filter((c) => c.category === "agent" && c.type === "added")
-    .map((c) => c.name);
+  return changes.filter((c) => c.category === "agent" && c.type === "added").map((c) => c.name);
 }
 
 /**
@@ -540,9 +536,7 @@ export function getAddedAgentNames(changes: ConfigChange[]): string[] {
  * @returns Array of removed agent names
  */
 export function getRemovedAgentNames(changes: ConfigChange[]): string[] {
-  return changes
-    .filter((c) => c.category === "agent" && c.type === "removed")
-    .map((c) => c.name);
+  return changes.filter((c) => c.category === "agent" && c.type === "removed").map((c) => c.name);
 }
 
 /**
@@ -552,7 +546,5 @@ export function getRemovedAgentNames(changes: ConfigChange[]): string[] {
  * @returns Array of modified agent names
  */
 export function getModifiedAgentNames(changes: ConfigChange[]): string[] {
-  return changes
-    .filter((c) => c.category === "agent" && c.type === "modified")
-    .map((c) => c.name);
+  return changes.filter((c) => c.category === "agent" && c.type === "modified").map((c) => c.name);
 }

@@ -104,10 +104,7 @@ export class CommandHandler {
    *
    * @returns true if a command was executed, false otherwise
    */
-  async executeCommand(
-    text: string,
-    context: CommandContext
-  ): Promise<boolean> {
+  async executeCommand(text: string, context: CommandContext): Promise<boolean> {
     const trimmed = text.trim();
     if (!trimmed.startsWith("!")) {
       return false;
@@ -129,13 +126,12 @@ export class CommandHandler {
       await command.execute(context);
       return true;
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(`Command !${commandName} failed: ${errorMessage}`);
 
       try {
         await context.reply(
-          `An error occurred while executing \`!${commandName}\`. Please try again.`
+          `An error occurred while executing \`!${commandName}\`. Please try again.`,
         );
       } catch {
         // Ignore reply error

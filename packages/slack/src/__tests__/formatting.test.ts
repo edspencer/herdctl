@@ -33,14 +33,12 @@ describe("markdownToMrkdwn", () => {
 
   it("converts links to mrkdwn format", () => {
     expect(markdownToMrkdwn("[click here](https://example.com)")).toBe(
-      "<https://example.com|click here>"
+      "<https://example.com|click here>",
     );
   });
 
   it("handles multiple links", () => {
-    const result = markdownToMrkdwn(
-      "[link1](https://a.com) and [link2](https://b.com)"
-    );
+    const result = markdownToMrkdwn("[link1](https://a.com) and [link2](https://b.com)");
     expect(result).toContain("<https://a.com|link1>");
     expect(result).toContain("<https://b.com|link2>");
   });
@@ -72,9 +70,7 @@ describe("markdownToMrkdwn", () => {
   });
 
   it("converts headers in multiline text", () => {
-    const result = markdownToMrkdwn(
-      "intro\n\n# Title\n\nsome text\n\n## Section\n\nmore text"
-    );
+    const result = markdownToMrkdwn("intro\n\n# Title\n\nsome text\n\n## Section\n\nmore text");
     expect(result).toContain("*Title*");
     expect(result).toContain("*Section*");
     expect(result).not.toContain("#");
@@ -97,9 +93,7 @@ describe("markdownToMrkdwn", () => {
   });
 
   it("converts images to links", () => {
-    expect(markdownToMrkdwn("![alt text](https://img.png)")).toBe(
-      "<https://img.png|alt text>"
-    );
+    expect(markdownToMrkdwn("![alt text](https://img.png)")).toBe("<https://img.png|alt text>");
   });
 
   it("converts horizontal rules", () => {
@@ -204,7 +198,9 @@ describe("needsSplit", () => {
   });
 
   it("returns true for messages exceeding max limit", () => {
-    expect(needsSplit("a".repeat(SLACK_MAX_MESSAGE_LENGTH + 1), SLACK_MAX_MESSAGE_LENGTH)).toBe(true);
+    expect(needsSplit("a".repeat(SLACK_MAX_MESSAGE_LENGTH + 1), SLACK_MAX_MESSAGE_LENGTH)).toBe(
+      true,
+    );
   });
 
   it("respects custom maxLength", () => {
@@ -234,9 +230,7 @@ describe("createContextAttachment", () => {
   });
 
   it("rounds the percentage", () => {
-    expect(createContextAttachment(33.7).footer).toBe(
-      "Context: 34% remaining"
-    );
+    expect(createContextAttachment(33.7).footer).toBe("Context: 34% remaining");
   });
 });
 
@@ -268,9 +262,7 @@ describe("formatCodeBlock", () => {
   });
 
   it("formats code with language", () => {
-    expect(formatCodeBlock("const x = 1", "typescript")).toBe(
-      "```typescript\nconst x = 1\n```"
-    );
+    expect(formatCodeBlock("const x = 1", "typescript")).toBe("```typescript\nconst x = 1\n```");
   });
 });
 

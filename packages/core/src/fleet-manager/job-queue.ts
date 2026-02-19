@@ -355,9 +355,7 @@ export class JobQueue extends EventEmitter {
       throw new Error(`Concurrency limit must be >= 1, got ${limit}`);
     }
     this.agentConcurrencyLimits.set(agentName, limit);
-    this.logger.debug(
-      `Set concurrency limit for agent "${agentName}" to ${limit}`
-    );
+    this.logger.debug(`Set concurrency limit for agent "${agentName}" to ${limit}`);
   }
 
   /**
@@ -367,9 +365,7 @@ export class JobQueue extends EventEmitter {
    * @returns The concurrency limit (agent-specific or default)
    */
   getAgentConcurrency(agentName: string): number {
-    return (
-      this.agentConcurrencyLimits.get(agentName) ?? this.defaultAgentConcurrency
-    );
+    return this.agentConcurrencyLimits.get(agentName) ?? this.defaultAgentConcurrency;
   }
 
   /**
@@ -420,10 +416,7 @@ export class JobQueue extends EventEmitter {
     }
 
     // Check fleet-level capacity
-    if (
-      this.fleetConcurrency !== null &&
-      this.totalRunningCount >= this.fleetConcurrency
-    ) {
+    if (this.fleetConcurrency !== null && this.totalRunningCount >= this.fleetConcurrency) {
       return {
         canRun: false,
         reason: "fleet_at_capacity",
@@ -449,22 +442,14 @@ export class JobQueue extends EventEmitter {
    * @returns EnqueueResult if job is queued/ready, or null if scheduled and at capacity
    */
   enqueue(options: EnqueueOptions): EnqueueResult | null {
-    const {
-      agentName,
-      scheduleName,
-      priority = 5,
-      prompt,
-      isScheduled = false,
-    } = options;
+    const { agentName, scheduleName, priority = 5, prompt, isScheduled = false } = options;
 
     const capacity = this.checkCapacity(agentName);
 
     // If we have capacity, the job can run immediately
     if (capacity.canRun) {
       const jobId = this.generateJobId();
-      this.logger.debug(
-        `Job ${jobId} for agent "${agentName}" can run immediately`
-      );
+      this.logger.debug(`Job ${jobId} for agent "${agentName}" can run immediately`);
       return {
         jobId,
         queued: false,
@@ -483,7 +468,7 @@ export class JobQueue extends EventEmitter {
       };
 
       this.logger.info(
-        `Schedule "${scheduleName}" for agent "${agentName}" skipped: ${capacity.reason} (${capacity.currentRunning}/${capacity.limit})`
+        `Schedule "${scheduleName}" for agent "${agentName}" skipped: ${capacity.reason} (${capacity.currentRunning}/${capacity.limit})`,
       );
 
       this.emit("schedule:skipped", skipResult);
@@ -520,7 +505,7 @@ export class JobQueue extends EventEmitter {
 
     const position = insertIndex + 1;
     this.logger.info(
-      `Job ${job.id} for agent "${agentName}" queued at position ${position} (${capacity.reason})`
+      `Job ${job.id} for agent "${agentName}" queued at position ${position} (${capacity.reason})`,
     );
 
     this.emit("job:queued", job, position);
@@ -550,7 +535,7 @@ export class JobQueue extends EventEmitter {
 
     const job = agentQueue.shift()!;
     this.logger.debug(
-      `Dequeued job ${job.id} for agent "${agentName}" (${agentQueue.length} remaining)`
+      `Dequeued job ${job.id} for agent "${agentName}" (${agentQueue.length} remaining)`,
     );
 
     this.emit("job:dequeued", job);
@@ -582,9 +567,7 @@ export class JobQueue extends EventEmitter {
       const index = queue.findIndex((job) => job.id === jobId);
       if (index !== -1) {
         queue.splice(index, 1);
-        this.logger.debug(
-          `Removed job ${jobId} from agent "${agentName}" queue`
-        );
+        this.logger.debug(`Removed job ${jobId} from agent "${agentName}" queue`);
         return true;
       }
     }
@@ -609,7 +592,7 @@ export class JobQueue extends EventEmitter {
     this.totalRunningCount++;
 
     this.logger.debug(
-      `Marked job ${jobId} as running for agent "${agentName}" (total: ${this.totalRunningCount})`
+      `Marked job ${jobId} as running for agent "${agentName}" (total: ${this.totalRunningCount})`,
     );
   }
 
@@ -629,7 +612,7 @@ export class JobQueue extends EventEmitter {
 
       const available = this.getAgentConcurrency(agentName) - agentJobs.size;
       this.logger.debug(
-        `Marked job ${jobId} as completed for agent "${agentName}" (${available} slots available)`
+        `Marked job ${jobId} as completed for agent "${agentName}" (${available} slots available)`,
       );
 
       this.emit("capacity:available", agentName, available);
@@ -695,10 +678,7 @@ export class JobQueue extends EventEmitter {
     const agents = new Map<string, AgentQueueStatus>();
 
     // Collect all known agent names from both running and queued
-    const allAgentNames = new Set<string>([
-      ...this.runningJobs.keys(),
-      ...this.queuedJobs.keys(),
-    ]);
+    const allAgentNames = new Set<string>([...this.runningJobs.keys(), ...this.queuedJobs.keys()]);
 
     let totalQueued = 0;
     for (const agentName of allAgentNames) {

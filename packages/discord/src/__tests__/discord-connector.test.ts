@@ -80,11 +80,7 @@ vi.mock("@discordjs/rest", () => {
 
 // Import after mock
 import { DiscordConnector } from "../discord-connector.js";
-import {
-  AlreadyConnectedError,
-  DiscordConnectionError,
-  InvalidTokenError,
-} from "../errors.js";
+import { AlreadyConnectedError, DiscordConnectionError, InvalidTokenError } from "../errors.js";
 
 // Type for our mock client
 interface MockClient extends EventEmitter {
@@ -100,10 +96,7 @@ interface MockClient extends EventEmitter {
 }
 
 // Helper to set the login behavior before connecting
-function setMockLoginBehavior(
-  behavior: "success" | "failure",
-  errorMessage?: string
-) {
+function setMockLoginBehavior(behavior: "success" | "failure", errorMessage?: string) {
   if (behavior === "failure") {
     mockLoginImpl = () => Promise.reject(new Error(errorMessage || "Login failed"));
   } else {
@@ -127,7 +120,13 @@ function createMockDiscordConfig(): AgentChatDiscord {
     bot_token_env: "TEST_BOT_TOKEN",
     session_expiry_hours: 24,
     log_level: "standard",
-    output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
+    output: {
+      tool_results: true,
+      tool_result_max_length: 900,
+      system_status: true,
+      result_summary: false,
+      errors: true,
+    },
     guilds: [
       {
         id: "guild-123",
@@ -219,7 +218,7 @@ describe("DiscordConnector", () => {
             botToken: "",
             fleetManager,
             sessionManager,
-          })
+          }),
       ).toThrow(InvalidTokenError);
     });
 
@@ -232,7 +231,7 @@ describe("DiscordConnector", () => {
             botToken: "   ",
             fleetManager,
             sessionManager,
-          })
+          }),
       ).toThrow(InvalidTokenError);
     });
 
@@ -762,12 +761,9 @@ describe("DiscordConnector", () => {
 
       await connectPromise;
 
-      expect(client.user.setActivity).toHaveBeenCalledWith(
-        "for support requests",
-        {
-          type: 3, // watching
-        }
-      );
+      expect(client.user.setActivity).toHaveBeenCalledWith("for support requests", {
+        type: 3, // watching
+      });
     });
 
     it("does not set presence when not configured", async () => {
@@ -888,7 +884,7 @@ describe("DiscordConnector", () => {
           limit: 50,
           global: false,
           hash: "abc123",
-        })
+        }),
       );
     });
 
@@ -1038,7 +1034,7 @@ describe("DiscordConnector", () => {
       expect(rateLimitHandler).toHaveBeenCalledWith(
         expect.objectContaining({
           global: true,
-        })
+        }),
       );
     });
 

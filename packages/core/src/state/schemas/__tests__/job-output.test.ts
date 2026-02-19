@@ -166,9 +166,7 @@ describe("ErrorMessageSchema", () => {
       timestamp: "2024-01-15T10:00:00Z",
       message: "Something went wrong",
     };
-    expect(ErrorMessageSchema.parse(message).message).toBe(
-      "Something went wrong"
-    );
+    expect(ErrorMessageSchema.parse(message).message).toBe("Something went wrong");
   });
 
   it("accepts error with code and stack", () => {
@@ -243,7 +241,7 @@ describe("JobOutputMessageSchema (discriminated union)", () => {
       JobOutputMessageSchema.parse({
         type: "invalid",
         timestamp: "2024-01-15T10:00:00Z",
-      })
+      }),
     ).toThrow();
   });
 
@@ -251,7 +249,7 @@ describe("JobOutputMessageSchema (discriminated union)", () => {
     expect(() =>
       JobOutputMessageSchema.parse({
         timestamp: "2024-01-15T10:00:00Z",
-      })
+      }),
     ).toThrow();
   });
 });
@@ -281,7 +279,7 @@ describe("validateJobOutputMessage", () => {
         type: "error",
         timestamp: "2024-01-15T10:00:00Z",
         // missing message
-      })
+      }),
     ).toBeNull();
 
     expect(
@@ -289,7 +287,7 @@ describe("validateJobOutputMessage", () => {
         type: "tool_use",
         timestamp: "2024-01-15T10:00:00Z",
         // missing tool_name
-      })
+      }),
     ).toBeNull();
   });
 });
@@ -297,12 +295,8 @@ describe("validateJobOutputMessage", () => {
 describe("isValidJobOutputInput", () => {
   it("returns true for valid input objects", () => {
     expect(isValidJobOutputInput({ type: "system" })).toBe(true);
-    expect(isValidJobOutputInput({ type: "assistant", content: "Hi" })).toBe(
-      true
-    );
-    expect(isValidJobOutputInput({ type: "tool_use", tool_name: "test" })).toBe(
-      true
-    );
+    expect(isValidJobOutputInput({ type: "assistant", content: "Hi" })).toBe(true);
+    expect(isValidJobOutputInput({ type: "tool_use", tool_name: "test" })).toBe(true);
     expect(isValidJobOutputInput({ type: "tool_result" })).toBe(true);
     expect(isValidJobOutputInput({ type: "error", message: "Err" })).toBe(true);
   });

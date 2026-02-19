@@ -6,11 +6,7 @@
  */
 
 import type { ResolvedAgent, McpServer } from "../config/index.js";
-import type {
-  SDKQueryOptions,
-  SDKMcpServerConfig,
-  SDKSystemPrompt,
-} from "./types.js";
+import type { SDKQueryOptions, SDKMcpServerConfig, SDKSystemPrompt } from "./types.js";
 
 // =============================================================================
 // Constants
@@ -75,7 +71,7 @@ export function transformMcpServer(server: McpServer): SDKMcpServerConfig {
  * @returns SDK-formatted MCP servers map (empty object if no servers configured)
  */
 export function transformMcpServers(
-  mcpServers: Record<string, McpServer> | undefined
+  mcpServers: Record<string, McpServer> | undefined,
 ): Record<string, SDKMcpServerConfig> {
   const result: Record<string, SDKMcpServerConfig> = {};
 
@@ -153,7 +149,7 @@ export interface ToSDKOptionsParams {
  */
 export function toSDKOptions(
   agent: ResolvedAgent,
-  options: ToSDKOptionsParams = {}
+  options: ToSDKOptionsParams = {},
 ): SDKQueryOptions {
   const result: SDKQueryOptions = {};
 
@@ -210,10 +206,7 @@ export function toSDKOptions(
   // Note: working_directory variable already declared above for settingSources
   if (working_directory) {
     // working_directory can be a string path or an object with root property
-    result.cwd =
-      typeof working_directory === "string"
-        ? working_directory
-        : working_directory.root;
+    result.cwd = typeof working_directory === "string" ? working_directory : working_directory.root;
   }
 
   // Model selection

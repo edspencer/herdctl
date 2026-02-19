@@ -54,10 +54,7 @@ interface UseJobOutputResult {
  * }
  * ```
  */
-export function useJobOutput({
-  agentName,
-  jobId,
-}: UseJobOutputOptions): UseJobOutputResult {
+export function useJobOutput({ agentName, jobId }: UseJobOutputOptions): UseJobOutputResult {
   // Track subscription state
   const subscribedAgentRef = useRef<string | null>(null);
 
@@ -72,7 +69,11 @@ export function useJobOutput({
   // Subscribe/unsubscribe when agent name changes
   useEffect(() => {
     // Get the WebSocket client from the global reference
-    const wsClient = (window as unknown as { __herdWsClient?: { subscribe: (name: string) => void; unsubscribe: (name: string) => void } }).__herdWsClient;
+    const wsClient = (
+      window as unknown as {
+        __herdWsClient?: { subscribe: (name: string) => void; unsubscribe: (name: string) => void };
+      }
+    ).__herdWsClient;
 
     if (agentName && wsClient) {
       // Unsubscribe from previous agent if different

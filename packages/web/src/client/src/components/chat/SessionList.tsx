@@ -65,7 +65,7 @@ export function SessionList({ agentName, activeSessionId }: SessionListProps) {
         navigate(`/agents/${encodeURIComponent(agentName)}/chat`);
       }
     },
-    [agentName, activeSessionId, deleteChatSession, navigate]
+    [agentName, activeSessionId, deleteChatSession, navigate],
   );
 
   const handleCancelDelete = useCallback((e: React.MouseEvent) => {
@@ -117,9 +117,7 @@ export function SessionList({ agentName, activeSessionId }: SessionListProps) {
                   key={session.sessionId}
                   to={`/agents/${encodeURIComponent(agentName)}/chat/${session.sessionId}`}
                   className={`group block mx-2 mb-1 px-3 py-2.5 rounded-lg transition-colors ${
-                    isActive
-                      ? "bg-herd-active"
-                      : "hover:bg-herd-hover"
+                    isActive ? "bg-herd-active" : "hover:bg-herd-hover"
                   } ${isDeleting ? "opacity-50" : ""}`}
                 >
                   <div className="flex items-start justify-between gap-2">

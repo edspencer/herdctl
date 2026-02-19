@@ -76,9 +76,7 @@ describe("classifyError", () => {
   });
 
   it("does not classify unrelated 'token' substring as auth", () => {
-    const result = classifyError(
-      new Error("invalid JSON token at position 42")
-    );
+    const result = classifyError(new Error("invalid JSON token at position 42"));
 
     expect(result.category).not.toBe(ErrorCategory.AUTH);
   });
@@ -147,11 +145,7 @@ describe("classifyError", () => {
 describe("safeExecute", () => {
   it("returns result on success", async () => {
     const logger = createMockLogger();
-    const result = await safeExecute(
-      async () => "success",
-      logger,
-      "test operation"
-    );
+    const result = await safeExecute(async () => "success", logger, "test operation");
 
     expect(result).toBe("success");
     expect(logger.error).not.toHaveBeenCalled();
@@ -164,13 +158,11 @@ describe("safeExecute", () => {
         throw new Error("Operation failed");
       },
       logger,
-      "test operation"
+      "test operation",
     );
 
     expect(result).toBeUndefined();
-    expect(logger.error).toHaveBeenCalledWith(
-      "Error in test operation: Operation failed"
-    );
+    expect(logger.error).toHaveBeenCalledWith("Error in test operation: Operation failed");
   });
 
   it("handles non-Error throws", async () => {
@@ -180,13 +172,11 @@ describe("safeExecute", () => {
         throw "string error";
       },
       logger,
-      "test"
+      "test",
     );
 
     expect(result).toBeUndefined();
-    expect(logger.error).toHaveBeenCalledWith(
-      "Error in test: string error"
-    );
+    expect(logger.error).toHaveBeenCalledWith("Error in test: string error");
   });
 });
 
@@ -212,7 +202,7 @@ describe("safeExecuteWithReply", () => {
       },
       reply,
       logger,
-      "test"
+      "test",
     );
 
     expect(reply).toHaveBeenCalledWith(USER_ERROR_MESSAGES.CONNECTION_ERROR);
@@ -229,7 +219,7 @@ describe("safeExecuteWithReply", () => {
       },
       reply,
       logger,
-      "test"
+      "test",
     );
 
     // Should log both errors
@@ -246,7 +236,7 @@ describe("safeExecuteWithReply", () => {
       },
       reply,
       logger,
-      "test"
+      "test",
     );
 
     expect(reply).toHaveBeenCalled();

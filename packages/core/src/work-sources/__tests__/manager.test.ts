@@ -260,7 +260,7 @@ describe("WorkSourceManager interface", () => {
     const mockManager: WorkSourceManager = {
       async getNextWorkItem(
         agent: ResolvedAgent,
-        options?: GetNextWorkItemOptions
+        options?: GetNextWorkItemOptions,
       ): Promise<GetNextWorkItemResult> {
         return { item: null, claimed: false };
       },
@@ -268,14 +268,14 @@ describe("WorkSourceManager interface", () => {
       async reportOutcome(
         taskId: string,
         result: WorkResult,
-        options: ReportOutcomeOptions
+        options: ReportOutcomeOptions,
       ): Promise<void> {
         // Implementation would update external system
       },
 
       async releaseWorkItem(
         taskId: string,
-        options: ReleaseWorkItemOptions
+        options: ReleaseWorkItemOptions,
       ): Promise<ReleaseResult> {
         return { success: true };
       },
@@ -366,8 +366,7 @@ describe("WorkSourceManager interface", () => {
     };
 
     // Step 1: Get next work item (auto-claimed)
-    const { item, claimed, claimResult } =
-      await mockManager.getNextWorkItem(agent);
+    const { item, claimed, claimResult } = await mockManager.getNextWorkItem(agent);
 
     expect(item).not.toBeNull();
     expect(item?.id).toBe("github:123");
@@ -382,7 +381,7 @@ describe("WorkSourceManager interface", () => {
         summary: "Fixed the issue",
         details: "Updated validation logic",
       },
-      { agent }
+      { agent },
     );
 
     expect(completedTasks).toContain(item!.id);

@@ -59,10 +59,7 @@ export class FleetManagerError extends Error {
   /** Error code for programmatic handling */
   public readonly code: FleetManagerErrorCode;
 
-  constructor(
-    message: string,
-    options?: { cause?: Error; code?: FleetManagerErrorCode }
-  ) {
+  constructor(message: string, options?: { cause?: Error; code?: FleetManagerErrorCode }) {
     super(message);
     this.name = "FleetManagerError";
     this.cause = options?.cause;
@@ -122,13 +119,13 @@ export class ConfigurationError extends FleetManagerError {
       configPath?: string;
       validationErrors?: ValidationError[];
       cause?: Error;
-    }
+    },
   ) {
     const validationErrors = options?.validationErrors ?? [];
     const fullMessage = ConfigurationError.buildMessage(
       message,
       options?.configPath,
-      validationErrors
+      validationErrors,
     );
 
     super(fullMessage, {
@@ -146,7 +143,7 @@ export class ConfigurationError extends FleetManagerError {
   private static buildMessage(
     message: string,
     configPath?: string,
-    validationErrors?: ValidationError[]
+    validationErrors?: ValidationError[],
   ): string {
     const parts = [message];
 
@@ -203,14 +200,8 @@ export class AgentNotFoundError extends FleetManagerError {
   /** Optional list of available agent names for helpful error messages */
   public readonly availableAgents?: string[];
 
-  constructor(
-    agentName: string,
-    options?: { availableAgents?: string[]; cause?: Error }
-  ) {
-    const message = AgentNotFoundError.buildMessage(
-      agentName,
-      options?.availableAgents
-    );
+  constructor(agentName: string, options?: { availableAgents?: string[]; cause?: Error }) {
+    const message = AgentNotFoundError.buildMessage(agentName, options?.availableAgents);
     super(message, {
       cause: options?.cause,
       code: FleetManagerErrorCode.AGENT_NOT_FOUND,
@@ -220,10 +211,7 @@ export class AgentNotFoundError extends FleetManagerError {
     this.availableAgents = options?.availableAgents;
   }
 
-  private static buildMessage(
-    agentName: string,
-    availableAgents?: string[]
-  ): string {
+  private static buildMessage(agentName: string, availableAgents?: string[]): string {
     let message = `Agent "${agentName}" not found`;
 
     if (availableAgents && availableAgents.length > 0) {
@@ -303,12 +291,12 @@ export class ScheduleNotFoundError extends FleetManagerError {
   constructor(
     agentName: string,
     scheduleName: string,
-    options?: { availableSchedules?: string[]; cause?: Error }
+    options?: { availableSchedules?: string[]; cause?: Error },
   ) {
     const message = ScheduleNotFoundError.buildMessage(
       agentName,
       scheduleName,
-      options?.availableSchedules
+      options?.availableSchedules,
     );
     super(message, {
       cause: options?.cause,
@@ -323,7 +311,7 @@ export class ScheduleNotFoundError extends FleetManagerError {
   private static buildMessage(
     agentName: string,
     scheduleName: string,
-    availableSchedules?: string[]
+    availableSchedules?: string[],
   ): string {
     let message = `Schedule "${scheduleName}" not found for agent "${agentName}"`;
 
@@ -378,18 +366,16 @@ export class InvalidStateError extends FleetManagerError {
     operation: string,
     currentState: string,
     expectedState: string | string[],
-    options?: { cause?: Error }
+    options?: { cause?: Error },
   ) {
-    const expected = Array.isArray(expectedState)
-      ? expectedState.join(" or ")
-      : expectedState;
+    const expected = Array.isArray(expectedState) ? expectedState.join(" or ") : expectedState;
 
     super(
       `Cannot ${operation}: fleet manager is in "${currentState}" state, must be "${expected}"`,
       {
         cause: options?.cause,
         code: FleetManagerErrorCode.INVALID_STATE,
-      }
+      },
     );
     this.name = "InvalidStateError";
     this.operation = operation;
@@ -433,18 +419,13 @@ export class ConcurrencyLimitError extends FleetManagerError {
   /** The maximum allowed concurrent jobs for this agent */
   public readonly limit: number;
 
-  constructor(
-    agentName: string,
-    currentJobs: number,
-    limit: number,
-    options?: { cause?: Error }
-  ) {
+  constructor(agentName: string, currentJobs: number, limit: number, options?: { cause?: Error }) {
     super(
       `Agent "${agentName}" has reached its concurrency limit: ${currentJobs}/${limit} jobs running`,
       {
         cause: options?.cause,
         code: FleetManagerErrorCode.CONCURRENCY_LIMIT,
-      }
+      },
     );
     this.name = "ConcurrencyLimitError";
     this.agentName = agentName;
@@ -496,10 +477,7 @@ export class FleetManagerShutdownError extends FleetManagerError {
   /** Whether the shutdown timed out */
   public readonly timedOut: boolean;
 
-  constructor(
-    message: string,
-    options: { timedOut: boolean; cause?: Error }
-  ) {
+  constructor(message: string, options: { timedOut: boolean; cause?: Error }) {
     super(message, {
       cause: options.cause,
       code: FleetManagerErrorCode.SHUTDOWN_ERROR,
@@ -545,12 +523,12 @@ export class JobCancelError extends FleetManagerError {
   public readonly jobId: string;
 
   /** The reason the cancellation failed */
-  public readonly reason: 'not_running' | 'process_error' | 'timeout' | 'unknown';
+  public readonly reason: "not_running" | "process_error" | "timeout" | "unknown";
 
   constructor(
     jobId: string,
-    reason: 'not_running' | 'process_error' | 'timeout' | 'unknown',
-    options?: { message?: string; cause?: Error }
+    reason: "not_running" | "process_error" | "timeout" | "unknown",
+    options?: { message?: string; cause?: Error },
   ) {
     const defaultMessages: Record<typeof reason, string> = {
       not_running: `Job "${jobId}" is not running and cannot be cancelled`,
@@ -594,12 +572,12 @@ export class JobForkError extends FleetManagerError {
   public readonly originalJobId: string;
 
   /** The reason the fork failed */
-  public readonly reason: 'no_session' | 'job_not_found' | 'agent_not_found' | 'unknown';
+  public readonly reason: "no_session" | "job_not_found" | "agent_not_found" | "unknown";
 
   constructor(
     originalJobId: string,
-    reason: 'no_session' | 'job_not_found' | 'agent_not_found' | 'unknown',
-    options?: { message?: string; cause?: Error }
+    reason: "no_session" | "job_not_found" | "agent_not_found" | "unknown",
+    options?: { message?: string; cause?: Error },
   ) {
     const defaultMessages: Record<typeof reason, string> = {
       no_session: `Job "${originalJobId}" has no session ID and cannot be forked`,
@@ -632,18 +610,14 @@ export function isFleetManagerError(error: unknown): error is FleetManagerError 
 /**
  * Type guard to check if an error is a ConfigurationError
  */
-export function isConfigurationError(
-  error: unknown
-): error is ConfigurationError {
+export function isConfigurationError(error: unknown): error is ConfigurationError {
   return error instanceof ConfigurationError;
 }
 
 /**
  * Type guard to check if an error is an AgentNotFoundError
  */
-export function isAgentNotFoundError(
-  error: unknown
-): error is AgentNotFoundError {
+export function isAgentNotFoundError(error: unknown): error is AgentNotFoundError {
   return error instanceof AgentNotFoundError;
 }
 
@@ -657,27 +631,21 @@ export function isJobNotFoundError(error: unknown): error is JobNotFoundError {
 /**
  * Type guard to check if an error is a ScheduleNotFoundError
  */
-export function isScheduleNotFoundError(
-  error: unknown
-): error is ScheduleNotFoundError {
+export function isScheduleNotFoundError(error: unknown): error is ScheduleNotFoundError {
   return error instanceof ScheduleNotFoundError;
 }
 
 /**
  * Type guard to check if an error is an InvalidStateError
  */
-export function isInvalidStateError(
-  error: unknown
-): error is InvalidStateError {
+export function isInvalidStateError(error: unknown): error is InvalidStateError {
   return error instanceof InvalidStateError;
 }
 
 /**
  * Type guard to check if an error is a ConcurrencyLimitError
  */
-export function isConcurrencyLimitError(
-  error: unknown
-): error is ConcurrencyLimitError {
+export function isConcurrencyLimitError(error: unknown): error is ConcurrencyLimitError {
   return error instanceof ConcurrencyLimitError;
 }
 

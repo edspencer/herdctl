@@ -210,15 +210,15 @@ export interface ISlackConnector extends EventEmitter {
   /** Type-safe event subscription */
   on<K extends SlackConnectorEventName>(
     event: K,
-    listener: (payload: SlackConnectorEventMap[K]) => void
+    listener: (payload: SlackConnectorEventMap[K]) => void,
   ): this;
   once<K extends SlackConnectorEventName>(
     event: K,
-    listener: (payload: SlackConnectorEventMap[K]) => void
+    listener: (payload: SlackConnectorEventMap[K]) => void,
   ): this;
   off<K extends SlackConnectorEventName>(
     event: K,
-    listener: (payload: SlackConnectorEventMap[K]) => void
+    listener: (payload: SlackConnectorEventMap[K]) => void,
   ): this;
 }
 
@@ -259,7 +259,13 @@ export interface SlackConnectorEventMap {
   /** Emitted when a message is ignored */
   messageIgnored: {
     agentName: string;
-    reason: "not_configured" | "bot_message" | "no_agent_resolved" | "empty_prompt" | "dm_disabled" | "dm_filtered";
+    reason:
+      | "not_configured"
+      | "bot_message"
+      | "no_agent_resolved"
+      | "empty_prompt"
+      | "dm_disabled"
+      | "dm_filtered";
     channelId: string;
     messageTs: string;
   };

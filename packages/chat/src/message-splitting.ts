@@ -95,7 +95,7 @@ export const DEFAULT_SPLIT_POINTS = ["\n\n", "\n", ". ", "! ", "? ", ", ", " "];
 export function findSplitPoint(
   text: string,
   maxLength: number,
-  splitPoints: string[] = DEFAULT_SPLIT_POINTS
+  splitPoints: string[] = DEFAULT_SPLIT_POINTS,
 ): number {
   // If text fits, no split needed
   if (text.length <= maxLength) {
@@ -141,15 +141,8 @@ export function findSplitPoint(
  * }
  * ```
  */
-export function splitMessage(
-  content: string,
-  options: MessageSplitOptions
-): SplitResult {
-  const {
-    maxLength,
-    preserveBoundaries = true,
-    splitPoints = DEFAULT_SPLIT_POINTS,
-  } = options;
+export function splitMessage(content: string, options: MessageSplitOptions): SplitResult {
+  const { maxLength, preserveBoundaries = true, splitPoints = DEFAULT_SPLIT_POINTS } = options;
 
   const originalLength = content.length;
 
@@ -236,7 +229,7 @@ export function needsSplit(content: string, maxLength: number): boolean {
 export function truncateMessage(
   content: string,
   maxLength: number,
-  ellipsis: string = "..."
+  ellipsis: string = "...",
 ): string {
   if (content.length <= maxLength) {
     return content;

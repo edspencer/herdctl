@@ -145,7 +145,7 @@ export class WebhookHookRunner {
         // 2xx status codes are success
         if (response.ok) {
           this.logger.info(
-            `Webhook hook completed successfully in ${durationMs}ms: ${method} ${config.url} (${response.status})`
+            `Webhook hook completed successfully in ${durationMs}ms: ${method} ${config.url} (${response.status})`,
           );
           return {
             success: true,
@@ -155,7 +155,7 @@ export class WebhookHookRunner {
           };
         } else {
           this.logger.warn(
-            `Webhook hook failed with status ${response.status}: ${method} ${config.url}`
+            `Webhook hook failed with status ${response.status}: ${method} ${config.url}`,
           );
           return {
             success: false,

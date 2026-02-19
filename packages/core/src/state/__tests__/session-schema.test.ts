@@ -60,13 +60,7 @@ describe("SessionInfoSchema", () => {
     });
 
     it("accepts any non-empty agent_name", () => {
-      const names = [
-        "a",
-        "test-agent",
-        "agent_with_underscores",
-        "Agent123",
-        "agent.with.dots",
-      ];
+      const names = ["a", "test-agent", "agent_with_underscores", "Agent123", "agent.with.dots"];
 
       for (const name of names) {
         const result = SessionInfoSchema.safeParse({
@@ -125,10 +119,7 @@ describe("SessionInfoSchema", () => {
 
     it("rejects datetime strings with timezone offsets", () => {
       // Zod's datetime() without offset option rejects non-Z timezones
-      const offsetDates = [
-        "2024-01-15T10:00:00+05:30",
-        "2024-01-15T10:00:00-08:00",
-      ];
+      const offsetDates = ["2024-01-15T10:00:00+05:30", "2024-01-15T10:00:00-08:00"];
 
       for (const date of offsetDates) {
         const result = SessionInfoSchema.safeParse({

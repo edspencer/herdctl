@@ -25,11 +25,7 @@ import type { RuntimeInterface, RuntimeExecuteOptions } from "./interface.js";
 import type { SDKMessage, InjectedMcpServerDef } from "../types.js";
 import type { DockerConfig } from "./docker-config.js";
 import { startMcpHttpBridge, type McpHttpBridge } from "./mcp-http-bridge.js";
-import {
-  ContainerManager,
-  buildContainerMounts,
-  buildContainerEnv,
-} from "./container-manager.js";
+import { ContainerManager, buildContainerMounts, buildContainerEnv } from "./container-manager.js";
 import { CLIRuntime } from "./cli-runtime.js";
 import { SDKRuntime } from "./sdk-runtime.js";
 import { toSDKOptions } from "../sdk-adapter.js";
@@ -60,7 +56,7 @@ export class ContainerRunner implements RuntimeInterface {
     private wrapped: RuntimeInterface,
     private config: DockerConfig,
     stateDir: string,
-    docker?: import("dockerode")
+    docker?: import("dockerode"),
   ) {
     this.manager = new ContainerManager(docker);
     this.stateDir = stateDir;
@@ -85,12 +81,7 @@ export class ContainerRunner implements RuntimeInterface {
     const env = await buildContainerEnv(agent, this.config);
 
     // Get or create container
-    const container = await this.manager.getOrCreateContainer(
-      agent.name,
-      this.config,
-      mounts,
-      env
-    );
+    const container = await this.manager.getOrCreateContainer(agent.name, this.config, mounts, env);
 
     try {
       // Get container ID for docker exec
@@ -107,11 +98,12 @@ export class ContainerRunner implements RuntimeInterface {
       }
       // Unknown runtime type
       else {
-        throw new Error(`Unsupported runtime type for Docker execution: ${this.wrapped.constructor.name}`);
+        throw new Error(
+          `Unsupported runtime type for Docker execution: ${this.wrapped.constructor.name}`,
+        );
       }
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
 
       yield {
         type: "error",
@@ -150,7 +142,7 @@ export class ContainerRunner implements RuntimeInterface {
   private async *executeCLIRuntime(
     containerId: string,
     dockerSessionsDir: string,
-    options: RuntimeExecuteOptions
+    options: RuntimeExecuteOptions,
   ): AsyncIterable<SDKMessage> {
     // Create CLI runtime with Docker-specific spawner
     const cliRuntime = new CLIRuntime({
@@ -158,11 +150,13 @@ export class ContainerRunner implements RuntimeInterface {
         // Build docker exec command with prompt piped to stdin
         // Uses printf to avoid issues with newlines and special chars in prompt
         // Command: docker exec <container> sh -c 'cd /workspace && printf %s "prompt" | claude <args>'
-        const escapedPrompt = prompt.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-        const claudeArgs = args.map(arg => {
-          // Escape single quotes in arguments
-          return `'${arg.replace(/'/g, "'\\''")}'`;
-        }).join(" ");
+        const escapedPrompt = prompt.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+        const claudeArgs = args
+          .map((arg) => {
+            // Escape single quotes in arguments
+            return `'${arg.replace(/'/g, "'\\''")}'`;
+          })
+          .join(" ");
         const claudeCommand = `cd /workspace && printf %s "${escapedPrompt}" | claude ${claudeArgs}`;
 
         logger.debug(`Executing docker exec in container ${containerId}`);
@@ -190,7 +184,7 @@ export class ContainerRunner implements RuntimeInterface {
    */
   private async *executeSDKRuntime(
     container: import("dockerode").Container,
-    options: RuntimeExecuteOptions
+    options: RuntimeExecuteOptions,
   ): AsyncIterable<SDKMessage> {
     // Start HTTP bridges for injected MCP servers
     const bridges: McpHttpBridge[] = [];
@@ -256,12 +250,7 @@ export class ContainerRunner implements RuntimeInterface {
       logger.debug(`Options JSON length: ${optionsJson.length}`);
 
       const exec = await container.exec({
-        Cmd: [
-          "bash",
-          "-l",
-          "-c",
-          command,
-        ],
+        Cmd: ["bash", "-l", "-c", command],
         AttachStdout: true,
         AttachStderr: true,
         AttachStdin: false,
@@ -308,7 +297,7 @@ export class ContainerRunner implements RuntimeInterface {
           yield message;
         } catch (error) {
           logger.warn(
-            `Failed to parse SDK output: ${error instanceof Error ? error.message : String(error)}`
+            `Failed to parse SDK output: ${error instanceof Error ? error.message : String(error)}`,
           );
         }
       }

@@ -159,7 +159,7 @@ describe("message-splitting", () => {
 
     it("formats code with language", () => {
       expect(formatCodeBlock("const x = 1;", "typescript")).toBe(
-        "```typescript\nconst x = 1;\n```"
+        "```typescript\nconst x = 1;\n```",
       );
     });
 

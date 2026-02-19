@@ -62,9 +62,7 @@ function StatChip({ label, value, variant = "default" }: StatChipProps) {
 
   return (
     <div className="bg-herd-hover rounded-lg px-3 py-1.5 flex items-center gap-1.5">
-      <span className={`text-sm font-medium ${colorClasses[variant]}`}>
-        {value}
-      </span>
+      <span className={`text-sm font-medium ${colorClasses[variant]}`}>{value}</span>
       <span className="text-xs text-herd-muted">{label}</span>
     </div>
   );
@@ -153,9 +151,7 @@ function RecentJobsEmptyState() {
       <History className="w-12 h-12 text-herd-muted" />
       <div>
         <p className="text-sm text-herd-fg font-medium">No jobs yet</p>
-        <p className="text-xs text-herd-muted mt-1">
-          Jobs will appear here when agents run
-        </p>
+        <p className="text-xs text-herd-muted mt-1">Jobs will appear here when agents run</p>
       </div>
     </div>
   );
@@ -187,7 +183,7 @@ export function FleetDashboard() {
   // Filter to last 24 hours
   const cutoff = Date.now() - RECENT_HOURS * 60 * 60 * 1000;
   const recentJobsFiltered = recentJobs.filter(
-    (job) => new Date(job.createdAt).getTime() >= cutoff
+    (job) => new Date(job.createdAt).getTime() >= cutoff,
   );
 
   const counts = fleetStatus?.counts ?? {
@@ -201,9 +197,7 @@ export function FleetDashboard() {
   };
 
   // Derive completed job count from the fetched recent jobs
-  const completedJobCount = recentJobs.filter(
-    (j) => j.status === "completed"
-  ).length;
+  const completedJobCount = recentJobs.filter((j) => j.status === "completed").length;
 
   // Show loading placeholders when initial data is loading
   if (loading && !fleetStatus) {
@@ -230,9 +224,7 @@ export function FleetDashboard() {
           <div className="flex items-center gap-4">
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-lg font-semibold text-herd-fg">
-                  Fleet Overview
-                </h1>
+                <h1 className="text-lg font-semibold text-herd-fg">Fleet Overview</h1>
                 <TimeAgo timestamp={lastUpdated} prefix="Updated" />
               </div>
               {fleetStatus && (
@@ -257,21 +249,13 @@ export function FleetDashboard() {
 
           {/* Quick stat chips */}
           <div className="flex flex-wrap gap-2">
-            <StatChip
-              label="agents"
-              value={counts.totalAgents}
-              variant="default"
-            />
+            <StatChip label="agents" value={counts.totalAgents} variant="default" />
             <StatChip
               label="running"
               value={counts.runningJobs}
               variant={counts.runningJobs > 0 ? "success" : "muted"}
             />
-            <StatChip
-              label="completed"
-              value={completedJobCount}
-              variant="muted"
-            />
+            <StatChip label="completed" value={completedJobCount} variant="muted" />
           </div>
         </div>
       </Card>

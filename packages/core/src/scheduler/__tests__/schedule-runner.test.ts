@@ -1,11 +1,4 @@
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi,
-} from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdir, rm, realpath, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -32,7 +25,7 @@ import { getSessionInfo } from "../../state/index.js";
 async function createTempDir(): Promise<string> {
   const baseDir = join(
     tmpdir(),
-    `herdctl-schedule-runner-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-schedule-runner-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   await mkdir(baseDir, { recursive: true });
   return await realpath(baseDir);
@@ -62,10 +55,7 @@ function createMockLogger(): ScheduleRunnerLogger & {
 }
 
 // Helper to create a test agent
-function createTestAgent(
-  name: string,
-  overrides?: Partial<ResolvedAgent>
-): ResolvedAgent {
+function createTestAgent(name: string, overrides?: Partial<ResolvedAgent>): ResolvedAgent {
   return {
     name,
     qualifiedName: name,
@@ -115,18 +105,14 @@ function createTestWorkItem(overrides?: Partial<WorkItem>): WorkItem {
 }
 
 // Helper to create a mock runtime
-function createMockRuntime(
-  handler: (options: any) => AsyncIterableIterator<SDKMessage>
-): any {
+function createMockRuntime(handler: (options: any) => AsyncIterableIterator<SDKMessage>): any {
   return {
     execute: handler,
   };
 }
 
 // Helper to setup RuntimeFactory mock with messages
-function setupRuntimeFactoryMock(
-  messages: SDKMessage[] = []
-): void {
+function setupRuntimeFactoryMock(messages: SDKMessage[] = []): void {
   const mockRuntime = createMockRuntime(async function* (options) {
     // Emit init message with session_id
     yield {
@@ -147,21 +133,19 @@ function setupRuntimeFactoryMock(
     };
   });
 
-  vi.spyOn(RuntimeFactory, 'create').mockReturnValue(mockRuntime);
+  vi.spyOn(RuntimeFactory, "create").mockReturnValue(mockRuntime);
 }
 
 // Helper to setup RuntimeFactory mock with custom handler
 function setupRuntimeFactoryMockWithHandler(
-  handler: (options: any) => AsyncIterableIterator<SDKMessage>
+  handler: (options: any) => AsyncIterableIterator<SDKMessage>,
 ): void {
   const mockRuntime = createMockRuntime(handler);
-  vi.spyOn(RuntimeFactory, 'create').mockReturnValue(mockRuntime);
+  vi.spyOn(RuntimeFactory, "create").mockReturnValue(mockRuntime);
 }
 
 // Helper to create a mock work source manager
-function createMockWorkSourceManager(
-  nextWorkResult?: GetNextWorkItemResult
-): WorkSourceManager & {
+function createMockWorkSourceManager(nextWorkResult?: GetNextWorkItemResult): WorkSourceManager & {
   getNextWorkItemCalls: Array<{ agent: ResolvedAgent }>;
   reportOutcomeCalls: Array<{ taskId: string; result: WorkResult }>;
   releaseWorkItemCalls: Array<{ taskId: string; reason?: string }>;
@@ -349,7 +333,7 @@ describe("runSchedule", () => {
       expect(scheduleState?.status).toBe("idle");
       expect(scheduleState?.last_run_at).toBeDefined();
       expect(new Date(scheduleState!.last_run_at!).getTime()).toBeGreaterThanOrEqual(
-        beforeRun.getTime()
+        beforeRun.getTime(),
       );
     });
 
@@ -688,7 +672,7 @@ describe("runSchedule", () => {
 
       // Make reportOutcome throw
       (workSourceManager.reportOutcome as ReturnType<typeof vi.fn>).mockRejectedValue(
-        new Error("Report failed")
+        new Error("Report failed"),
       );
 
       // Setup RuntimeFactory mock
@@ -727,9 +711,7 @@ describe("runSchedule", () => {
       });
 
       expect(
-        mockLogger.infos.some(
-          (m) => m.includes("Running") && m.includes("my-agent/my-schedule")
-        )
+        mockLogger.infos.some((m) => m.includes("Running") && m.includes("my-agent/my-schedule")),
       ).toBe(true);
     });
 
@@ -749,9 +731,7 @@ describe("runSchedule", () => {
       });
 
       expect(
-        mockLogger.infos.some(
-          (m) => m.includes("Completed") && m.includes("my-agent/my-schedule")
-        )
+        mockLogger.infos.some((m) => m.includes("Completed") && m.includes("my-agent/my-schedule")),
       ).toBe(true);
     });
 
@@ -780,9 +760,7 @@ describe("runSchedule", () => {
       });
 
       expect(
-        mockLogger.infos.some(
-          (m) => m.includes("Claimed") && m.includes("Important task")
-        )
+        mockLogger.infos.some((m) => m.includes("Claimed") && m.includes("Important task")),
       ).toBe(true);
     });
 
@@ -811,9 +789,7 @@ describe("runSchedule", () => {
       });
 
       expect(
-        mockLogger.infos.some(
-          (m) => m.includes("Reported outcome") && m.includes(workItem.id)
-        )
+        mockLogger.infos.some((m) => m.includes("Reported outcome") && m.includes(workItem.id)),
       ).toBe(true);
     });
   });

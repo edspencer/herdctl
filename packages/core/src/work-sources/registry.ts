@@ -70,10 +70,7 @@ const registry = new Map<string, WorkSourceFactory>();
  * registerWorkSource('linear', (config) => new LinearAdapter(config));
  * ```
  */
-export function registerWorkSource(
-  type: string,
-  factory: WorkSourceFactory
-): void {
+export function registerWorkSource(type: string, factory: WorkSourceFactory): void {
   if (registry.has(type)) {
     throw new DuplicateWorkSourceError(type);
   }

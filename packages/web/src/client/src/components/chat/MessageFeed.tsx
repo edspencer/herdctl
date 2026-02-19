@@ -39,8 +39,7 @@ export function MessageFeed({ agentName }: MessageFeedProps) {
     // 1. New messages were added
     // 2. Streaming content updated
     // 3. User is already near the bottom
-    const isNearBottom =
-      feed.scrollHeight - feed.scrollTop - feed.clientHeight < 100;
+    const isNearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 100;
     const newMessagesAdded = chatMessages.length > prevMessagesLengthRef.current;
 
     if (newMessagesAdded || chatStreaming || isNearBottom) {
@@ -84,19 +83,14 @@ export function MessageFeed({ agentName }: MessageFeedProps) {
     : null;
 
   return (
-    <div
-      ref={feedRef}
-      className="flex-1 overflow-y-auto px-4 py-4"
-    >
+    <div ref={feedRef} className="flex-1 overflow-y-auto px-4 py-4">
       <div className="max-w-2xl mx-auto space-y-4">
         {chatMessages.map((message, index) => (
           <MessageBubble key={`${message.timestamp}-${index}`} message={message} />
         ))}
 
         {/* Streaming message */}
-        {streamingMessage && (
-          <MessageBubble message={streamingMessage} isStreaming />
-        )}
+        {streamingMessage && <MessageBubble message={streamingMessage} isStreaming />}
       </div>
     </div>
   );

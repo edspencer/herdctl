@@ -25,17 +25,8 @@ import type {
   SlackConnectorEventMap,
   SlackConnectorEventName,
 } from "./types.js";
-import {
-  shouldProcessMessage,
-  processMessage,
-  isBotMentioned,
-} from "./message-handler.js";
-import {
-  CommandHandler,
-  helpCommand,
-  resetCommand,
-  statusCommand,
-} from "./commands/index.js";
+import { shouldProcessMessage, processMessage, isBotMentioned } from "./message-handler.js";
+import { CommandHandler, helpCommand, resetCommand, statusCommand } from "./commands/index.js";
 import { markdownToMrkdwn } from "./formatting.js";
 import { AlreadyConnectedError, SlackConnectionError } from "./errors.js";
 import { createDefaultSlackLogger } from "./logger.js";
@@ -171,25 +162,20 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
       }
     } catch (error) {
       this.status = "error";
-      this.lastError =
-        error instanceof Error ? error.message : String(error);
+      this.lastError = error instanceof Error ? error.message : String(error);
 
       this.logger.error("Failed to connect to Slack", {
         error: this.lastError,
       });
 
-      throw new SlackConnectionError(
-        `Failed to connect to Slack: ${this.lastError}`,
-        { cause: error instanceof Error ? error : undefined }
-      );
+      throw new SlackConnectionError(`Failed to connect to Slack: ${this.lastError}`, {
+        cause: error instanceof Error ? error : undefined,
+      });
     }
   }
 
   async disconnect(): Promise<void> {
-    if (
-      this.status === "disconnected" ||
-      this.status === "disconnecting"
-    ) {
+    if (this.status === "disconnected" || this.status === "disconnecting") {
       return;
     }
 
@@ -214,8 +200,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
       this.emit("disconnect", { agentName: this.agentName, reason: "Intentional disconnect" });
     } catch (error) {
       this.status = "error";
-      this.lastError =
-        error instanceof Error ? error.message : String(error);
+      this.lastError = error instanceof Error ? error.message : String(error);
 
       this.logger.error("Error disconnecting from Slack", {
         error: this.lastError,
@@ -284,61 +269,62 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
     if (!this.app) return;
 
     // Handle @mentions
-    this.app.event("app_mention", async ({ event, say }: { event: AppMentionEvent; say: SayFn }) => {
-      this.messagesReceived++;
+    this.app.event(
+      "app_mention",
+      async ({ event, say }: { event: AppMentionEvent; say: SayFn }) => {
+        this.messagesReceived++;
 
-      if (!this.botUserId) return;
+        if (!this.botUserId) return;
 
-      const isDM = isSlackDM(event.channel);
+        const isDM = isSlackDM(event.channel);
 
-      // For DMs, check DM filtering; for channels, check channel config
-      if (isDM) {
-        const filterResult = this.checkDMAccess(event.channel, event.ts, event.user);
-        if (!filterResult) return;
-      } else if (!this.channels.has(event.channel)) {
-        this.messagesIgnored++;
-        this.emit("messageIgnored", {
-          agentName: this.agentName,
-          reason: "not_configured",
-          channelId: event.channel,
-          messageTs: event.ts,
-        });
-        this.logger.debug("Ignoring mention in unconfigured channel", {
-          channel: event.channel,
-        });
-        return;
-      }
+        // For DMs, check DM filtering; for channels, check channel config
+        if (isDM) {
+          const filterResult = this.checkDMAccess(event.channel, event.ts, event.user);
+          if (!filterResult) return;
+        } else if (!this.channels.has(event.channel)) {
+          this.messagesIgnored++;
+          this.emit("messageIgnored", {
+            agentName: this.agentName,
+            reason: "not_configured",
+            channelId: event.channel,
+            messageTs: event.ts,
+          });
+          this.logger.debug("Ignoring mention in unconfigured channel", {
+            channel: event.channel,
+          });
+          return;
+        }
 
-      const prompt = processMessage(event.text, this.botUserId);
-      if (!prompt) {
-        this.messagesIgnored++;
-        this.emit("messageIgnored", {
-          agentName: this.agentName,
-          reason: "empty_prompt",
-          channelId: event.channel,
-          messageTs: event.ts,
-        });
-        return;
-      }
+        const prompt = processMessage(event.text, this.botUserId);
+        if (!prompt) {
+          this.messagesIgnored++;
+          this.emit("messageIgnored", {
+            agentName: this.agentName,
+            reason: "empty_prompt",
+            channelId: event.channel,
+            messageTs: event.ts,
+          });
+          return;
+        }
 
-      // Check for prefix commands before processing as a message
-      const wasCommand = await this.tryExecuteCommand(
-        prompt, event.channel, event.user, say
-      );
-      if (wasCommand) return;
+        // Check for prefix commands before processing as a message
+        const wasCommand = await this.tryExecuteCommand(prompt, event.channel, event.user, say);
+        if (wasCommand) return;
 
-      const messageEvent = this.buildMessageEvent(
-        prompt,
-        event.channel,
-        event.ts,
-        event.user,
-        true,
-        isDM,
-        say
-      );
+        const messageEvent = this.buildMessageEvent(
+          prompt,
+          event.channel,
+          event.ts,
+          event.user,
+          true,
+          isDM,
+          say,
+        );
 
-      this.emit("message", messageEvent);
-    });
+        this.emit("message", messageEvent);
+      },
+    );
 
     // Handle all messages — thread replies AND top-level channel messages AND DMs
     this.app.event("message", async ({ event, say }: { event: MessageEvent; say: SayFn }) => {
@@ -364,10 +350,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
       }
 
       // Skip @mentions — handled by the app_mention handler above
-      if (
-        typeof event.text === "string" &&
-        isBotMentioned(event.text, this.botUserId)
-      ) {
+      if (typeof event.text === "string" && isBotMentioned(event.text, this.botUserId)) {
         this.logger.debug("Skipping @mention message (handled by app_mention)", {
           channel: event.channel,
           ts: event.ts,
@@ -457,9 +440,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
       }
 
       // Check for prefix commands before processing as a message
-      const wasCommand = await this.tryExecuteCommand(
-        prompt, event.channel, event.user ?? "", say
-      );
+      const wasCommand = await this.tryExecuteCommand(prompt, event.channel, event.user ?? "", say);
       if (wasCommand) return;
 
       const messageEvent = this.buildMessageEvent(
@@ -469,7 +450,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
         event.user ?? "",
         false,
         isDM,
-        say
+        say,
       );
 
       this.emit("message", messageEvent);
@@ -525,7 +506,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
     channelId: string,
     userId: string,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    say: any
+    say: any,
   ): Promise<boolean> {
     if (!this.commandHandler || !this.commandHandler.isCommand(prompt)) {
       return false;
@@ -572,7 +553,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
     wasMentioned: boolean,
     isDM: boolean,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    say: any
+    say: any,
   ): SlackMessageEvent {
     const reply = async (content: string): Promise<void> => {
       await say({
@@ -632,28 +613,28 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
 
   override emit<K extends SlackConnectorEventName>(
     event: K,
-    payload: SlackConnectorEventMap[K]
+    payload: SlackConnectorEventMap[K],
   ): boolean {
     return super.emit(event, payload);
   }
 
   override on<K extends SlackConnectorEventName>(
     event: K,
-    listener: (payload: SlackConnectorEventMap[K]) => void
+    listener: (payload: SlackConnectorEventMap[K]) => void,
   ): this {
     return super.on(event, listener);
   }
 
   override once<K extends SlackConnectorEventName>(
     event: K,
-    listener: (payload: SlackConnectorEventMap[K]) => void
+    listener: (payload: SlackConnectorEventMap[K]) => void,
   ): this {
     return super.once(event, listener);
   }
 
   override off<K extends SlackConnectorEventName>(
     event: K,
-    listener: (payload: SlackConnectorEventMap[K]) => void
+    listener: (payload: SlackConnectorEventMap[K]) => void,
   ): this {
     return super.off(event, listener);
   }

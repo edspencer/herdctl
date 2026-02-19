@@ -19,7 +19,7 @@ import { writeFleetState, readFleetState } from "../../state/fleet-state.js";
 async function createTempDir(): Promise<string> {
   const baseDir = join(
     tmpdir(),
-    `herdctl-schedule-state-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-schedule-state-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   await mkdir(baseDir, { recursive: true });
   // Resolve to real path to handle macOS /var -> /private/var symlink

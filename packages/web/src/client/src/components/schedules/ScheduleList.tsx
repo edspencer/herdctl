@@ -96,18 +96,12 @@ function ScheduleRow({ schedule, onTrigger, onEnable, onDisable }: ScheduleRowPr
           {getTypeLabel(schedule.type)}
         </span>
       </td>
-      <td className="py-2 px-3 text-herd-muted text-xs font-mono">
-        {getExpression(schedule)}
-      </td>
+      <td className="py-2 px-3 text-herd-muted text-xs font-mono">{getExpression(schedule)}</td>
       <td className="py-2 px-3">
         <StatusBadge status={schedule.status} />
       </td>
-      <td className="py-2 px-3 text-herd-muted text-xs">
-        {formatTimestamp(schedule.lastRunAt)}
-      </td>
-      <td className="py-2 px-3 text-herd-muted text-xs">
-        {formatTimestamp(schedule.nextRunAt)}
-      </td>
+      <td className="py-2 px-3 text-herd-muted text-xs">{formatTimestamp(schedule.lastRunAt)}</td>
+      <td className="py-2 px-3 text-herd-muted text-xs">{formatTimestamp(schedule.nextRunAt)}</td>
       <td className="py-2 px-3">
         <div className="flex items-center gap-1.5">
           <button
@@ -155,20 +149,11 @@ function EmptyState() {
   );
 }
 
-function ErrorBanner({
-  message,
-  onRetry,
-}: {
-  message: string;
-  onRetry: () => void;
-}) {
+function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <div className="bg-herd-status-error/10 border border-herd-status-error/20 text-herd-status-error rounded-lg px-3 py-2 text-xs mb-4 flex items-center justify-between">
       <span>{message}</span>
-      <button
-        onClick={onRetry}
-        className="hover:underline font-medium ml-4"
-      >
+      <button onClick={onRetry} className="hover:underline font-medium ml-4">
         Retry
       </button>
     </div>
@@ -181,8 +166,7 @@ function ErrorBanner({
 
 export function ScheduleList() {
   const { schedules, schedulesLoading, schedulesError } = useSchedules();
-  const { fetchSchedules, triggerSchedule, enableSchedule, disableSchedule } =
-    useScheduleActions();
+  const { fetchSchedules, triggerSchedule, enableSchedule, disableSchedule } = useScheduleActions();
 
   // Fetch schedules on mount
   useEffect(() => {
@@ -227,15 +211,11 @@ export function ScheduleList() {
       {/* Header with title and loading indicator */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold text-herd-fg">All Schedules</h2>
-        {schedulesLoading && schedules.length > 0 && (
-          <Spinner size="sm" />
-        )}
+        {schedulesLoading && schedules.length > 0 && <Spinner size="sm" />}
       </div>
 
       {/* Error banner */}
-      {schedulesError && (
-        <ErrorBanner message={schedulesError} onRetry={fetchSchedules} />
-      )}
+      {schedulesError && <ErrorBanner message={schedulesError} onRetry={fetchSchedules} />}
 
       {/* Table or empty state */}
       {schedules.length === 0 && !schedulesLoading ? (

@@ -77,7 +77,9 @@ export class WebSocketHandler {
       const status = await this.fleetManager.getFleetStatus();
       this.sendToClient(client, { type: "fleet:status", payload: status });
     } catch (error) {
-      logger.warn(`Failed to send initial fleet status to ${clientId}: ${(error as Error).message}`);
+      logger.warn(
+        `Failed to send initial fleet status to ${clientId}: ${(error as Error).message}`,
+      );
     }
 
     // Handle incoming messages
@@ -258,7 +260,9 @@ export class WebSocketHandler {
    */
   private handleDisconnect(client: WebSocketClient): void {
     this.clients.delete(client);
-    logger.info(`WebSocket client disconnected: ${client.clientId} (remaining: ${this.clients.size})`);
+    logger.info(
+      `WebSocket client disconnected: ${client.clientId} (remaining: ${this.clients.size})`,
+    );
   }
 
   /**

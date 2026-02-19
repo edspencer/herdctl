@@ -28,19 +28,11 @@ export default defineConfig({
     include: ["src/**/*.test.{ts,tsx}"],
     // Server tests are pure Node.js (Fastify, WebSocket handler) — use node
     // environment instead of jsdom.
-    environmentMatchGlobs: [
-      ["src/server/**/*.test.ts", "node"],
-    ],
+    environmentMatchGlobs: [["src/server/**/*.test.ts", "node"]],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
-      exclude: [
-        "node_modules/",
-        "dist/",
-        "**/*.d.ts",
-        "**/*.config.*",
-        "**/test-setup.ts",
-      ],
+      exclude: ["node_modules/", "dist/", "**/*.d.ts", "**/*.config.*", "**/test-setup.ts"],
     },
   },
   resolve: {

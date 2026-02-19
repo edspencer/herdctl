@@ -87,10 +87,7 @@ describe("createSlackLogger", () => {
 
       logger.debug("msg", data);
 
-      expect(console.debug).toHaveBeenCalledWith(
-        "[test] msg",
-        JSON.stringify(data)
-      );
+      expect(console.debug).toHaveBeenCalledWith("[test] msg", JSON.stringify(data));
     });
   });
 });

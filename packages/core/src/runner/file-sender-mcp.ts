@@ -75,7 +75,7 @@ export interface FileSenderContext {
  * Shared by both in-process and HTTP bridge transports.
  */
 function createToolHandler(
-  context: FileSenderContext
+  context: FileSenderContext,
 ): (args: Record<string, unknown>) => Promise<McpToolCallResult> {
   return async (args) => {
     try {
@@ -136,12 +136,9 @@ function createToolHandler(
         ],
       };
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : String(error);
+      const message = error instanceof Error ? error.message : String(error);
       return {
-        content: [
-          { type: "text" as const, text: `Error uploading file: ${message}` },
-        ],
+        content: [{ type: "text" as const, text: `Error uploading file: ${message}` }],
         isError: true,
       };
     }
@@ -172,8 +169,7 @@ const TOOL_INPUT_SCHEMA = {
     },
     filename: {
       type: "string",
-      description:
-        "Override the filename for the upload. Defaults to the basename of file_path.",
+      description: "Override the filename for the upload. Defaults to the basename of file_path.",
     },
   },
   required: ["file_path"],
@@ -194,9 +190,7 @@ const TOOL_INPUT_SCHEMA = {
  * @param context - File sender context with upload function and working directory
  * @returns InjectedMcpServerDef ready for the runtime pipeline
  */
-export function createFileSenderDef(
-  context: FileSenderContext
-): InjectedMcpServerDef {
+export function createFileSenderDef(context: FileSenderContext): InjectedMcpServerDef {
   return {
     name: "herdctl-file-sender",
     version: "0.1.0",
@@ -210,4 +204,3 @@ export function createFileSenderDef(
     ],
   };
 }
-

@@ -21,10 +21,7 @@ import type {
 import { join } from "node:path";
 import { JobExecutor, RuntimeFactory, type JobExecutorOptions } from "../runner/index.js";
 import { getSessionInfo } from "../state/index.js";
-import {
-  updateScheduleState,
-  type ScheduleStateLogger,
-} from "./schedule-state.js";
+import { updateScheduleState, type ScheduleStateLogger } from "./schedule-state.js";
 import { calculateNextTrigger } from "./interval.js";
 import { calculateNextCronTrigger } from "./cron.js";
 
@@ -126,10 +123,7 @@ const defaultLogger: ScheduleRunnerLogger = createLogger("schedule-runner");
  * // => "Process this issue:\n\n## Work Item: Fix bug\n\nThere is a bug in auth.ts\n\n..."
  * ```
  */
-export function buildSchedulePrompt(
-  schedule: Schedule,
-  workItem?: WorkItem
-): string {
+export function buildSchedulePrompt(schedule: Schedule, workItem?: WorkItem): string {
   const parts: string[] = [];
 
   // Add schedule prompt if configured
@@ -237,9 +231,7 @@ function formatWorkItem(workItem: WorkItem): string {
  * }
  * ```
  */
-export async function runSchedule(
-  options: RunScheduleOptions
-): Promise<ScheduleRunResult> {
+export async function runSchedule(options: RunScheduleOptions): Promise<ScheduleRunResult> {
   const {
     agent,
     scheduleName,
@@ -263,7 +255,7 @@ export async function runSchedule(
       status: "running",
       last_run_at: new Date().toISOString(),
     },
-    { logger: stateLogger }
+    { logger: stateLogger },
   );
 
   let workItem: WorkItem | undefined;
@@ -273,7 +265,7 @@ export async function runSchedule(
     // Step 2: Fetch work item if schedule has work_source configured
     if (schedule.work_source && workSourceManager) {
       logger.debug(
-        `Fetching work item for ${agent.qualifiedName}/${scheduleName} from ${schedule.work_source.type}`
+        `Fetching work item for ${agent.qualifiedName}/${scheduleName} from ${schedule.work_source.type}`,
       );
 
       const workResult = await workSourceManager.getNextWorkItem(agent, {
@@ -283,19 +275,15 @@ export async function runSchedule(
       if (workResult.item && workResult.claimed) {
         workItem = workResult.item;
         processedWorkItem = true;
-        logger.info(
-          `Claimed work item ${workItem.id}: ${workItem.title}`
-        );
+        logger.info(`Claimed work item ${workItem.id}: ${workItem.title}`);
       } else if (workResult.item && !workResult.claimed) {
         // Work item found but claim failed (race condition)
         logger.warn(
-          `Work item ${workResult.item.id} found but claim failed: ${workResult.claimResult?.reason}`
+          `Work item ${workResult.item.id} found but claim failed: ${workResult.claimResult?.reason}`,
         );
       } else {
         // No work available
-        logger.debug(
-          `No work items available for ${agent.qualifiedName}/${scheduleName}`
-        );
+        logger.debug(`No work items available for ${agent.qualifiedName}/${scheduleName}`);
       }
     }
 
@@ -331,17 +319,15 @@ export async function runSchedule(
         });
         if (existingSession?.session_id) {
           sessionId = existingSession.session_id;
-          logger.debug(
-            `Found valid session for ${agent.qualifiedName}: ${sessionId}`
-          );
+          logger.debug(`Found valid session for ${agent.qualifiedName}: ${sessionId}`);
         } else {
           logger.debug(
-            `No valid session for ${agent.qualifiedName} (expired or not found), starting fresh`
+            `No valid session for ${agent.qualifiedName} (expired or not found), starting fresh`,
           );
         }
       } catch (error) {
         logger.warn(
-          `Failed to get session info for ${agent.qualifiedName}: ${(error as Error).message}`
+          `Failed to get session info for ${agent.qualifiedName}: ${(error as Error).message}`,
         );
         // Continue without resume - session failure shouldn't block execution
       }
@@ -368,12 +354,10 @@ export async function runSchedule(
         await workSourceManager.reportOutcome(workItem.id, workResult, {
           agent,
         });
-        logger.info(
-          `Reported outcome for work item ${workItem.id}: ${workResult.outcome}`
-        );
+        logger.info(`Reported outcome for work item ${workItem.id}: ${workResult.outcome}`);
       } catch (reportError) {
         logger.error(
-          `Failed to report outcome for work item ${workItem.id}: ${(reportError as Error).message}`
+          `Failed to report outcome for work item ${workItem.id}: ${(reportError as Error).message}`,
         );
         // Don't fail the overall run if reporting fails
       }
@@ -392,11 +376,11 @@ export async function runSchedule(
         next_run_at: nextTrigger?.toISOString() ?? null,
         last_error: runnerResult.success ? null : runnerResult.error?.message,
       },
-      { logger: stateLogger }
+      { logger: stateLogger },
     );
 
     logger.info(
-      `Completed schedule ${agent.qualifiedName}/${scheduleName}: ${runnerResult.success ? "success" : "failed"}`
+      `Completed schedule ${agent.qualifiedName}/${scheduleName}: ${runnerResult.success ? "success" : "failed"}`,
     );
 
     return {
@@ -405,12 +389,9 @@ export async function runSchedule(
       processedWorkItem,
     };
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : String(error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
 
-    logger.error(
-      `Error running schedule ${agent.qualifiedName}/${scheduleName}: ${errorMessage}`
-    );
+    logger.error(`Error running schedule ${agent.qualifiedName}/${scheduleName}: ${errorMessage}`);
 
     // Release work item if we claimed one and execution failed unexpectedly
     if (workItem && workSourceManager) {
@@ -423,7 +404,7 @@ export async function runSchedule(
         logger.info(`Released work item ${workItem.id} due to error`);
       } catch (releaseError) {
         logger.error(
-          `Failed to release work item ${workItem.id}: ${(releaseError as Error).message}`
+          `Failed to release work item ${workItem.id}: ${(releaseError as Error).message}`,
         );
       }
     }
@@ -441,7 +422,7 @@ export async function runSchedule(
         next_run_at: nextTrigger?.toISOString() ?? null,
         last_error: errorMessage,
       },
-      { logger: stateLogger }
+      { logger: stateLogger },
     );
 
     // Re-throw to let caller handle
@@ -477,7 +458,8 @@ function buildWorkResult(runnerResult: RunnerResult): WorkResult {
   return {
     outcome,
     summary:
-      runnerResult.summary ?? (runnerResult.success ? "Task completed successfully" : "Task failed"),
+      runnerResult.summary ??
+      (runnerResult.success ? "Task completed successfully" : "Task failed"),
     error: runnerResult.error?.message,
     artifacts: runnerResult.jobId ? [`job:${runnerResult.jobId}`] : undefined,
   };

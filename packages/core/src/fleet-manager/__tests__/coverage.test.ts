@@ -114,9 +114,7 @@ describe("FleetManager Coverage Tests", () => {
 
         // Default logger should have logged to console.info
         expect(infoSpy).toHaveBeenCalled();
-        expect(infoSpy.mock.calls.some((call) =>
-          call[0].includes("[fleet-manager]")
-        )).toBe(true);
+        expect(infoSpy.mock.calls.some((call) => call[0].includes("[fleet-manager]"))).toBe(true);
       } finally {
         // Restore console methods
         console.debug = originalDebug;
@@ -532,7 +530,7 @@ describe("FleetManager Coverage Tests", () => {
           type: "modified",
           category: "agent",
           name: "working-directory-agent",
-        })
+        }),
       );
     });
 
@@ -569,7 +567,7 @@ describe("FleetManager Coverage Tests", () => {
           category: "agent",
           name: "turns-agent",
           details: expect.stringContaining("max_turns"),
-        })
+        }),
       );
     });
 
@@ -606,7 +604,7 @@ describe("FleetManager Coverage Tests", () => {
           category: "agent",
           name: "prompt-agent",
           details: expect.stringContaining("system_prompt"),
-        })
+        }),
       );
     });
 
@@ -643,7 +641,7 @@ describe("FleetManager Coverage Tests", () => {
           category: "agent",
           name: "concurrent-agent",
           details: expect.stringContaining("max_concurrent"),
-        })
+        }),
       );
     });
 
@@ -689,7 +687,7 @@ describe("FleetManager Coverage Tests", () => {
           type: "modified",
           category: "schedule",
           name: "type-change-agent/check",
-        })
+        }),
       );
     });
 
@@ -736,7 +734,7 @@ describe("FleetManager Coverage Tests", () => {
           category: "schedule",
           name: "expr-agent/check",
           details: expect.stringContaining("expression"),
-        })
+        }),
       );
     });
 
@@ -789,7 +787,7 @@ describe("FleetManager Coverage Tests", () => {
           type: "added",
           category: "agent",
           name: "new-agent-with-schedules",
-        })
+        }),
       );
 
       // Should have both schedules added
@@ -798,7 +796,7 @@ describe("FleetManager Coverage Tests", () => {
           type: "added",
           category: "schedule",
           name: "new-agent-with-schedules/hourly",
-        })
+        }),
       );
 
       expect(result.changes).toContainEqual(
@@ -806,7 +804,7 @@ describe("FleetManager Coverage Tests", () => {
           type: "added",
           category: "schedule",
           name: "new-agent-with-schedules/daily",
-        })
+        }),
       );
     });
 
@@ -827,10 +825,7 @@ describe("FleetManager Coverage Tests", () => {
 
       const configPath = await createConfig({
         version: 1,
-        agents: [
-          { path: "./agents/keep-agent.yaml" },
-          { path: "./agents/remove-agent.yaml" },
-        ],
+        agents: [{ path: "./agents/keep-agent.yaml" }, { path: "./agents/remove-agent.yaml" }],
       });
 
       const manager = new FleetManager({
@@ -855,7 +850,7 @@ describe("FleetManager Coverage Tests", () => {
           type: "removed",
           category: "agent",
           name: "remove-agent",
-        })
+        }),
       );
 
       // Should have schedule removed
@@ -864,7 +859,7 @@ describe("FleetManager Coverage Tests", () => {
           type: "removed",
           category: "schedule",
           name: "remove-agent/hourly",
-        })
+        }),
       );
     });
   });
@@ -1190,9 +1185,9 @@ describe("FleetManager Coverage Tests", () => {
 
       await manager.initialize();
 
-      await expect(
-        manager.enableSchedule("unknown-agent", "test")
-      ).rejects.toThrow(AgentNotFoundError);
+      await expect(manager.enableSchedule("unknown-agent", "test")).rejects.toThrow(
+        AgentNotFoundError,
+      );
     });
 
     it("enableSchedule throws ScheduleNotFoundError for unknown schedule", async () => {
@@ -1216,9 +1211,9 @@ describe("FleetManager Coverage Tests", () => {
 
       await manager.initialize();
 
-      await expect(
-        manager.enableSchedule("enable-schedule-agent", "unknown")
-      ).rejects.toThrow(ScheduleNotFoundError);
+      await expect(manager.enableSchedule("enable-schedule-agent", "unknown")).rejects.toThrow(
+        ScheduleNotFoundError,
+      );
     });
 
     it("disableSchedule throws AgentNotFoundError for unknown agent", async () => {
@@ -1242,9 +1237,9 @@ describe("FleetManager Coverage Tests", () => {
 
       await manager.initialize();
 
-      await expect(
-        manager.disableSchedule("unknown-agent", "test")
-      ).rejects.toThrow(AgentNotFoundError);
+      await expect(manager.disableSchedule("unknown-agent", "test")).rejects.toThrow(
+        AgentNotFoundError,
+      );
     });
 
     it("disableSchedule throws ScheduleNotFoundError for unknown schedule", async () => {
@@ -1268,9 +1263,9 @@ describe("FleetManager Coverage Tests", () => {
 
       await manager.initialize();
 
-      await expect(
-        manager.disableSchedule("disable-schedule-agent", "unknown")
-      ).rejects.toThrow(ScheduleNotFoundError);
+      await expect(manager.disableSchedule("disable-schedule-agent", "unknown")).rejects.toThrow(
+        ScheduleNotFoundError,
+      );
     });
 
     it("enableSchedule for agent without schedules throws ScheduleNotFoundError", async () => {
@@ -1291,9 +1286,9 @@ describe("FleetManager Coverage Tests", () => {
 
       await manager.initialize();
 
-      await expect(
-        manager.enableSchedule("no-schedule-enable", "any")
-      ).rejects.toThrow(ScheduleNotFoundError);
+      await expect(manager.enableSchedule("no-schedule-enable", "any")).rejects.toThrow(
+        ScheduleNotFoundError,
+      );
     });
 
     it("disableSchedule for agent without schedules throws ScheduleNotFoundError", async () => {
@@ -1314,9 +1309,9 @@ describe("FleetManager Coverage Tests", () => {
 
       await manager.initialize();
 
-      await expect(
-        manager.disableSchedule("no-schedule-disable", "any")
-      ).rejects.toThrow(ScheduleNotFoundError);
+      await expect(manager.disableSchedule("no-schedule-disable", "any")).rejects.toThrow(
+        ScheduleNotFoundError,
+      );
     });
   });
 
@@ -1478,7 +1473,7 @@ describe("FleetManager Coverage Tests", () => {
           category: "agent",
           name: "model-agent",
           details: expect.stringContaining("model"),
-        })
+        }),
       );
     });
 
@@ -1515,7 +1510,7 @@ describe("FleetManager Coverage Tests", () => {
           category: "agent",
           name: "desc-agent",
           details: expect.stringContaining("description"),
-        })
+        }),
       );
     });
 
@@ -1564,7 +1559,7 @@ describe("FleetManager Coverage Tests", () => {
           category: "schedule",
           name: "prompt-schedule-agent/check",
           details: expect.stringContaining("prompt"),
-        })
+        }),
       );
     });
 
@@ -1611,7 +1606,7 @@ describe("FleetManager Coverage Tests", () => {
           category: "schedule",
           name: "interval-schedule-agent/check",
           details: expect.stringContaining("interval"),
-        })
+        }),
       );
     });
   });
@@ -1936,9 +1931,9 @@ describe("FleetManager Coverage Tests", () => {
 
       await manager.initialize();
 
-      await expect(
-        manager.getAgentInfoByName("nonexistent-agent")
-      ).rejects.toThrow(AgentNotFoundError);
+      await expect(manager.getAgentInfoByName("nonexistent-agent")).rejects.toThrow(
+        AgentNotFoundError,
+      );
     });
   });
 
@@ -1965,9 +1960,7 @@ describe("FleetManager Coverage Tests", () => {
       await manager.initialize();
 
       const { JobForkError } = await import("../errors.js");
-      await expect(
-        manager.forkJob("job-2099-01-01-nonexistent")
-      ).rejects.toThrow(JobForkError);
+      await expect(manager.forkJob("job-2099-01-01-nonexistent")).rejects.toThrow(JobForkError);
     });
 
     it("throws InvalidStateError when not initialized", async () => {
@@ -1983,9 +1976,7 @@ describe("FleetManager Coverage Tests", () => {
       });
 
       const { InvalidStateError } = await import("../errors.js");
-      await expect(
-        manager.forkJob("any-job-id")
-      ).rejects.toThrow(InvalidStateError);
+      await expect(manager.forkJob("any-job-id")).rejects.toThrow(InvalidStateError);
     });
   });
 
@@ -2012,9 +2003,9 @@ describe("FleetManager Coverage Tests", () => {
       await manager.initialize();
 
       const { JobNotFoundError } = await import("../errors.js");
-      await expect(
-        manager.cancelJob("job-2099-01-01-nonexistent")
-      ).rejects.toThrow(JobNotFoundError);
+      await expect(manager.cancelJob("job-2099-01-01-nonexistent")).rejects.toThrow(
+        JobNotFoundError,
+      );
     });
 
     it("throws InvalidStateError when not initialized", async () => {
@@ -2030,9 +2021,7 @@ describe("FleetManager Coverage Tests", () => {
       });
 
       const { InvalidStateError } = await import("../errors.js");
-      await expect(
-        manager.cancelJob("any-job-id")
-      ).rejects.toThrow(InvalidStateError);
+      await expect(manager.cancelJob("any-job-id")).rejects.toThrow(InvalidStateError);
     });
   });
 
@@ -2159,9 +2148,9 @@ describe("FleetManager Coverage Tests", () => {
 
       await manager.initialize();
 
-      await expect(
-        manager.trigger("known-schedule-trigger", "unknown-schedule")
-      ).rejects.toThrow(ScheduleNotFoundError);
+      await expect(manager.trigger("known-schedule-trigger", "unknown-schedule")).rejects.toThrow(
+        ScheduleNotFoundError,
+      );
     });
   });
 
@@ -2222,7 +2211,7 @@ describe("FleetManager Coverage Tests", () => {
           type: "removed",
           category: "schedule",
           name: "schedule-remove-agent/remove",
-        })
+        }),
       );
     });
 
@@ -2263,7 +2252,7 @@ describe("FleetManager Coverage Tests", () => {
           type: "added",
           category: "schedule",
           name: "schedule-add-agent/newschedule",
-        })
+        }),
       );
     });
   });
@@ -2340,9 +2329,9 @@ describe("FleetManager Coverage Tests", () => {
 
       await manager.initialize();
 
-      await expect(
-        manager.getSchedule("unknown-agent", "test")
-      ).rejects.toThrow(AgentNotFoundError);
+      await expect(manager.getSchedule("unknown-agent", "test")).rejects.toThrow(
+        AgentNotFoundError,
+      );
     });
 
     it("throws ScheduleNotFoundError for unknown schedule", async () => {
@@ -2366,9 +2355,9 @@ describe("FleetManager Coverage Tests", () => {
 
       await manager.initialize();
 
-      await expect(
-        manager.getSchedule("known-agent-get-schedule", "unknown")
-      ).rejects.toThrow(ScheduleNotFoundError);
+      await expect(manager.getSchedule("known-agent-get-schedule", "unknown")).rejects.toThrow(
+        ScheduleNotFoundError,
+      );
     });
 
     it("throws ScheduleNotFoundError when agent has no schedules", async () => {
@@ -2389,9 +2378,9 @@ describe("FleetManager Coverage Tests", () => {
 
       await manager.initialize();
 
-      await expect(
-        manager.getSchedule("no-schedules-agent", "any")
-      ).rejects.toThrow(ScheduleNotFoundError);
+      await expect(manager.getSchedule("no-schedules-agent", "any")).rejects.toThrow(
+        ScheduleNotFoundError,
+      );
     });
   });
 
@@ -2483,9 +2472,3 @@ describe("FleetManager Coverage Tests", () => {
     });
   });
 });
-
-
-
-
-
-

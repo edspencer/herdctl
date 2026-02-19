@@ -127,9 +127,9 @@ vi.mock("@herdctl/core", async () => {
       this.getAgentInfoByName = vi.fn().mockImplementation((name: string) => {
         const agent = currentAgentInfo.find((a) => a.name === name || a.qualifiedName === name);
         if (!agent) {
-          const error = new (actual as { AgentNotFoundError: new (message: string) => Error }).AgentNotFoundError(
-            `Agent '${name}' not found`
-          );
+          const error = new (
+            actual as { AgentNotFoundError: new (message: string) => Error }
+          ).AgentNotFoundError(`Agent '${name}' not found`);
           return Promise.reject(error);
         }
         return Promise.resolve(agent);
@@ -152,7 +152,7 @@ import { AgentNotFoundError, ConfigNotFoundError } from "@herdctl/core";
 function createTempDir(): string {
   const baseDir = path.join(
     tmpdir(),
-    `herdctl-cli-status-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-cli-status-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   fs.mkdirSync(baseDir, { recursive: true });
   return fs.realpathSync(baseDir);
@@ -414,7 +414,9 @@ describe("statusCommand", () => {
       }
 
       expect(exitCode).toBe(1);
-      expect(consoleErrors.some((err) => err.includes("Agent 'nonexistent-agent' not found"))).toBe(true);
+      expect(consoleErrors.some((err) => err.includes("Agent 'nonexistent-agent' not found"))).toBe(
+        true,
+      );
     });
   });
 

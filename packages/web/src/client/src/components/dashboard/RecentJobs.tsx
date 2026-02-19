@@ -88,9 +88,7 @@ export function RecentJobs({ jobs, pageSize = 10 }: RecentJobsProps) {
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold text-herd-fg">
           Recent Jobs
-          <span className="text-herd-muted font-normal ml-1.5">
-            ({jobs.length})
-          </span>
+          <span className="text-herd-muted font-normal ml-1.5">({jobs.length})</span>
         </h2>
       </div>
 
@@ -110,10 +108,7 @@ export function RecentJobs({ jobs, pageSize = 10 }: RecentJobsProps) {
               </thead>
               <tbody className="divide-y divide-herd-border">
                 {displayedJobs.map((job) => (
-                  <tr
-                    key={job.jobId}
-                    className="hover:bg-herd-hover transition-colors"
-                  >
+                  <tr key={job.jobId} className="hover:bg-herd-hover transition-colors">
                     <td className="py-2 px-3 text-herd-fg">
                       <Link
                         to={`/agents/${encodeURIComponent(job.agentName)}`}
@@ -123,9 +118,7 @@ export function RecentJobs({ jobs, pageSize = 10 }: RecentJobsProps) {
                       </Link>
                     </td>
                     <td className="py-2 px-3 text-herd-muted font-mono text-xs max-w-[200px]">
-                      <span className="block truncate">
-                        {truncate(job.prompt, 50)}
-                      </span>
+                      <span className="block truncate">{truncate(job.prompt, 50)}</span>
                     </td>
                     <td className="py-2 px-3">
                       <StatusBadge status={job.status} size="sm" />

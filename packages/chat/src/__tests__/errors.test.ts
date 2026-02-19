@@ -32,7 +32,7 @@ describe("errors", () => {
       const error = new ChatConnectorError(
         "Test error",
         ChatErrorCode.CONNECTION_FAILED,
-        "test-agent"
+        "test-agent",
       );
 
       expect(error.message).toBe("Test error");
@@ -47,18 +47,14 @@ describe("errors", () => {
         "Wrapper error",
         ChatErrorCode.CONNECTION_FAILED,
         "test-agent",
-        { cause }
+        { cause },
       );
 
       expect(error.cause).toBe(cause);
     });
 
     it("is instance of Error", () => {
-      const error = new ChatConnectorError(
-        "Test",
-        ChatErrorCode.CONNECTION_FAILED,
-        "agent"
-      );
+      const error = new ChatConnectorError("Test", ChatErrorCode.CONNECTION_FAILED, "agent");
       expect(error).toBeInstanceOf(Error);
     });
   });
@@ -68,7 +64,7 @@ describe("errors", () => {
       const error = new ChatConnectionError("test-agent", "Connection refused");
 
       expect(error.message).toBe(
-        "Chat connection failed for agent 'test-agent': Connection refused"
+        "Chat connection failed for agent 'test-agent': Connection refused",
       );
       expect(error.code).toBe(ChatErrorCode.CONNECTION_FAILED);
       expect(error.agentName).toBe("test-agent");
@@ -87,9 +83,7 @@ describe("errors", () => {
     it("creates formatted already connected error message", () => {
       const error = new AlreadyConnectedError("test-agent");
 
-      expect(error.message).toBe(
-        "Chat connector for agent 'test-agent' is already connected"
-      );
+      expect(error.message).toBe("Chat connector for agent 'test-agent' is already connected");
       expect(error.code).toBe(ChatErrorCode.ALREADY_CONNECTED);
       expect(error.agentName).toBe("test-agent");
       expect(error.name).toBe("AlreadyConnectedError");
@@ -100,9 +94,7 @@ describe("errors", () => {
     it("creates formatted invalid token error message", () => {
       const error = new InvalidTokenError("test-agent", "Token expired");
 
-      expect(error.message).toBe(
-        "Invalid chat token for agent 'test-agent': Token expired"
-      );
+      expect(error.message).toBe("Invalid chat token for agent 'test-agent': Token expired");
       expect(error.code).toBe(ChatErrorCode.INVALID_TOKEN);
       expect(error.agentName).toBe("test-agent");
       expect(error.name).toBe("InvalidTokenError");
@@ -114,7 +106,7 @@ describe("errors", () => {
       const error = new MissingTokenError("test-agent", "BOT_TOKEN");
 
       expect(error.message).toBe(
-        "Missing chat token for agent 'test-agent': environment variable 'BOT_TOKEN' is not set"
+        "Missing chat token for agent 'test-agent': environment variable 'BOT_TOKEN' is not set",
       );
       expect(error.code).toBe(ChatErrorCode.MISSING_TOKEN);
       expect(error.agentName).toBe("test-agent");
@@ -126,7 +118,7 @@ describe("errors", () => {
       const error = new MissingTokenError("test-agent", "APP_TOKEN", "app");
 
       expect(error.message).toBe(
-        "Missing chat app token for agent 'test-agent': environment variable 'APP_TOKEN' is not set"
+        "Missing chat app token for agent 'test-agent': environment variable 'APP_TOKEN' is not set",
       );
       expect(error.tokenType).toBe("app");
     });

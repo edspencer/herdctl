@@ -12,7 +12,12 @@ import type { EventEmitter } from "node:events";
 import type { ResolvedConfig } from "../config/index.js";
 import type { StateDirectory } from "../state/index.js";
 import type { Scheduler } from "../scheduler/index.js";
-import type { FleetManagerLogger, FleetManagerStatus, TriggerOptions, TriggerResult } from "./types.js";
+import type {
+  FleetManagerLogger,
+  FleetManagerStatus,
+  TriggerOptions,
+  TriggerResult,
+} from "./types.js";
 import type { IChatManager } from "./chat-manager-interface.js";
 
 /**
@@ -115,5 +120,9 @@ export interface FleetManagerContext {
    * @param options - Optional trigger options
    * @returns Promise resolving to the trigger result
    */
-  trigger(agentName: string, scheduleName?: string, options?: TriggerOptions): Promise<TriggerResult>;
+  trigger(
+    agentName: string,
+    scheduleName?: string,
+    options?: TriggerOptions,
+  ): Promise<TriggerResult>;
 }

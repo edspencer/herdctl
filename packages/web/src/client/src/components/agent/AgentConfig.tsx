@@ -126,15 +126,9 @@ function ScheduleRow({ schedule }: ScheduleRowProps) {
           <span className="text-xs text-herd-fg">{schedule.name}</span>
         </div>
       </td>
-      <td className="py-2 px-3 text-xs text-herd-muted capitalize">
-        {schedule.type}
-      </td>
-      <td className="py-2 px-3 text-xs text-herd-fg font-mono">
-        {formatScheduleValue(schedule)}
-      </td>
-      <td className={`py-2 pl-3 text-xs capitalize ${statusColor}`}>
-        {schedule.status}
-      </td>
+      <td className="py-2 px-3 text-xs text-herd-muted capitalize">{schedule.type}</td>
+      <td className="py-2 px-3 text-xs text-herd-fg font-mono">{formatScheduleValue(schedule)}</td>
+      <td className={`py-2 pl-3 text-xs capitalize ${statusColor}`}>{schedule.status}</td>
     </tr>
   );
 }
@@ -149,9 +143,7 @@ function ConnectorRow({ name, connector }: ConnectorRowProps) {
   return (
     <div className="flex items-center justify-between py-1.5">
       <span className="text-xs text-herd-fg capitalize">{name}</span>
-      <span className={`text-xs ${getConnectorStatusColor(status)}`}>
-        {status}
-      </span>
+      <span className={`text-xs ${getConnectorStatusColor(status)}`}>{status}</span>
     </div>
   );
 }
@@ -214,11 +206,7 @@ export function AgentConfig({ agent }: AgentConfigProps) {
       {agent.working_directory && (
         <ConfigSection title="Environment">
           <dl>
-            <ConfigRow
-              label="Working Directory"
-              value={agent.working_directory}
-              mono
-            />
+            <ConfigRow label="Working Directory" value={agent.working_directory} mono />
           </dl>
         </ConfigSection>
       )}

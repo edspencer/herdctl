@@ -260,7 +260,13 @@ export interface AgentChatStatus {
   /**
    * Connection status (only present if configured)
    */
-  connectionStatus?: "disconnected" | "connecting" | "connected" | "reconnecting" | "disconnecting" | "error";
+  connectionStatus?:
+    | "disconnected"
+    | "connecting"
+    | "connected"
+    | "reconnecting"
+    | "disconnecting"
+    | "error";
 
   /**
    * Bot username (only present if connected)
@@ -912,7 +918,7 @@ export interface CancelJobResult {
    * - 'forced': Job was killed with SIGKILL after timeout
    * - 'already_stopped': Job was not running when cancel was called
    */
-  terminationType: 'graceful' | 'forced' | 'already_stopped';
+  terminationType: "graceful" | "forced" | "already_stopped";
 
   /**
    * ISO timestamp when the job was canceled

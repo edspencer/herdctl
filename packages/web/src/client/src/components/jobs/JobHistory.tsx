@@ -64,9 +64,7 @@ function formatDuration(startedAt?: string, completedAt?: string): string {
 
   if (minutes > 0) {
     const remainingSeconds = seconds % 60;
-    return remainingSeconds > 0
-      ? `${minutes}m ${remainingSeconds}s`
-      : `${minutes}m`;
+    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
   }
 
   return `${seconds}s`;
@@ -231,13 +229,7 @@ interface PaginationProps {
   onNext: () => void;
 }
 
-function Pagination({
-  offset,
-  limit,
-  total,
-  onPrevious,
-  onNext,
-}: PaginationProps) {
+function Pagination({ offset, limit, total, onPrevious, onNext }: PaginationProps) {
   const start = total === 0 ? 0 : offset + 1;
   const end = Math.min(offset + limit, total);
   const canPrevious = offset > 0;
@@ -309,15 +301,9 @@ function JobRow({ job, showAgent, isSelected, onSelect }: JobRowProps) {
       <td className="py-2 px-3">
         <StatusBadge status={job.status} />
       </td>
-      <td className="py-2 px-3 text-herd-muted text-xs">
-        {formatTimestamp(job.startedAt)}
-      </td>
+      <td className="py-2 px-3 text-herd-muted text-xs">{formatTimestamp(job.startedAt)}</td>
       <td className="py-2 px-3 text-herd-muted text-xs font-mono">
-        {isRunning ? (
-          <span className="text-herd-status-running">{duration}</span>
-        ) : (
-          duration
-        )}
+        {isRunning ? <span className="text-herd-status-running">{duration}</span> : duration}
       </td>
     </tr>
   );
@@ -339,20 +325,11 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
   );
 }
 
-function ErrorBanner({
-  message,
-  onRetry,
-}: {
-  message: string;
-  onRetry: () => void;
-}) {
+function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <div className="bg-herd-status-error/10 border border-herd-status-error/20 text-herd-status-error rounded-lg px-3 py-2 text-xs mb-4 flex items-center justify-between">
       <span>{message}</span>
-      <button
-        onClick={onRetry}
-        className="hover:underline font-medium ml-4"
-      >
+      <button onClick={onRetry} className="hover:underline font-medium ml-4">
         Retry
       </button>
     </div>
@@ -364,10 +341,8 @@ function ErrorBanner({
 // =============================================================================
 
 export function JobHistory({ agentName }: JobHistoryProps) {
-  const { jobs, totalJobs, jobsLoading, jobsError, jobsFilter, jobsOffset, jobsLimit } =
-    useJobs();
-  const { fetchJobs, setJobsFilter, setJobsOffset, selectJob, clearJobsState } =
-    useJobsActions();
+  const { jobs, totalJobs, jobsLoading, jobsError, jobsFilter, jobsOffset, jobsLimit } = useJobs();
+  const { fetchJobs, setJobsFilter, setJobsOffset, selectJob, clearJobsState } = useJobsActions();
   const { selectedJobId, selectedJob, selectedJobLoading } = useSelectedJob();
 
   const [triggerModalOpen, setTriggerModalOpen] = useState(false);
@@ -454,9 +429,7 @@ export function JobHistory({ agentName }: JobHistoryProps) {
             {isAgentView ? "Job History" : "All Jobs"}
           </h2>
           <div className="flex items-center gap-2">
-            {jobsLoading && jobs.length > 0 && (
-              <Spinner size="sm" />
-            )}
+            {jobsLoading && jobs.length > 0 && <Spinner size="sm" />}
             <button
               onClick={() => setTriggerModalOpen(true)}
               className="bg-herd-primary hover:bg-herd-primary-hover text-white rounded-lg px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5"
@@ -468,13 +441,11 @@ export function JobHistory({ agentName }: JobHistoryProps) {
         </div>
 
         {/* Error banner */}
-        {jobsError && (
-          <ErrorBanner message={jobsError} onRetry={fetchJobs} />
-        )}
+        {jobsError && <ErrorBanner message={jobsError} onRetry={fetchJobs} />}
 
         {/* Filters */}
         <Filters
-          agentFilter={isAgentView ? "" : jobsFilter.agentName ?? ""}
+          agentFilter={isAgentView ? "" : (jobsFilter.agentName ?? "")}
           statusFilter={jobsFilter.status}
           onAgentFilterChange={handleAgentFilterChange}
           onStatusFilterChange={handleStatusFilterChange}
@@ -490,9 +461,7 @@ export function JobHistory({ agentName }: JobHistoryProps) {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-herd-border text-xs text-herd-muted font-medium uppercase tracking-wide">
-                    {!isAgentView && (
-                      <th className="text-left py-2 px-3">Agent</th>
-                    )}
+                    {!isAgentView && <th className="text-left py-2 px-3">Agent</th>}
                     <th className="text-center py-2 px-1 w-8" title="Source" />
                     <th className="text-left py-2 px-3">Prompt</th>
                     <th className="text-left py-2 px-3">Status</th>

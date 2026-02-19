@@ -45,7 +45,7 @@ export class CLISessionWatcher {
         logger.debug(`File doesn't exist yet, starting from line 0`);
       } else {
         logger.warn(
-          `Failed to initialize: ${error instanceof Error ? error.message : String(error)}`
+          `Failed to initialize: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     }
@@ -74,7 +74,7 @@ export class CLISessionWatcher {
         } catch (error) {
           // Skip invalid JSON lines (CLI may output non-JSON)
           logger.debug(
-            `Failed to parse line: ${error instanceof Error ? error.message : String(error)}`
+            `Failed to parse line: ${error instanceof Error ? error.message : String(error)}`,
           );
         }
       }
@@ -121,9 +121,7 @@ export class CLISessionWatcher {
     });
 
     this.watcher.on("error", (error: unknown) => {
-      logger.error(
-        `Watcher error: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      logger.error(`Watcher error: ${error instanceof Error ? error.message : String(error)}`);
     });
 
     try {

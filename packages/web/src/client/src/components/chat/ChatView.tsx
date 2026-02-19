@@ -86,9 +86,7 @@ export function ChatView() {
               <MessageCircle className="w-8 h-8 text-herd-primary" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-herd-fg mb-1">
-                Chat with {qualifiedName}
-              </h2>
+              <h2 className="text-lg font-semibold text-herd-fg mb-1">Chat with {qualifiedName}</h2>
               <p className="text-sm text-herd-muted max-w-sm">
                 {chatSessions.length > 0
                   ? "Select a conversation from the sidebar or start a new one."

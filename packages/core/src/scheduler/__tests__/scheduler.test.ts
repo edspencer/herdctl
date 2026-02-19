@@ -1,23 +1,10 @@
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi,
-  type MockInstance,
-} from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from "vitest";
 import { mkdir, rm, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { Scheduler } from "../scheduler.js";
 import { SchedulerShutdownError } from "../errors.js";
-import type {
-  SchedulerOptions,
-  SchedulerLogger,
-  TriggerInfo,
-  StopOptions,
-} from "../types.js";
+import type { SchedulerOptions, SchedulerLogger, TriggerInfo, StopOptions } from "../types.js";
 import type { ResolvedAgent } from "../../config/index.js";
 import { writeFleetState, readFleetState } from "../../state/fleet-state.js";
 import type { FleetState } from "../../state/schemas/fleet-state.js";
@@ -26,7 +13,7 @@ import type { FleetState } from "../../state/schemas/fleet-state.js";
 async function createTempDir(): Promise<string> {
   const baseDir = join(
     tmpdir(),
-    `herdctl-scheduler-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-scheduler-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   await mkdir(baseDir, { recursive: true });
   // Resolve to real path to handle macOS /var -> /private/var symlink
@@ -59,7 +46,10 @@ function createMockLogger(): SchedulerLogger & {
 // Helper to create a test agent
 function createTestAgent(
   name: string,
-  schedules?: Record<string, { type: string; interval?: string; expression?: string; prompt?: string }>
+  schedules?: Record<
+    string,
+    { type: string; interval?: string; expression?: string; prompt?: string }
+  >,
 ): ResolvedAgent {
   return {
     name,
@@ -212,7 +202,7 @@ describe("Scheduler", () => {
       const state = scheduler.getState();
       expect(state.startedAt).not.toBeNull();
       expect(new Date(state.startedAt!).getTime()).toBeGreaterThanOrEqual(
-        new Date(beforeStart).getTime()
+        new Date(beforeStart).getTime(),
       );
 
       await scheduler.stop();
@@ -280,19 +270,14 @@ describe("Scheduler", () => {
         logger: mockLogger,
       });
 
-      const agents = [
-        createTestAgent("agent-1"),
-        createTestAgent("agent-2"),
-      ];
+      const agents = [createTestAgent("agent-1"), createTestAgent("agent-2")];
 
       const startPromise = scheduler.start(agents);
       await wait(10);
 
-      expect(
-        mockLogger.debugs.some(
-          (m) => m.includes("2 agents") && m.includes("500ms")
-        )
-      ).toBe(true);
+      expect(mockLogger.debugs.some((m) => m.includes("2 agents") && m.includes("500ms"))).toBe(
+        true,
+      );
 
       await scheduler.stop();
       await startPromise;
@@ -343,9 +328,7 @@ describe("Scheduler", () => {
       const newAgents = [createTestAgent("new-agent")];
       scheduler.setAgents(newAgents);
 
-      expect(
-        mockLogger.debugs.some((m) => m.includes("Updated agents list"))
-      ).toBe(true);
+      expect(mockLogger.debugs.some((m) => m.includes("Updated agents list"))).toBe(true);
 
       await scheduler.stop();
       await startPromise;
@@ -462,9 +445,7 @@ describe("Scheduler", () => {
       const startPromise = scheduler.start(agents);
       await wait(100);
 
-      expect(
-        mockLogger.warnings.some((m) => m.includes("missing expression value"))
-      ).toBe(true);
+      expect(mockLogger.warnings.some((m) => m.includes("missing expression value"))).toBe(true);
       expect(scheduler.getState().triggerCount).toBe(0);
 
       await scheduler.stop();
@@ -487,9 +468,7 @@ describe("Scheduler", () => {
       const startPromise = scheduler.start(agents);
       await wait(100);
 
-      expect(
-        mockLogger.warnings.some((m) => m.includes("invalid cron expression"))
-      ).toBe(true);
+      expect(mockLogger.warnings.some((m) => m.includes("invalid cron expression"))).toBe(true);
       expect(scheduler.getState().triggerCount).toBe(0);
 
       await scheduler.stop();
@@ -758,9 +737,7 @@ describe("Scheduler", () => {
       const startPromise = scheduler.start(agents);
       await wait(100);
 
-      expect(
-        mockLogger.debugs.some((m) => m.includes("disabled"))
-      ).toBe(true);
+      expect(mockLogger.debugs.some((m) => m.includes("disabled"))).toBe(true);
       expect(scheduler.getState().triggerCount).toBe(0);
 
       await scheduler.stop();
@@ -783,9 +760,7 @@ describe("Scheduler", () => {
       const startPromise = scheduler.start(agents);
       await wait(100);
 
-      expect(
-        mockLogger.warnings.some((m) => m.includes("missing interval value"))
-      ).toBe(true);
+      expect(mockLogger.warnings.some((m) => m.includes("missing interval value"))).toBe(true);
       expect(scheduler.getState().triggerCount).toBe(0);
 
       await scheduler.stop();
@@ -880,9 +855,7 @@ describe("Scheduler", () => {
       const scheduleState = fleetState.agents["test-agent"]?.schedules?.hourly;
 
       expect(scheduleState?.last_error).toBe("Trigger failed!");
-      expect(mockLogger.errors.some((m) => m.includes("Trigger failed!"))).toBe(
-        true
-      );
+      expect(mockLogger.errors.some((m) => m.includes("Trigger failed!"))).toBe(true);
 
       await scheduler.stop();
       await startPromise;
@@ -1027,10 +1000,7 @@ describe("Scheduler", () => {
 
           if (info.agent.name === "agent-2") {
             concurrentForAgent2++;
-            maxConcurrentForAgent2 = Math.max(
-              maxConcurrentForAgent2,
-              concurrentForAgent2
-            );
+            maxConcurrentForAgent2 = Math.max(maxConcurrentForAgent2, concurrentForAgent2);
           }
 
           // Simulate work
@@ -1074,10 +1044,7 @@ describe("Scheduler", () => {
         logger: mockLogger,
         onTrigger: async () => {
           concurrentForAgent++;
-          maxConcurrentForAgent = Math.max(
-            maxConcurrentForAgent,
-            concurrentForAgent
-          );
+          maxConcurrentForAgent = Math.max(maxConcurrentForAgent, concurrentForAgent);
 
           await wait(80);
 
@@ -1173,9 +1140,7 @@ describe("Scheduler", () => {
         logger: mockLogger,
         onTrigger: async (info) => {
           // Check count while job is running
-          runningCountDuringExecution = scheduler.getRunningJobCount(
-            info.agent.name
-          );
+          runningCountDuringExecution = scheduler.getRunningJobCount(info.agent.name);
           await wait(50);
         },
       });

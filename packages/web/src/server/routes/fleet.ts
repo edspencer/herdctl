@@ -13,10 +13,7 @@ import type { FleetManager } from "@herdctl/core";
  * @param server - Fastify instance
  * @param fleetManager - FleetManager instance
  */
-export function registerFleetRoutes(
-  server: FastifyInstance,
-  fleetManager: FleetManager
-): void {
+export function registerFleetRoutes(server: FastifyInstance, fleetManager: FleetManager): void {
   /**
    * GET /api/fleet/status
    *

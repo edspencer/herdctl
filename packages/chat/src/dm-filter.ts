@@ -117,10 +117,7 @@ export function getDMMode(dmConfig?: Partial<DMConfig>): "mention" | "auto" {
  * }
  * ```
  */
-export function checkDMUserFilter(
-  userId: string,
-  dmConfig?: Partial<DMConfig>
-): DMFilterResult {
+export function checkDMUserFilter(userId: string, dmConfig?: Partial<DMConfig>): DMFilterResult {
   // If DMs are disabled, no users are allowed
   if (!isDMEnabled(dmConfig)) {
     return {
@@ -194,7 +191,7 @@ export function checkDMUserFilter(
 export function shouldProcessInMode(
   isBot: boolean,
   mode: "mention" | "auto",
-  wasMentioned: boolean
+  wasMentioned: boolean,
 ): boolean {
   // Never process bot messages
   if (isBot) {

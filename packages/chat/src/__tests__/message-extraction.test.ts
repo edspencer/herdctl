@@ -86,9 +86,7 @@ describe("message-extraction", () => {
       const message: SDKMessage = {
         type: "assistant",
         message: {
-          content: [
-            { type: "tool_use", id: "123", name: "tool" },
-          ],
+          content: [{ type: "tool_use", id: "123", name: "tool" }],
         },
       };
       expect(extractMessageContent(message)).toBeUndefined();

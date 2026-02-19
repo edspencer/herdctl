@@ -87,10 +87,7 @@ const initialJobsState: JobsState = {
 // Slice Creator
 // =============================================================================
 
-export const createJobsSlice: StateCreator<JobsSlice, [], [], JobsSlice> = (
-  set,
-  get
-) => ({
+export const createJobsSlice: StateCreator<JobsSlice, [], [], JobsSlice> = (set, get) => ({
   ...initialJobsState,
 
   fetchJobs: async () => {
@@ -112,8 +109,7 @@ export const createJobsSlice: StateCreator<JobsSlice, [], [], JobsSlice> = (
         jobsLoading: false,
       });
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to fetch jobs";
+      const message = error instanceof Error ? error.message : "Failed to fetch jobs";
       set({
         jobsLoading: false,
         jobsError: message,
@@ -165,10 +161,12 @@ export const createJobsSlice: StateCreator<JobsSlice, [], [], JobsSlice> = (
       // First set the ID, then fetch the details
       set({ selectedJobId: jobId });
       // Handle the promise to avoid React error #185 (unhandled rejection)
-      get().fetchJobDetail(jobId).catch(() => {
-        // Error is already handled in fetchJobDetail, which sets jobsError
-        // This catch block just prevents unhandled promise rejection
-      });
+      get()
+        .fetchJobDetail(jobId)
+        .catch(() => {
+          // Error is already handled in fetchJobDetail, which sets jobsError
+          // This catch block just prevents unhandled promise rejection
+        });
     }
   },
 

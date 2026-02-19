@@ -82,9 +82,9 @@ export function getLevelColor(level: LogLevel): ColorName {
  * to the nearest 256-color or 16-color equivalent automatically.
  */
 const brandColors = {
-  discord: "\x1b[38;2;88;101;242m",  // Discord Blurple #5865F2
-  slack: "\x1b[38;2;54;197;240m",    // Slack Blue #36C5F0
-  web: "\x1b[38;2;74;222;128m",      // Web Green #4ADE80
+  discord: "\x1b[38;2;88;101;242m", // Discord Blurple #5865F2
+  slack: "\x1b[38;2;54;197;240m", // Slack Blue #36C5F0
+  web: "\x1b[38;2;74;222;128m", // Web Green #4ADE80
 } as const;
 
 /**

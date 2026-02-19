@@ -396,9 +396,7 @@ describe("GitHubWorkSourceSchema", () => {
       const result = GitHubWorkSourceSchema.safeParse({ type: "github" });
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.issues.some((i) => i.path.includes("repo"))).toBe(
-          true
-        );
+        expect(result.error.issues.some((i) => i.path.includes("repo"))).toBe(true);
       }
     });
 
@@ -479,9 +477,7 @@ describe("GitHubWorkSourceSchema", () => {
       });
       expect(result.success).toBe(false);
       if (!result.success) {
-        const repoError = result.error.issues.find((i) =>
-          i.path.includes("repo")
-        );
+        const repoError = result.error.issues.find((i) => i.path.includes("repo"));
         expect(repoError?.message).toContain("owner/repo");
         expect(repoError?.message).toContain("octocat/hello-world");
       }
@@ -564,11 +560,7 @@ describe("GitHubWorkSourceSchema", () => {
       });
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.exclude_labels).toEqual([
-          "blocked",
-          "wip",
-          "on-hold",
-        ]);
+        expect(result.data.exclude_labels).toEqual(["blocked", "wip", "on-hold"]);
       }
     });
 
@@ -1406,10 +1398,7 @@ describe("ChatDMSchema", () => {
     if (result.success) {
       expect(result.data.enabled).toBe(false);
       expect(result.data.mode).toBe("mention");
-      expect(result.data.allowlist).toEqual([
-        "123456789012345678",
-        "987654321098765432",
-      ]);
+      expect(result.data.allowlist).toEqual(["123456789012345678", "987654321098765432"]);
       expect(result.data.blocklist).toEqual(["111222333444555666"]);
     }
   });
@@ -1623,9 +1612,7 @@ describe("AgentChatDiscordSchema", () => {
       expect(result.data.session_expiry_hours).toBe(48);
       expect(result.data.log_level).toBe("verbose");
       expect(result.data.presence?.activity_type).toBe("watching");
-      expect(result.data.presence?.activity_message).toBe(
-        "for support requests"
-      );
+      expect(result.data.presence?.activity_message).toBe("for support requests");
       expect(result.data.guilds).toHaveLength(1);
       expect(result.data.guilds[0].channels).toHaveLength(2);
     }

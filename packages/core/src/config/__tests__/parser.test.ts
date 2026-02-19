@@ -445,9 +445,7 @@ describe("Error classes", () => {
 
   it("SchemaValidationError extends ConfigError", () => {
     const mockZodError = {
-      issues: [
-        { path: ["a", "b"], message: "test message", code: "invalid_type" },
-      ],
+      issues: [{ path: ["a", "b"], message: "test message", code: "invalid_type" }],
     } as never;
 
     const error = new SchemaValidationError(mockZodError);

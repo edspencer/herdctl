@@ -125,10 +125,7 @@ function calculateDuration(startedAt: string, finishedAt: string): number {
  * console.log(job.id); // 'job-2024-01-15-abc123'
  * ```
  */
-export async function createJob(
-  jobsDir: string,
-  options: CreateJobOptions
-): Promise<JobMetadata> {
+export async function createJob(jobsDir: string, options: CreateJobOptions): Promise<JobMetadata> {
   const job = createJobMetadata(options, generateJobId);
 
   // Validate the generated job metadata
@@ -143,7 +140,7 @@ export async function createJob(
       `Failed to create job file: ${(error as Error).message}`,
       filePath,
       "write",
-      error as Error
+      error as Error,
     );
   }
 
@@ -175,7 +172,7 @@ export async function createJob(
 export async function updateJob(
   jobsDir: string,
   jobId: string,
-  updates: JobMetadataUpdates
+  updates: JobMetadataUpdates,
 ): Promise<JobMetadata> {
   const filePath = getJobFilePath(jobsDir, jobId);
 
@@ -187,7 +184,7 @@ export async function updateJob(
       `Failed to read job file for update: ${result.error.message}`,
       filePath,
       "read",
-      result.error
+      result.error,
     );
   }
 
@@ -197,7 +194,7 @@ export async function updateJob(
     throw new StateFileError(
       `Job file is corrupted: ${parseResult.error.message}`,
       filePath,
-      "read"
+      "read",
     );
   }
 
@@ -211,10 +208,7 @@ export async function updateJob(
 
   // Auto-calculate duration if finished_at is being set
   if (updates.finished_at && !updates.duration_seconds) {
-    updatedJob.duration_seconds = calculateDuration(
-      existingJob.started_at,
-      updates.finished_at
-    );
+    updatedJob.duration_seconds = calculateDuration(existingJob.started_at, updates.finished_at);
   }
 
   // Validate the updated job
@@ -228,7 +222,7 @@ export async function updateJob(
       `Failed to update job file: ${(error as Error).message}`,
       filePath,
       "write",
-      error as Error
+      error as Error,
     );
   }
 
@@ -254,7 +248,7 @@ export async function updateJob(
 export async function getJob(
   jobsDir: string,
   jobId: string,
-  options: JobMetadataOptions = {}
+  options: JobMetadataOptions = {},
 ): Promise<JobMetadata | null> {
   const { logger = console } = options;
   const filePath = getJobFilePath(jobsDir, jobId);
@@ -271,16 +265,14 @@ export async function getJob(
       `Failed to read job file: ${result.error.message}`,
       filePath,
       "read",
-      result.error
+      result.error,
     );
   }
 
   // Parse and validate
   const parseResult = JobMetadataSchema.safeParse(result.data);
   if (!parseResult.success) {
-    logger.warn(
-      `Corrupted job file ${filePath}: ${parseResult.error.message}. Skipping.`
-    );
+    logger.warn(`Corrupted job file ${filePath}: ${parseResult.error.message}. Skipping.`);
     return null;
   }
 
@@ -316,7 +308,7 @@ export async function getJob(
 export async function listJobs(
   jobsDir: string,
   filter: ListJobsFilter = {},
-  options: JobMetadataOptions = {}
+  options: JobMetadataOptions = {},
 ): Promise<ListJobsResult> {
   const { logger = console } = options;
 
@@ -333,25 +325,19 @@ export async function listJobs(
       `Failed to read jobs directory: ${(error as Error).message}`,
       jobsDir,
       "read",
-      error as Error
+      error as Error,
     );
   }
 
   // Filter to job YAML files
-  const jobFiles = files.filter(
-    (f) => f.startsWith("job-") && f.endsWith(".yaml")
-  );
+  const jobFiles = files.filter((f) => f.startsWith("job-") && f.endsWith(".yaml"));
 
   const jobs: JobMetadata[] = [];
   let errors = 0;
 
   // Parse date filters once
-  const startedAfter = filter.startedAfter
-    ? toDate(filter.startedAfter)
-    : undefined;
-  const startedBefore = filter.startedBefore
-    ? toDate(filter.startedBefore)
-    : undefined;
+  const startedAfter = filter.startedAfter ? toDate(filter.startedAfter) : undefined;
+  const startedBefore = filter.startedBefore ? toDate(filter.startedBefore) : undefined;
 
   // Read and filter each job
   for (const file of jobFiles) {
@@ -366,9 +352,7 @@ export async function listJobs(
 
     const parseResult = JobMetadataSchema.safeParse(result.data);
     if (!parseResult.success) {
-      logger.warn(
-        `Corrupted job file ${filePath}: ${parseResult.error.message}`
-      );
+      logger.warn(`Corrupted job file ${filePath}: ${parseResult.error.message}`);
       errors++;
       continue;
     }
@@ -426,10 +410,7 @@ export async function listJobs(
  * }
  * ```
  */
-export async function deleteJob(
-  jobsDir: string,
-  jobId: string
-): Promise<boolean> {
+export async function deleteJob(jobsDir: string, jobId: string): Promise<boolean> {
   const { unlink } = await import("node:fs/promises");
   const filePath = getJobFilePath(jobsDir, jobId);
 
@@ -444,7 +425,7 @@ export async function deleteJob(
       `Failed to delete job file: ${(error as Error).message}`,
       filePath,
       "write",
-      error as Error
+      error as Error,
     );
   }
 }

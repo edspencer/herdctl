@@ -185,7 +185,10 @@ program
   .command("jobs")
   .description("List recent jobs")
   .option("-a, --agent <name>", "Filter by agent name")
-  .option("-S, --status <status>", "Filter by status (pending, running, completed, failed, cancelled)")
+  .option(
+    "-S, --status <status>",
+    "Filter by status (pending, running, completed, failed, cancelled)",
+  )
   .option("-l, --limit <count>", "Number of jobs to show (default: 20)")
   .option("--json", "Output as JSON for scripting")
   .option("-c, --config <path>", "Path to config file or directory")
@@ -307,9 +310,7 @@ sessionsCmd
   });
 
 // Config command group
-const configCmd = program
-  .command("config")
-  .description("Configuration management commands");
+const configCmd = program.command("config").description("Configuration management commands");
 
 configCmd
   .command("validate")

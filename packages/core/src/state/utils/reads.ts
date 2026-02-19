@@ -145,7 +145,7 @@ async function backoffDelay(attempt: number, baseDelayMs: number): Promise<void>
  */
 export async function safeReadYaml<T = unknown>(
   filePath: string,
-  options: SafeReadOptions = {}
+  options: SafeReadOptions = {},
 ): Promise<SafeReadYamlResult<T>> {
   const {
     maxRetries = 3,
@@ -177,7 +177,7 @@ export async function safeReadYaml<T = unknown>(
           error: new SafeReadError(
             `Failed to read YAML file ${filePath}: ${(error as Error).message}`,
             filePath,
-            error as Error
+            error as Error,
           ),
         };
       }
@@ -194,7 +194,7 @@ export async function safeReadYaml<T = unknown>(
         error: new SafeReadError(
           `Failed to parse YAML file ${filePath}: ${(error as Error).message}`,
           filePath,
-          error as Error
+          error as Error,
         ),
       };
     }
@@ -206,7 +206,7 @@ export async function safeReadYaml<T = unknown>(
     error: new SafeReadError(
       `Failed to read YAML file ${filePath} after ${maxRetries + 1} attempts`,
       filePath,
-      lastError
+      lastError,
     ),
   };
 }
@@ -239,7 +239,7 @@ export async function safeReadYaml<T = unknown>(
  */
 export async function safeReadJsonl<T = unknown>(
   filePath: string,
-  options: SafeReadJsonlOptions = {}
+  options: SafeReadJsonlOptions = {},
 ): Promise<SafeReadJsonlResult<T>> {
   const {
     maxRetries = 3,
@@ -272,7 +272,7 @@ export async function safeReadJsonl<T = unknown>(
           error: new SafeReadError(
             `Failed to read JSONL file ${filePath}: ${(error as Error).message}`,
             filePath,
-            error as Error
+            error as Error,
           ),
         };
       }
@@ -290,7 +290,7 @@ export async function safeReadJsonl<T = unknown>(
     error: new SafeReadError(
       `Failed to read JSONL file ${filePath} after ${maxRetries + 1} attempts`,
       filePath,
-      lastError
+      lastError,
     ),
   };
 }
@@ -302,7 +302,7 @@ export async function safeReadJsonl<T = unknown>(
  */
 function parseJsonlContent<T>(
   content: string,
-  skipInvalidLines: boolean
+  skipInvalidLines: boolean,
 ): { data: T[]; skippedLines: number } {
   const lines = content.split("\n");
   const result: T[] = [];
@@ -337,7 +337,7 @@ function parseJsonlContent<T>(
       throw new SafeReadError(
         `Invalid JSON on line ${i + 1}: ${(error as Error).message}`,
         "",
-        error as Error
+        error as Error,
       );
     }
   }
@@ -358,7 +358,7 @@ function parseJsonlContent<T>(
  */
 export async function readYaml<T = unknown>(
   filePath: string,
-  options: SafeReadOptions = {}
+  options: SafeReadOptions = {},
 ): Promise<T> {
   const result = await safeReadYaml<T>(filePath, options);
   if (!result.success) {
@@ -380,7 +380,7 @@ export async function readYaml<T = unknown>(
  */
 export async function readJsonl<T = unknown>(
   filePath: string,
-  options: SafeReadJsonlOptions = {}
+  options: SafeReadJsonlOptions = {},
 ): Promise<T[]> {
   const result = await safeReadJsonl<T>(filePath, options);
   if (!result.success) {
@@ -423,7 +423,7 @@ export type SafeReadJsonResult<T> =
  */
 export async function safeReadJson<T = unknown>(
   filePath: string,
-  options: SafeReadOptions = {}
+  options: SafeReadOptions = {},
 ): Promise<SafeReadJsonResult<T>> {
   const {
     maxRetries = 3,
@@ -455,7 +455,7 @@ export async function safeReadJson<T = unknown>(
           error: new SafeReadError(
             `Failed to read JSON file ${filePath}: ${(error as Error).message}`,
             filePath,
-            error as Error
+            error as Error,
           ),
         };
       }
@@ -472,7 +472,7 @@ export async function safeReadJson<T = unknown>(
         error: new SafeReadError(
           `Failed to parse JSON file ${filePath}: ${(error as Error).message}`,
           filePath,
-          error as Error
+          error as Error,
         ),
       };
     }
@@ -484,7 +484,7 @@ export async function safeReadJson<T = unknown>(
     error: new SafeReadError(
       `Failed to read JSON file ${filePath} after ${maxRetries + 1} attempts`,
       filePath,
-      lastError
+      lastError,
     ),
   };
 }
@@ -502,7 +502,7 @@ export async function safeReadJson<T = unknown>(
  */
 export async function readJson<T = unknown>(
   filePath: string,
-  options: SafeReadOptions = {}
+  options: SafeReadOptions = {},
 ): Promise<T> {
   const result = await safeReadJson<T>(filePath, options);
   if (!result.success) {

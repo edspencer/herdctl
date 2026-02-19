@@ -111,7 +111,7 @@ export const DEFAULT_SESSION_TIMEOUT_MS = 24 * 60 * 60 * 1000; // 24 hours
  */
 export async function cliSessionFileExists(
   workingDirectory: string,
-  sessionId: string
+  sessionId: string,
 ): Promise<boolean> {
   try {
     const sessionFile = getCliSessionFile(workingDirectory, sessionId);
@@ -134,7 +134,7 @@ export async function cliSessionFileExists(
  */
 export async function dockerSessionFileExists(
   sessionsDir: string,
-  sessionId: string
+  sessionId: string,
 ): Promise<boolean> {
   try {
     // Docker sessions are in .herdctl/docker-sessions/, sibling to .herdctl/sessions/
@@ -169,7 +169,7 @@ export async function dockerSessionFileExists(
  */
 export function validateSession(
   session: SessionInfo | null,
-  timeout?: string
+  timeout?: string,
 ): SessionValidationResult {
   // Handle missing session
   if (!session) {
@@ -273,7 +273,7 @@ export function validateSession(
 export async function validateSessionWithFileCheck(
   session: SessionInfo | null,
   timeout?: string,
-  options?: SessionFileCheckOptions
+  options?: SessionFileCheckOptions,
 ): Promise<SessionValidationResult> {
   // First do basic validation (expiration, etc.)
   const basicValidation = validateSession(session, timeout);
@@ -287,16 +287,10 @@ export async function validateSessionWithFileCheck(
 
     if (session.docker_enabled && options?.sessionsDir) {
       // Docker sessions are stored in .herdctl/docker-sessions/
-      fileExists = await dockerSessionFileExists(
-        options.sessionsDir,
-        session.session_id
-      );
+      fileExists = await dockerSessionFileExists(options.sessionsDir, session.session_id);
     } else if (session.working_directory) {
       // Native CLI sessions are stored in ~/.claude/projects/
-      fileExists = await cliSessionFileExists(
-        session.working_directory,
-        session.session_id
-      );
+      fileExists = await cliSessionFileExists(session.working_directory, session.session_id);
     } else {
       // No working directory and not Docker - skip file check
       return basicValidation;
@@ -350,7 +344,7 @@ export async function validateSessionWithFileCheck(
 export function validateRuntimeContext(
   session: SessionInfo | null,
   currentRuntimeType: "sdk" | "cli",
-  currentDockerEnabled: boolean
+  currentDockerEnabled: boolean,
 ): SessionValidationResult {
   // Handle missing session
   if (!session) {
@@ -454,7 +448,7 @@ export function isSessionExpiredError(error: Error): boolean {
     message.includes("session not found") ||
     message.includes("invalid session") ||
     message.includes("session does not exist") ||
-    message.includes("session id") && message.includes("not found") ||
+    (message.includes("session id") && message.includes("not found")) ||
     // Conversation/context issues (Claude CLI uses these)
     message.includes("conversation not found") ||
     message.includes("no conversation") ||
@@ -503,7 +497,7 @@ export function isTokenExpiredError(error: Error): boolean {
     message.includes("authentication required") ||
     message.includes("not authenticated") ||
     // Claude-specific auth messages
-    message.includes("oauth") && message.includes("expired") ||
+    (message.includes("oauth") && message.includes("expired")) ||
     message.includes("login required") ||
     message.includes("please log in") ||
     message.includes("re-authenticate") ||
@@ -552,7 +546,7 @@ export async function cleanupExpiredSessions(
   options: {
     logger?: { info?: (msg: string) => void; warn: (msg: string) => void };
     dryRun?: boolean;
-  } = {}
+  } = {},
 ): Promise<CleanupResult> {
   const { logger = console, dryRun = false } = options;
 
@@ -580,16 +574,14 @@ export async function cleanupExpiredSessions(
           logger.info?.(`Cleaned up expired session for ${session.agent_name}`);
         } catch (error) {
           logger.warn(
-            `Failed to clean up session for ${session.agent_name}: ${(error as Error).message}`
+            `Failed to clean up session for ${session.agent_name}: ${(error as Error).message}`,
           );
         }
       } else {
         // Dry run - just count
         result.removed++;
         result.removedAgents.push(session.agent_name);
-        logger.info?.(
-          `[DRY RUN] Would clean up expired session for ${session.agent_name}`
-        );
+        logger.info?.(`[DRY RUN] Would clean up expired session for ${session.agent_name}`);
       }
     } else {
       result.kept++;

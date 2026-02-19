@@ -82,7 +82,7 @@ describe("SlackHookRunner", () => {
             Authorization: "Bearer xoxb-test-token-12345",
             "Content-Type": "application/json; charset=utf-8",
           }),
-        })
+        }),
       );
     });
 
@@ -159,8 +159,7 @@ describe("SlackHookRunner", () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
-        text: () =>
-          Promise.resolve('{"ok": false, "error": "channel_not_found"}'),
+        text: () => Promise.resolve('{"ok": false, "error": "channel_not_found"}'),
       });
 
       const runner = new SlackHookRunner({
@@ -206,9 +205,7 @@ describe("SlackHookRunner", () => {
     });
 
     it("should handle network errors", async () => {
-      const mockFetch = vi
-        .fn()
-        .mockRejectedValue(new Error("fetch failed"));
+      const mockFetch = vi.fn().mockRejectedValue(new Error("fetch failed"));
 
       const runner = new SlackHookRunner({
         logger: mockLogger,
@@ -286,9 +283,7 @@ describe("SlackHookRunner", () => {
       expect(attachment.title).toBe("Job Failed");
       expect(attachment.color).toBe("#ef4444");
 
-      const errorField = attachment.fields.find(
-        (f: { title: string }) => f.title === "Error"
-      );
+      const errorField = attachment.fields.find((f: { title: string }) => f.title === "Error");
       expect(errorField).toBeDefined();
       expect(errorField.value).toContain("Process exited with code 1");
     });
@@ -321,9 +316,7 @@ describe("SlackHookRunner", () => {
       const body = JSON.parse(callArgs[1].body);
       const attachment = body.attachments[0];
 
-      const metaField = attachment.fields.find(
-        (f: { title: string }) => f.title === "Metadata"
-      );
+      const metaField = attachment.fields.find((f: { title: string }) => f.title === "Metadata");
       expect(metaField).toBeDefined();
       expect(metaField.value).toContain("shouldNotify");
     });

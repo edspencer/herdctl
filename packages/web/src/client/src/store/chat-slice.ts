@@ -93,10 +93,7 @@ const initialChatState: ChatState = {
 // Slice Creator
 // =============================================================================
 
-export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (
-  set,
-  get
-) => ({
+export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set, get) => ({
   ...initialChatState,
 
   fetchChatSessions: async (agentName: string) => {
@@ -109,8 +106,7 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (
         chatSessionsLoading: false,
       });
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to fetch chat sessions";
+      const message = error instanceof Error ? error.message : "Failed to fetch chat sessions";
       set({
         chatSessionsLoading: false,
         chatError: message,
@@ -129,8 +125,7 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (
         activeChatSessionId: sessionId,
       });
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to fetch chat messages";
+      const message = error instanceof Error ? error.message : "Failed to fetch chat messages";
       set({
         chatMessagesLoading: false,
         chatError: message,
@@ -157,10 +152,7 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (
 
         // Also update sidebar sessions so the new chat appears immediately
         const agentSessions = state.sidebarSessions[agentName] ?? [];
-        const updatedAgentSessions = [newSession, ...agentSessions].slice(
-          0,
-          SIDEBAR_SESSION_LIMIT
-        );
+        const updatedAgentSessions = [newSession, ...agentSessions].slice(0, SIDEBAR_SESSION_LIMIT);
 
         return {
           chatSessions,
@@ -175,8 +167,7 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (
 
       return response.sessionId;
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to create chat session";
+      const message = error instanceof Error ? error.message : "Failed to create chat session";
       set({ chatError: message });
       return null;
     }
@@ -202,15 +193,13 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (
 
         return {
           chatSessions: state.chatSessions.filter((s) => s.sessionId !== sessionId),
-          activeChatSessionId:
-            activeChatSessionId === sessionId ? null : activeChatSessionId,
+          activeChatSessionId: activeChatSessionId === sessionId ? null : activeChatSessionId,
           chatMessages: activeChatSessionId === sessionId ? [] : state.chatMessages,
           sidebarSessions: updatedSidebarSessions,
         };
       });
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to delete chat session";
+      const message = error instanceof Error ? error.message : "Failed to delete chat session";
       set({ chatError: message });
     }
   },
@@ -312,8 +301,8 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (
         agentNames.map((name) =>
           fetchChatSessions(name)
             .then((r) => ({ name, sessions: r.sessions.slice(0, SIDEBAR_SESSION_LIMIT) }))
-            .catch(() => ({ name, sessions: [] as ChatSession[] }))
-        )
+            .catch(() => ({ name, sessions: [] as ChatSession[] })),
+        ),
       );
 
       const sidebarSessions: Record<string, ChatSession[]> = {};

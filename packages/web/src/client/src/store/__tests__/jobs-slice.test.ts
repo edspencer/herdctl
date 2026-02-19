@@ -76,8 +76,20 @@ describe("Jobs Slice", () => {
   describe("fetchJobs", () => {
     it("fetches jobs and updates state", async () => {
       const mockJobs = [
-        { jobId: "job-1", agentName: "coder", prompt: "Fix bug", status: "completed", createdAt: "2025-01-01T00:00:00Z" },
-        { jobId: "job-2", agentName: "reviewer", prompt: "Review PR", status: "running", createdAt: "2025-01-01T00:01:00Z" },
+        {
+          jobId: "job-1",
+          agentName: "coder",
+          prompt: "Fix bug",
+          status: "completed",
+          createdAt: "2025-01-01T00:00:00Z",
+        },
+        {
+          jobId: "job-2",
+          agentName: "reviewer",
+          prompt: "Review PR",
+          status: "running",
+          createdAt: "2025-01-01T00:01:00Z",
+        },
       ];
 
       (fetchJobs as any).mockResolvedValue({
@@ -210,7 +222,9 @@ describe("Jobs Slice", () => {
     it("resets all state to initial values", async () => {
       // Populate state first
       (fetchJobs as any).mockResolvedValue({
-        jobs: [{ jobId: "j1", agentName: "a", prompt: "p", status: "running", createdAt: "2025-01-01" }],
+        jobs: [
+          { jobId: "j1", agentName: "a", prompt: "p", status: "running", createdAt: "2025-01-01" },
+        ],
         total: 1,
         limit: 20,
         offset: 0,

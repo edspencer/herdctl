@@ -18,9 +18,7 @@ export class UndefinedVariableError extends ConfigError {
   public readonly path: string;
 
   constructor(variableName: string, path: string) {
-    super(
-      `Undefined environment variable '${variableName}' at '${path}' (no default provided)`
-    );
+    super(`Undefined environment variable '${variableName}' at '${path}' (no default provided)`);
     this.name = "UndefinedVariableError";
     this.variableName = variableName;
     this.path = path;
@@ -58,7 +56,7 @@ export interface InterpolateOptions {
 export function interpolateString(
   value: string,
   path: string,
-  env: Record<string, string | undefined> = process.env
+  env: Record<string, string | undefined> = process.env,
 ): string {
   // Reset regex state
   ENV_VAR_PATTERN.lastIndex = 0;
@@ -102,8 +100,7 @@ export function interpolateString(
       throw new UndefinedVariableError(varName, path);
     }
 
-    result =
-      result.slice(0, index) + replacement + result.slice(index + fullMatch.length);
+    result = result.slice(0, index) + replacement + result.slice(index + fullMatch.length);
   }
 
   return result;
@@ -121,7 +118,7 @@ export function interpolateString(
 export function interpolateValue(
   value: unknown,
   path: string = "",
-  env: Record<string, string | undefined> = process.env
+  env: Record<string, string | undefined> = process.env,
 ): unknown {
   // Handle null and undefined
   if (value === null || value === undefined) {
@@ -141,7 +138,7 @@ export function interpolateValue(
   // Handle arrays - recursively interpolate each element
   if (Array.isArray(value)) {
     return value.map((item, index) =>
-      interpolateValue(item, path ? `${path}[${index}]` : `[${index}]`, env)
+      interpolateValue(item, path ? `${path}[${index}]` : `[${index}]`, env),
     );
   }
 
@@ -180,10 +177,7 @@ export function interpolateValue(
  * // result = { database: { host: "localhost", password: "secret" } }
  * ```
  */
-export function interpolateConfig<T>(
-  config: T,
-  options: InterpolateOptions = {}
-): T {
+export function interpolateConfig<T>(config: T, options: InterpolateOptions = {}): T {
   const env = options.env ?? process.env;
   return interpolateValue(config, "", env) as T;
 }

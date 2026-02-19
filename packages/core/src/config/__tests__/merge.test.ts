@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  deepMerge,
-  mergeAgentConfig,
-  mergeAllAgentConfigs,
-} from "../merge.js";
+import { deepMerge, mergeAgentConfig, mergeAllAgentConfigs } from "../merge.js";
 import type { AgentConfig } from "../schema.js";
 import type { ExtendedDefaults } from "../merge.js";
 
@@ -135,9 +131,10 @@ describe("deepMerge", () => {
       const result = deepMerge(base, override);
       expect((result as Record<string, unknown>)?.level1).toBeDefined();
       const level3 = (
-        (
-          (result as Record<string, unknown>)?.level1 as Record<string, unknown>
-        )?.level2 as Record<string, unknown>
+        ((result as Record<string, unknown>)?.level1 as Record<string, unknown>)?.level2 as Record<
+          string,
+          unknown
+        >
       )?.level3;
       expect(level3).toEqual({
         value: "override",

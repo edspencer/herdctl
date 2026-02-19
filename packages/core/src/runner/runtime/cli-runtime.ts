@@ -17,11 +17,7 @@
 import { execa, type Subprocess } from "execa";
 import type { RuntimeInterface, RuntimeExecuteOptions } from "./interface.js";
 import type { SDKMessage } from "../types.js";
-import {
-  getCliSessionDir,
-  getCliSessionFile,
-  waitForNewSessionFile,
-} from "./cli-session-path.js";
+import { getCliSessionDir, getCliSessionFile, waitForNewSessionFile } from "./cli-session-path.js";
 import { CLISessionWatcher } from "./cli-session-watcher.js";
 import { transformMcpServers } from "../sdk-adapter.js";
 import { createLogger } from "../../utils/logger.js";
@@ -46,7 +42,7 @@ export type ProcessSpawner = (
   args: string[],
   cwd: string,
   prompt: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ) => Subprocess;
 
 /**
@@ -105,13 +101,14 @@ export class CLIRuntime implements RuntimeInterface {
 
   constructor(options?: CLIRuntimeOptions) {
     // Default to local execa spawning with prompt via stdin
-    this.processSpawner = options?.processSpawner ?? ((args, cwd, prompt, signal) =>
-      execa("claude", args, {
-        cwd,
-        input: prompt,  // Provide prompt via stdin (required for -p mode)
-        cancelSignal: signal
-      })
-    );
+    this.processSpawner =
+      options?.processSpawner ??
+      ((args, cwd, prompt, signal) =>
+        execa("claude", args, {
+          cwd,
+          input: prompt, // Provide prompt via stdin (required for -p mode)
+          cancelSignal: signal,
+        }));
 
     this.sessionDirOverride = options?.sessionDirOverride;
   }
@@ -250,7 +247,7 @@ export class CLIRuntime implements RuntimeInterface {
         },
         () => {
           // Error already logged above
-        }
+        },
       );
 
       // Determine which session file to watch
@@ -308,7 +305,7 @@ export class CLIRuntime implements RuntimeInterface {
         () => {
           logger.debug("Process failed, stopping watcher");
           watcher?.stop();
-        }
+        },
       );
 
       // Stream messages from the session file
@@ -385,8 +382,7 @@ export class CLIRuntime implements RuntimeInterface {
         if (execaError.code === "ENOENT") {
           yield {
             type: "error",
-            message:
-              "Claude CLI not found. Install with: brew install claude-ai/tap/claude",
+            message: "Claude CLI not found. Install with: brew install claude-ai/tap/claude",
             code: "CLI_NOT_FOUND",
           };
           return;
@@ -404,8 +400,7 @@ export class CLIRuntime implements RuntimeInterface {
       }
 
       // Generic error
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       yield {
         type: "error",
         message: `CLI execution failed: ${errorMessage}`,

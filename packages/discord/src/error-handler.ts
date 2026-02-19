@@ -9,15 +9,8 @@
  */
 
 import type { DiscordConnectorLogger } from "./types.js";
-import {
-  DiscordErrorCode,
-  isDiscordConnectorError,
-  type DiscordConnectorError,
-} from "./errors.js";
-import {
-  isSessionManagerError,
-  type SessionManagerError,
-} from "@herdctl/chat";
+import { DiscordErrorCode, isDiscordConnectorError, type DiscordConnectorError } from "./errors.js";
+import { isSessionManagerError, type SessionManagerError } from "@herdctl/chat";
 
 // =============================================================================
 // User-Friendly Error Messages
@@ -28,26 +21,19 @@ import {
  */
 export const USER_ERROR_MESSAGES = {
   /** Generic processing error */
-  PROCESSING_ERROR:
-    "Sorry, I encountered an error processing your request. Please try again.",
+  PROCESSING_ERROR: "Sorry, I encountered an error processing your request. Please try again.",
   /** Connection/network error */
-  CONNECTION_ERROR:
-    "I'm having trouble connecting right now. Please try again in a moment.",
+  CONNECTION_ERROR: "I'm having trouble connecting right now. Please try again in a moment.",
   /** Rate limit error */
-  RATE_LIMITED:
-    "I'm receiving too many requests right now. Please wait a moment and try again.",
+  RATE_LIMITED: "I'm receiving too many requests right now. Please wait a moment and try again.",
   /** Command execution error */
-  COMMAND_ERROR:
-    "Sorry, I couldn't complete that command. Please try again.",
+  COMMAND_ERROR: "Sorry, I couldn't complete that command. Please try again.",
   /** Session error */
-  SESSION_ERROR:
-    "I'm having trouble with your conversation session. Please try again.",
+  SESSION_ERROR: "I'm having trouble with your conversation session. Please try again.",
   /** Timeout error */
-  TIMEOUT_ERROR:
-    "The request took too long to complete. Please try again.",
+  TIMEOUT_ERROR: "The request took too long to complete. Please try again.",
   /** Permission error */
-  PERMISSION_ERROR:
-    "I don't have permission to do that in this channel.",
+  PERMISSION_ERROR: "I don't have permission to do that in this channel.",
 } as const;
 
 export type UserErrorMessageKey = keyof typeof USER_ERROR_MESSAGES;
@@ -228,9 +214,7 @@ function isNetworkError(error: Error): boolean {
   const name = error.name.toLowerCase();
 
   return networkErrorPatterns.some(
-    (pattern) =>
-      message.includes(pattern.toLowerCase()) ||
-      name.includes(pattern.toLowerCase())
+    (pattern) => message.includes(pattern.toLowerCase()) || name.includes(pattern.toLowerCase()),
   );
 }
 
@@ -244,9 +228,7 @@ function isTimeoutError(error: Error): boolean {
   const name = error.name.toLowerCase();
 
   return timeoutPatterns.some(
-    (pattern) =>
-      message.includes(pattern.toLowerCase()) ||
-      name.includes(pattern.toLowerCase())
+    (pattern) => message.includes(pattern.toLowerCase()) || name.includes(pattern.toLowerCase()),
   );
 }
 
@@ -274,9 +256,7 @@ export interface RetryOptions {
   shouldRetry?: (error: unknown, attempt: number) => boolean;
 }
 
-const DEFAULT_RETRY_OPTIONS: Required<
-  Omit<RetryOptions, "logger" | "shouldRetry">
-> = {
+const DEFAULT_RETRY_OPTIONS: Required<Omit<RetryOptions, "logger" | "shouldRetry">> = {
   maxAttempts: 3,
   baseDelayMs: 1000,
   maxDelayMs: 30000,
@@ -332,11 +312,10 @@ export interface RetryResult<T> {
  */
 export async function withRetry<T>(
   operation: () => Promise<T>,
-  options: RetryOptions = {}
+  options: RetryOptions = {},
 ): Promise<RetryResult<T>> {
   const opts = { ...DEFAULT_RETRY_OPTIONS, ...options };
-  const { maxAttempts, baseDelayMs, maxDelayMs, backoffMultiplier, operationName, logger } =
-    opts;
+  const { maxAttempts, baseDelayMs, maxDelayMs, backoffMultiplier, operationName, logger } = opts;
 
   let lastError: Error | undefined;
   let attempt = 0;
@@ -370,7 +349,7 @@ export async function withRetry<T>(
       // Calculate delay with exponential backoff
       const delay = Math.min(
         classified.retryDelayMs ?? baseDelayMs * Math.pow(backoffMultiplier, attempt - 1),
-        maxDelayMs
+        maxDelayMs,
       );
 
       logger?.info(`${operationName} failed, retrying in ${delay}ms...`, {
@@ -484,11 +463,7 @@ export class ErrorHandler {
    * @param userMessage - Custom message to return to user
    * @returns The provided user message
    */
-  handleErrorWithMessage(
-    error: unknown,
-    context: string,
-    userMessage: string
-  ): string {
+  handleErrorWithMessage(error: unknown, context: string, userMessage: string): string {
     const classified = classifyError(error);
 
     // Log detailed error for debugging
@@ -559,7 +534,7 @@ export class ErrorHandler {
 export async function safeExecute<T>(
   operation: () => Promise<T>,
   errorHandler: ErrorHandler,
-  context: string
+  context: string,
 ): Promise<T | undefined> {
   try {
     return await operation();
@@ -582,7 +557,7 @@ export async function safeExecute<T>(
 export async function safeExecuteWithReply(
   operation: () => Promise<string>,
   errorHandler: ErrorHandler,
-  context: string
+  context: string,
 ): Promise<string> {
   try {
     return await operation();

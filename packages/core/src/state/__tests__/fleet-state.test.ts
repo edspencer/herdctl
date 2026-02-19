@@ -21,7 +21,7 @@ import { StateFileError } from "../errors.js";
 async function createTempDir(): Promise<string> {
   const baseDir = join(
     tmpdir(),
-    `herdctl-fleet-state-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-fleet-state-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   await mkdir(baseDir, { recursive: true });
   // Resolve to real path to handle macOS /var -> /private/var symlink
@@ -663,7 +663,7 @@ describe("updateAgentState", () => {
         stateFile,
         "new-agent",
         { status: "running" },
-        { logger }
+        { logger },
       );
 
       expect(updatedState.agents["new-agent"].status).toBe("running");

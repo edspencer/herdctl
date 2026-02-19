@@ -18,7 +18,13 @@ import { createToastSlice, type ToastSlice } from "./toast-slice";
 // Combined Store Type
 // =============================================================================
 
-export type AppStore = FleetSlice & UISlice & OutputSlice & JobsSlice & ChatSlice & ScheduleSlice & ToastSlice;
+export type AppStore = FleetSlice &
+  UISlice &
+  OutputSlice &
+  JobsSlice &
+  ChatSlice &
+  ScheduleSlice &
+  ToastSlice;
 
 // =============================================================================
 // Store
@@ -85,7 +91,7 @@ export function useFleet() {
       recentJobs: state.recentJobs,
       connectionStatus: state.connectionStatus,
       lastUpdated: state.lastUpdated,
-    }))
+    })),
   );
 }
 
@@ -94,7 +100,7 @@ export function useFleet() {
  */
 export function useAgent(qualifiedName: string | null) {
   return useStore((state) =>
-    qualifiedName ? state.agents.find((a) => a.qualifiedName === qualifiedName) ?? null : null
+    qualifiedName ? (state.agents.find((a) => a.qualifiedName === qualifiedName) ?? null) : null,
   );
 }
 
@@ -110,7 +116,7 @@ export function useUI() {
       activeView: state.activeView,
       theme: state.theme,
       rightPanelOpen: state.rightPanelOpen,
-    }))
+    })),
   );
 }
 
@@ -129,7 +135,7 @@ export function useUIActions() {
       setTheme: state.setTheme,
       toggleRightPanel: state.toggleRightPanel,
       setRightPanelOpen: state.setRightPanelOpen,
-    }))
+    })),
   );
 }
 
@@ -148,7 +154,7 @@ export function useFleetActions() {
       failJob: state.failJob,
       cancelJob: state.cancelJob,
       setConnectionStatus: state.setConnectionStatus,
-    }))
+    })),
   );
 }
 
@@ -159,9 +165,7 @@ const EMPTY_ARRAY: any[] = [];
  * Select output messages for a specific job
  */
 export function useJobOutput(jobId: string | null) {
-  return useStore((state) =>
-    jobId ? state.outputsByJob[jobId] ?? EMPTY_ARRAY : EMPTY_ARRAY
-  );
+  return useStore((state) => (jobId ? (state.outputsByJob[jobId] ?? EMPTY_ARRAY) : EMPTY_ARRAY));
 }
 
 /**
@@ -174,7 +178,7 @@ export function useOutputActions() {
       clearJobOutput: state.clearJobOutput,
       setActiveJobView: state.setActiveJobView,
       clearAllOutput: state.clearAllOutput,
-    }))
+    })),
   );
 }
 
@@ -195,7 +199,7 @@ export function useJobs() {
       jobsFilter: state.jobsFilter,
       jobsOffset: state.jobsOffset,
       jobsLimit: state.jobsLimit,
-    }))
+    })),
   );
 }
 
@@ -211,7 +215,7 @@ export function useJobsActions() {
       setJobsOffset: state.setJobsOffset,
       selectJob: state.selectJob,
       clearJobsState: state.clearJobsState,
-    }))
+    })),
   );
 }
 
@@ -224,7 +228,7 @@ export function useSelectedJob() {
       selectedJobId: state.selectedJobId,
       selectedJob: state.selectedJob,
       selectedJobLoading: state.selectedJobLoading,
-    }))
+    })),
   );
 }
 
@@ -241,7 +245,7 @@ export function useChatSessions() {
       chatSessions: state.chatSessions,
       chatSessionsLoading: state.chatSessionsLoading,
       chatError: state.chatError,
-    }))
+    })),
   );
 }
 
@@ -257,7 +261,7 @@ export function useChatMessages() {
       chatStreaming: state.chatStreaming,
       chatStreamingContent: state.chatStreamingContent,
       chatError: state.chatError,
-    }))
+    })),
   );
 }
 
@@ -278,7 +282,7 @@ export function useChatActions() {
       setChatError: state.setChatError,
       fetchSidebarSessions: state.fetchSidebarSessions,
       clearChatState: state.clearChatState,
-    }))
+    })),
   );
 }
 
@@ -290,7 +294,7 @@ export function useSidebarSessions() {
     useShallow((state) => ({
       sidebarSessions: state.sidebarSessions,
       sidebarSessionsLoading: state.sidebarSessionsLoading,
-    }))
+    })),
   );
 }
 
@@ -307,7 +311,7 @@ export function useSchedules() {
       schedules: state.schedules,
       schedulesLoading: state.schedulesLoading,
       schedulesError: state.schedulesError,
-    }))
+    })),
   );
 }
 
@@ -323,7 +327,7 @@ export function useScheduleActions() {
       disableSchedule: state.disableSchedule,
       updateScheduleFromWS: state.updateScheduleFromWS,
       clearSchedulesState: state.clearSchedulesState,
-    }))
+    })),
   );
 }
 
@@ -346,6 +350,6 @@ export function useToastActions() {
     useShallow((state) => ({
       addToast: state.addToast,
       removeToast: state.removeToast,
-    }))
+    })),
   );
 }

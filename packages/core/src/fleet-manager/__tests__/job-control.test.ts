@@ -19,11 +19,7 @@ import { mkdtemp, rm, mkdir, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { FleetManager } from "../fleet-manager.js";
-import {
-  InvalidStateError,
-  JobNotFoundError,
-  JobForkError,
-} from "../errors.js";
+import { InvalidStateError, JobNotFoundError, JobForkError } from "../errors.js";
 import { getSessionInfo, updateSessionInfo } from "../../state/index.js";
 import type { FleetManagerLogger, JobCancelledPayload, JobForkedPayload } from "../types.js";
 
@@ -107,16 +103,14 @@ describe("FleetManager Job Control (US-6)", () => {
         logger: createSilentLogger(),
       });
 
-      await expect(manager.cancelJob("job-123")).rejects.toThrow(
-        InvalidStateError
-      );
+      await expect(manager.cancelJob("job-123")).rejects.toThrow(InvalidStateError);
     });
 
     it("throws JobNotFoundError for non-existent job", async () => {
       const manager = await createInitializedManager();
 
       await expect(manager.cancelJob("job-2099-01-01-nonexistent")).rejects.toThrow(
-        JobNotFoundError
+        JobNotFoundError,
       );
     });
 
@@ -185,9 +179,7 @@ describe("FleetManager Job Control (US-6)", () => {
     it("throws JobForkError for non-existent job", async () => {
       const manager = await createInitializedManager();
 
-      await expect(manager.forkJob("job-2099-01-01-nonexistent")).rejects.toThrow(
-        JobForkError
-      );
+      await expect(manager.forkJob("job-2099-01-01-nonexistent")).rejects.toThrow(JobForkError);
     });
 
     it("forks a job successfully", async () => {
@@ -223,7 +215,7 @@ describe("FleetManager Job Control (US-6)", () => {
           job: expect.objectContaining({ id: result.jobId }),
           originalJob: expect.objectContaining({ id: triggerResult.jobId }),
           agentName: "test-agent",
-        })
+        }),
       );
     });
 
@@ -255,9 +247,7 @@ describe("FleetManager Job Control (US-6)", () => {
       await manager.reload();
 
       // Try to fork - should fail because agent doesn't exist
-      await expect(manager.forkJob(triggerResult.jobId)).rejects.toThrow(
-        JobForkError
-      );
+      await expect(manager.forkJob(triggerResult.jobId)).rejects.toThrow(JobForkError);
     });
   });
 
@@ -351,10 +341,7 @@ describe("FleetManager Job Control (US-6)", () => {
         job_count: 1,
         mode: "autonomous" as const,
       };
-      await writeFile(
-        join(sessionsDir, "test-agent.json"),
-        JSON.stringify(sessionData, null, 2)
-      );
+      await writeFile(join(sessionsDir, "test-agent.json"), JSON.stringify(sessionData, null, 2));
 
       // Trigger the agent - should start fresh session since old one is expired
       const result = await manager.trigger("test-agent");

@@ -122,7 +122,7 @@ export class LogStreaming {
  */
 export function jobOutputToLogEntry(
   job: JobMetadata,
-  msg: { type: string; content?: string; timestamp?: string }
+  msg: { type: string; content?: string; timestamp?: string },
 ): LogEntry {
   // Determine log level based on message type
   let level: LogLevel = "info";
@@ -160,7 +160,7 @@ export function shouldYieldLog(
   entry: LogEntry,
   minLevel: LogLevel,
   agentFilter?: string,
-  jobFilter?: string
+  jobFilter?: string,
 ): boolean {
   // Check log level
   if (LOG_LEVEL_ORDER[entry.level] < LOG_LEVEL_ORDER[minLevel]) {
@@ -223,7 +223,7 @@ export function meetsLogLevel(level: LogLevel, minLevel: LogLevel): boolean {
  */
 async function* streamLogsImpl(
   deps: LogStreamingDeps,
-  options?: LogStreamOptions
+  options?: LogStreamOptions,
 ): AsyncIterable<LogEntry> {
   const level = options?.level ?? "info";
   const includeHistory = options?.includeHistory ?? true;
@@ -238,11 +238,9 @@ async function* streamLogsImpl(
   // Replay historical logs if requested
   if (includeHistory) {
     // Get jobs to replay history from
-    const jobsResult = await listJobs(
-      jobsDir,
-      agentFilter ? { agent: agentFilter } : {},
-      { logger: deps.logger }
-    );
+    const jobsResult = await listJobs(jobsDir, agentFilter ? { agent: agentFilter } : {}, {
+      logger: deps.logger,
+    });
 
     // Filter by job ID if specified
     let jobs = jobsResult.jobs;
@@ -251,10 +249,7 @@ async function* streamLogsImpl(
     }
 
     // Sort by started_at ascending to replay in chronological order
-    jobs.sort(
-      (a, b) =>
-        new Date(a.started_at).getTime() - new Date(b.started_at).getTime()
-    );
+    jobs.sort((a, b) => new Date(a.started_at).getTime() - new Date(b.started_at).getTime());
 
     let yielded = 0;
     for (const job of jobs) {
@@ -332,7 +327,7 @@ async function* streamLogsImpl(
  */
 async function* streamJobOutputImpl(
   deps: LogStreamingDeps,
-  jobId: string
+  jobId: string,
 ): AsyncIterable<LogEntry> {
   const jobsDir = join(deps.stateDir, "jobs");
   const { getJob } = await import("../state/index.js");
@@ -343,9 +338,7 @@ async function* streamJobOutputImpl(
     throw new JobNotFoundError(jobId);
   }
 
-  const { readJobOutputAll, getJobOutputPath } = await import(
-    "../state/job-output.js"
-  );
+  const { readJobOutputAll, getJobOutputPath } = await import("../state/job-output.js");
   const { watch } = await import("node:fs");
   const { stat } = await import("node:fs/promises");
   const { createReadStream } = await import("node:fs");
@@ -425,9 +418,7 @@ async function* streamJobOutputImpl(
           lastReadPosition = currentStats.size;
         }
       } catch (err) {
-        deps.logger.warn(
-          `Error reading output file: ${(err as Error).message}`
-        );
+        deps.logger.warn(`Error reading output file: ${(err as Error).message}`);
       }
     });
   } catch {
@@ -438,10 +429,7 @@ async function* streamJobOutputImpl(
   const checkJobComplete = async (): Promise<boolean> => {
     const { getJob: getJobFn } = await import("../state/index.js");
     const currentJob = await getJobFn(jobsDir, jobId, { logger: deps.logger });
-    return (
-      !currentJob ||
-      (currentJob.status !== "running" && currentJob.status !== "pending")
-    );
+    return !currentJob || (currentJob.status !== "running" && currentJob.status !== "pending");
   };
 
   try {
@@ -477,7 +465,7 @@ async function* streamJobOutputImpl(
  */
 async function* streamAgentLogsImpl(
   deps: LogStreamingDeps,
-  agentName: string
+  agentName: string,
 ): AsyncIterable<LogEntry> {
   // Verify agent exists
   const agents = deps.config?.agents ?? [];
@@ -509,9 +497,7 @@ async function* streamAgentLogsImpl(
  * @param minLevel - Minimum log level to include
  * @returns A filter function
  */
-export function createLogLevelFilter(
-  minLevel: LogLevel
-): (entry: LogEntry) => boolean {
+export function createLogLevelFilter(minLevel: LogLevel): (entry: LogEntry) => boolean {
   return (entry: LogEntry) => meetsLogLevel(entry.level, minLevel);
 }
 
@@ -524,9 +510,7 @@ export function createLogLevelFilter(
  * @param agentName - Agent name to filter by
  * @returns A filter function
  */
-export function createAgentFilter(
-  agentName: string
-): (entry: LogEntry) => boolean {
+export function createAgentFilter(agentName: string): (entry: LogEntry) => boolean {
   return (entry: LogEntry) => entry.agentName === agentName;
 }
 
@@ -565,9 +549,7 @@ export function combineLogFilters(
  * @param data - Partial log entry data
  * @returns A complete LogEntry
  */
-export function createLogEntry(
-  data: Partial<LogEntry> & { message: string }
-): LogEntry {
+export function createLogEntry(data: Partial<LogEntry> & { message: string }): LogEntry {
   return {
     timestamp: data.timestamp ?? new Date().toISOString(),
     level: data.level ?? "info",
@@ -595,7 +577,7 @@ export function formatLogEntry(
     includeTimestamp?: boolean;
     includeSource?: boolean;
     includeContext?: boolean;
-  }
+  },
 ): string {
   const parts: string[] = [];
 

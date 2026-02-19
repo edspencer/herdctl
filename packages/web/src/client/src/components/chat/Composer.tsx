@@ -5,7 +5,14 @@
  * Supports Enter to send, Shift+Enter for newline.
  */
 
-import { useState, useRef, useEffect, useCallback, type KeyboardEvent, type ChangeEvent } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  type KeyboardEvent,
+  type ChangeEvent,
+} from "react";
 import { ArrowUp } from "lucide-react";
 import { useChatMessages, useChatActions } from "../../store";
 import type { WebSocketClient } from "../../lib/ws";
@@ -75,7 +82,7 @@ export function Composer({ agentName, sessionId }: ComposerProps) {
         handleSend();
       }
     },
-    [handleSend]
+    [handleSend],
   );
 
   const handleChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {

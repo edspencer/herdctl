@@ -110,7 +110,7 @@ describe("validateWorkingDirectory", () => {
       const result = validateWorkingDirectory(session, "/users/ed/herds/personal/homelab");
 
       expect(result.message).toBe(
-        "Working directory changed from /users/ed/herds to /users/ed/herds/personal/homelab"
+        "Working directory changed from /users/ed/herds to /users/ed/herds/personal/homelab",
       );
     });
   });

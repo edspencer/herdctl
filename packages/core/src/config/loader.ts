@@ -53,7 +53,7 @@ export class ConfigNotFoundError extends ConfigError {
     super(
       `No herdctl configuration file found. ` +
         `Searched from '${startDirectory}' up to filesystem root. ` +
-        `Create a herdctl.yaml file to get started.`
+        `Create a herdctl.yaml file to get started.`,
     );
     this.name = "ConfigNotFoundError";
     this.searchedPaths = searchedPaths;
@@ -88,9 +88,7 @@ export class FleetCycleError extends ConfigError {
   public readonly pathChain: string[];
 
   constructor(pathChain: string[]) {
-    super(
-      `Fleet composition cycle detected: ${pathChain.join(" -> ")}`
-    );
+    super(`Fleet composition cycle detected: ${pathChain.join(" -> ")}`);
     this.name = "FleetCycleError";
     this.pathChain = pathChain;
   }
@@ -108,18 +106,17 @@ export class FleetNameCollisionError extends ConfigError {
   public readonly parentConfigPath: string;
   public readonly conflictingPaths: [string, string];
 
-  constructor(
-    fleetName: string,
-    parentConfigPath: string,
-    existingPath: string,
-    newPath: string
-  ) {
+  constructor(fleetName: string, parentConfigPath: string, existingPath: string, newPath: string) {
     // Derive level name from parent config for clearer error message
-    const levelName = parentConfigPath.split("/").pop()?.replace(/\.ya?ml$/, "") ?? "root";
+    const levelName =
+      parentConfigPath
+        .split("/")
+        .pop()
+        ?.replace(/\.ya?ml$/, "") ?? "root";
     super(
       `Fleet name collision at level "${levelName}": two sub-fleets resolve to name "${fleetName}". ` +
         `Conflicting references: ${existingPath}, ${newPath}. ` +
-        `Add explicit "name" overrides to disambiguate.`
+        `Add explicit "name" overrides to disambiguate.`,
     );
     this.name = "FleetNameCollisionError";
     this.fleetName = fleetName;
@@ -139,7 +136,7 @@ export class InvalidFleetNameError extends ConfigError {
 
   constructor(invalidName: string, pattern: RegExp = AGENT_NAME_PATTERN) {
     super(
-      `Invalid fleet name "${invalidName}" — fleet names must match pattern ${pattern.source} (no dots allowed)`
+      `Invalid fleet name "${invalidName}" — fleet names must match pattern ${pattern.source} (no dots allowed)`,
     );
     this.name = "InvalidFleetNameError";
     this.invalidName = invalidName;
@@ -161,7 +158,8 @@ export class FleetLoadError extends ConfigError {
 
   constructor(fleetPath: string, cause: Error, referencedFrom?: string) {
     // Check if this is a file not found error
-    const isNotFound = cause instanceof FileReadError &&
+    const isNotFound =
+      cause instanceof FileReadError &&
       (cause.message.includes("ENOENT") || cause.message.includes("no such file"));
 
     let message: string;
@@ -298,7 +296,7 @@ async function fileExists(filePath: string): Promise<boolean> {
  * @returns The absolute path to the config file, or null if not found
  */
 export async function findConfigFile(
-  startDir: string
+  startDir: string,
 ): Promise<{ path: string; searchedPaths: string[] } | null> {
   const searchedPaths: string[] = [];
   let currentDir = resolve(startDir);
@@ -336,18 +334,14 @@ export async function findConfigFile(
  * Emits warnings for deprecated field names and migrates them to new names.
  * Currently handles: workspace -> working_directory
  */
-function handleBackwardCompatibility(
-  config: Record<string, unknown>,
-  context: string
-): void {
+function handleBackwardCompatibility(config: Record<string, unknown>, context: string): void {
   // Handle workspace -> working_directory migration
   if ("workspace" in config) {
     if (!("working_directory" in config)) {
       // Only workspace present - migrate and warn
       const logger = createLogger("config");
       logger.warn(
-        `"${context}" uses deprecated "workspace" field. ` +
-          'Use "working_directory" instead.'
+        `"${context}" uses deprecated "workspace" field. ` + 'Use "working_directory" instead.',
       );
       config.working_directory = config.workspace;
     }
@@ -370,11 +364,9 @@ function parseFleetYaml(content: string, filePath: string): FleetConfig {
   } catch (error) {
     if (error instanceof YAMLParseError) {
       const position = error.linePos?.[0];
-      const locationInfo = position
-        ? ` at line ${position.line}, column ${position.col}`
-        : "";
+      const locationInfo = position ? ` at line ${position.line}, column ${position.col}` : "";
       throw new ConfigError(
-        `Invalid YAML syntax in '${filePath}'${locationInfo}: ${error.message}`
+        `Invalid YAML syntax in '${filePath}'${locationInfo}: ${error.message}`,
       );
     }
     throw error;
@@ -387,21 +379,14 @@ function parseFleetYaml(content: string, filePath: string): FleetConfig {
 
   // Handle backward compatibility for fleet config
   if (typeof rawConfig === "object" && rawConfig !== null) {
-    handleBackwardCompatibility(
-      rawConfig as Record<string, unknown>,
-      `Fleet config '${filePath}'`
-    );
+    handleBackwardCompatibility(rawConfig as Record<string, unknown>, `Fleet config '${filePath}'`);
 
     // Also handle defaults section
     const config = rawConfig as Record<string, unknown>;
-    if (
-      config.defaults &&
-      typeof config.defaults === "object" &&
-      config.defaults !== null
-    ) {
+    if (config.defaults && typeof config.defaults === "object" && config.defaults !== null) {
       handleBackwardCompatibility(
         config.defaults as Record<string, unknown>,
-        `Fleet defaults in '${filePath}'`
+        `Fleet defaults in '${filePath}'`,
       );
     }
   }
@@ -426,11 +411,9 @@ function parseAgentYaml(content: string, filePath: string): AgentConfig {
   } catch (error) {
     if (error instanceof YAMLParseError) {
       const position = error.linePos?.[0];
-      const locationInfo = position
-        ? ` at line ${position.line}, column ${position.col}`
-        : "";
+      const locationInfo = position ? ` at line ${position.line}, column ${position.col}` : "";
       throw new ConfigError(
-        `Invalid YAML syntax in '${filePath}'${locationInfo}: ${error.message}`
+        `Invalid YAML syntax in '${filePath}'${locationInfo}: ${error.message}`,
       );
     }
     throw error;
@@ -443,10 +426,7 @@ function parseAgentYaml(content: string, filePath: string): AgentConfig {
 
   // Handle backward compatibility
   if (typeof rawConfig === "object" && rawConfig !== null) {
-    handleBackwardCompatibility(
-      rawConfig as Record<string, unknown>,
-      `Agent config '${filePath}'`
-    );
+    handleBackwardCompatibility(rawConfig as Record<string, unknown>, `Agent config '${filePath}'`);
   }
 
   try {
@@ -457,11 +437,9 @@ function parseAgentYaml(content: string, filePath: string): AgentConfig {
         path: issue.path.join(".") || "(root)",
         message: issue.message,
       }));
-      const issueMessages = issues
-        .map((i) => `  - ${i.path}: ${i.message}`)
-        .join("\n");
+      const issueMessages = issues.map((i) => `  - ${i.path}: ${i.message}`).join("\n");
       throw new ConfigError(
-        `Agent configuration validation failed in '${filePath}':\n${issueMessages}`
+        `Agent configuration validation failed in '${filePath}':\n${issueMessages}`,
       );
     }
     throw error;
@@ -495,23 +473,14 @@ interface FleetLoadContext {
  * Normalize working_directory in fleet defaults by resolving relative paths
  * relative to the fleet config directory.
  */
-function normalizeFleetDefaultsWorkingDirectory(
-  fleetConfig: FleetConfig,
-  configDir: string
-): void {
+function normalizeFleetDefaultsWorkingDirectory(fleetConfig: FleetConfig, configDir: string): void {
   if (fleetConfig.defaults?.working_directory) {
     const working_directory = fleetConfig.defaults.working_directory;
     if (typeof working_directory === "string") {
       if (!working_directory.startsWith("/")) {
-        fleetConfig.defaults.working_directory = resolve(
-          configDir,
-          working_directory
-        );
+        fleetConfig.defaults.working_directory = resolve(configDir, working_directory);
       }
-    } else if (
-      working_directory.root &&
-      !working_directory.root.startsWith("/")
-    ) {
+    } else if (working_directory.root && !working_directory.root.startsWith("/")) {
       working_directory.root = resolve(configDir, working_directory.root);
     }
   }
@@ -525,7 +494,7 @@ async function loadAgent(
   configDir: string,
   fleetDefaults: ExtendedDefaults | undefined,
   fleetPath: string[],
-  ctx: FleetLoadContext
+  ctx: FleetLoadContext,
 ): Promise<ResolvedAgent> {
   const agentPath = resolveAgentPath(agentRef.path, configDir);
 
@@ -536,7 +505,7 @@ async function loadAgent(
   } catch (error) {
     throw new AgentLoadError(
       agentRef.path,
-      new FileReadError(agentPath, error instanceof Error ? error : undefined)
+      new FileReadError(agentPath, error instanceof Error ? error : undefined),
     );
   }
 
@@ -547,7 +516,7 @@ async function loadAgent(
   } catch (error) {
     throw new AgentLoadError(
       agentRef.path,
-      error instanceof Error ? error : new Error(String(error))
+      error instanceof Error ? error : new Error(String(error)),
     );
   }
 
@@ -565,7 +534,7 @@ async function loadAgent(
   if (agentRef.overrides) {
     agentConfig = deepMerge(
       agentConfig as Record<string, unknown>,
-      agentRef.overrides as Record<string, unknown>
+      agentRef.overrides as Record<string, unknown>,
     ) as AgentConfig;
   }
 
@@ -575,25 +544,20 @@ async function loadAgent(
     agentConfig.working_directory = agentConfigDir;
   } else if (typeof agentConfig.working_directory === "string") {
     if (!agentConfig.working_directory.startsWith("/")) {
-      agentConfig.working_directory = resolve(
-        agentConfigDir,
-        agentConfig.working_directory
-      );
+      agentConfig.working_directory = resolve(agentConfigDir, agentConfig.working_directory);
     }
   } else if (agentConfig.working_directory.root) {
     if (!agentConfig.working_directory.root.startsWith("/")) {
       agentConfig.working_directory.root = resolve(
         agentConfigDir,
-        agentConfig.working_directory.root
+        agentConfig.working_directory.root,
       );
     }
   }
 
   // Compute qualified name
   const qualifiedName =
-    fleetPath.length > 0
-      ? fleetPath.join(".") + "." + agentConfig.name
-      : agentConfig.name;
+    fleetPath.length > 0 ? fleetPath.join(".") + "." + agentConfig.name : agentConfig.name;
 
   return {
     ...agentConfig,
@@ -612,7 +576,7 @@ async function loadAgent(
 function resolveFleetName(
   parentName: string | undefined,
   subFleetConfig: FleetConfig,
-  subFleetConfigPath: string
+  subFleetConfigPath: string,
 ): string {
   if (parentName) {
     return parentName;
@@ -650,7 +614,7 @@ async function processFleetSubFleets(
   visitedPaths: Set<string>,
   effectiveDefaults: ExtendedDefaults | undefined,
   ctx: FleetLoadContext,
-  pathChain: string[]
+  pathChain: string[],
 ): Promise<ResolvedAgent[]> {
   const agents: ResolvedAgent[] = [];
   const fleetRefs = fleetConfig.fleets;
@@ -680,11 +644,8 @@ async function processFleetSubFleets(
     } catch (error) {
       throw new FleetLoadError(
         subFleetAbsPath,
-        new FileReadError(
-          subFleetAbsPath,
-          error instanceof Error ? error : undefined
-        ),
-        parentConfigFilename
+        new FileReadError(subFleetAbsPath, error instanceof Error ? error : undefined),
+        parentConfigFilename,
       );
     }
 
@@ -695,7 +656,7 @@ async function processFleetSubFleets(
       throw new FleetLoadError(
         subFleetAbsPath,
         error instanceof Error ? error : new Error(String(error)),
-        parentConfigFilename
+        parentConfigFilename,
       );
     }
 
@@ -704,11 +665,7 @@ async function processFleetSubFleets(
     }
 
     // Resolve fleet name using priority order
-    const resolvedName = resolveFleetName(
-      fleetRef.name,
-      subFleetConfig,
-      subFleetAbsPath
-    );
+    const resolvedName = resolveFleetName(fleetRef.name, subFleetConfig, subFleetAbsPath);
 
     // Validate fleet name matches agent name pattern (no dots)
     if (!AGENT_NAME_PATTERN.test(resolvedName)) {
@@ -726,13 +683,12 @@ async function processFleetSubFleets(
     if (fleetRef.overrides) {
       subFleetConfig = deepMerge(
         subFleetConfig as unknown as Record<string, unknown>,
-        fleetRef.overrides as Record<string, unknown>
+        fleetRef.overrides as Record<string, unknown>,
       ) as unknown as FleetConfig;
     }
 
     // Suppress sub-fleet web unless parent overrides explicitly set web config
-    const parentOverridesWeb =
-      fleetRef.overrides && "web" in fleetRef.overrides;
+    const parentOverridesWeb = fleetRef.overrides && "web" in fleetRef.overrides;
     if (!parentOverridesWeb) {
       if (subFleetConfig.web) {
         subFleetConfig.web = { ...subFleetConfig.web, enabled: false };
@@ -751,7 +707,7 @@ async function processFleetSubFleets(
       if (effectiveDefaults && subFleetConfig.defaults) {
         subFleetEffectiveDefaults = deepMerge(
           effectiveDefaults as Record<string, unknown>,
-          subFleetConfig.defaults as Record<string, unknown>
+          subFleetConfig.defaults as Record<string, unknown>,
         ) as ExtendedDefaults;
       } else {
         subFleetEffectiveDefaults =
@@ -761,9 +717,7 @@ async function processFleetSubFleets(
 
     const subFleetFleetPath = [...fleetPath, resolvedName];
 
-    logger.debug(
-      `Loading sub-fleet '${resolvedName}' from ${subFleetAbsPath}`
-    );
+    logger.debug(`Loading sub-fleet '${resolvedName}' from ${subFleetAbsPath}`);
 
     // Load agents from the sub-fleet
     for (const agentRef of subFleetConfig.agents) {
@@ -772,7 +726,7 @@ async function processFleetSubFleets(
         subFleetDir,
         subFleetEffectiveDefaults,
         subFleetFleetPath,
-        ctx
+        ctx,
       );
       agents.push(agent);
     }
@@ -787,7 +741,7 @@ async function processFleetSubFleets(
       visitedPaths,
       subFleetEffectiveDefaults,
       ctx,
-      [...pathChain, subFleetAbsPath]
+      [...pathChain, subFleetAbsPath],
     );
     agents.push(...nestedAgents);
   }
@@ -840,14 +794,9 @@ async function processFleetSubFleets(
  */
 export async function loadConfig(
   configPath?: string,
-  options: LoadConfigOptions = {}
+  options: LoadConfigOptions = {},
 ): Promise<ResolvedConfig> {
-  const {
-    env: providedEnv,
-    interpolate = true,
-    mergeDefaults = true,
-    envFile = true,
-  } = options;
+  const { env: providedEnv, interpolate = true, mergeDefaults = true, envFile = true } = options;
 
   // Start with process.env, we'll merge .env file vars into this
   let env: Record<string, string | undefined> = providedEnv ?? {
@@ -860,8 +809,7 @@ export async function loadConfig(
 
   if (configPath) {
     // Check if it's a file or directory
-    const isYamlFile =
-      configPath.endsWith(".yaml") || configPath.endsWith(".yml");
+    const isYamlFile = configPath.endsWith(".yaml") || configPath.endsWith(".yml");
 
     if (isYamlFile) {
       // Treat as direct file path
@@ -889,8 +837,7 @@ export async function loadConfig(
 
   // Load .env file if configured
   if (envFile !== false) {
-    const envFilePath =
-      typeof envFile === "string" ? resolve(envFile) : join(configDir, ".env");
+    const envFilePath = typeof envFile === "string" ? resolve(envFile) : join(configDir, ".env");
 
     // Only load if the file exists
     if (await fileExists(envFilePath)) {
@@ -912,10 +859,7 @@ export async function loadConfig(
   try {
     fleetContent = await readFile(resolvedConfigPath, "utf-8");
   } catch (error) {
-    throw new FileReadError(
-      resolvedConfigPath,
-      error instanceof Error ? error : undefined
-    );
+    throw new FileReadError(resolvedConfigPath, error instanceof Error ? error : undefined);
   }
 
   // Parse the fleet config
@@ -933,7 +877,7 @@ export async function loadConfig(
 
   // Compute effective defaults for the root fleet (just its own defaults)
   const rootDefaults = mergeDefaults
-    ? (fleetConfig.defaults as ExtendedDefaults) ?? undefined
+    ? ((fleetConfig.defaults as ExtendedDefaults) ?? undefined)
     : undefined;
 
   // Load root-level agents (fleetPath = [], no fleet name prefix)
@@ -945,7 +889,7 @@ export async function loadConfig(
       configDir,
       rootDefaults,
       [], // root fleet agents have empty fleetPath
-      ctx
+      ctx,
     );
     agents.push(agent);
   }
@@ -961,7 +905,7 @@ export async function loadConfig(
       visitedPaths,
       rootDefaults,
       ctx,
-      [resolvedConfigPath]
+      [resolvedConfigPath],
     );
     agents.push(...subFleetAgents);
   }
@@ -983,11 +927,8 @@ export async function loadConfig(
  */
 export async function safeLoadConfig(
   configPath?: string,
-  options: LoadConfigOptions = {}
-): Promise<
-  | { success: true; data: ResolvedConfig }
-  | { success: false; error: ConfigError }
-> {
+  options: LoadConfigOptions = {},
+): Promise<{ success: true; data: ResolvedConfig } | { success: false; error: ConfigError }> {
   try {
     const config = await loadConfig(configPath, options);
     return { success: true, data: config };
@@ -997,9 +938,7 @@ export async function safeLoadConfig(
     }
     return {
       success: false,
-      error: new ConfigError(
-        error instanceof Error ? error.message : String(error)
-      ),
+      error: new ConfigError(error instanceof Error ? error.message : String(error)),
     };
   }
 }

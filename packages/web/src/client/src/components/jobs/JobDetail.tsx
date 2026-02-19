@@ -71,9 +71,7 @@ function formatDuration(startedAt?: string, completedAt?: string): string {
 
   if (minutes > 0) {
     const remainingSeconds = seconds % 60;
-    return remainingSeconds > 0
-      ? `${minutes}m ${remainingSeconds}s`
-      : `${minutes}m`;
+    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
   }
 
   return `${seconds}s`;
@@ -109,12 +107,8 @@ interface DetailRowProps {
 function DetailRow({ label, children, mono = false }: DetailRowProps) {
   return (
     <div className="py-2 border-b border-herd-border last:border-b-0">
-      <dt className="text-xs text-herd-muted font-medium uppercase tracking-wide mb-1">
-        {label}
-      </dt>
-      <dd className={`text-sm text-herd-fg ${mono ? "font-mono" : ""}`}>
-        {children}
-      </dd>
+      <dt className="text-xs text-herd-muted font-medium uppercase tracking-wide mb-1">{label}</dt>
+      <dd className={`text-sm text-herd-fg ${mono ? "font-mono" : ""}`}>{children}</dd>
     </div>
   );
 }
@@ -351,7 +345,10 @@ function ForkButton({ jobId, onForked }: { jobId: string; onForked: (newJobId: s
           {error}
         </div>
         <button
-          onClick={() => { setError(null); setShowPrompt(false); }}
+          onClick={() => {
+            setError(null);
+            setShowPrompt(false);
+          }}
           className="hover:bg-herd-hover text-herd-muted hover:text-herd-fg rounded-lg px-2 py-1 text-xs font-medium transition-colors"
         >
           Dismiss
@@ -388,7 +385,10 @@ function ForkButton({ jobId, onForked }: { jobId: string; onForked: (newJobId: s
             Fork
           </button>
           <button
-            onClick={() => { setShowPrompt(false); setPrompt(""); }}
+            onClick={() => {
+              setShowPrompt(false);
+              setPrompt("");
+            }}
             className="border border-herd-border hover:bg-herd-hover text-herd-fg rounded-lg px-2 py-1 text-xs font-medium transition-colors"
           >
             Cancel
@@ -417,7 +417,8 @@ export function JobDetail({ jobId, job, loading, onClose }: JobDetailProps) {
   const { selectJob, fetchJobs } = useJobsActions();
 
   const isRunning = job?.status === "running" || job?.status === "pending";
-  const isFinished = job?.status === "completed" || job?.status === "failed" || job?.status === "cancelled";
+  const isFinished =
+    job?.status === "completed" || job?.status === "failed" || job?.status === "cancelled";
   const duration = job ? formatDuration(job.startedAt, job.completedAt) : "-";
 
   const handleCancelled = useCallback(() => {
@@ -431,7 +432,7 @@ export function JobDetail({ jobId, job, loading, onClose }: JobDetailProps) {
       selectJob(newJobId);
       fetchJobs().catch(() => {});
     },
-    [selectJob, fetchJobs]
+    [selectJob, fetchJobs],
   );
 
   // Build CLI commands
@@ -532,9 +533,7 @@ export function JobDetail({ jobId, job, loading, onClose }: JobDetailProps) {
               <DetailRow label="Exit Code" mono>
                 <span
                   className={
-                    job.exitCode === 0
-                      ? "text-herd-status-running"
-                      : "text-herd-status-error"
+                    job.exitCode === 0 ? "text-herd-status-running" : "text-herd-status-error"
                   }
                 >
                   {job.exitCode}
@@ -558,14 +557,10 @@ export function JobDetail({ jobId, job, loading, onClose }: JobDetailProps) {
       {job && (
         <div className="px-4 py-3 border-t border-herd-border space-y-3">
           {/* Cancel (running jobs only) */}
-          {isRunning && (
-            <CancelButton jobId={job.jobId} onCancelled={handleCancelled} />
-          )}
+          {isRunning && <CancelButton jobId={job.jobId} onCancelled={handleCancelled} />}
 
           {/* Fork (finished jobs only) */}
-          {isFinished && (
-            <ForkButton jobId={job.jobId} onForked={handleForked} />
-          )}
+          {isFinished && <ForkButton jobId={job.jobId} onForked={handleForked} />}
 
           {/* View Agent Output */}
           <Link
@@ -581,9 +576,7 @@ export function JobDetail({ jobId, job, loading, onClose }: JobDetailProps) {
             <p className="text-xs text-herd-muted font-medium uppercase tracking-wide mb-1">
               CLI Commands
             </p>
-            {resumeCommand && (
-              <CopyButton text={resumeCommand} label="Copy Resume Command" />
-            )}
+            {resumeCommand && <CopyButton text={resumeCommand} label="Copy Resume Command" />}
             <CopyButton text={triggerCommand} label="Copy Trigger Command" />
           </div>
         </div>

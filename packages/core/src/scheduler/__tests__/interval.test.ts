@@ -1,9 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  parseInterval,
-  calculateNextTrigger,
-  isScheduleDue,
-} from "../interval.js";
+import { parseInterval, calculateNextTrigger, isScheduleDue } from "../interval.js";
 import { IntervalParseError } from "../errors.js";
 
 // =============================================================================
@@ -285,13 +281,13 @@ describe("calculateNextTrigger", () => {
 
     it("returns now regardless of interval when lastCompletedAt is null", () => {
       expect(calculateNextTrigger(null, "1s").getTime()).toBe(
-        new Date("2024-01-15T12:00:00.000Z").getTime()
+        new Date("2024-01-15T12:00:00.000Z").getTime(),
       );
       expect(calculateNextTrigger(null, "1h").getTime()).toBe(
-        new Date("2024-01-15T12:00:00.000Z").getTime()
+        new Date("2024-01-15T12:00:00.000Z").getTime(),
       );
       expect(calculateNextTrigger(null, "1d").getTime()).toBe(
-        new Date("2024-01-15T12:00:00.000Z").getTime()
+        new Date("2024-01-15T12:00:00.000Z").getTime(),
       );
     });
   });
@@ -374,9 +370,7 @@ describe("calculateNextTrigger", () => {
       const result = calculateNextTrigger(lastCompleted, "1h", 5);
 
       // 11:00 + 1h + 1.5m = 12:01:30
-      expect(result.getTime()).toBe(
-        new Date("2024-01-15T12:01:30.000Z").getTime()
-      );
+      expect(result.getTime()).toBe(new Date("2024-01-15T12:01:30.000Z").getTime());
 
       vi.spyOn(Math, "random").mockRestore();
     });
@@ -390,9 +384,7 @@ describe("calculateNextTrigger", () => {
       const result = calculateNextTrigger(lastCompleted, "1h", 20);
 
       // 11:00 + 1h + 6m = 12:06
-      expect(result.getTime()).toBe(
-        new Date("2024-01-15T12:06:00.000Z").getTime()
-      );
+      expect(result.getTime()).toBe(new Date("2024-01-15T12:06:00.000Z").getTime());
 
       vi.spyOn(Math, "random").mockRestore();
     });
@@ -409,17 +401,13 @@ describe("calculateNextTrigger", () => {
       vi.spyOn(Math, "random").mockReturnValue(0);
       const lastCompleted = new Date("2024-01-15T11:00:00.000Z");
       const resultMin = calculateNextTrigger(lastCompleted, "1h", 10);
-      expect(resultMin.getTime()).toBe(
-        new Date("2024-01-15T12:00:00.000Z").getTime()
-      );
+      expect(resultMin.getTime()).toBe(new Date("2024-01-15T12:00:00.000Z").getTime());
 
       // Test with random = 1 (maximum jitter)
       vi.spyOn(Math, "random").mockReturnValue(1.0);
       const resultMax = calculateNextTrigger(lastCompleted, "1h", 10);
       // 10% of 1h = 6 minutes
-      expect(resultMax.getTime()).toBe(
-        new Date("2024-01-15T12:06:00.000Z").getTime()
-      );
+      expect(resultMax.getTime()).toBe(new Date("2024-01-15T12:06:00.000Z").getTime());
 
       vi.spyOn(Math, "random").mockRestore();
     });
@@ -428,16 +416,12 @@ describe("calculateNextTrigger", () => {
   describe("error handling", () => {
     it("throws IntervalParseError for invalid interval", () => {
       const lastCompleted = new Date("2024-01-15T11:00:00.000Z");
-      expect(() => calculateNextTrigger(lastCompleted, "invalid")).toThrow(
-        IntervalParseError
-      );
+      expect(() => calculateNextTrigger(lastCompleted, "invalid")).toThrow(IntervalParseError);
     });
 
     it("throws for empty interval", () => {
       const lastCompleted = new Date("2024-01-15T11:00:00.000Z");
-      expect(() => calculateNextTrigger(lastCompleted, "")).toThrow(
-        IntervalParseError
-      );
+      expect(() => calculateNextTrigger(lastCompleted, "")).toThrow(IntervalParseError);
     });
   });
 });

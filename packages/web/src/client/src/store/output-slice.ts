@@ -41,12 +41,7 @@ export interface OutputState {
 
 export interface OutputActions {
   /** Append output to a job's buffer */
-  appendOutput: (
-    jobId: string,
-    agentName: string,
-    data: string,
-    stream: StreamType
-  ) => void;
+  appendOutput: (jobId: string, agentName: string, data: string, stream: StreamType) => void;
   /** Clear all output for a specific job */
   clearJobOutput: (jobId: string) => void;
   /** Mark a job as actively being viewed */
@@ -78,9 +73,7 @@ const initialOutputState: OutputState = {
 // Slice Creator
 // =============================================================================
 
-export const createOutputSlice: StateCreator<OutputSlice, [], [], OutputSlice> = (
-  set
-) => ({
+export const createOutputSlice: StateCreator<OutputSlice, [], [], OutputSlice> = (set) => ({
   ...initialOutputState,
 
   appendOutput: (jobId, agentName, data, stream) =>

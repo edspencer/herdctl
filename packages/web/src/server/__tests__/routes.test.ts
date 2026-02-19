@@ -198,9 +198,7 @@ describe("Agent Routes", () => {
     });
 
     it("returns 404 when agent not found", async () => {
-      mockFM.getAgentInfoByName.mockRejectedValue(
-        new Error("Agent not found: unknown-agent")
-      );
+      mockFM.getAgentInfoByName.mockRejectedValue(new Error("Agent not found: unknown-agent"));
 
       const response = await server.inject({
         method: "GET",
@@ -212,9 +210,7 @@ describe("Agent Routes", () => {
     });
 
     it("returns 500 for unexpected errors", async () => {
-      mockFM.getAgentInfoByName.mockRejectedValue(
-        new Error("Unexpected error")
-      );
+      mockFM.getAgentInfoByName.mockRejectedValue(new Error("Unexpected error"));
 
       const response = await server.inject({
         method: "GET",
@@ -323,10 +319,10 @@ describe("Job Routes", () => {
         url: "/api/jobs?agentName=coder&status=running",
       });
 
-      expect(mockListJobs).toHaveBeenCalledWith(
-        "/tmp/test-state/jobs",
-        { agent: "coder", status: "running" }
-      );
+      expect(mockListJobs).toHaveBeenCalledWith("/tmp/test-state/jobs", {
+        agent: "coder",
+        status: "running",
+      });
     });
 
     it("returns 500 on error", async () => {
@@ -545,17 +541,13 @@ describe("Schedule Routes", () => {
       });
 
       expect(response.statusCode).toBe(200);
-      expect(mockFM.trigger).toHaveBeenCalledWith(
-        "coder",
-        "daily-review",
-        { prompt: "Custom task" }
-      );
+      expect(mockFM.trigger).toHaveBeenCalledWith("coder", "daily-review", {
+        prompt: "Custom task",
+      });
     });
 
     it("returns 404 when agent not found", async () => {
-      mockFM.trigger.mockRejectedValue(
-        new Error("Agent not found: missing")
-      );
+      mockFM.trigger.mockRejectedValue(new Error("Agent not found: missing"));
 
       const response = await server.inject({
         method: "POST",
@@ -602,9 +594,7 @@ describe("Schedule Routes", () => {
     });
 
     it("returns 404 when schedule not found", async () => {
-      mockFM.enableSchedule.mockRejectedValue(
-        new Error("Schedule not found: nonexistent")
-      );
+      mockFM.enableSchedule.mockRejectedValue(new Error("Schedule not found: nonexistent"));
 
       const response = await server.inject({
         method: "POST",
@@ -637,9 +627,7 @@ describe("Schedule Routes", () => {
     });
 
     it("returns 404 when schedule not found", async () => {
-      mockFM.disableSchedule.mockRejectedValue(
-        new Error("Schedule not found: nonexistent")
-      );
+      mockFM.disableSchedule.mockRejectedValue(new Error("Schedule not found: nonexistent"));
 
       const response = await server.inject({
         method: "POST",

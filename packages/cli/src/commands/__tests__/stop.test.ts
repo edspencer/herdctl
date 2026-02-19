@@ -9,7 +9,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 function createTempDir(): string {
   const baseDir = path.join(
     tmpdir(),
-    `herdctl-cli-stop-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-cli-stop-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   fs.mkdirSync(baseDir, { recursive: true });
   return fs.realpathSync(baseDir);
@@ -155,13 +155,17 @@ describe("stopCommand", () => {
       const stateDir = path.join(tempDir, ".herdctl");
 
       // Create a process that ignores SIGTERM temporarily
-      const proc = spawn("node", [
-        "-e",
-        "process.on('SIGTERM', () => { setTimeout(() => process.exit(0), 100) }); setInterval(() => {}, 1000)",
-      ], {
-        detached: true,
-        stdio: "ignore",
-      });
+      const proc = spawn(
+        "node",
+        [
+          "-e",
+          "process.on('SIGTERM', () => { setTimeout(() => process.exit(0), 100) }); setInterval(() => {}, 1000)",
+        ],
+        {
+          detached: true,
+          stdio: "ignore",
+        },
+      );
       proc.unref();
       testProcesses.push(proc);
 
@@ -181,13 +185,17 @@ describe("stopCommand", () => {
       const stateDir = path.join(tempDir, ".herdctl");
 
       // Create a process that ignores SIGTERM temporarily
-      const proc = spawn("node", [
-        "-e",
-        "process.on('SIGTERM', () => { setTimeout(() => process.exit(0), 100) }); setInterval(() => {}, 1000)",
-      ], {
-        detached: true,
-        stdio: "ignore",
-      });
+      const proc = spawn(
+        "node",
+        [
+          "-e",
+          "process.on('SIGTERM', () => { setTimeout(() => process.exit(0), 100) }); setInterval(() => {}, 1000)",
+        ],
+        {
+          detached: true,
+          stdio: "ignore",
+        },
+      );
       proc.unref();
       testProcesses.push(proc);
 
@@ -240,7 +248,7 @@ describe("stopCommand", () => {
 trap '' SIGTERM
 while true; do sleep 0.1; done
 `,
-        { mode: 0o755 }
+        { mode: 0o755 },
       );
 
       const proc = spawn("bash", [scriptFile], {

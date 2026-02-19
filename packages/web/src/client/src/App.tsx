@@ -56,13 +56,62 @@ export default function App() {
     <ErrorBoundary>
       <AppLayout>
         <Routes>
-          <Route path="/" element={<ErrorBoundary><FleetDashboard /></ErrorBoundary>} />
-          <Route path="/agents/:name" element={<ErrorBoundary><AgentDetail /></ErrorBoundary>} />
-          <Route path="/agents/:name/:tab" element={<ErrorBoundary><AgentDetail /></ErrorBoundary>} />
-          <Route path="/agents/:name/chat" element={<ErrorBoundary><ChatView /></ErrorBoundary>} />
-          <Route path="/agents/:name/chat/:sessionId" element={<ErrorBoundary><ChatView /></ErrorBoundary>} />
-          <Route path="/jobs" element={<ErrorBoundary><JobsPage /></ErrorBoundary>} />
-          <Route path="/schedules" element={<ErrorBoundary><SchedulesPage /></ErrorBoundary>} />
+          <Route
+            path="/"
+            element={
+              <ErrorBoundary>
+                <FleetDashboard />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/agents/:name"
+            element={
+              <ErrorBoundary>
+                <AgentDetail />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/agents/:name/:tab"
+            element={
+              <ErrorBoundary>
+                <AgentDetail />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/agents/:name/chat"
+            element={
+              <ErrorBoundary>
+                <ChatView />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/agents/:name/chat/:sessionId"
+            element={
+              <ErrorBoundary>
+                <ChatView />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/jobs"
+            element={
+              <ErrorBoundary>
+                <JobsPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/schedules"
+            element={
+              <ErrorBoundary>
+                <SchedulesPage />
+              </ErrorBoundary>
+            }
+          />
         </Routes>
       </AppLayout>
       <ToastContainer />

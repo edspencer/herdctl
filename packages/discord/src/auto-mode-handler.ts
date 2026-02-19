@@ -84,10 +84,7 @@ export function getDMMode(dmConfig?: ChatDM): "mention" | "auto" {
  * }
  * ```
  */
-export function checkDMUserFilter(
-  userId: string,
-  dmConfig?: ChatDM
-): DMFilterResult {
+export function checkDMUserFilter(userId: string, dmConfig?: ChatDM): DMFilterResult {
   return chatCheckDMUserFilter(userId, dmConfig);
 }
 
@@ -114,7 +111,7 @@ export const DEFAULT_CHANNEL_CONTEXT_MESSAGES = 10;
  */
 export function findChannelConfig(
   channelId: string,
-  guilds: DiscordGuild[]
+  guilds: DiscordGuild[],
 ): { channel: DiscordChannel; guildId: string } | null {
   for (const guild of guilds) {
     const channel = guild.channels?.find((c) => c.id === channelId);
@@ -159,7 +156,7 @@ export function resolveChannelConfig(
   channelId: string,
   guildId: string | null,
   guilds: DiscordGuild[],
-  dmConfig?: ChatDM
+  dmConfig?: ChatDM,
 ): ResolvedChannelConfig | null {
   // Handle DMs
   if (!guildId) {

@@ -284,7 +284,7 @@ describe("FleetManagerError classes", () => {
     it("creates error with message and state directory", () => {
       const error = new FleetManagerStateDirError(
         "Failed to create directory",
-        "/path/to/.herdctl"
+        "/path/to/.herdctl",
       );
       expect(error.message).toBe("Failed to create directory");
       expect(error.name).toBe("FleetManagerStateDirError");
@@ -452,7 +452,9 @@ describe("FleetManagerError classes", () => {
         expect(isFleetManagerError(new ScheduleNotFoundError("a", "b"))).toBe(true);
         expect(isFleetManagerError(new InvalidStateError("a", "b", "c"))).toBe(true);
         expect(isFleetManagerError(new ConcurrencyLimitError("a", 1, 1))).toBe(true);
-        expect(isFleetManagerError(new FleetManagerShutdownError("test", { timedOut: false }))).toBe(true);
+        expect(
+          isFleetManagerError(new FleetManagerShutdownError("test", { timedOut: false })),
+        ).toBe(true);
         expect(isFleetManagerError(new JobCancelError("test", "unknown"))).toBe(true);
         expect(isFleetManagerError(new JobForkError("test", "unknown"))).toBe(true);
       });

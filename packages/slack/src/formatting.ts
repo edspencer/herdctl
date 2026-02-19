@@ -83,9 +83,7 @@ export function markdownToMrkdwn(text: string): string {
  *
  * Used to display context usage information in a color-coded footer.
  */
-export function createContextAttachment(
-  contextPercent: number
-): ContextAttachment {
+export function createContextAttachment(contextPercent: number): ContextAttachment {
   return {
     footer: `Context: ${Math.round(contextPercent)}% remaining`,
     color: contextPercent < 20 ? "#ff0000" : "#36a64f",

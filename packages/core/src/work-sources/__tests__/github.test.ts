@@ -41,9 +41,7 @@ function createMockIssue(overrides: Partial<GitHubIssue> = {}): GitHubIssue {
 /**
  * Create a default adapter config
  */
-function createConfig(
-  overrides: Partial<GitHubWorkSourceConfig> = {}
-): GitHubWorkSourceConfig {
+function createConfig(overrides: Partial<GitHubWorkSourceConfig> = {}): GitHubWorkSourceConfig {
   return {
     type: "github",
     owner: "testowner",
@@ -58,7 +56,7 @@ function createConfig(
  */
 function mockFetchResponse(
   data: unknown,
-  options: { status?: number; headers?: Record<string, string> } = {}
+  options: { status?: number; headers?: Record<string, string> } = {},
 ) {
   const { status = 200, headers = {} } = options;
   return Promise.resolve({
@@ -82,10 +80,7 @@ interface MockCallInfo {
   headers: Record<string, string>;
 }
 
-function getMockCall(
-  mockFetch: ReturnType<typeof vi.fn>,
-  index: number
-): MockCallInfo {
+function getMockCall(mockFetch: ReturnType<typeof vi.fn>, index: number): MockCallInfo {
   const call = mockFetch.mock.calls[index];
   if (!call) {
     throw new Error(`Mock call at index ${index} not found`);
@@ -135,7 +130,7 @@ describe("GitHubWorkSourceAdapter", () => {
             ready: "custom-ready",
             in_progress: "custom-wip",
           },
-        })
+        }),
       );
       expect(adapter.type).toBe("github");
     });
@@ -150,7 +145,7 @@ describe("GitHubWorkSourceAdapter", () => {
       const adapter = new GitHubWorkSourceAdapter(
         createConfig({
           exclude_labels: ["on-hold", "needs-review"],
-        })
+        }),
       );
       expect(adapter.type).toBe("github");
     });
@@ -175,7 +170,7 @@ describe("GitHubWorkSourceAdapter", () => {
           headers: expect.objectContaining({
             Authorization: "Bearer test-token",
           }),
-        })
+        }),
       );
       expect(result.items).toHaveLength(2);
     });
@@ -196,7 +191,7 @@ describe("GitHubWorkSourceAdapter", () => {
       const adapter = new GitHubWorkSourceAdapter(
         createConfig({
           labels: { ready: "agent-ready" },
-        })
+        }),
       );
       await adapter.fetchAvailableWork();
 
@@ -241,7 +236,7 @@ describe("GitHubWorkSourceAdapter", () => {
       const adapter = new GitHubWorkSourceAdapter(
         createConfig({
           exclude_labels: ["on-hold"],
-        })
+        }),
       );
       const result = await adapter.fetchAvailableWork();
 
@@ -332,7 +327,7 @@ describe("GitHubWorkSourceAdapter", () => {
           headers: {
             Link: '<https://api.github.com/repos/owner/repo/issues?page=2>; rel="next", <https://api.github.com/repos/owner/repo/issues?page=5>; rel="last"',
           },
-        })
+        }),
       );
 
       const adapter = new GitHubWorkSourceAdapter(createConfig());
@@ -420,14 +415,12 @@ describe("GitHubWorkSourceAdapter", () => {
 
       await expect(adapter.fetchAvailableWork()).rejects.toThrow(GitHubAPIError);
       await expect(adapter.fetchAvailableWork()).rejects.toThrow(
-        "GitHub adapter requires 'owner' and 'repo' configuration"
+        "GitHub adapter requires 'owner' and 'repo' configuration",
       );
     });
 
     it("throws GitHubAPIError on API error", async () => {
-      mockFetch.mockReturnValue(
-        mockFetchResponse({ message: "Not Found" }, { status: 404 })
-      );
+      mockFetch.mockReturnValue(mockFetchResponse({ message: "Not Found" }, { status: 404 }));
 
       const adapter = new GitHubWorkSourceAdapter(createConfig());
 
@@ -438,9 +431,7 @@ describe("GitHubWorkSourceAdapter", () => {
       mockFetch.mockRejectedValue(new Error("Network error"));
 
       // Disable retries to test immediate error handling
-      const adapter = new GitHubWorkSourceAdapter(
-        createConfig({ retry: { maxRetries: 0 } })
-      );
+      const adapter = new GitHubWorkSourceAdapter(createConfig({ retry: { maxRetries: 0 } }));
 
       await expect(adapter.fetchAvailableWork()).rejects.toThrow(GitHubAPIError);
       await expect(adapter.fetchAvailableWork()).rejects.toThrow("Network error");
@@ -564,9 +555,7 @@ describe("GitHubWorkSourceAdapter", () => {
     });
 
     it("returns not_found when issue does not exist", async () => {
-      mockFetch.mockReturnValueOnce(
-        mockFetchResponse({ message: "Not Found" }, { status: 404 })
-      );
+      mockFetch.mockReturnValueOnce(mockFetchResponse({ message: "Not Found" }, { status: 404 }));
 
       const adapter = new GitHubWorkSourceAdapter(createConfig());
       const result = await adapter.claimWork("github-999");
@@ -576,9 +565,7 @@ describe("GitHubWorkSourceAdapter", () => {
     });
 
     it("returns permission_denied on 403 error", async () => {
-      mockFetch.mockReturnValueOnce(
-        mockFetchResponse({ message: "Forbidden" }, { status: 403 })
-      );
+      mockFetch.mockReturnValueOnce(mockFetchResponse({ message: "Forbidden" }, { status: 403 }));
 
       const adapter = new GitHubWorkSourceAdapter(createConfig());
       const result = await adapter.claimWork("github-5");
@@ -589,13 +576,11 @@ describe("GitHubWorkSourceAdapter", () => {
 
     it("returns source_error on other API errors", async () => {
       mockFetch.mockReturnValueOnce(
-        mockFetchResponse({ message: "Server Error" }, { status: 500 })
+        mockFetchResponse({ message: "Server Error" }, { status: 500 }),
       );
 
       // Disable retries to test immediate error handling
-      const adapter = new GitHubWorkSourceAdapter(
-        createConfig({ retry: { maxRetries: 0 } })
-      );
+      const adapter = new GitHubWorkSourceAdapter(createConfig({ retry: { maxRetries: 0 } }));
       const result = await adapter.claimWork("github-5");
 
       expect(result.success).toBe(false);
@@ -605,11 +590,9 @@ describe("GitHubWorkSourceAdapter", () => {
     it("throws on invalid work item ID format", async () => {
       const adapter = new GitHubWorkSourceAdapter(createConfig());
 
+      await expect(adapter.claimWork("invalid-id")).rejects.toThrow(GitHubAPIError);
       await expect(adapter.claimWork("invalid-id")).rejects.toThrow(
-        GitHubAPIError
-      );
-      await expect(adapter.claimWork("invalid-id")).rejects.toThrow(
-        'Invalid work item ID format: "invalid-id"'
+        'Invalid work item ID format: "invalid-id"',
       );
     });
 
@@ -626,7 +609,7 @@ describe("GitHubWorkSourceAdapter", () => {
       const adapter = new GitHubWorkSourceAdapter(
         createConfig({
           labels: { in_progress: "custom-wip" },
-        })
+        }),
       );
       await adapter.claimWork("github-5");
 
@@ -842,9 +825,7 @@ describe("GitHubWorkSourceAdapter", () => {
         .mockRejectedValueOnce(new Error("Network error"));
 
       // Disable retries to test immediate error handling
-      const adapter = new GitHubWorkSourceAdapter(
-        createConfig({ retry: { maxRetries: 0 } })
-      );
+      const adapter = new GitHubWorkSourceAdapter(createConfig({ retry: { maxRetries: 0 } }));
       const result = await adapter.releaseWork("github-5");
 
       expect(result.success).toBe(false);
@@ -872,9 +853,7 @@ describe("GitHubWorkSourceAdapter", () => {
     it("respects cleanup_on_failure: false (skips re-adding ready label)", async () => {
       mockFetch.mockReturnValueOnce(mockFetchResponse(undefined, { status: 204 })); // DELETE in_progress
 
-      const adapter = new GitHubWorkSourceAdapter(
-        createConfig({ cleanup_on_failure: false })
-      );
+      const adapter = new GitHubWorkSourceAdapter(createConfig({ cleanup_on_failure: false }));
       const result = await adapter.releaseWork("github-5");
 
       expect(result.success).toBe(true);
@@ -891,9 +870,7 @@ describe("GitHubWorkSourceAdapter", () => {
         .mockReturnValueOnce(mockFetchResponse(undefined, { status: 204 })) // DELETE in_progress
         .mockReturnValueOnce(mockFetchResponse([{ name: "ready" }])); // POST ready
 
-      const adapter = new GitHubWorkSourceAdapter(
-        createConfig({ cleanup_on_failure: true })
-      );
+      const adapter = new GitHubWorkSourceAdapter(createConfig({ cleanup_on_failure: true }));
       const result = await adapter.releaseWork("github-5");
 
       expect(result.success).toBe(true);
@@ -924,14 +901,12 @@ describe("GitHubWorkSourceAdapter", () => {
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/repos/testowner/testrepo/issues/10"),
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
     it("returns undefined when issue not found", async () => {
-      mockFetch.mockReturnValueOnce(
-        mockFetchResponse({ message: "Not Found" }, { status: 404 })
-      );
+      mockFetch.mockReturnValueOnce(mockFetchResponse({ message: "Not Found" }, { status: 404 }));
 
       const adapter = new GitHubWorkSourceAdapter(createConfig());
       const result = await adapter.getWork("github-999");
@@ -941,13 +916,11 @@ describe("GitHubWorkSourceAdapter", () => {
 
     it("throws on other API errors", async () => {
       mockFetch.mockReturnValueOnce(
-        mockFetchResponse({ message: "Server Error" }, { status: 500 })
+        mockFetchResponse({ message: "Server Error" }, { status: 500 }),
       );
 
       // Disable retries to test immediate error handling
-      const adapter = new GitHubWorkSourceAdapter(
-        createConfig({ retry: { maxRetries: 0 } })
-      );
+      const adapter = new GitHubWorkSourceAdapter(createConfig({ retry: { maxRetries: 0 } }));
 
       await expect(adapter.getWork("github-5")).rejects.toThrow(GitHubAPIError);
     });
@@ -995,7 +968,7 @@ describe("GitHubWorkSourceAdapter", () => {
         createConfig({
           owner: "myorg",
           repo: "myrepo",
-        })
+        }),
       );
 
       expect(adapter.type).toBe("github");
@@ -1010,9 +983,7 @@ describe("GitHubWorkSourceAdapter", () => {
     it("uses token from config", async () => {
       mockFetch.mockReturnValue(mockFetchResponse([]));
 
-      const adapter = new GitHubWorkSourceAdapter(
-        createConfig({ token: "config-token" })
-      );
+      const adapter = new GitHubWorkSourceAdapter(createConfig({ token: "config-token" }));
       await adapter.fetchAvailableWork();
 
       const tokenCall = getMockCall(mockFetch, 0);
@@ -1026,9 +997,7 @@ describe("GitHubWorkSourceAdapter", () => {
       try {
         mockFetch.mockReturnValue(mockFetchResponse([]));
 
-        const adapter = new GitHubWorkSourceAdapter(
-          createConfig({ token: undefined })
-        );
+        const adapter = new GitHubWorkSourceAdapter(createConfig({ token: undefined }));
         await adapter.fetchAvailableWork();
 
         const envTokenCall = getMockCall(mockFetch, 0);
@@ -1049,9 +1018,7 @@ describe("GitHubWorkSourceAdapter", () => {
       try {
         mockFetch.mockReturnValue(mockFetchResponse([]));
 
-        const adapter = new GitHubWorkSourceAdapter(
-          createConfig({ token: undefined })
-        );
+        const adapter = new GitHubWorkSourceAdapter(createConfig({ token: undefined }));
         await adapter.fetchAvailableWork();
 
         const noTokenCall = getMockCall(mockFetch, 0);
@@ -1085,7 +1052,7 @@ describe("GitHubWorkSourceAdapter", () => {
       const adapter = new GitHubWorkSourceAdapter(
         createConfig({
           apiBaseUrl: "https://github.mycompany.com/api/v3",
-        })
+        }),
       );
       await adapter.fetchAvailableWork();
 
@@ -1109,7 +1076,7 @@ describe("GitHubWorkSourceAdapter", () => {
             "X-RateLimit-Reset": "1700000000",
             "X-RateLimit-Resource": "core",
           },
-        })
+        }),
       );
 
       const adapter = new GitHubWorkSourceAdapter(createConfig());
@@ -1134,7 +1101,7 @@ describe("GitHubWorkSourceAdapter", () => {
             "X-RateLimit-Reset": "1700000000",
             "X-RateLimit-Resource": "core",
           },
-        })
+        }),
       );
 
       const adapter = new GitHubWorkSourceAdapter(
@@ -1143,7 +1110,7 @@ describe("GitHubWorkSourceAdapter", () => {
             warningThreshold: 100,
             onWarning: warningCallback,
           },
-        })
+        }),
       );
       await adapter.fetchAvailableWork();
 
@@ -1166,7 +1133,7 @@ describe("GitHubWorkSourceAdapter", () => {
             "X-RateLimit-Reset": "1700000000",
             "X-RateLimit-Resource": "core",
           },
-        })
+        }),
       );
 
       const adapter = new GitHubWorkSourceAdapter(
@@ -1175,7 +1142,7 @@ describe("GitHubWorkSourceAdapter", () => {
             warningThreshold: 100,
             onWarning: warningCallback,
           },
-        })
+        }),
       );
       await adapter.fetchAvailableWork();
 
@@ -1184,21 +1151,24 @@ describe("GitHubWorkSourceAdapter", () => {
 
     it("detects rate limit error from 403 with remaining=0", async () => {
       mockFetch.mockReturnValue(
-        mockFetchResponse({ message: "API rate limit exceeded" }, {
-          status: 403,
-          headers: {
-            "X-RateLimit-Limit": "5000",
-            "X-RateLimit-Remaining": "0",
-            "X-RateLimit-Reset": "1700000000",
-            "X-RateLimit-Resource": "core",
+        mockFetchResponse(
+          { message: "API rate limit exceeded" },
+          {
+            status: 403,
+            headers: {
+              "X-RateLimit-Limit": "5000",
+              "X-RateLimit-Remaining": "0",
+              "X-RateLimit-Reset": "1700000000",
+              "X-RateLimit-Resource": "core",
+            },
           },
-        })
+        ),
       );
 
       const adapter = new GitHubWorkSourceAdapter(
         createConfig({
           retry: { maxRetries: 0 }, // Disable retries for this test
-        })
+        }),
       );
 
       try {
@@ -1220,13 +1190,13 @@ describe("GitHubWorkSourceAdapter", () => {
 
     it("detects rate limit error from 429 status", async () => {
       mockFetch.mockReturnValue(
-        mockFetchResponse({ message: "Too Many Requests" }, { status: 429 })
+        mockFetchResponse({ message: "Too Many Requests" }, { status: 429 }),
       );
 
       const adapter = new GitHubWorkSourceAdapter(
         createConfig({
           retry: { maxRetries: 0 },
-        })
+        }),
       );
 
       try {
@@ -1252,14 +1222,17 @@ describe("GitHubWorkSourceAdapter", () => {
       // First call fails with rate limit, second succeeds
       mockFetch
         .mockReturnValueOnce(
-          mockFetchResponse({ message: "Rate limit exceeded" }, {
-            status: 403,
-            headers: {
-              "X-RateLimit-Limit": "5000",
-              "X-RateLimit-Remaining": "0",
-              "X-RateLimit-Reset": String(Math.floor(Date.now() / 1000) + 1),
+          mockFetchResponse(
+            { message: "Rate limit exceeded" },
+            {
+              status: 403,
+              headers: {
+                "X-RateLimit-Limit": "5000",
+                "X-RateLimit-Remaining": "0",
+                "X-RateLimit-Reset": String(Math.floor(Date.now() / 1000) + 1),
+              },
             },
-          })
+          ),
         )
         .mockReturnValueOnce(mockFetchResponse(mockIssues));
 
@@ -1270,7 +1243,7 @@ describe("GitHubWorkSourceAdapter", () => {
             baseDelayMs: 10, // Short delay for tests
             maxDelayMs: 100,
           },
-        })
+        }),
       );
 
       const result = await adapter.fetchAvailableWork();
@@ -1293,7 +1266,7 @@ describe("GitHubWorkSourceAdapter", () => {
             maxRetries: 1,
             baseDelayMs: 10,
           },
-        })
+        }),
       );
 
       const result = await adapter.fetchAvailableWork();
@@ -1307,7 +1280,7 @@ describe("GitHubWorkSourceAdapter", () => {
 
       mockFetch
         .mockReturnValueOnce(
-          mockFetchResponse({ message: "Internal Server Error" }, { status: 500 })
+          mockFetchResponse({ message: "Internal Server Error" }, { status: 500 }),
         )
         .mockReturnValueOnce(mockFetchResponse(mockIssues));
 
@@ -1317,7 +1290,7 @@ describe("GitHubWorkSourceAdapter", () => {
             maxRetries: 1,
             baseDelayMs: 10,
           },
-        })
+        }),
       );
 
       const result = await adapter.fetchAvailableWork();
@@ -1327,14 +1300,12 @@ describe("GitHubWorkSourceAdapter", () => {
     });
 
     it("does not retry on 404 errors", async () => {
-      mockFetch.mockReturnValue(
-        mockFetchResponse({ message: "Not Found" }, { status: 404 })
-      );
+      mockFetch.mockReturnValue(mockFetchResponse({ message: "Not Found" }, { status: 404 }));
 
       const adapter = new GitHubWorkSourceAdapter(
         createConfig({
           retry: { maxRetries: 3, baseDelayMs: 10 },
-        })
+        }),
       );
 
       await expect(adapter.fetchAvailableWork()).rejects.toThrow(GitHubAPIError);
@@ -1342,14 +1313,12 @@ describe("GitHubWorkSourceAdapter", () => {
     });
 
     it("does not retry on 401 unauthorized errors", async () => {
-      mockFetch.mockReturnValue(
-        mockFetchResponse({ message: "Bad credentials" }, { status: 401 })
-      );
+      mockFetch.mockReturnValue(mockFetchResponse({ message: "Bad credentials" }, { status: 401 }));
 
       const adapter = new GitHubWorkSourceAdapter(
         createConfig({
           retry: { maxRetries: 3, baseDelayMs: 10 },
-        })
+        }),
       );
 
       await expect(adapter.fetchAvailableWork()).rejects.toThrow(GitHubAPIError);
@@ -1357,9 +1326,7 @@ describe("GitHubWorkSourceAdapter", () => {
     });
 
     it("gives up after max retries", async () => {
-      mockFetch.mockReturnValue(
-        mockFetchResponse({ message: "Server Error" }, { status: 500 })
-      );
+      mockFetch.mockReturnValue(mockFetchResponse({ message: "Server Error" }, { status: 500 }));
 
       const adapter = new GitHubWorkSourceAdapter(
         createConfig({
@@ -1367,7 +1334,7 @@ describe("GitHubWorkSourceAdapter", () => {
             maxRetries: 2,
             baseDelayMs: 10,
           },
-        })
+        }),
       );
 
       await expect(adapter.fetchAvailableWork()).rejects.toThrow(GitHubAPIError);
@@ -1376,9 +1343,7 @@ describe("GitHubWorkSourceAdapter", () => {
     });
 
     it("respects custom retry configuration", async () => {
-      mockFetch.mockReturnValue(
-        mockFetchResponse({ message: "Server Error" }, { status: 500 })
-      );
+      mockFetch.mockReturnValue(mockFetchResponse({ message: "Server Error" }, { status: 500 }));
 
       const adapter = new GitHubWorkSourceAdapter(
         createConfig({
@@ -1386,7 +1351,7 @@ describe("GitHubWorkSourceAdapter", () => {
             maxRetries: 5,
             baseDelayMs: 5,
           },
-        })
+        }),
       );
 
       await expect(adapter.fetchAvailableWork()).rejects.toThrow(GitHubAPIError);
@@ -1400,9 +1365,7 @@ describe("GitHubWorkSourceAdapter", () => {
 
   describe("404 error handling", () => {
     it("handles 404 gracefully in getWork (returns undefined)", async () => {
-      mockFetch.mockReturnValue(
-        mockFetchResponse({ message: "Not Found" }, { status: 404 })
-      );
+      mockFetch.mockReturnValue(mockFetchResponse({ message: "Not Found" }, { status: 404 }));
 
       const adapter = new GitHubWorkSourceAdapter(createConfig());
       const result = await adapter.getWork("github-999");
@@ -1411,9 +1374,7 @@ describe("GitHubWorkSourceAdapter", () => {
     });
 
     it("handles 404 gracefully in claimWork (returns not_found)", async () => {
-      mockFetch.mockReturnValue(
-        mockFetchResponse({ message: "Not Found" }, { status: 404 })
-      );
+      mockFetch.mockReturnValue(mockFetchResponse({ message: "Not Found" }, { status: 404 }));
 
       const adapter = new GitHubWorkSourceAdapter(createConfig());
       const result = await adapter.claimWork("github-999");
@@ -1423,9 +1384,7 @@ describe("GitHubWorkSourceAdapter", () => {
     });
 
     it("throws 404 in fetchAvailableWork (indicates config error)", async () => {
-      mockFetch.mockReturnValue(
-        mockFetchResponse({ message: "Not Found" }, { status: 404 })
-      );
+      mockFetch.mockReturnValue(mockFetchResponse({ message: "Not Found" }, { status: 404 }));
 
       const adapter = new GitHubWorkSourceAdapter(createConfig());
 
@@ -1440,14 +1399,17 @@ describe("GitHubWorkSourceAdapter", () => {
   describe("validateToken", () => {
     it("validates token with required scopes", async () => {
       mockFetch.mockReturnValue(
-        mockFetchResponse({ login: "testuser" }, {
-          headers: {
-            "X-OAuth-Scopes": "repo, user",
-            "X-RateLimit-Limit": "5000",
-            "X-RateLimit-Remaining": "4999",
-            "X-RateLimit-Reset": "1700000000",
+        mockFetchResponse(
+          { login: "testuser" },
+          {
+            headers: {
+              "X-OAuth-Scopes": "repo, user",
+              "X-RateLimit-Limit": "5000",
+              "X-RateLimit-Remaining": "4999",
+              "X-RateLimit-Reset": "1700000000",
+            },
           },
-        })
+        ),
       );
 
       const adapter = new GitHubWorkSourceAdapter(createConfig());
@@ -1459,14 +1421,17 @@ describe("GitHubWorkSourceAdapter", () => {
 
     it("throws GitHubAuthError when required scopes are missing", async () => {
       mockFetch.mockReturnValue(
-        mockFetchResponse({ login: "testuser" }, {
-          headers: {
-            "X-OAuth-Scopes": "user, read:org",
-            "X-RateLimit-Limit": "5000",
-            "X-RateLimit-Remaining": "4999",
-            "X-RateLimit-Reset": "1700000000",
+        mockFetchResponse(
+          { login: "testuser" },
+          {
+            headers: {
+              "X-OAuth-Scopes": "user, read:org",
+              "X-RateLimit-Limit": "5000",
+              "X-RateLimit-Remaining": "4999",
+              "X-RateLimit-Reset": "1700000000",
+            },
           },
-        })
+        ),
       );
 
       const adapter = new GitHubWorkSourceAdapter(createConfig());
@@ -1487,9 +1452,7 @@ describe("GitHubWorkSourceAdapter", () => {
       delete process.env.GITHUB_TOKEN;
 
       try {
-        const adapter = new GitHubWorkSourceAdapter(
-          createConfig({ token: undefined })
-        );
+        const adapter = new GitHubWorkSourceAdapter(createConfig({ token: undefined }));
 
         await expect(adapter.validateToken()).rejects.toThrow(GitHubAuthError);
       } finally {
@@ -1501,12 +1464,15 @@ describe("GitHubWorkSourceAdapter", () => {
 
     it("throws GitHubAuthError on 401 unauthorized", async () => {
       mockFetch.mockReturnValue(
-        mockFetchResponse({ message: "Bad credentials" }, {
-          status: 401,
-          headers: {
-            "X-OAuth-Scopes": "",
+        mockFetchResponse(
+          { message: "Bad credentials" },
+          {
+            status: 401,
+            headers: {
+              "X-OAuth-Scopes": "",
+            },
           },
-        })
+        ),
       );
 
       const adapter = new GitHubWorkSourceAdapter(createConfig());
@@ -1516,14 +1482,17 @@ describe("GitHubWorkSourceAdapter", () => {
 
     it("updates rate limit info during validation", async () => {
       mockFetch.mockReturnValue(
-        mockFetchResponse({ login: "testuser" }, {
-          headers: {
-            "X-OAuth-Scopes": "repo",
-            "X-RateLimit-Limit": "5000",
-            "X-RateLimit-Remaining": "4500",
-            "X-RateLimit-Reset": "1700000000",
+        mockFetchResponse(
+          { login: "testuser" },
+          {
+            headers: {
+              "X-OAuth-Scopes": "repo",
+              "X-RateLimit-Limit": "5000",
+              "X-RateLimit-Remaining": "4500",
+              "X-RateLimit-Reset": "1700000000",
+            },
           },
-        })
+        ),
       );
 
       const adapter = new GitHubWorkSourceAdapter(createConfig());
@@ -1565,7 +1534,10 @@ describe("GitHubWorkSourceAdapter", () => {
 
     it("isRetryable returns false for 4xx errors (except rate limit)", () => {
       const error401 = new GitHubAPIError("Unauthorized", { statusCode: 401 });
-      const error403 = new GitHubAPIError("Forbidden", { statusCode: 403, isRateLimitError: false });
+      const error403 = new GitHubAPIError("Forbidden", {
+        statusCode: 403,
+        isRateLimitError: false,
+      });
       const error404 = new GitHubAPIError("Not found", { statusCode: 404 });
 
       expect(error401.isRetryable()).toBe(false);
@@ -1700,7 +1672,7 @@ describe("GitHubWorkSourceAdapter", () => {
       const response = {
         status: 403,
         headers: {
-          get: (name: string) => name === "X-RateLimit-Remaining" ? "0" : null,
+          get: (name: string) => (name === "X-RateLimit-Remaining" ? "0" : null),
         },
       } as unknown as Response;
 
@@ -1722,7 +1694,7 @@ describe("GitHubWorkSourceAdapter", () => {
       const response = {
         status: 403,
         headers: {
-          get: (name: string) => name === "X-RateLimit-Remaining" ? "100" : null,
+          get: (name: string) => (name === "X-RateLimit-Remaining" ? "100" : null),
         },
       } as unknown as Response;
 
@@ -1784,9 +1756,7 @@ describe("GitHubWorkSourceAdapter", () => {
       const jitterOptions = { ...options, jitterFactor: 0.1 };
 
       // Run multiple times to verify jitter adds variance
-      const delays = Array.from({ length: 10 }, () =>
-        calculateBackoffDelay(0, jitterOptions)
-      );
+      const delays = Array.from({ length: 10 }, () => calculateBackoffDelay(0, jitterOptions));
 
       // Base delay is 1000, with 10% jitter range is 1000-1100
       expect(Math.min(...delays)).toBeGreaterThanOrEqual(1000);

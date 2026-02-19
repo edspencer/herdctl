@@ -61,7 +61,7 @@ function formatStartupStatus(status: FleetStatus, agents?: AgentInfo[]): string 
   }
 
   // Show fleet hierarchy if sub-fleets are present
-  if (agents && agents.some(a => a.fleetPath && a.fleetPath.length > 0)) {
+  if (agents && agents.some((a) => a.fleetPath && a.fleetPath.length > 0)) {
     lines.push("");
     lines.push("Agent Hierarchy:");
 
@@ -128,9 +128,7 @@ function formatLogEntry(entry: LogEntry): string {
   }
 
   // Add job ID if present (truncated for readability)
-  const jobInfo = entry.jobId
-    ? colorize(` (${entry.jobId.substring(0, 12)})`, "dim")
-    : "";
+  const jobInfo = entry.jobId ? colorize(` (${entry.jobId.substring(0, 12)})`, "dim") : "";
 
   // Format the message with output type coloring if available
   let message = entry.message;
@@ -178,7 +176,7 @@ async function removePidFile(stateDir: string): Promise<void> {
 export async function startCommand(options: StartOptions): Promise<void> {
   // Set log level based on verbose flag (must happen before FleetManager creation)
   if (options.verbose) {
-    process.env.HERDCTL_LOG_LEVEL = 'debug';
+    process.env.HERDCTL_LOG_LEVEL = "debug";
   }
 
   // Register global colorized log handler for all createLogger instances
@@ -188,7 +186,9 @@ export async function startCommand(options: StartOptions): Promise<void> {
     const prefixStr = colorize(`[${prefix}]`, getSourceColor(prefix));
     const dataStr = data ? ` ${JSON.stringify(data)}` : "";
     const msgColor = getMessageColor(message, prefix);
-    const msgStr = msgColor ? `${msgColor}${message}${dataStr}${colors.reset}` : `${message}${dataStr}`;
+    const msgStr = msgColor
+      ? `${msgColor}${message}${dataStr}${colors.reset}`
+      : `${message}${dataStr}`;
     console.log(`${levelStr} ${prefixStr} ${msgStr}`);
   });
 
@@ -241,7 +241,10 @@ export async function startCommand(options: StartOptions): Promise<void> {
       console.log("Fleet stopped successfully.");
       process.exit(0);
     } catch (error) {
-      console.error("Error during shutdown:", error instanceof Error ? error.message : String(error));
+      console.error(
+        "Error during shutdown:",
+        error instanceof Error ? error.message : String(error),
+      );
       await removePidFile(stateDir);
       process.exit(1);
     }
@@ -279,7 +282,6 @@ export async function startCommand(options: StartOptions): Promise<void> {
         throw error;
       }
     }
-
   } catch (error) {
     // Handle specific error types
     if (error instanceof ConfigNotFoundError) {

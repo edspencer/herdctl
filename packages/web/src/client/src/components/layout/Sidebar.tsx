@@ -13,13 +13,7 @@
 
 import { useEffect, useMemo, useCallback, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
-import {
-  LayoutDashboard,
-  Briefcase,
-  Calendar,
-  Plus,
-  ChevronRight,
-} from "lucide-react";
+import { LayoutDashboard, Briefcase, Calendar, Plus, ChevronRight } from "lucide-react";
 import { useFleet, useSidebarSessions, useChatActions } from "../../store";
 import { formatRelativeTime } from "../../lib/format";
 import { getAgentAvatar } from "../../lib/avatar";
@@ -107,10 +101,7 @@ function buildFleetTree(agents: AgentInfo[]): {
 /**
  * Check if any agents in this fleet hierarchy have the given status
  */
-function hasFleetStatus(
-  node: FleetTreeNode,
-  status: AgentInfo["status"]
-): boolean {
+function hasFleetStatus(node: FleetTreeNode, status: AgentInfo["status"]): boolean {
   if (node.agents.some((a) => a.status === status)) return true;
   return node.children.some((child) => hasFleetStatus(child, status));
 }
@@ -159,8 +150,7 @@ function getConnectionDotClass(status: ConnectionStatus): string {
  */
 function getFleetStatusDotClass(node: FleetTreeNode): string {
   if (hasFleetStatus(node, "error")) return "bg-herd-status-error";
-  if (hasFleetStatus(node, "running"))
-    return "bg-herd-status-running animate-pulse";
+  if (hasFleetStatus(node, "running")) return "bg-herd-status-running animate-pulse";
   return "bg-herd-status-idle";
 }
 
@@ -197,17 +187,11 @@ function AgentRow({
           to={`/agents/${encodeURIComponent(agent.qualifiedName)}`}
           onClick={onNavigate}
           className={`flex-1 flex items-center gap-2 py-2.5 rounded-lg text-sm font-semibold tracking-wide transition-colors min-w-0 ${
-            isActive
-              ? "text-herd-sidebar-fg"
-              : "text-herd-sidebar-fg/80 hover:text-herd-sidebar-fg"
+            isActive ? "text-herd-sidebar-fg" : "text-herd-sidebar-fg/80 hover:text-herd-sidebar-fg"
           }`}
           style={paddingLeft ? { paddingLeft } : { paddingLeft: "12px" }}
         >
-          <img
-            src={getAgentAvatar(agent.name)}
-            alt=""
-            className="w-5 h-5 rounded flex-shrink-0"
-          />
+          <img src={getAgentAvatar(agent.name)} alt="" className="w-5 h-5 rounded flex-shrink-0" />
           <span className="truncate">{agent.name}</span>
         </Link>
         <button
@@ -225,9 +209,7 @@ function AgentRow({
 
       {/* Recent chat sessions */}
       {sessions.length === 0 ? (
-        <p className="text-[11px] text-herd-sidebar-muted/50 text-center py-3">
-          No chats yet
-        </p>
+        <p className="text-[11px] text-herd-sidebar-muted/50 text-center py-3">No chats yet</p>
       ) : (
         <div className="mr-1 mt-0.5 space-y-1">
           {sessions.map((session) => {
@@ -243,9 +225,7 @@ function AgentRow({
                     : "text-herd-sidebar-muted hover:bg-herd-sidebar-hover hover:text-herd-sidebar-fg"
                 }`}
               >
-                <span className="truncate">
-                  {session.preview || "New conversation"}
-                </span>
+                <span className="truncate">{session.preview || "New conversation"}</span>
                 <span className="flex-shrink-0 text-herd-sidebar-muted/60 text-[10px]">
                   {formatRelativeTime(session.lastMessageAt)}
                 </span>
@@ -298,16 +278,10 @@ function FleetSection({
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
       >
         <ChevronRight
-          className={`w-3 h-3 transition-transform flex-shrink-0 ${
-            isExpanded ? "rotate-90" : ""
-          }`}
+          className={`w-3 h-3 transition-transform flex-shrink-0 ${isExpanded ? "rotate-90" : ""}`}
         />
-        <span className="truncate font-semibold uppercase tracking-wide">
-          {node.name}
-        </span>
-        <span className="text-[11px] text-herd-sidebar-muted/60 ml-auto mr-2">
-          {agentCount}
-        </span>
+        <span className="truncate font-semibold uppercase tracking-wide">{node.name}</span>
+        <span className="text-[11px] text-herd-sidebar-muted/60 ml-auto mr-2">{agentCount}</span>
       </button>
 
       {/* Expanded content — left border shows hierarchy */}
@@ -394,10 +368,7 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
   const [expandedFleets, setExpandedFleets] = useState<Set<string>>(new Set());
 
   // Build fleet hierarchy tree
-  const { rootAgents, fleetNodes } = useMemo(
-    () => buildFleetTree(agents),
-    [agents]
-  );
+  const { rootAgents, fleetNodes } = useMemo(() => buildFleetTree(agents), [agents]);
 
   // Determine if we have any fleet grouping
   const hasFleetGrouping = fleetNodes.length > 0;
@@ -431,10 +402,7 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
   }, []);
 
   // Fetch sidebar sessions when agents list changes (use qualifiedName)
-  const agentQualifiedNames = useMemo(
-    () => agents.map((a) => a.qualifiedName),
-    [agents]
-  );
+  const agentQualifiedNames = useMemo(() => agents.map((a) => a.qualifiedName), [agents]);
   useEffect(() => {
     if (agentQualifiedNames.length > 0) {
       fetchSidebarSessions(agentQualifiedNames);
@@ -463,13 +431,11 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
     async (qualifiedName: string) => {
       const sessionId = await createChatSession(qualifiedName);
       if (sessionId) {
-        navigate(
-          `/agents/${encodeURIComponent(qualifiedName)}/chat/${sessionId}`
-        );
+        navigate(`/agents/${encodeURIComponent(qualifiedName)}/chat/${sessionId}`);
         onNavigate?.();
       }
     },
-    [createChatSession, navigate, onNavigate]
+    [createChatSession, navigate, onNavigate],
   );
 
   // Count stats
@@ -485,19 +451,11 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
       <div className="p-4 border-b border-herd-sidebar-border">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img
-              src="/herdctl-logo.svg"
-              alt="herdctl logo"
-              className="w-7 h-7"
-            />
-            <h1 className="text-lg font-semibold text-herd-sidebar-fg">
-              herdctl
-            </h1>
+            <img src="/herdctl-logo.svg" alt="herdctl logo" className="w-7 h-7" />
+            <h1 className="text-lg font-semibold text-herd-sidebar-fg">herdctl</h1>
           </div>
           <div className="flex items-center gap-1.5">
-            <span
-              className={`w-2 h-2 rounded-full ${getConnectionDotClass(connectionStatus)}`}
-            />
+            <span className={`w-2 h-2 rounded-full ${getConnectionDotClass(connectionStatus)}`} />
           </div>
         </div>
       </div>
@@ -542,9 +500,7 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
         )}
 
         {agents.length === 0 && (
-          <p className="text-xs text-herd-sidebar-muted px-3 py-2">
-            No agents configured
-          </p>
+          <p className="text-xs text-herd-sidebar-muted px-3 py-2">No agents configured</p>
         )}
       </div>
 
@@ -579,10 +535,8 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
       <div className="px-4 py-2 border-t border-herd-sidebar-border">
         <p className="text-xs text-herd-sidebar-muted">
           {counts.runningAgents} running{" "}
-          <span className="text-herd-sidebar-muted/50">&middot;</span>{" "}
-          {counts.idleAgents} idle{" "}
-          <span className="text-herd-sidebar-muted/50">&middot;</span>{" "}
-          {counts.errorAgents} errors
+          <span className="text-herd-sidebar-muted/50">&middot;</span> {counts.idleAgents} idle{" "}
+          <span className="text-herd-sidebar-muted/50">&middot;</span> {counts.errorAgents} errors
         </p>
       </div>
     </div>

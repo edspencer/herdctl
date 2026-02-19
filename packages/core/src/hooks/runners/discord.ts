@@ -303,7 +303,7 @@ export class DiscordHookRunner {
         // 2xx status codes are success
         if (response.ok) {
           this.logger.info(
-            `Discord hook completed successfully in ${durationMs}ms: channel ${config.channel_id} (${response.status})`
+            `Discord hook completed successfully in ${durationMs}ms: channel ${config.channel_id} (${response.status})`,
           );
           return {
             success: true,

@@ -86,12 +86,8 @@ function NotFound({ name }: NotFoundProps) {
   return (
     <div className="p-4 h-full flex items-center justify-center">
       <Card className="p-6 max-w-md w-full text-center">
-        <h2 className="text-lg font-semibold text-herd-fg mb-2">
-          Agent Not Found
-        </h2>
-        <p className="text-sm text-herd-muted mb-4">
-          No agent named "{name}" exists in the fleet.
-        </p>
+        <h2 className="text-lg font-semibold text-herd-fg mb-2">Agent Not Found</h2>
+        <p className="text-sm text-herd-muted mb-4">No agent named "{name}" exists in the fleet.</p>
         <Link
           to="/"
           className="inline-flex items-center gap-1.5 text-herd-primary hover:text-herd-primary-hover text-xs font-medium transition-colors"

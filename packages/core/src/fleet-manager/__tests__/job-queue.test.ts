@@ -50,7 +50,7 @@ describe("JobQueue", () => {
 
     it("should throw if limit is less than 1", () => {
       expect(() => queue.setAgentConcurrency("agent-a", 0)).toThrow(
-        "Concurrency limit must be >= 1"
+        "Concurrency limit must be >= 1",
       );
     });
 

@@ -327,7 +327,7 @@ export class SlackHookRunner {
             const json = JSON.parse(responseBody);
             if (json.ok) {
               this.logger.info(
-                `Slack hook completed successfully in ${durationMs}ms: channel ${config.channel_id}`
+                `Slack hook completed successfully in ${durationMs}ms: channel ${config.channel_id}`,
               );
               return {
                 success: true,

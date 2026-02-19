@@ -93,9 +93,7 @@ export function StatusBadge({ status, size = "sm", className = "" }: StatusBadge
     <span
       className={`inline-flex items-center gap-1.5 font-medium ${getTextColorClass(status)} ${className}`}
     >
-      <span
-        className={`${dotSize} rounded-full ${getDotColorClass(status)}`}
-      />
+      <span className={`${dotSize} rounded-full ${getDotColorClass(status)}`} />
       <span className={textSize}>{getStatusLabel(status)}</span>
     </span>
   );

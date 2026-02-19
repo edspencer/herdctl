@@ -156,12 +156,8 @@ export function Header() {
 
         {/* Connection status */}
         <div className="flex items-center gap-1.5">
-          <span
-            className={`w-2 h-2 rounded-full ${getConnectionDotClass(connectionStatus)}`}
-          />
-          <span className="text-xs text-herd-muted">
-            {getConnectionLabel(connectionStatus)}
-          </span>
+          <span className={`w-2 h-2 rounded-full ${getConnectionDotClass(connectionStatus)}`} />
+          <span className="text-xs text-herd-muted">{getConnectionLabel(connectionStatus)}</span>
         </div>
       </div>
     </header>

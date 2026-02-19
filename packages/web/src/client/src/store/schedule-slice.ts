@@ -59,7 +59,7 @@ const initialScheduleState: ScheduleState = {
 
 export const createScheduleSlice: StateCreator<ScheduleSlice, [], [], ScheduleSlice> = (
   set,
-  get
+  get,
 ) => ({
   ...initialScheduleState,
 
@@ -73,8 +73,7 @@ export const createScheduleSlice: StateCreator<ScheduleSlice, [], [], ScheduleSl
         schedulesLoading: false,
       });
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to fetch schedules";
+      const message = error instanceof Error ? error.message : "Failed to fetch schedules";
       set({
         schedulesLoading: false,
         schedulesError: message,
@@ -90,8 +89,7 @@ export const createScheduleSlice: StateCreator<ScheduleSlice, [], [], ScheduleSl
       // Refetch schedules to get updated state (runCount, lastRunAt, etc.)
       await get().fetchSchedules();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to trigger schedule";
+      const message = error instanceof Error ? error.message : "Failed to trigger schedule";
       set({ schedulesError: message });
     }
   },
@@ -104,12 +102,11 @@ export const createScheduleSlice: StateCreator<ScheduleSlice, [], [], ScheduleSl
       // Update the schedule in the list
       set((state) => ({
         schedules: state.schedules.map((s) =>
-          s.agentName === agentName && s.name === scheduleName ? updatedSchedule : s
+          s.agentName === agentName && s.name === scheduleName ? updatedSchedule : s,
         ),
       }));
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to enable schedule";
+      const message = error instanceof Error ? error.message : "Failed to enable schedule";
       set({ schedulesError: message });
     }
   },
@@ -122,21 +119,22 @@ export const createScheduleSlice: StateCreator<ScheduleSlice, [], [], ScheduleSl
       // Update the schedule in the list
       set((state) => ({
         schedules: state.schedules.map((s) =>
-          s.agentName === agentName && s.name === scheduleName ? updatedSchedule : s
+          s.agentName === agentName && s.name === scheduleName ? updatedSchedule : s,
         ),
       }));
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to disable schedule";
+      const message = error instanceof Error ? error.message : "Failed to disable schedule";
       set({ schedulesError: message });
     }
   },
 
   updateScheduleFromWS: () => {
     // Refetch all schedules to ensure consistency
-    get().fetchSchedules().catch(() => {
-      // Error is already handled in fetchSchedules
-    });
+    get()
+      .fetchSchedules()
+      .catch(() => {
+        // Error is already handled in fetchSchedules
+      });
   },
 
   clearSchedulesState: () => {

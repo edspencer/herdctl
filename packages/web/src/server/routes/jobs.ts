@@ -59,7 +59,7 @@ interface ListJobsQuery {
 export function registerJobRoutes(
   server: FastifyInstance,
   fleetManager: FleetManager,
-  listJobsFn: typeof listJobs
+  listJobsFn: typeof listJobs,
 ): void {
   /**
    * GET /api/jobs
@@ -99,10 +99,7 @@ export function registerJobRoutes(
       const result = await listJobsFn(jobsDir, filter);
 
       // Apply pagination
-      const paginatedJobs = result.jobs.slice(
-        clampedOffset,
-        clampedOffset + clampedLimit
-      );
+      const paginatedJobs = result.jobs.slice(clampedOffset, clampedOffset + clampedLimit);
 
       const agents = fleetManager.getAgents();
       return reply.send({

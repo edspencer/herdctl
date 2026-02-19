@@ -1,11 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import {
-  encodePathForCli,
-  getCliSessionDir,
-  getCliSessionFile,
-} from "../cli-session-path.js";
+import { encodePathForCli, getCliSessionDir, getCliSessionFile } from "../cli-session-path.js";
 
 describe("encodePathForCli", () => {
   describe("Unix path encoding", () => {
@@ -27,7 +23,7 @@ describe("encodePathForCli", () => {
 
     it("handles deeply nested paths", () => {
       expect(encodePathForCli("/usr/local/share/project/src/components")).toBe(
-        "-usr-local-share-project-src-components"
+        "-usr-local-share-project-src-components",
       );
     });
 
@@ -37,9 +33,7 @@ describe("encodePathForCli", () => {
 
     it("handles path with special characters", () => {
       // Only slashes are encoded, other characters pass through
-      expect(encodePathForCli("/path/to/my-project_v2")).toBe(
-        "-path-to-my-project_v2"
-      );
+      expect(encodePathForCli("/path/to/my-project_v2")).toBe("-path-to-my-project_v2");
     });
   });
 
@@ -53,15 +47,11 @@ describe("encodePathForCli", () => {
     });
 
     it("encodes mixed slashes", () => {
-      expect(encodePathForCli("C:\\Users/test\\project")).toBe(
-        "C:-Users-test-project"
-      );
+      expect(encodePathForCli("C:\\Users/test\\project")).toBe("C:-Users-test-project");
     });
 
     it("handles UNC paths", () => {
-      expect(encodePathForCli("\\\\server\\share\\folder")).toBe(
-        "--server-share-folder"
-      );
+      expect(encodePathForCli("\\\\server\\share\\folder")).toBe("--server-share-folder");
     });
   });
 
@@ -102,17 +92,11 @@ describe("getCliSessionDir", () => {
     const workspacePath = "/Users/ed/Code/herdctl";
     const result = getCliSessionDir(workspacePath);
 
-    expect(result).toBe(
-      join(homedir(), ".claude", "projects", "-Users-ed-Code-herdctl")
-    );
+    expect(result).toBe(join(homedir(), ".claude", "projects", "-Users-ed-Code-herdctl"));
   });
 
   it("handles different workspace paths", () => {
-    const paths = [
-      "/workspace/project1",
-      "/workspace/project2",
-      "/different/path",
-    ];
+    const paths = ["/workspace/project1", "/workspace/project2", "/different/path"];
 
     const results = paths.map((p) => getCliSessionDir(p));
 
@@ -161,15 +145,9 @@ describe("getCliSessionFile", () => {
 
   it("handles different session IDs", () => {
     const workspacePath = "/workspace/project";
-    const sessionIds = [
-      "session-1",
-      "session-2",
-      "dda6da5b-8788-4990-a582-d5a2c63fbfba",
-    ];
+    const sessionIds = ["session-1", "session-2", "dda6da5b-8788-4990-a582-d5a2c63fbfba"];
 
-    const results = sessionIds.map((id) =>
-      getCliSessionFile(workspacePath, id)
-    );
+    const results = sessionIds.map((id) => getCliSessionFile(workspacePath, id));
 
     // Each should be unique
     expect(new Set(results).size).toBe(sessionIds.length);
@@ -195,7 +173,7 @@ describe("getCliSessionFile", () => {
       ".claude",
       "projects",
       "-workspace-project",
-      "test-session.jsonl"
+      "test-session.jsonl",
     );
 
     expect(result).toBe(expectedPath);

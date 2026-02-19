@@ -45,7 +45,7 @@ function createMockSessionManager(): IChatSessionManager {
 }
 
 function createMockConnectorState(
-  overrides: Partial<DiscordConnectorState> = {}
+  overrides: Partial<DiscordConnectorState> = {},
 ): DiscordConnectorState {
   return {
     status: "connected",
@@ -73,9 +73,7 @@ function createMockConnectorState(
   };
 }
 
-function createMockContext(
-  overrides: Partial<CommandContext> = {}
-): CommandContext {
+function createMockContext(overrides: Partial<CommandContext> = {}): CommandContext {
   return {
     interaction: createMockInteraction(),
     client: createMockClient(),
@@ -114,7 +112,7 @@ describe("statusCommand", () => {
     expect(interaction.reply).toHaveBeenCalledWith(
       expect.objectContaining({
         ephemeral: true,
-      })
+      }),
     );
   });
 
@@ -129,7 +127,7 @@ describe("statusCommand", () => {
     expect(interaction.reply).toHaveBeenCalledWith(
       expect.objectContaining({
         content: expect.stringContaining("my-custom-agent"),
-      })
+      }),
     );
   });
 
@@ -146,7 +144,7 @@ describe("statusCommand", () => {
     expect(interaction.reply).toHaveBeenCalledWith(
       expect.objectContaining({
         content: expect.stringContaining("connected"),
-      })
+      }),
     );
   });
 
@@ -169,7 +167,7 @@ describe("statusCommand", () => {
     expect(interaction.reply).toHaveBeenCalledWith(
       expect.objectContaining({
         content: expect.stringContaining("MyBot"),
-      })
+      }),
     );
   });
 
@@ -177,9 +175,7 @@ describe("statusCommand", () => {
     it("includes session info in response", async () => {
       const sessionManager = createMockSessionManager();
       const session = createMockSession("discord-test-agent-abc123");
-      (sessionManager.getSession as ReturnType<typeof vi.fn>).mockResolvedValue(
-        session
-      );
+      (sessionManager.getSession as ReturnType<typeof vi.fn>).mockResolvedValue(session);
 
       const context = createMockContext({ sessionManager });
       const interaction = context.interaction as unknown as {
@@ -202,9 +198,7 @@ describe("statusCommand", () => {
 
       await statusCommand.execute(context);
 
-      expect(sessionManager.getSession).toHaveBeenCalledWith(
-        "specific-channel-789"
-      );
+      expect(sessionManager.getSession).toHaveBeenCalledWith("specific-channel-789");
     });
   });
 
@@ -223,7 +217,7 @@ describe("statusCommand", () => {
       expect(interaction.reply).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining("No active session"),
-        })
+        }),
       );
     });
   });
@@ -242,7 +236,7 @@ describe("statusCommand", () => {
       expect(interaction.reply).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining("Reconnect Attempts"),
-        })
+        }),
       );
     });
 
@@ -275,7 +269,7 @@ describe("statusCommand", () => {
       expect(interaction.reply).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining("Connection timeout"),
-        })
+        }),
       );
     });
 
@@ -293,7 +287,7 @@ describe("statusCommand", () => {
       expect(interaction.reply).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining("Uptime"),
-        })
+        }),
       );
     });
   });

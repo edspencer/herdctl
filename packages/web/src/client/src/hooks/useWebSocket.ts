@@ -162,10 +162,7 @@ export function useWebSocket() {
         // Re-fetch fleet status and agents to resync after disconnect
         void (async () => {
           try {
-            const [status, agents] = await Promise.all([
-              fetchFleetStatus(),
-              fetchAgents(),
-            ]);
+            const [status, agents] = await Promise.all([fetchFleetStatus(), fetchAgents()]);
             setFleetStatus(status);
             setAgents(agents);
           } catch {
@@ -187,8 +184,7 @@ export function useWebSocket() {
     });
 
     // Expose client globally for useJobOutput hook to access
-    (window as unknown as { __herdWsClient?: WebSocketClient }).__herdWsClient =
-      clientRef.current;
+    (window as unknown as { __herdWsClient?: WebSocketClient }).__herdWsClient = clientRef.current;
 
     // Cleanup on unmount
     return () => {

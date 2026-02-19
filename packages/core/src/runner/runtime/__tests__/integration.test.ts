@@ -38,7 +38,7 @@ const DOCKER_AVAILABLE = isDockerAvailable();
 async function createTempDir(): Promise<string> {
   const baseDir = join(
     tmpdir(),
-    `herdctl-runtime-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-runtime-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   await mkdir(baseDir, { recursive: true });
   return await realpath(baseDir);

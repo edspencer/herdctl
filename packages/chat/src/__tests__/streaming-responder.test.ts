@@ -185,7 +185,7 @@ describe("StreamingResponder", () => {
 
       expect(mockLogger.debug).toHaveBeenCalledWith(
         expect.stringContaining("discord"),
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
@@ -195,7 +195,7 @@ describe("StreamingResponder", () => {
 
       expect(mockLogger.debug).toHaveBeenCalledWith(
         expect.stringContaining("chat"),
-        expect.any(Object)
+        expect.any(Object),
       );
     });
   });

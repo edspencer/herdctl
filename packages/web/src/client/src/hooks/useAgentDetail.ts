@@ -88,8 +88,7 @@ export function useAgentDetail(qualifiedName: string | null): UseAgentDetailResu
       } catch (err) {
         if (cancelled) return;
 
-        const message =
-          err instanceof Error ? err.message : "Failed to fetch agent";
+        const message = err instanceof Error ? err.message : "Failed to fetch agent";
         setError(message);
         setLoading(false);
       }

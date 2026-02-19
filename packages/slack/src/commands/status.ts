@@ -3,19 +3,14 @@
  */
 
 import type { PrefixCommand, CommandContext } from "./command-handler.js";
-import {
-  formatTimestamp,
-  formatDuration,
-  getStatusEmoji,
-} from "@herdctl/chat";
+import { formatTimestamp, formatDuration, getStatusEmoji } from "@herdctl/chat";
 
 export const statusCommand: PrefixCommand = {
   name: "status",
   description: "Show agent status and connection info",
 
   async execute(context: CommandContext): Promise<void> {
-    const { agentName, channelId, connectorState, sessionManager, reply } =
-      context;
+    const { agentName, channelId, connectorState, sessionManager, reply } = context;
 
     // Get session info for this channel
     const session = await sessionManager.getSession(channelId);

@@ -16,11 +16,7 @@ import {
   InvalidTokenError,
   DiscordErrorCode,
 } from "../errors.js";
-import {
-  SessionManagerError,
-  SessionStateReadError,
-  SessionErrorCode,
-} from "@herdctl/chat";
+import { SessionManagerError, SessionStateReadError, SessionErrorCode } from "@herdctl/chat";
 
 // =============================================================================
 // USER_ERROR_MESSAGES Tests
@@ -29,25 +25,25 @@ import {
 describe("USER_ERROR_MESSAGES", () => {
   it("has all required error messages", () => {
     expect(USER_ERROR_MESSAGES.PROCESSING_ERROR).toBe(
-      "Sorry, I encountered an error processing your request. Please try again."
+      "Sorry, I encountered an error processing your request. Please try again.",
     );
     expect(USER_ERROR_MESSAGES.CONNECTION_ERROR).toBe(
-      "I'm having trouble connecting right now. Please try again in a moment."
+      "I'm having trouble connecting right now. Please try again in a moment.",
     );
     expect(USER_ERROR_MESSAGES.RATE_LIMITED).toBe(
-      "I'm receiving too many requests right now. Please wait a moment and try again."
+      "I'm receiving too many requests right now. Please wait a moment and try again.",
     );
     expect(USER_ERROR_MESSAGES.COMMAND_ERROR).toBe(
-      "Sorry, I couldn't complete that command. Please try again."
+      "Sorry, I couldn't complete that command. Please try again.",
     );
     expect(USER_ERROR_MESSAGES.SESSION_ERROR).toBe(
-      "I'm having trouble with your conversation session. Please try again."
+      "I'm having trouble with your conversation session. Please try again.",
     );
     expect(USER_ERROR_MESSAGES.TIMEOUT_ERROR).toBe(
-      "The request took too long to complete. Please try again."
+      "The request took too long to complete. Please try again.",
     );
     expect(USER_ERROR_MESSAGES.PERMISSION_ERROR).toBe(
-      "I don't have permission to do that in this channel."
+      "I don't have permission to do that in this channel.",
     );
   });
 
@@ -74,7 +70,7 @@ describe("classifyError", () => {
       const error = new DiscordConnectorError(
         "Rate limited",
         DiscordErrorCode.RATE_LIMITED,
-        "test-agent"
+        "test-agent",
       );
 
       const classified = classifyError(error);
@@ -99,7 +95,7 @@ describe("classifyError", () => {
       const error = new DiscordConnectorError(
         "Gateway error",
         DiscordErrorCode.GATEWAY_ERROR,
-        "test-agent"
+        "test-agent",
       );
 
       const classified = classifyError(error);
@@ -129,10 +125,7 @@ describe("classifyError", () => {
 
   describe("Session manager errors", () => {
     it("classifies session errors as TRANSIENT", () => {
-      const error = new SessionStateReadError(
-        "test-agent",
-        "/path/to/state.json"
-      );
+      const error = new SessionStateReadError("test-agent", "/path/to/state.json");
 
       const classified = classifyError(error);
 
@@ -413,7 +406,7 @@ describe("withRetry", () => {
 
     expect(logger.info).toHaveBeenCalledWith(
       expect.stringContaining("testOperation failed, retrying"),
-      expect.any(Object)
+      expect.any(Object),
     );
   });
 });
@@ -477,7 +470,7 @@ describe("ErrorHandler", () => {
           errorMessage: "Detailed error info",
           errorName: "Error",
           stack: expect.stringContaining("Error: Detailed error info"),
-        })
+        }),
       );
     });
 
@@ -509,11 +502,7 @@ describe("ErrorHandler", () => {
 
       const error = new Error("Internal error");
       const customMessage = "Custom user message";
-      const userMessage = handler.handleErrorWithMessage(
-        error,
-        "test operation",
-        customMessage
-      );
+      const userMessage = handler.handleErrorWithMessage(error, "test operation", customMessage);
 
       expect(userMessage).toBe(customMessage);
     });
@@ -532,7 +521,7 @@ describe("ErrorHandler", () => {
         "Error during test operation",
         expect.objectContaining({
           errorMessage: "Internal error",
-        })
+        }),
       );
     });
   });
@@ -557,9 +546,7 @@ describe("ErrorHandler", () => {
       });
 
       expect(handler.isRetryable(new Error("Unknown error"))).toBe(false);
-      expect(
-        handler.isRetryable(new InvalidTokenError("test", "bad"))
-      ).toBe(false);
+      expect(handler.isRetryable(new InvalidTokenError("test", "bad"))).toBe(false);
     });
   });
 
@@ -571,15 +558,13 @@ describe("ErrorHandler", () => {
         agentName: "test-agent",
       });
 
-      expect(
-        handler.getUserMessage(new DiscordConnectionError("test", "failed"))
-      ).toBe(USER_ERROR_MESSAGES.CONNECTION_ERROR);
+      expect(handler.getUserMessage(new DiscordConnectionError("test", "failed"))).toBe(
+        USER_ERROR_MESSAGES.CONNECTION_ERROR,
+      );
       expect(handler.getUserMessage(new Error("ECONNRESET"))).toBe(
-        USER_ERROR_MESSAGES.CONNECTION_ERROR
+        USER_ERROR_MESSAGES.CONNECTION_ERROR,
       );
-      expect(handler.getUserMessage(new Error("timeout"))).toBe(
-        USER_ERROR_MESSAGES.TIMEOUT_ERROR
-      );
+      expect(handler.getUserMessage(new Error("timeout"))).toBe(USER_ERROR_MESSAGES.TIMEOUT_ERROR);
     });
   });
 
@@ -616,11 +601,7 @@ describe("safeExecute", () => {
     };
     const handler = new ErrorHandler({ logger, agentName: "test" });
 
-    const result = await safeExecute(
-      async () => "success",
-      handler,
-      "test operation"
-    );
+    const result = await safeExecute(async () => "success", handler, "test operation");
 
     expect(result).toBe("success");
     expect(logger.error).not.toHaveBeenCalled();
@@ -640,7 +621,7 @@ describe("safeExecute", () => {
         throw new Error("Operation failed");
       },
       handler,
-      "test operation"
+      "test operation",
     );
 
     expect(result).toBeUndefined();
@@ -662,11 +643,7 @@ describe("safeExecuteWithReply", () => {
     };
     const handler = new ErrorHandler({ logger, agentName: "test" });
 
-    const result = await safeExecuteWithReply(
-      async () => "Hello, world!",
-      handler,
-      "greeting"
-    );
+    const result = await safeExecuteWithReply(async () => "Hello, world!", handler, "greeting");
 
     expect(result).toBe("Hello, world!");
   });
@@ -685,7 +662,7 @@ describe("safeExecuteWithReply", () => {
         throw new Error("ECONNRESET");
       },
       handler,
-      "network operation"
+      "network operation",
     );
 
     expect(result).toBe(USER_ERROR_MESSAGES.CONNECTION_ERROR);
@@ -705,14 +682,14 @@ describe("safeExecuteWithReply", () => {
         throw new Error("Detailed error");
       },
       handler,
-      "failed operation"
+      "failed operation",
     );
 
     expect(logger.error).toHaveBeenCalledWith(
       "Error during failed operation",
       expect.objectContaining({
         errorMessage: "Detailed error",
-      })
+      }),
     );
   });
 });

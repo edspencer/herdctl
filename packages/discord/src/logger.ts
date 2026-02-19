@@ -82,7 +82,7 @@ const REDACTABLE_KEYS = [
  */
 function redactData(
   data: Record<string, unknown>,
-  keysToRedact: string[] = REDACTABLE_KEYS
+  keysToRedact: string[] = REDACTABLE_KEYS,
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
@@ -95,11 +95,7 @@ function redactData(
       } else {
         result[key] = "[REDACTED]";
       }
-    } else if (
-      typeof value === "object" &&
-      value !== null &&
-      !Array.isArray(value)
-    ) {
+    } else if (typeof value === "object" && value !== null && !Array.isArray(value)) {
       result[key] = redactData(value as Record<string, unknown>, keysToRedact);
     } else {
       result[key] = value;
@@ -168,7 +164,7 @@ export class DiscordLogger implements DiscordConnectorLogger {
   private log(
     level: "debug" | "info" | "warn" | "error",
     message: string,
-    data?: Record<string, unknown>
+    data?: Record<string, unknown>,
   ): void {
     const methodLevel = METHOD_LEVELS[level];
     if (!this.shouldLog(methodLevel)) {
@@ -237,7 +233,7 @@ export class DiscordLogger implements DiscordConnectorLogger {
  */
 export function createLoggerFromConfig(
   agentName: string,
-  discordConfig: AgentChatDiscord
+  discordConfig: AgentChatDiscord,
 ): DiscordLogger {
   return new DiscordLogger({
     agentName,

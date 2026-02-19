@@ -172,7 +172,7 @@ export class HookExecutor {
   async executeHooks(
     hooksConfig: AgentHooksInput | undefined,
     context: HookContext,
-    hookList: "after_run" | "on_error"
+    hookList: "after_run" | "on_error",
   ): Promise<HookExecutionResult> {
     const startTime = Date.now();
     const hooks = hooksConfig?.[hookList] ?? [];
@@ -190,9 +190,7 @@ export class HookExecutor {
       };
     }
 
-    this.logger.info(
-      `Executing ${hooks.length} ${hookList} hook(s) for event: ${context.event}`
-    );
+    this.logger.info(`Executing ${hooks.length} ${hookList} hook(s) for event: ${context.event}`);
 
     const results: HookResult[] = [];
     let successfulHooks = 0;
@@ -220,16 +218,12 @@ export class HookExecutor {
         }
       } else {
         failedHooks++;
-        this.logger.warn(
-          `${hookConfig.type} hook failed: ${result.error}`
-        );
+        this.logger.warn(`${hookConfig.type} hook failed: ${result.error}`);
 
         // Check if we should fail the job
         if (hookConfig.continue_on_error === false) {
           shouldFailJob = true;
-          this.logger.error(
-            `Hook failure will cause job to fail (continue_on_error: false)`
-          );
+          this.logger.error(`Hook failure will cause job to fail (continue_on_error: false)`);
         }
       }
     }
@@ -238,8 +232,8 @@ export class HookExecutor {
 
     this.logger.info(
       `Hook execution complete: ${successfulHooks} succeeded, ` +
-      `${failedHooks} failed, ${skippedHooks} skipped ` +
-      `(${totalDurationMs}ms)`
+        `${failedHooks} failed, ${skippedHooks} skipped ` +
+        `(${totalDurationMs}ms)`,
     );
 
     return {
@@ -257,10 +251,7 @@ export class HookExecutor {
   /**
    * Execute a single hook
    */
-  private async executeHook(
-    config: HookConfigInput,
-    context: HookContext
-  ): Promise<HookResult> {
+  private async executeHook(config: HookConfigInput, context: HookContext): Promise<HookResult> {
     switch (config.type) {
       case "shell":
         return this.shellRunner.execute(config as ShellHookConfigInput, context);
@@ -302,7 +293,7 @@ export class HookExecutor {
       const value = this.getPathValue(context as unknown as Record<string, unknown>, config.when);
       if (!value) {
         this.logger.debug(
-          `Skipping ${config.type} hook: condition "${config.when}" is falsy (value: ${JSON.stringify(value)})`
+          `Skipping ${config.type} hook: condition "${config.when}" is falsy (value: ${JSON.stringify(value)})`,
         );
         return false;
       }

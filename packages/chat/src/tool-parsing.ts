@@ -172,9 +172,8 @@ export function extractToolResults(message: {
         tool_use_id?: string;
       };
       const isError = toolResultBlock.is_error === true;
-      const toolUseId = typeof toolResultBlock.tool_use_id === "string"
-        ? toolResultBlock.tool_use_id
-        : undefined;
+      const toolUseId =
+        typeof toolResultBlock.tool_use_id === "string" ? toolResultBlock.tool_use_id : undefined;
 
       // Content can be a string or an array of content blocks
       const blockContent = toolResultBlock.content;
@@ -215,9 +214,7 @@ export function extractToolResults(message: {
  * @param result - Raw tool_use_result value from SDK
  * @returns Parsed tool result, or undefined if content could not be extracted
  */
-export function extractToolResultContent(
-  result: unknown
-): ToolResult | undefined {
+export function extractToolResultContent(result: unknown): ToolResult | undefined {
   if (typeof result === "string" && result.length > 0) {
     return { output: result, isError: false };
   }

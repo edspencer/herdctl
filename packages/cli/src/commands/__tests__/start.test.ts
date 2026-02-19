@@ -94,7 +94,7 @@ import { ConfigNotFoundError } from "@herdctl/core";
 function createTempDir(): string {
   const baseDir = path.join(
     tmpdir(),
-    `herdctl-cli-start-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-cli-start-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   fs.mkdirSync(baseDir, { recursive: true });
   return fs.realpathSync(baseDir);
@@ -250,5 +250,4 @@ describe("startCommand", () => {
       expect(listeners.length).toBeGreaterThan(0);
     });
   });
-
 });

@@ -17,11 +17,7 @@ import { z } from "zod";
 /**
  * The operational mode of the session
  */
-export const SessionModeSchema = z.enum([
-  "autonomous",
-  "interactive",
-  "review",
-]);
+export const SessionModeSchema = z.enum(["autonomous", "interactive", "review"]);
 
 // =============================================================================
 // Session Info Schema
@@ -48,7 +44,9 @@ export const SessionInfoSchema = z.object({
   created_at: z.string().datetime({ message: "created_at must be a valid ISO datetime string" }),
 
   /** ISO timestamp when the session was last used */
-  last_used_at: z.string().datetime({ message: "last_used_at must be a valid ISO datetime string" }),
+  last_used_at: z
+    .string()
+    .datetime({ message: "last_used_at must be a valid ISO datetime string" }),
 
   /** Number of jobs executed in this session */
   job_count: z.number().int().nonnegative(),

@@ -172,8 +172,8 @@ export class StatusQueries {
     const config = this.ctx.getConfig();
     const agents = config?.agents ?? [];
     // Try qualified name first, fall back to local name
-    const agent = agents.find((a) => a.qualifiedName === name)
-      ?? agents.find((a) => a.name === name);
+    const agent =
+      agents.find((a) => a.qualifiedName === name) ?? agents.find((a) => a.name === name);
 
     if (!agent) {
       throw new AgentNotFoundError(name);
@@ -207,7 +207,7 @@ export function buildAgentInfo(
   agent: ResolvedAgent,
   agentState?: AgentState,
   scheduler?: Scheduler | null,
-  chatManagers?: Map<string, IChatManager>
+  chatManagers?: Map<string, IChatManager>,
 ): AgentInfo {
   // Build schedule info
   const schedules = buildScheduleInfoList(agent, agentState);
@@ -256,7 +256,7 @@ export function buildAgentInfo(
 function buildChatStatus(
   platform: string,
   manager: IChatManager,
-  agentName: string
+  agentName: string,
 ): AgentChatStatus {
   if (!manager.hasAgent(agentName)) {
     return {
@@ -290,7 +290,7 @@ function buildChatStatus(
  */
 function buildChatStatuses(
   agent: ResolvedAgent,
-  chatManagers?: Map<string, IChatManager>
+  chatManagers?: Map<string, IChatManager>,
 ): Record<string, AgentChatStatus> | undefined {
   // Map of platform config keys to check
   const platformConfigs: Record<string, unknown> = {
@@ -328,7 +328,7 @@ function buildChatStatuses(
  */
 export function buildScheduleInfoList(
   agent: ResolvedAgent,
-  agentState?: AgentState
+  agentState?: AgentState,
 ): ScheduleInfo[] {
   if (!agent.schedules) {
     return [];

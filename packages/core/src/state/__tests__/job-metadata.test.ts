@@ -17,7 +17,7 @@ import { StateFileError } from "../errors.js";
 async function createTempDir(): Promise<string> {
   const baseDir = join(
     tmpdir(),
-    `herdctl-job-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-job-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   await mkdir(baseDir, { recursive: true });
   // Resolve to real path to handle macOS /var -> /private/var symlink
@@ -34,10 +34,7 @@ function createMockLogger(): JobLogger & { warnings: string[] } {
 }
 
 // Helper to create a valid job YAML file
-async function writeJobFile(
-  dir: string,
-  job: JobMetadata
-): Promise<string> {
+async function writeJobFile(dir: string, job: JobMetadata): Promise<string> {
   const { stringify } = await import("yaml");
   const filePath = join(dir, `${job.id}.yaml`);
   await writeFile(filePath, stringify(job), "utf-8");
@@ -123,7 +120,7 @@ describe("createJob", () => {
       createJob(nonExistentDir, {
         agent: "test-agent",
         trigger_type: "manual",
-      })
+      }),
     ).rejects.toThrow(StateFileError);
   });
 
@@ -218,7 +215,7 @@ describe("updateJob", () => {
 
   it("throws StateFileError for non-existent job", async () => {
     await expect(
-      updateJob(tempDir, "job-2024-01-15-noexis", { status: "running" })
+      updateJob(tempDir, "job-2024-01-15-noexis", { status: "running" }),
     ).rejects.toThrow(StateFileError);
   });
 
@@ -227,7 +224,7 @@ describe("updateJob", () => {
     await writeFile(corruptedPath, "invalid: [yaml", "utf-8");
 
     await expect(
-      updateJob(tempDir, "job-2024-01-15-corupt", { status: "running" })
+      updateJob(tempDir, "job-2024-01-15-corupt", { status: "running" }),
     ).rejects.toThrow(StateFileError);
   });
 
@@ -646,11 +643,7 @@ describe("listJobs", () => {
       await createJob(tempDir, { agent: "agent", trigger_type: "manual" });
 
       // Create corrupted job file
-      await writeFile(
-        join(tempDir, "job-2024-01-15-corupt.yaml"),
-        "invalid: [yaml",
-        "utf-8"
-      );
+      await writeFile(join(tempDir, "job-2024-01-15-corupt.yaml"), "invalid: [yaml", "utf-8");
 
       const result = await listJobs(tempDir, {}, { logger });
 
@@ -778,7 +771,7 @@ describe("concurrent operations", () => {
         createJob(tempDir, {
           agent: `agent-${i}`,
           trigger_type: "manual",
-        })
+        }),
       );
     }
 

@@ -58,7 +58,7 @@ function safeBoolean(value: unknown): boolean | undefined {
  * - tool_result: Tool result (now part of user messages)
  */
 function isValidMessageType(
-  type: unknown
+  type: unknown,
 ): type is
   | "system"
   | "assistant"
@@ -110,8 +110,7 @@ function processSystemMessage(message: SDKMessage): ProcessedMessage {
 
   // Extract session ID specifically from init messages
   // The Claude SDK provides session_id in the system message with subtype "init"
-  const sessionId =
-    message.subtype === "init" ? message.session_id : undefined;
+  const sessionId = message.subtype === "init" ? message.session_id : undefined;
 
   return {
     output,
@@ -185,10 +184,12 @@ function processAssistantMessage(message: SDKMessage): ProcessedMessage {
   }
 
   // Handle usage statistics (can be at top level or in nested message)
-  const usage = (apiMessage?.usage ?? message.usage) as {
-    input_tokens?: number;
-    output_tokens?: number;
-  } | undefined;
+  const usage = (apiMessage?.usage ?? message.usage) as
+    | {
+        input_tokens?: number;
+        output_tokens?: number;
+      }
+    | undefined;
 
   if (usage) {
     output.usage = {};
@@ -301,7 +302,8 @@ function processUserMessage(message: SDKMessage): ProcessedMessage {
       // Try to extract meaningful content from the result object
       const resultObj = toolUseResult as Record<string, unknown>;
       if ("content" in resultObj) {
-        output.result = extractTextFromContentBlocks(resultObj.content) ?? JSON.stringify(toolUseResult, null, 2);
+        output.result =
+          extractTextFromContentBlocks(resultObj.content) ?? JSON.stringify(toolUseResult, null, 2);
       } else {
         output.result = JSON.stringify(toolUseResult, null, 2);
       }
@@ -322,7 +324,8 @@ function processUserMessage(message: SDKMessage): ProcessedMessage {
 
   if (content !== undefined) {
     const textContent = extractTextFromContentBlocks(content);
-    output.content = textContent ?? (typeof content === "string" ? content : JSON.stringify(content));
+    output.content =
+      textContent ?? (typeof content === "string" ? content : JSON.stringify(content));
   }
 
   return { output };
@@ -341,11 +344,13 @@ function processStreamEventMessage(message: SDKMessage): ProcessedMessage {
   };
 
   // Extract the streaming event
-  const event = message.event as {
-    type?: string;
-    delta?: { type?: string; text?: string };
-    content_block?: { type?: string; text?: string };
-  } | undefined;
+  const event = message.event as
+    | {
+        type?: string;
+        delta?: { type?: string; text?: string };
+        content_block?: { type?: string; text?: string };
+      }
+    | undefined;
 
   if (event) {
     // Handle content_block_delta events (streaming text)
@@ -563,11 +568,7 @@ export function isTerminalMessage(message: SDKMessage): boolean {
   // System messages with certain subtypes indicate completion
   if (message.type === "system") {
     const subtype = message.subtype as string | undefined;
-    if (
-      subtype === "end" ||
-      subtype === "complete" ||
-      subtype === "session_end"
-    ) {
+    if (subtype === "end" || subtype === "complete" || subtype === "session_end") {
       return true;
     }
   }

@@ -4,8 +4,7 @@
 @theme {
   /* Font families */
   --font-sans: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
-  --font-mono: "IBM Plex Mono", "SF Mono", "Cascadia Code", "Fira Code", Menlo,
-    monospace;
+  --font-mono: "IBM Plex Mono", "SF Mono", "Cascadia Code", "Fira Code", Menlo, monospace;
   --font-serif: "Lora", Georgia, "Times New Roman", serif;
 
   /* Light mode colors */
@@ -13,14 +12,14 @@
   --color-herd-fg: #1c1b18;
   --color-herd-card: #ffffff;
   --color-herd-sidebar: #1e2330;
-  --color-herd-border: rgba(0, 0, 0, 0.10);
+  --color-herd-border: rgba(0, 0, 0, 0.1);
   --color-herd-input-bg: #ffffff;
   --color-herd-hover: rgba(0, 0, 0, 0.05);
   --color-herd-active: rgba(0, 0, 0, 0.08);
   --color-herd-muted: #6b7280;
-  --color-herd-primary: #326CE5;
-  --color-herd-primary-hover: #2856B8;
-  --color-herd-primary-muted: rgba(50, 108, 229, 0.10);
+  --color-herd-primary: #326ce5;
+  --color-herd-primary-hover: #2856b8;
+  --color-herd-primary-muted: rgba(50, 108, 229, 0.1);
   --color-herd-user-bubble: #e2e4e9;
   --color-herd-code-bg: #1e1e1e;
   --color-herd-code-fg: #d4d4d4;
@@ -34,10 +33,10 @@
   --color-herd-sidebar-muted: #8b92a0;
   --color-herd-sidebar-border: rgba(255, 255, 255, 0.08);
   --color-herd-sidebar-hover: rgba(255, 255, 255, 0.06);
-  --color-herd-sidebar-active: rgba(255, 255, 255, 0.10);
+  --color-herd-sidebar-active: rgba(255, 255, 255, 0.1);
 
   /* Connector brand colors */
-  --color-herd-discord: #5865F2;
+  --color-herd-discord: #5865f2;
   --color-herd-slack: #611f69;
 
   /* Custom animations */
@@ -56,8 +55,8 @@
   --color-herd-hover: rgba(255, 255, 255, 0.05);
   --color-herd-active: rgba(255, 255, 255, 0.08);
   --color-herd-muted: #8a877f;
-  --color-herd-primary: #5B8DEF;
-  --color-herd-primary-hover: #7AA3F5;
+  --color-herd-primary: #5b8def;
+  --color-herd-primary-hover: #7aa3f5;
   --color-herd-primary-muted: rgba(91, 141, 239, 0.12);
   --color-herd-user-bubble: #353330;
   --color-herd-code-bg: #141413;
@@ -75,8 +74,8 @@
   --color-herd-sidebar-active: rgba(255, 255, 255, 0.08);
 
   /* Connector brand colors */
-  --color-herd-discord: #7289DA;
-  --color-herd-slack: #E01E5A;
+  --color-herd-discord: #7289da;
+  --color-herd-slack: #e01e5a;
 }
 
 /* ===== Keyframes ===== */

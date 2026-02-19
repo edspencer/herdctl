@@ -65,10 +65,7 @@ export function useFleetStatus(): UseFleetStatusResult {
 
       try {
         // Fetch fleet status and agents in parallel
-        const [status, agents] = await Promise.all([
-          fetchFleetStatus(),
-          fetchAgents(),
-        ]);
+        const [status, agents] = await Promise.all([fetchFleetStatus(), fetchAgents()]);
 
         if (cancelled) return;
 

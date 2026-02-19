@@ -70,9 +70,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <Panel id="main" order={2} minSize={40} className="flex flex-col min-w-0">
           <Header />
           <ConnectionStatus status={connectionStatus} />
-          <main className="flex-1 overflow-auto">
-            {children}
-          </main>
+          <main className="flex-1 overflow-auto">{children}</main>
         </Panel>
 
         {/* Right detail panel (toggleable) */}
@@ -88,9 +86,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               className="bg-herd-card border-l border-herd-border"
             >
               <div className="p-4">
-                <p className="text-xs text-herd-muted">
-                  Detail panel — Coming in Phase 3
-                </p>
+                <p className="text-xs text-herd-muted">Detail panel — Coming in Phase 3</p>
               </div>
             </Panel>
           </>

@@ -337,10 +337,7 @@ describe("Fleet Status Query Methods", () => {
 
       const configPath = await createConfig({
         version: 1,
-        agents: [
-          { path: "./agents/agent-a.yaml" },
-          { path: "./agents/agent-b.yaml" },
-        ],
+        agents: [{ path: "./agents/agent-a.yaml" }, { path: "./agents/agent-b.yaml" }],
       });
 
       const manager = new FleetManager({
@@ -371,10 +368,7 @@ describe("Fleet Status Query Methods", () => {
 
       const configPath = await createConfig({
         version: 1,
-        agents: [
-          { path: "./agents/target-agent.yaml" },
-          { path: "./agents/other-agent.yaml" },
-        ],
+        agents: [{ path: "./agents/target-agent.yaml" }, { path: "./agents/other-agent.yaml" }],
       });
 
       const manager = new FleetManager({
@@ -409,13 +403,9 @@ describe("Fleet Status Query Methods", () => {
 
       await manager.initialize();
 
-      await expect(
-        manager.getAgentInfoByName("unknown-agent")
-      ).rejects.toThrow(AgentNotFoundError);
+      await expect(manager.getAgentInfoByName("unknown-agent")).rejects.toThrow(AgentNotFoundError);
 
-      await expect(
-        manager.getAgentInfoByName("unknown-agent")
-      ).rejects.toMatchObject({
+      await expect(manager.getAgentInfoByName("unknown-agent")).rejects.toMatchObject({
         name: "AgentNotFoundError",
         agentName: "unknown-agent",
       });
@@ -433,9 +423,7 @@ describe("Fleet Status Query Methods", () => {
         logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
       });
 
-      await expect(
-        manager.getAgentInfoByName("any-agent")
-      ).rejects.toThrow(AgentNotFoundError);
+      await expect(manager.getAgentInfoByName("any-agent")).rejects.toThrow(AgentNotFoundError);
     });
   });
 

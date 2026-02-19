@@ -46,12 +46,8 @@ describe("RuntimeFactory", () => {
     it("throws for unknown runtime type", () => {
       const agent = createTestAgent({ runtime: "unknown" as any });
 
-      expect(() => RuntimeFactory.create(agent)).toThrow(
-        "Unknown runtime type: unknown"
-      );
-      expect(() => RuntimeFactory.create(agent)).toThrow(
-        "Supported types: 'sdk' (default), 'cli'"
-      );
+      expect(() => RuntimeFactory.create(agent)).toThrow("Unknown runtime type: unknown");
+      expect(() => RuntimeFactory.create(agent)).toThrow("Supported types: 'sdk' (default), 'cli'");
     });
   });
 

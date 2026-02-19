@@ -480,7 +480,9 @@ describe("DiscordHookRunner", () => {
       let context = { ...sampleContext, job: { ...sampleContext.job, durationMs: 500 } };
       await runner.execute(config, context);
       let body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      let durationField = body.embeds[0].fields.find((f: { name: string }) => f.name === "Duration");
+      let durationField = body.embeds[0].fields.find(
+        (f: { name: string }) => f.name === "Duration",
+      );
       expect(durationField.value).toBe("500ms");
 
       mockFetch.mockClear();
@@ -534,7 +536,9 @@ describe("DiscordHookRunner", () => {
       const [, options] = mockFetch.mock.calls[0];
       const body = JSON.parse(options.body);
 
-      const scheduleField = body.embeds[0].fields.find((f: { name: string }) => f.name === "Schedule");
+      const scheduleField = body.embeds[0].fields.find(
+        (f: { name: string }) => f.name === "Schedule",
+      );
       expect(scheduleField).toBeUndefined();
     });
 

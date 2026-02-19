@@ -73,7 +73,7 @@ export async function getScheduleState(
   stateDir: string,
   agentName: string,
   scheduleName: string,
-  options: ScheduleStateOptions = {}
+  options: ScheduleStateOptions = {},
 ): Promise<ScheduleState> {
   const stateFilePath = getStateFilePath(stateDir);
   const fleetState = await readFleetState(stateFilePath, options);
@@ -133,7 +133,7 @@ export async function updateScheduleState(
   agentName: string,
   scheduleName: string,
   updates: ScheduleStateUpdates,
-  options: ScheduleStateOptions = {}
+  options: ScheduleStateOptions = {},
 ): Promise<ScheduleState> {
   const stateFilePath = getStateFilePath(stateDir);
   const fleetState = await readFleetState(stateFilePath, options);
@@ -145,8 +145,7 @@ export async function updateScheduleState(
   const currentSchedules = currentAgentState.schedules ?? {};
 
   // Get current schedule state or create default
-  const currentScheduleState =
-    currentSchedules[scheduleName] ?? createDefaultScheduleState();
+  const currentScheduleState = currentSchedules[scheduleName] ?? createDefaultScheduleState();
 
   // Merge updates
   const updatedScheduleState: ScheduleState = {
@@ -196,7 +195,7 @@ export async function updateScheduleState(
 export async function getAgentScheduleStates(
   stateDir: string,
   agentName: string,
-  options: ScheduleStateOptions = {}
+  options: ScheduleStateOptions = {},
 ): Promise<Record<string, ScheduleState>> {
   const stateFilePath = getStateFilePath(stateDir);
   const fleetState = await readFleetState(stateFilePath, options);

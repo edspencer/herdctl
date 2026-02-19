@@ -35,7 +35,7 @@ export type LogHandler = (
   level: LogLevel,
   prefix: string,
   message: string,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
 ) => void;
 
 /** Global log handler — null means use default console output */
@@ -102,9 +102,7 @@ export function shouldLog(level: LogLevel): boolean {
  */
 export function createLogger(prefix: string) {
   const fmt = (message: string, data?: Record<string, unknown>) =>
-    data
-      ? `[${prefix}] ${message} ${JSON.stringify(data)}`
-      : `[${prefix}] ${message}`;
+    data ? `[${prefix}] ${message} ${JSON.stringify(data)}` : `[${prefix}] ${message}`;
 
   return {
     debug: (message: string, data?: Record<string, unknown>) => {

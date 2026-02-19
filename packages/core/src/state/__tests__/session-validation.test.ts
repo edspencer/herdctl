@@ -17,7 +17,7 @@ import { type SessionInfo } from "../schemas/session-info.js";
 async function createTempDir(): Promise<string> {
   const baseDir = join(
     tmpdir(),
-    `herdctl-session-validation-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-session-validation-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   await mkdir(baseDir, { recursive: true });
   // Resolve to real path to handle macOS /var -> /private/var symlink
@@ -28,7 +28,7 @@ async function createTempDir(): Promise<string> {
 async function writeSessionFile(
   dir: string,
   agentName: string,
-  session: SessionInfo
+  session: SessionInfo,
 ): Promise<string> {
   const filePath = join(dir, `${agentName}.json`);
   await writeFile(filePath, JSON.stringify(session, null, 2), "utf-8");
@@ -36,10 +36,7 @@ async function writeSessionFile(
 }
 
 // Helper to create a session with a specific last_used_at time
-function createSessionWithAge(
-  agentName: string,
-  ageMs: number
-): SessionInfo {
+function createSessionWithAge(agentName: string, ageMs: number): SessionInfo {
   const now = Date.now();
   const lastUsedAt = new Date(now - ageMs).toISOString();
   const createdAt = new Date(now - ageMs - 60000).toISOString(); // 1 minute before last used
@@ -426,7 +423,7 @@ describe("validateRuntimeContext", () => {
   // Helper to create a session with runtime context
   function createSessionWithRuntime(
     runtimeType: "sdk" | "cli",
-    dockerEnabled: boolean
+    dockerEnabled: boolean,
   ): SessionInfo {
     const now = new Date().toISOString();
     return {

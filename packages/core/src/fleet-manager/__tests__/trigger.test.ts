@@ -130,7 +130,7 @@ describe("Manual Agent Triggering (US-5)", () => {
           }),
           agentName: "event-agent",
           scheduleName: null,
-        })
+        }),
       );
     });
 
@@ -142,9 +142,7 @@ describe("Manual Agent Triggering (US-5)", () => {
 
       const manager = createTestManager(configPath);
 
-      await expect(manager.trigger("any-agent")).rejects.toThrow(
-        InvalidStateError
-      );
+      await expect(manager.trigger("any-agent")).rejects.toThrow(InvalidStateError);
       await expect(manager.trigger("any-agent")).rejects.toMatchObject({
         operation: "trigger",
         currentState: "uninitialized",
@@ -164,9 +162,7 @@ describe("Manual Agent Triggering (US-5)", () => {
       const manager = createTestManager(configPath);
       await manager.initialize();
 
-      await expect(manager.trigger("unknown-agent")).rejects.toThrow(
-        AgentNotFoundError
-      );
+      await expect(manager.trigger("unknown-agent")).rejects.toThrow(AgentNotFoundError);
       await expect(manager.trigger("unknown-agent")).rejects.toMatchObject({
         agentName: "unknown-agent",
         availableAgents: ["known-agent"],
@@ -250,12 +246,10 @@ describe("Manual Agent Triggering (US-5)", () => {
       const manager = createTestManager(configPath);
       await manager.initialize();
 
-      await expect(
-        manager.trigger("schedule-test", "unknown")
-      ).rejects.toThrow(ScheduleNotFoundError);
-      await expect(
-        manager.trigger("schedule-test", "unknown")
-      ).rejects.toMatchObject({
+      await expect(manager.trigger("schedule-test", "unknown")).rejects.toThrow(
+        ScheduleNotFoundError,
+      );
+      await expect(manager.trigger("schedule-test", "unknown")).rejects.toMatchObject({
         agentName: "schedule-test",
         scheduleName: "unknown",
         availableSchedules: ["known"],
@@ -275,12 +269,10 @@ describe("Manual Agent Triggering (US-5)", () => {
       const manager = createTestManager(configPath);
       await manager.initialize();
 
-      await expect(
-        manager.trigger("no-schedules", "any-schedule")
-      ).rejects.toThrow(ScheduleNotFoundError);
-      await expect(
-        manager.trigger("no-schedules", "any-schedule")
-      ).rejects.toMatchObject({
+      await expect(manager.trigger("no-schedules", "any-schedule")).rejects.toThrow(
+        ScheduleNotFoundError,
+      );
+      await expect(manager.trigger("no-schedules", "any-schedule")).rejects.toMatchObject({
         availableSchedules: [],
       });
     });
@@ -544,7 +536,7 @@ describe("Manual Agent Triggering (US-5)", () => {
           job: expect.objectContaining({
             trigger_type: "manual",
           }),
-        })
+        }),
       );
     });
 
@@ -575,7 +567,7 @@ describe("Manual Agent Triggering (US-5)", () => {
           job: expect.objectContaining({
             schedule: "test",
           }),
-        })
+        }),
       );
     });
 
@@ -604,7 +596,7 @@ describe("Manual Agent Triggering (US-5)", () => {
           job: expect.objectContaining({
             prompt: "Test prompt for job",
           }),
-        })
+        }),
       );
     });
   });

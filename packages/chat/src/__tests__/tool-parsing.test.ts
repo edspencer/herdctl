@@ -23,7 +23,7 @@ describe("tool-parsing", () => {
         extractToolUseBlocks({
           type: "assistant",
           message: { content: "just text" },
-        })
+        }),
       ).toEqual([]);
     });
 
@@ -84,9 +84,7 @@ describe("tool-parsing", () => {
       const message = {
         type: "assistant",
         message: {
-          content: [
-            { type: "tool_use", name: "Bash", input: { command: "ls" } },
-          ],
+          content: [{ type: "tool_use", name: "Bash", input: { command: "ls" } }],
         },
       };
 
@@ -128,45 +126,33 @@ describe("tool-parsing", () => {
     });
 
     it("returns file_path for Read", () => {
-      expect(
-        getToolInputSummary("Read", { file_path: "/foo/bar.ts" })
-      ).toBe("/foo/bar.ts");
+      expect(getToolInputSummary("Read", { file_path: "/foo/bar.ts" })).toBe("/foo/bar.ts");
     });
 
     it("returns file_path for Write", () => {
-      expect(
-        getToolInputSummary("Write", { file_path: "/foo/bar.ts" })
-      ).toBe("/foo/bar.ts");
+      expect(getToolInputSummary("Write", { file_path: "/foo/bar.ts" })).toBe("/foo/bar.ts");
     });
 
     it("returns file_path for Edit", () => {
-      expect(
-        getToolInputSummary("Edit", { file_path: "/foo/bar.ts" })
-      ).toBe("/foo/bar.ts");
+      expect(getToolInputSummary("Edit", { file_path: "/foo/bar.ts" })).toBe("/foo/bar.ts");
     });
 
     it("returns pattern for Glob", () => {
-      expect(
-        getToolInputSummary("Glob", { pattern: "**/*.ts" })
-      ).toBe("**/*.ts");
+      expect(getToolInputSummary("Glob", { pattern: "**/*.ts" })).toBe("**/*.ts");
     });
 
     it("returns pattern for Grep", () => {
-      expect(
-        getToolInputSummary("Grep", { pattern: "function foo" })
-      ).toBe("function foo");
+      expect(getToolInputSummary("Grep", { pattern: "function foo" })).toBe("function foo");
     });
 
     it("returns url for WebFetch", () => {
-      expect(
-        getToolInputSummary("WebFetch", { url: "https://example.com" })
-      ).toBe("https://example.com");
+      expect(getToolInputSummary("WebFetch", { url: "https://example.com" })).toBe(
+        "https://example.com",
+      );
     });
 
     it("returns query for WebSearch", () => {
-      expect(
-        getToolInputSummary("WebSearch", { query: "how to test" })
-      ).toBe("how to test");
+      expect(getToolInputSummary("WebSearch", { query: "how to test" })).toBe("how to test");
     });
 
     it("returns undefined for unknown tools", () => {
@@ -303,9 +289,7 @@ describe("tool-parsing", () => {
       const message = {
         type: "user",
         message: {
-          content: [
-            { type: "tool_result", content: "" },
-          ],
+          content: [{ type: "tool_result", content: "" }],
         },
       };
 

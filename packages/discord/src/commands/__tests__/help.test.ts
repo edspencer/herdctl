@@ -70,9 +70,7 @@ function createMockConnectorState(): DiscordConnectorState {
   };
 }
 
-function createMockContext(
-  overrides: Partial<CommandContext> = {}
-): CommandContext {
+function createMockContext(overrides: Partial<CommandContext> = {}): CommandContext {
   return {
     interaction: createMockInteraction(),
     client: createMockClient(),
@@ -105,7 +103,7 @@ describe("helpCommand", () => {
     expect(interaction.reply).toHaveBeenCalledWith(
       expect.objectContaining({
         ephemeral: true,
-      })
+      }),
     );
   });
 
@@ -120,7 +118,7 @@ describe("helpCommand", () => {
     expect(interaction.reply).toHaveBeenCalledWith(
       expect.objectContaining({
         content: expect.stringContaining("my-custom-agent"),
-      })
+      }),
     );
   });
 

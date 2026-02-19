@@ -31,7 +31,7 @@ export class DiscordConnectorError extends Error {
     message: string,
     code: DiscordErrorCode,
     agentName: string,
-    options?: { cause?: Error }
+    options?: { cause?: Error },
   ) {
     super(message, options);
     this.name = "DiscordConnectorError";
@@ -49,7 +49,7 @@ export class DiscordConnectionError extends DiscordConnectorError {
       `Discord connection failed for agent '${agentName}': ${message}`,
       DiscordErrorCode.CONNECTION_FAILED,
       agentName,
-      options
+      options,
     );
     this.name = "DiscordConnectionError";
   }
@@ -63,7 +63,7 @@ export class AlreadyConnectedError extends DiscordConnectorError {
     super(
       `Discord connector for agent '${agentName}' is already connected`,
       DiscordErrorCode.ALREADY_CONNECTED,
-      agentName
+      agentName,
     );
     this.name = "AlreadyConnectedError";
   }
@@ -77,7 +77,7 @@ export class InvalidTokenError extends DiscordConnectorError {
     super(
       `Invalid Discord bot token for agent '${agentName}': ${reason}`,
       DiscordErrorCode.INVALID_TOKEN,
-      agentName
+      agentName,
     );
     this.name = "InvalidTokenError";
   }
@@ -91,7 +91,7 @@ export class MissingTokenError extends DiscordConnectorError {
     super(
       `Missing Discord bot token for agent '${agentName}': environment variable '${envVar}' is not set`,
       DiscordErrorCode.MISSING_TOKEN,
-      agentName
+      agentName,
     );
     this.name = "MissingTokenError";
   }
@@ -100,8 +100,6 @@ export class MissingTokenError extends DiscordConnectorError {
 /**
  * Type guard to check if an error is a DiscordConnectorError
  */
-export function isDiscordConnectorError(
-  error: unknown
-): error is DiscordConnectorError {
+export function isDiscordConnectorError(error: unknown): error is DiscordConnectorError {
   return error instanceof DiscordConnectorError;
 }

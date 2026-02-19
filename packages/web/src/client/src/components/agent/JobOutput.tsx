@@ -79,8 +79,7 @@ export function JobOutput({ jobId, messages, startTime }: JobOutputProps) {
     if (!container) return;
 
     const threshold = 50; // pixels from bottom to consider "at bottom"
-    const scrollBottom =
-      container.scrollHeight - container.scrollTop - container.clientHeight;
+    const scrollBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
     const atBottom = scrollBottom <= threshold;
 
     setIsAtBottom(atBottom);
@@ -117,9 +116,7 @@ export function JobOutput({ jobId, messages, startTime }: JobOutputProps) {
   }, []);
 
   // Format start time for display
-  const formattedStartTime = startTime
-    ? new Date(startTime).toLocaleString()
-    : null;
+  const formattedStartTime = startTime ? new Date(startTime).toLocaleString() : null;
 
   return (
     <div className="relative flex flex-col h-full">

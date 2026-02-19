@@ -176,13 +176,16 @@ function getStatusIndicator(status: string): string {
  * Check if any agents are in sub-fleets (non-empty fleetPath)
  */
 function hasSubFleets(agents: AgentInfo[]): boolean {
-  return agents.some(a => a.fleetPath && a.fleetPath.length > 0);
+  return agents.some((a) => a.fleetPath && a.fleetPath.length > 0);
 }
 
 /**
  * Group agents by their fleet path for hierarchical display
  */
-function groupAgentsByFleet(agents: AgentInfo[]): { rootAgents: AgentInfo[]; fleetGroups: Map<string, AgentInfo[]> } {
+function groupAgentsByFleet(agents: AgentInfo[]): {
+  rootAgents: AgentInfo[];
+  fleetGroups: Map<string, AgentInfo[]>;
+} {
   const rootAgents: AgentInfo[] = [];
   const fleetGroups = new Map<string, AgentInfo[]>();
 
@@ -214,7 +217,9 @@ function formatFleetHierarchy(agents: AgentInfo[]): string[] {
       const indicator = getStatusIndicator(agent.status);
       const nextRun = getNextScheduleRun(agent.schedules);
       const nextRunStr = nextRun ? colorize(` (next: ${formatRelativeTime(nextRun)})`, "dim") : "";
-      lines.push(`    ${indicator} ${agent.name}   ${colorize(`(${agent.status})`, "dim")}${nextRunStr}`);
+      lines.push(
+        `    ${indicator} ${agent.name}   ${colorize(`(${agent.status})`, "dim")}${nextRunStr}`,
+      );
     }
   }
 
@@ -248,8 +253,12 @@ function formatFleetOverview(status: FleetStatus, agents: AgentInfo[]): string {
   lines.push("");
   lines.push(colorize("Counts", "bold"));
   lines.push("─".repeat(30));
-  lines.push(`Agents:     ${status.counts.totalAgents} total (${colorize(String(status.counts.runningAgents), "green")} running, ${colorize(String(status.counts.idleAgents), "yellow")} idle, ${colorize(String(status.counts.errorAgents), "red")} error)`);
-  lines.push(`Schedules:  ${status.counts.totalSchedules} total (${status.counts.runningSchedules} running)`);
+  lines.push(
+    `Agents:     ${status.counts.totalAgents} total (${colorize(String(status.counts.runningAgents), "green")} running, ${colorize(String(status.counts.idleAgents), "yellow")} idle, ${colorize(String(status.counts.errorAgents), "red")} error)`,
+  );
+  lines.push(
+    `Schedules:  ${status.counts.totalSchedules} total (${status.counts.runningSchedules} running)`,
+  );
   lines.push(`Jobs:       ${status.counts.runningJobs} running`);
 
   // Scheduler info
@@ -276,13 +285,13 @@ function formatFleetOverview(status: FleetStatus, agents: AgentInfo[]): string {
       lines.push(...formatFleetHierarchy(agents));
     } else {
       // Flat table for single-fleet configs (unchanged from today)
-      const nameWidth = Math.max(6, ...agents.map(a => a.name.length)) + 2;
+      const nameWidth = Math.max(6, ...agents.map((a) => a.name.length)) + 2;
       const statusWidth = 10;
       const schedWidth = 10;
       const nextRunWidth = 15;
 
       lines.push(
-        `${"NAME".padEnd(nameWidth)}${"STATUS".padEnd(statusWidth)}${"SCHEDULES".padEnd(schedWidth)}${"NEXT RUN".padEnd(nextRunWidth)}`
+        `${"NAME".padEnd(nameWidth)}${"STATUS".padEnd(statusWidth)}${"SCHEDULES".padEnd(schedWidth)}${"NEXT RUN".padEnd(nextRunWidth)}`,
       );
       lines.push(colorize("─".repeat(nameWidth + statusWidth + schedWidth + nextRunWidth), "dim"));
 
@@ -290,7 +299,7 @@ function formatFleetOverview(status: FleetStatus, agents: AgentInfo[]): string {
       for (const agent of agents) {
         const nextRun = getNextScheduleRun(agent.schedules);
         lines.push(
-          `${agent.name.padEnd(nameWidth)}${formatStatus(agent.status).padEnd(statusWidth + (shouldUseColor() ? colors.reset.length + colors[getStatusColor(agent.status)].length : 0))}${String(agent.scheduleCount).padEnd(schedWidth)}${formatRelativeTime(nextRun).padEnd(nextRunWidth)}`
+          `${agent.name.padEnd(nameWidth)}${formatStatus(agent.status).padEnd(statusWidth + (shouldUseColor() ? colors.reset.length + colors[getStatusColor(agent.status)].length : 0))}${String(agent.scheduleCount).padEnd(schedWidth)}${formatRelativeTime(nextRun).padEnd(nextRunWidth)}`,
         );
       }
     }
@@ -416,7 +425,7 @@ interface AgentStatusJson {
  */
 export async function statusCommand(
   agentName: string | undefined,
-  options: StatusOptions
+  options: StatusOptions,
 ): Promise<void> {
   const stateDir = options.state || DEFAULT_STATE_DIR;
 
@@ -456,13 +465,19 @@ export async function statusCommand(
     // Handle specific error types
     if (error instanceof ConfigNotFoundError) {
       if (options.json) {
-        console.log(JSON.stringify({
-          error: {
-            code: "CONFIG_NOT_FOUND",
-            message: "No configuration file found",
-            startDirectory: error.startDirectory,
-          },
-        }, null, 2));
+        console.log(
+          JSON.stringify(
+            {
+              error: {
+                code: "CONFIG_NOT_FOUND",
+                message: "No configuration file found",
+                startDirectory: error.startDirectory,
+              },
+            },
+            null,
+            2,
+          ),
+        );
         process.exit(1);
       }
       console.error("");
@@ -475,13 +490,19 @@ export async function statusCommand(
 
     if (error instanceof AgentNotFoundError) {
       if (options.json) {
-        console.log(JSON.stringify({
-          error: {
-            code: "AGENT_NOT_FOUND",
-            message: error.message,
-            agentName: agentName,
-          },
-        }, null, 2));
+        console.log(
+          JSON.stringify(
+            {
+              error: {
+                code: "AGENT_NOT_FOUND",
+                message: error.message,
+                agentName: agentName,
+              },
+            },
+            null,
+            2,
+          ),
+        );
         process.exit(1);
       }
       console.error("");
@@ -493,12 +514,18 @@ export async function statusCommand(
 
     if (isFleetManagerError(error)) {
       if (options.json) {
-        console.log(JSON.stringify({
-          error: {
-            code: error.code,
-            message: error.message,
-          },
-        }, null, 2));
+        console.log(
+          JSON.stringify(
+            {
+              error: {
+                code: error.code,
+                message: error.message,
+              },
+            },
+            null,
+            2,
+          ),
+        );
         process.exit(1);
       }
       console.error("");
@@ -511,12 +538,18 @@ export async function statusCommand(
 
     // Generic error
     if (options.json) {
-      console.log(JSON.stringify({
-        error: {
-          code: "UNKNOWN_ERROR",
-          message: error instanceof Error ? error.message : String(error),
-        },
-      }, null, 2));
+      console.log(
+        JSON.stringify(
+          {
+            error: {
+              code: "UNKNOWN_ERROR",
+              message: error instanceof Error ? error.message : String(error),
+            },
+          },
+          null,
+          2,
+        ),
+      );
       process.exit(1);
     }
     console.error("");

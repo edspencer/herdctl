@@ -18,7 +18,7 @@ describe("DiscordConnectorError", () => {
     const error = new DiscordConnectorError(
       "Test error message",
       DiscordErrorCode.CONNECTION_FAILED,
-      "test-agent"
+      "test-agent",
     );
 
     expect(error.message).toBe("Test error message");
@@ -31,7 +31,7 @@ describe("DiscordConnectorError", () => {
     const error = new DiscordConnectorError(
       "Test error",
       DiscordErrorCode.CONNECTION_FAILED,
-      "test-agent"
+      "test-agent",
     );
 
     expect(error).toBeInstanceOf(Error);
@@ -44,7 +44,7 @@ describe("DiscordConnectorError", () => {
       "Wrapped error",
       DiscordErrorCode.CONNECTION_FAILED,
       "test-agent",
-      { cause }
+      { cause },
     );
 
     expect(error.cause).toBe(cause);
@@ -59,9 +59,7 @@ describe("DiscordConnectionError", () => {
   it("creates error with formatted message", () => {
     const error = new DiscordConnectionError("test-agent", "Network timeout");
 
-    expect(error.message).toBe(
-      "Discord connection failed for agent 'test-agent': Network timeout"
-    );
+    expect(error.message).toBe("Discord connection failed for agent 'test-agent': Network timeout");
     expect(error.code).toBe(DiscordErrorCode.CONNECTION_FAILED);
     expect(error.agentName).toBe("test-agent");
     expect(error.name).toBe("DiscordConnectionError");
@@ -92,9 +90,7 @@ describe("AlreadyConnectedError", () => {
   it("creates error with formatted message", () => {
     const error = new AlreadyConnectedError("test-agent");
 
-    expect(error.message).toBe(
-      "Discord connector for agent 'test-agent' is already connected"
-    );
+    expect(error.message).toBe("Discord connector for agent 'test-agent' is already connected");
     expect(error.code).toBe(DiscordErrorCode.ALREADY_CONNECTED);
     expect(error.agentName).toBe("test-agent");
     expect(error.name).toBe("AlreadyConnectedError");
@@ -116,9 +112,7 @@ describe("InvalidTokenError", () => {
   it("creates error with formatted message", () => {
     const error = new InvalidTokenError("test-agent", "Token expired");
 
-    expect(error.message).toBe(
-      "Invalid Discord bot token for agent 'test-agent': Token expired"
-    );
+    expect(error.message).toBe("Invalid Discord bot token for agent 'test-agent': Token expired");
     expect(error.code).toBe(DiscordErrorCode.INVALID_TOKEN);
     expect(error.agentName).toBe("test-agent");
     expect(error.name).toBe("InvalidTokenError");
@@ -141,7 +135,7 @@ describe("MissingTokenError", () => {
     const error = new MissingTokenError("test-agent", "MY_BOT_TOKEN");
 
     expect(error.message).toBe(
-      "Missing Discord bot token for agent 'test-agent': environment variable 'MY_BOT_TOKEN' is not set"
+      "Missing Discord bot token for agent 'test-agent': environment variable 'MY_BOT_TOKEN' is not set",
     );
     expect(error.code).toBe(DiscordErrorCode.MISSING_TOKEN);
     expect(error.agentName).toBe("test-agent");
@@ -165,7 +159,7 @@ describe("isDiscordConnectorError", () => {
     const error = new DiscordConnectorError(
       "Test",
       DiscordErrorCode.CONNECTION_FAILED,
-      "test-agent"
+      "test-agent",
     );
 
     expect(isDiscordConnectorError(error)).toBe(true);

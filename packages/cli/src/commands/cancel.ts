@@ -92,10 +92,7 @@ interface CancelResultJson {
 /**
  * Cancel a running job (herdctl cancel)
  */
-export async function cancelCommand(
-  jobId: string,
-  options: CancelOptions
-): Promise<void> {
+export async function cancelCommand(jobId: string, options: CancelOptions): Promise<void> {
   const stateDir = options.state || DEFAULT_STATE_DIR;
   const isJsonOutput = options.json === true;
   const skipConfirmation = options.yes === true;
@@ -133,7 +130,7 @@ export async function cancelCommand(
               jobId: jobId,
               status: job.status,
             },
-          })
+          }),
         );
         process.exit(1);
       }
@@ -158,7 +155,9 @@ export async function cancelCommand(
       console.log("");
 
       if (forceCancel) {
-        console.log(colorize("WARNING: Force cancel will immediately kill the process (SIGKILL).", "yellow"));
+        console.log(
+          colorize("WARNING: Force cancel will immediately kill the process (SIGKILL).", "yellow"),
+        );
         console.log(colorize("This may leave the job in an inconsistent state.", "yellow"));
         console.log("");
       }
@@ -206,7 +205,9 @@ export async function cancelCommand(
             break;
           case "forced":
             console.log(colorize("Job force cancelled.", "yellow"));
-            console.log(`The job was forcefully killed after failing to respond to termination signal.`);
+            console.log(
+              `The job was forcefully killed after failing to respond to termination signal.`,
+            );
             break;
           case "already_stopped":
             console.log(colorize("Job was already stopped.", "yellow"));
@@ -237,7 +238,7 @@ export async function cancelCommand(
               message: "No configuration file found",
               startDirectory: error.startDirectory,
             },
-          })
+          }),
         );
         process.exit(1);
       }
@@ -258,7 +259,7 @@ export async function cancelCommand(
               message: error.message,
               jobId: jobId,
             },
-          })
+          }),
         );
         process.exit(1);
       }
@@ -279,7 +280,7 @@ export async function cancelCommand(
               jobId: error.jobId,
               reason: error.reason,
             },
-          })
+          }),
         );
         process.exit(1);
       }
@@ -297,7 +298,7 @@ export async function cancelCommand(
               code: error.code,
               message: error.message,
             },
-          })
+          }),
         );
         process.exit(1);
       }
@@ -317,7 +318,7 @@ export async function cancelCommand(
             code: "UNKNOWN_ERROR",
             message: error instanceof Error ? error.message : String(error),
           },
-        })
+        }),
       );
       process.exit(1);
     }

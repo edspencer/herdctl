@@ -66,10 +66,7 @@ export class RuntimeFactory {
    * @returns Runtime implementation (possibly wrapped with ContainerRunner)
    * @throws Error if runtime type is unsupported or invalid
    */
-  static create(
-    agent: ResolvedAgent,
-    options: RuntimeFactoryOptions = {}
-  ): RuntimeInterface {
+  static create(agent: ResolvedAgent, options: RuntimeFactoryOptions = {}): RuntimeInterface {
     // Determine runtime type from agent config (default to SDK)
     const runtimeType: RuntimeType = (agent.runtime as RuntimeType) ?? "sdk";
 
@@ -86,8 +83,7 @@ export class RuntimeFactory {
 
       default:
         throw new Error(
-          `Unknown runtime type: ${runtimeType}. ` +
-            "Supported types: 'sdk' (default), 'cli'"
+          `Unknown runtime type: ${runtimeType}. ` + "Supported types: 'sdk' (default), 'cli'",
         );
     }
 

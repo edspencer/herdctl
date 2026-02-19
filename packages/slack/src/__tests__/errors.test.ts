@@ -11,10 +11,7 @@ import {
 
 describe("SlackConnectorError", () => {
   it("creates error with correct properties", () => {
-    const error = new SlackConnectorError(
-      "Test error message",
-      SlackErrorCode.CONNECTION_FAILED
-    );
+    const error = new SlackConnectorError("Test error message", SlackErrorCode.CONNECTION_FAILED);
 
     expect(error.message).toBe("Test error message");
     expect(error.code).toBe(SlackErrorCode.CONNECTION_FAILED);
@@ -22,10 +19,7 @@ describe("SlackConnectorError", () => {
   });
 
   it("extends Error", () => {
-    const error = new SlackConnectorError(
-      "Test",
-      SlackErrorCode.CONNECTION_FAILED
-    );
+    const error = new SlackConnectorError("Test", SlackErrorCode.CONNECTION_FAILED);
 
     expect(error).toBeInstanceOf(Error);
     expect(error).toBeInstanceOf(SlackConnectorError);
@@ -33,11 +27,9 @@ describe("SlackConnectorError", () => {
 
   it("preserves cause when provided", () => {
     const cause = new Error("Original error");
-    const error = new SlackConnectorError(
-      "Wrapped error",
-      SlackErrorCode.CONNECTION_FAILED,
-      { cause }
-    );
+    const error = new SlackConnectorError("Wrapped error", SlackErrorCode.CONNECTION_FAILED, {
+      cause,
+    });
 
     expect(error.cause).toBe(cause);
   });
@@ -89,7 +81,7 @@ describe("MissingTokenError", () => {
     const error = new MissingTokenError("bot", "SLACK_BOT_TOKEN");
 
     expect(error.message).toBe(
-      "Slack bot token not found in environment variable 'SLACK_BOT_TOKEN'"
+      "Slack bot token not found in environment variable 'SLACK_BOT_TOKEN'",
     );
     expect(error.code).toBe(SlackErrorCode.MISSING_TOKEN);
     expect(error.tokenType).toBe("bot");
@@ -100,7 +92,7 @@ describe("MissingTokenError", () => {
     const error = new MissingTokenError("app", "SLACK_APP_TOKEN");
 
     expect(error.message).toBe(
-      "Slack app token not found in environment variable 'SLACK_APP_TOKEN'"
+      "Slack app token not found in environment variable 'SLACK_APP_TOKEN'",
     );
     expect(error.tokenType).toBe("app");
   });
@@ -139,10 +131,7 @@ describe("InvalidTokenError", () => {
 
 describe("isSlackConnectorError", () => {
   it("returns true for SlackConnectorError", () => {
-    const error = new SlackConnectorError(
-      "Test",
-      SlackErrorCode.CONNECTION_FAILED
-    );
+    const error = new SlackConnectorError("Test", SlackErrorCode.CONNECTION_FAILED);
     expect(isSlackConnectorError(error)).toBe(true);
   });
 

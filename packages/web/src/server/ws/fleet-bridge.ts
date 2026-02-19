@@ -140,7 +140,9 @@ export class FleetBridge {
    * Broadcast to ALL clients (low volume event)
    */
   private onJobCreated(payload: JobCreatedPayload): void {
-    logger.debug(`Broadcasting job:created for job ${payload.job.id} (agent: ${payload.agentName})`);
+    logger.debug(
+      `Broadcasting job:created for job ${payload.job.id} (agent: ${payload.agentName})`,
+    );
     this.wsHandler.broadcast({
       type: "job:created",
       payload,
@@ -156,7 +158,9 @@ export class FleetBridge {
     // Only log at debug level since this can be very high volume
     const subscriberCount = this.wsHandler.getSubscriberCount(payload.agentName);
     if (subscriberCount > 0) {
-      logger.debug(`Broadcasting job:output for job ${payload.jobId} to ${subscriberCount} subscribers`);
+      logger.debug(
+        `Broadcasting job:output for job ${payload.jobId} to ${subscriberCount} subscribers`,
+      );
       this.wsHandler.broadcastToSubscribers(payload.agentName, {
         type: "job:output",
         payload,
@@ -170,7 +174,9 @@ export class FleetBridge {
    * Broadcast to ALL clients (low volume event)
    */
   private onJobCompleted(payload: JobCompletedPayload): void {
-    logger.debug(`Broadcasting job:completed for job ${payload.job.id} (agent: ${payload.agentName})`);
+    logger.debug(
+      `Broadcasting job:completed for job ${payload.job.id} (agent: ${payload.agentName})`,
+    );
     this.wsHandler.broadcast({
       type: "job:completed",
       payload,
@@ -196,7 +202,9 @@ export class FleetBridge {
    * Broadcast to ALL clients (low volume event)
    */
   private onJobCancelled(payload: JobCancelledPayload): void {
-    logger.debug(`Broadcasting job:cancelled for job ${payload.job.id} (agent: ${payload.agentName})`);
+    logger.debug(
+      `Broadcasting job:cancelled for job ${payload.job.id} (agent: ${payload.agentName})`,
+    );
     this.wsHandler.broadcast({
       type: "job:cancelled",
       payload,
@@ -209,7 +217,9 @@ export class FleetBridge {
    * Broadcast to ALL clients (low volume event)
    */
   private onScheduleTriggered(payload: ScheduleTriggeredPayload): void {
-    logger.debug(`Broadcasting schedule:triggered for ${payload.agentName}/${payload.scheduleName}`);
+    logger.debug(
+      `Broadcasting schedule:triggered for ${payload.agentName}/${payload.scheduleName}`,
+    );
     this.wsHandler.broadcast({
       type: "schedule:triggered",
       payload,

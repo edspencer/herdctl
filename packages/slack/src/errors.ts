@@ -22,11 +22,7 @@ export enum SlackErrorCode {
 export class SlackConnectorError extends Error {
   public readonly code: SlackErrorCode;
 
-  constructor(
-    message: string,
-    code: SlackErrorCode,
-    options?: { cause?: Error }
-  ) {
+  constructor(message: string, code: SlackErrorCode, options?: { cause?: Error }) {
     super(message, options);
     this.name = "SlackConnectorError";
     this.code = code;
@@ -48,10 +44,7 @@ export class SlackConnectionError extends SlackConnectorError {
  */
 export class AlreadyConnectedError extends SlackConnectorError {
   constructor() {
-    super(
-      "Slack connector is already connected",
-      SlackErrorCode.ALREADY_CONNECTED
-    );
+    super("Slack connector is already connected", SlackErrorCode.ALREADY_CONNECTED);
     this.name = "AlreadyConnectedError";
   }
 }
@@ -65,7 +58,7 @@ export class MissingTokenError extends SlackConnectorError {
   constructor(tokenType: "bot" | "app", envVar: string) {
     super(
       `Slack ${tokenType} token not found in environment variable '${envVar}'`,
-      SlackErrorCode.MISSING_TOKEN
+      SlackErrorCode.MISSING_TOKEN,
     );
     this.name = "MissingTokenError";
     this.tokenType = tokenType;
@@ -85,8 +78,6 @@ export class InvalidTokenError extends SlackConnectorError {
 /**
  * Type guard to check if an error is a SlackConnectorError
  */
-export function isSlackConnectorError(
-  error: unknown
-): error is SlackConnectorError {
+export function isSlackConnectorError(error: unknown): error is SlackConnectorError {
   return error instanceof SlackConnectorError;
 }

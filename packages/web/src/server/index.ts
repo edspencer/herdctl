@@ -84,7 +84,7 @@ export interface WebServerConfigExtended extends WebServerConfig {
  */
 export async function createWebServer(
   fleetManager: FleetManager,
-  config: WebServerConfigExtended
+  config: WebServerConfigExtended,
 ): Promise<WebServerResult> {
   const server = Fastify({
     logger: false, // We use our own logger
@@ -170,11 +170,7 @@ export async function createWebServer(
     const url = request.url;
 
     // Don't serve SPA for API routes, WebSocket, or static assets
-    if (
-      url.startsWith("/api/") ||
-      url === "/ws" ||
-      url.startsWith("/assets/")
-    ) {
+    if (url.startsWith("/api/") || url === "/ws" || url.startsWith("/assets/")) {
       return reply.status(404).send({ error: "Not found" });
     }
 

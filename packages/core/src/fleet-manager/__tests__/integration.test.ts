@@ -21,11 +21,7 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
 
 // Import the mocked query function for test configuration
 import { query as mockQueryFn } from "@anthropic-ai/claude-agent-sdk";
-import {
-  InvalidStateError,
-  AgentNotFoundError,
-  ScheduleNotFoundError,
-} from "../errors.js";
+import { InvalidStateError, AgentNotFoundError, ScheduleNotFoundError } from "../errors.js";
 import type {
   FleetManagerLogger,
   JobCreatedPayload,
@@ -79,10 +75,7 @@ describe("FleetManager Integration Tests (US-13)", () => {
   }
 
   // Create a test manager with common options
-  function createTestManager(
-    configPath: string,
-    options: { checkInterval?: number } = {}
-  ) {
+  function createTestManager(configPath: string, options: { checkInterval?: number } = {}) {
     return new FleetManager({
       configPath,
       stateDir,
@@ -194,12 +187,7 @@ describe("FleetManager Integration Tests (US-13)", () => {
       await manager.trigger("event-order-agent");
       await manager.stop();
 
-      expect(eventOrder).toEqual([
-        "initialized",
-        "started",
-        "job:created",
-        "stopped",
-      ]);
+      expect(eventOrder).toEqual(["initialized", "started", "job:created", "stopped"]);
     });
 
     it("handles multiple agents in full workflow", async () => {
@@ -553,9 +541,7 @@ describe("FleetManager Integration Tests (US-13)", () => {
 
       expect(schedules).toHaveLength(2);
       expect(schedules.map((s) => s.name).sort()).toEqual(["daily", "hourly"]);
-      expect(schedules.every((s) => s.agentName === "multi-schedule-agent")).toBe(
-        true
-      );
+      expect(schedules.every((s) => s.agentName === "multi-schedule-agent")).toBe(true);
       expect(schedules.every((s) => s.status === "idle")).toBe(true);
     });
 
@@ -578,10 +564,7 @@ describe("FleetManager Integration Tests (US-13)", () => {
       const manager = createTestManager(configPath);
       await manager.initialize();
 
-      const schedule = await manager.getSchedule(
-        "specific-schedule-agent",
-        "target"
-      );
+      const schedule = await manager.getSchedule("specific-schedule-agent", "target");
 
       expect(schedule.name).toBe("target");
       expect(schedule.agentName).toBe("specific-schedule-agent");
@@ -696,10 +679,7 @@ describe("FleetManager Integration Tests (US-13)", () => {
       await manager1.initialize();
       await manager1.disableSchedule("schedule-persist-agent", "persist");
 
-      let schedule = await manager1.getSchedule(
-        "schedule-persist-agent",
-        "persist"
-      );
+      let schedule = await manager1.getSchedule("schedule-persist-agent", "persist");
       expect(schedule.status).toBe("disabled");
 
       // Note: The current implementation may or may not persist schedule disabled state
@@ -994,9 +974,7 @@ describe("FleetManager Integration Tests (US-13)", () => {
         const manager = createTestManager(configPath);
         await manager.initialize();
 
-        await expect(manager.trigger("nonexistent-agent")).rejects.toThrow(
-          AgentNotFoundError
-        );
+        await expect(manager.trigger("nonexistent-agent")).rejects.toThrow(AgentNotFoundError);
         await expect(manager.trigger("nonexistent-agent")).rejects.toMatchObject({
           agentName: "nonexistent-agent",
           availableAgents: ["existing-agent"],
@@ -1022,12 +1000,10 @@ describe("FleetManager Integration Tests (US-13)", () => {
         const manager = createTestManager(configPath);
         await manager.initialize();
 
-        await expect(
-          manager.trigger("schedule-edge-agent", "nonexistent")
-        ).rejects.toThrow(ScheduleNotFoundError);
-        await expect(
-          manager.trigger("schedule-edge-agent", "nonexistent")
-        ).rejects.toMatchObject({
+        await expect(manager.trigger("schedule-edge-agent", "nonexistent")).rejects.toThrow(
+          ScheduleNotFoundError,
+        );
+        await expect(manager.trigger("schedule-edge-agent", "nonexistent")).rejects.toMatchObject({
           scheduleName: "nonexistent",
           availableSchedules: ["existing"],
         });
@@ -1041,9 +1017,7 @@ describe("FleetManager Integration Tests (US-13)", () => {
 
         const manager = createTestManager(configPath);
 
-        await expect(manager.trigger("any-agent")).rejects.toThrow(
-          InvalidStateError
-        );
+        await expect(manager.trigger("any-agent")).rejects.toThrow(InvalidStateError);
       });
 
       it("trigger works after stop", async () => {
@@ -1077,9 +1051,7 @@ describe("FleetManager Integration Tests (US-13)", () => {
 
         const manager = createTestManager(configPath);
 
-        await expect(manager.getAgentInfoByName("any")).rejects.toThrow(
-          AgentNotFoundError
-        );
+        await expect(manager.getAgentInfoByName("any")).rejects.toThrow(AgentNotFoundError);
       });
 
       it("throws AgentNotFoundError for unknown agent", async () => {
@@ -1095,9 +1067,7 @@ describe("FleetManager Integration Tests (US-13)", () => {
         const manager = createTestManager(configPath);
         await manager.initialize();
 
-        await expect(manager.getAgentInfoByName("unknown")).rejects.toThrow(
-          AgentNotFoundError
-        );
+        await expect(manager.getAgentInfoByName("unknown")).rejects.toThrow(AgentNotFoundError);
       });
     });
 
@@ -1160,9 +1130,9 @@ describe("FleetManager Integration Tests (US-13)", () => {
         const manager = createTestManager(configPath);
         await manager.initialize();
 
-        await expect(
-          manager.getSchedule("unknown-agent", "test")
-        ).rejects.toThrow(AgentNotFoundError);
+        await expect(manager.getSchedule("unknown-agent", "test")).rejects.toThrow(
+          AgentNotFoundError,
+        );
       });
 
       it("throws ScheduleNotFoundError for unknown schedule", async () => {
@@ -1181,9 +1151,9 @@ describe("FleetManager Integration Tests (US-13)", () => {
         const manager = createTestManager(configPath);
         await manager.initialize();
 
-        await expect(
-          manager.getSchedule("schedule-not-found", "does-not-exist")
-        ).rejects.toThrow(ScheduleNotFoundError);
+        await expect(manager.getSchedule("schedule-not-found", "does-not-exist")).rejects.toThrow(
+          ScheduleNotFoundError,
+        );
       });
     });
 
@@ -1356,10 +1326,7 @@ describe("FleetManager Integration Tests (US-13)", () => {
 
         const configPath = await createConfig({
           version: 1,
-          agents: [
-            { path: "./agents/agent-one.yaml" },
-            { path: "./agents/agent-two.yaml" },
-          ],
+          agents: [{ path: "./agents/agent-one.yaml" }, { path: "./agents/agent-two.yaml" }],
         });
 
         const logger = createSilentLogger();
@@ -1371,7 +1338,7 @@ describe("FleetManager Integration Tests (US-13)", () => {
 
         // Initialize should fail with ConfigurationError
         await expect(manager.initialize()).rejects.toThrow(
-          /Duplicate agent qualified names? found.*"duplicate-name"/
+          /Duplicate agent qualified names? found.*"duplicate-name"/,
         );
 
         // Status should be error
