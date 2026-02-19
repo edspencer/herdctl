@@ -52,11 +52,19 @@ export interface WebChatSession {
  */
 export interface ChatMessage {
   /** Role of the sender */
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "tool";
   /** Message content */
   content: string;
   /** ISO timestamp of the message */
   timestamp: string;
+  /** Tool call data (only when role is "tool") */
+  toolCall?: {
+    toolName: string;
+    inputSummary?: string;
+    output: string;
+    isError: boolean;
+    durationMs?: number;
+  };
 }
 
 /**
@@ -429,13 +437,23 @@ export class WebChatManager {
               const durationMs = toolUse ? Date.now() - toolUse.startTime : undefined;
               const inputSummary = toolUse ? getToolInputSummary(toolUse.name, toolUse.input) : undefined;
 
-              await onToolCall({
+              const toolCallData: ToolCallData = {
                 toolName,
                 inputSummary,
                 output: toolResult.output,
                 isError: toolResult.isError,
                 durationMs,
+              };
+
+              // Persist tool call message to history
+              messages.push({
+                role: "tool",
+                content: toolResult.output,
+                timestamp: new Date().toISOString(),
+                toolCall: toolCallData,
               });
+
+              await onToolCall(toolCallData);
             }
           }
         },
@@ -449,13 +467,15 @@ export class WebChatManager {
           timestamp: new Date().toISOString(),
         };
         messages.push(assistantMessage);
-        await this.saveMessageHistory(agentName, sessionId, messages);
 
         // Update session metadata
         session.lastMessageAt = assistantMessage.timestamp;
-        session.messageCount = messages.length;
         session.preview = assistantContent.substring(0, 100);
       }
+
+      // Always save history (captures tool call messages even if no assistant text)
+      session.messageCount = messages.length;
+      await this.saveMessageHistory(agentName, sessionId, messages);
 
       // Store SDK session ID for future conversation continuity
       if (sessionManager && result.sessionId && result.success) {
