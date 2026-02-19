@@ -11,6 +11,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint-and-format:
+    name: Lint & Format
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Check formatting
+        run: pnpm format:check
+
   typecheck:
     name: Typecheck
     runs-on: self-hosted

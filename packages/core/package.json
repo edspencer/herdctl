@@ -14,7 +14,9 @@
     "postbuild": "node --input-type=module -e \"import('./dist/index.js').then(() => console.log('✓ Core module loads successfully'))\"",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --coverage"
+    "test": "vitest run --coverage",
+    "lint": "biome check src/",
+    "format:check": "biome format --check src/"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.0",

@@ -6,6 +6,8 @@
     "build": "turbo build",
     "dev": "turbo dev",
     "lint": "turbo lint",
+    "format": "biome format --write packages/",
+    "format:check": "turbo format:check",
     "test": "turbo test",
     "typecheck": "turbo typecheck",
     "security": "npx tsx .security/tools/scan.ts",
@@ -15,6 +17,7 @@
     "release": "pnpm build && changeset publish"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.4.3",
     "@changesets/changelog-github": "^0.5.2",
     "@changesets/cli": "^2.29.8",
     "@types/node": "^20",

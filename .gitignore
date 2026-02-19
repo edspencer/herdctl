@@ -24,7 +24,9 @@ pnpm-debug.log*
 
 # IDE
 .idea/
-.vscode/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
 *.swp
 *.swo
 

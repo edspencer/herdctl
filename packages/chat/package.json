@@ -13,7 +13,9 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --coverage"
+    "test": "vitest run --coverage",
+    "lint": "biome check src/",
+    "format:check": "biome format --check src/"
   },
   "dependencies": {
     "@herdctl/core": "workspace:*",
