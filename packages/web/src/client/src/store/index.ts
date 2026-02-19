@@ -277,6 +277,7 @@ export function useChatActions() {
       addUserMessage: state.addUserMessage,
       setChatError: state.setChatError,
       fetchSidebarSessions: state.fetchSidebarSessions,
+      clearActiveChatState: state.clearActiveChatState,
       clearChatState: state.clearChatState,
     }))
   );
