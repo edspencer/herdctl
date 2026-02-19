@@ -32,7 +32,7 @@ import type {
 export interface SubscribeMessage {
   type: "subscribe";
   payload: {
-    /** Name of the agent to subscribe to */
+    /** Qualified name of the agent to subscribe to (e.g., "herdctl.security-auditor") */
     agentName: string;
   };
 }
@@ -45,7 +45,7 @@ export interface SubscribeMessage {
 export interface UnsubscribeMessage {
   type: "unsubscribe";
   payload: {
-    /** Name of the agent to unsubscribe from */
+    /** Qualified name of the agent to unsubscribe from (e.g., "herdctl.security-auditor") */
     agentName: string;
   };
 }
@@ -69,7 +69,7 @@ export interface PingMessage {
 export interface ChatSendMessage {
   type: "chat:send";
   payload: {
-    /** Name of the agent to chat with */
+    /** Qualified name of the agent to chat with (e.g., "herdctl.security-auditor") */
     agentName: string;
     /** Session ID for the chat conversation */
     sessionId: string;

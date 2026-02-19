@@ -16,7 +16,7 @@ const logger = createLogger("web:jobs");
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapJobToSummary(job: any, agents: ResolvedAgent[]): Record<string, unknown> {
-  const agent = agents.find((a) => a.name === job.agent);
+  const agent = agents.find((a) => a.qualifiedName === job.agent);
   const workspace = agent ? resolveWorkingDirectory(agent) : undefined;
 
   return {
@@ -43,7 +43,7 @@ interface ListJobsQuery {
   limit?: number;
   /** Number of jobs to skip for pagination (default: 0) */
   offset?: number;
-  /** Filter by agent name */
+  /** Filter by agent qualified name (e.g., "herdctl.security-auditor") */
   agentName?: string;
   /** Filter by job status */
   status?: JobStatus;

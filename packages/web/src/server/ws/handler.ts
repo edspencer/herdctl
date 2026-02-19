@@ -24,7 +24,7 @@ const logger = createLogger("web:ws");
 export interface WebSocketClient {
   /** The WebSocket connection */
   socket: WebSocket;
-  /** Set of agent names this client is subscribed to for output events */
+  /** Set of agent qualified names this client is subscribed to for output events */
   subscriptions: Set<string>;
   /** Unique client ID for logging */
   clientId: string;

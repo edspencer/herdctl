@@ -48,7 +48,7 @@ export function registerScheduleRoutes(
    * Triggers a job for the specified agent.
    * Optionally targets a specific schedule and/or overrides the prompt.
    *
-   * @param name - Agent name (URL parameter)
+   * @param name - Agent qualified name (e.g., "herdctl.security-auditor") or local name (URL parameter)
    * @body scheduleName - Optional schedule name to trigger
    * @body prompt - Optional prompt override
    */
@@ -83,7 +83,7 @@ export function registerScheduleRoutes(
    *
    * Enables a disabled schedule.
    *
-   * @param agentName - Agent name (URL parameter)
+   * @param agentName - Agent qualified name (e.g., "herdctl.security-auditor") (URL parameter)
    * @param scheduleName - Schedule name (URL parameter)
    */
   server.post<{
@@ -115,7 +115,7 @@ export function registerScheduleRoutes(
    *
    * Disables an active schedule.
    *
-   * @param agentName - Agent name (URL parameter)
+   * @param agentName - Agent qualified name (e.g., "herdctl.security-auditor") (URL parameter)
    * @param scheduleName - Schedule name (URL parameter)
    */
   server.post<{
