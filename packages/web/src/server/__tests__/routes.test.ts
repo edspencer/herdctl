@@ -27,6 +27,7 @@ function createMockFleetManager() {
     disableSchedule: vi.fn(),
     cancelJob: vi.fn(),
     forkJob: vi.fn(),
+    getAgents: vi.fn().mockReturnValue([]),
     getStateDir: vi.fn().mockReturnValue("/tmp/test-state"),
     on: vi.fn(),
     off: vi.fn(),
@@ -247,18 +248,18 @@ describe("Job Routes", () => {
     it("returns paginated jobs", async () => {
       const mockJobs = [
         {
-          jobId: "job-1",
-          agentName: "coder",
+          id: "job-1",
+          agent: "coder",
           prompt: "Fix bug",
           status: "completed",
-          createdAt: "2025-01-01T00:00:00Z",
+          started_at: "2025-01-01T00:00:00Z",
         },
         {
-          jobId: "job-2",
-          agentName: "reviewer",
+          id: "job-2",
+          agent: "reviewer",
           prompt: "Review PR",
           status: "running",
-          createdAt: "2025-01-01T00:01:00Z",
+          started_at: "2025-01-01T00:01:00Z",
         },
       ];
 
@@ -279,11 +280,11 @@ describe("Job Routes", () => {
 
     it("respects limit and offset query params", async () => {
       const manyJobs = Array.from({ length: 10 }, (_, i) => ({
-        jobId: `job-${i}`,
-        agentName: "coder",
+        id: `job-${i}`,
+        agent: "coder",
         prompt: `Task ${i}`,
         status: "completed",
-        createdAt: "2025-01-01T00:00:00Z",
+        started_at: "2025-01-01T00:00:00Z",
       }));
 
       mockListJobs.mockResolvedValue({ jobs: manyJobs, errors: [] });

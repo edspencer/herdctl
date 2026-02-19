@@ -145,9 +145,8 @@ export function SettingsPage() {
             <InfoRow label="Uptime" value={formatUptime(fleetStatus?.uptimeSeconds)} />
             <InfoRow label="Total Agents" value={counts?.totalAgents} />
             <InfoRow label="Running Agents" value={counts?.runningAgents} />
-            <InfoRow label="Total Jobs" value={counts?.totalJobs} />
-            <InfoRow label="Completed Jobs" value={counts?.completedJobs} />
-            <InfoRow label="Failed Jobs" value={counts?.failedJobs} />
+            <InfoRow label="Running Jobs" value={counts?.runningJobs} />
+            <InfoRow label="Total Schedules" value={counts?.totalSchedules} />
             <InfoRow
               label="Scheduler"
               value={formatState(fleetStatus?.scheduler.status)}

@@ -195,11 +195,15 @@ export function FleetDashboard() {
     runningAgents: 0,
     idleAgents: 0,
     errorAgents: 0,
-    totalJobs: 0,
+    totalSchedules: 0,
+    runningSchedules: 0,
     runningJobs: 0,
-    completedJobs: 0,
-    failedJobs: 0,
   };
+
+  // Derive completed job count from the fetched recent jobs
+  const completedJobCount = recentJobs.filter(
+    (j) => j.status === "completed"
+  ).length;
 
   // Show loading placeholders when initial data is loading
   if (loading && !fleetStatus) {
@@ -265,7 +269,7 @@ export function FleetDashboard() {
             />
             <StatChip
               label="completed"
-              value={counts.completedJobs}
+              value={completedJobCount}
               variant="muted"
             />
           </div>

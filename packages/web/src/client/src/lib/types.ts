@@ -25,10 +25,9 @@ export interface FleetCounts {
   runningAgents: number;
   idleAgents: number;
   errorAgents: number;
-  totalJobs: number;
+  totalSchedules: number;
+  runningSchedules: number;
   runningJobs: number;
-  completedJobs: number;
-  failedJobs: number;
 }
 
 export interface SchedulerInfo {

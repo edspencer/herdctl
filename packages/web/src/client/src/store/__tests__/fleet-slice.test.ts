@@ -63,10 +63,9 @@ describe("Fleet Slice", () => {
           runningAgents: 1,
           idleAgents: 1,
           errorAgents: 0,
-          totalJobs: 3,
+          totalSchedules: 3,
+          runningSchedules: 1,
           runningJobs: 1,
-          completedJobs: 2,
-          failedJobs: 0,
         },
         scheduler: {
           status: "running" as const,
