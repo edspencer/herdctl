@@ -157,6 +157,79 @@ function formatStatus(status: string): string {
 }
 
 /**
+ * Get status indicator symbol
+ */
+function getStatusIndicator(status: string): string {
+  switch (status) {
+    case "running":
+      return colorize("●", "green");
+    case "idle":
+      return colorize("○", "yellow");
+    case "error":
+      return colorize("●", "red");
+    default:
+      return colorize("○", "reset");
+  }
+}
+
+/**
+ * Check if any agents are in sub-fleets (non-empty fleetPath)
+ */
+function hasSubFleets(agents: AgentInfo[]): boolean {
+  return agents.some(a => a.fleetPath && a.fleetPath.length > 0);
+}
+
+/**
+ * Group agents by their fleet path for hierarchical display
+ */
+function groupAgentsByFleet(agents: AgentInfo[]): { rootAgents: AgentInfo[]; fleetGroups: Map<string, AgentInfo[]> } {
+  const rootAgents: AgentInfo[] = [];
+  const fleetGroups = new Map<string, AgentInfo[]>();
+
+  for (const agent of agents) {
+    if (!agent.fleetPath || agent.fleetPath.length === 0) {
+      rootAgents.push(agent);
+    } else {
+      const fleetKey = agent.fleetPath.join(".");
+      const group = fleetGroups.get(fleetKey) ?? [];
+      group.push(agent);
+      fleetGroups.set(fleetKey, group);
+    }
+  }
+
+  return { rootAgents, fleetGroups };
+}
+
+/**
+ * Format agents in a hierarchical fleet view
+ */
+function formatFleetHierarchy(agents: AgentInfo[]): string[] {
+  const lines: string[] = [];
+  const { rootAgents, fleetGroups } = groupAgentsByFleet(agents);
+
+  // Display fleet groups first
+  for (const [fleetKey, groupAgents] of fleetGroups) {
+    lines.push(`${colorize("▼", "bold")} ${colorize(fleetKey, "bold")}`);
+    for (const agent of groupAgents) {
+      const indicator = getStatusIndicator(agent.status);
+      const nextRun = getNextScheduleRun(agent.schedules);
+      const nextRunStr = nextRun ? colorize(` (next: ${formatRelativeTime(nextRun)})`, "dim") : "";
+      lines.push(`    ${indicator} ${agent.name}   ${colorize(`(${agent.status})`, "dim")}${nextRunStr}`);
+    }
+  }
+
+  // Display root-level agents (ungrouped)
+  for (const agent of rootAgents) {
+    const indicator = getStatusIndicator(agent.status);
+    const nextRun = getNextScheduleRun(agent.schedules);
+    const nextRunStr = nextRun ? colorize(` (next: ${formatRelativeTime(nextRun)})`, "dim") : "";
+    lines.push(`${indicator} ${agent.name}   ${colorize(`(${agent.status})`, "dim")}${nextRunStr}`);
+  }
+
+  return lines;
+}
+
+/**
  * Format fleet overview table
  */
 function formatFleetOverview(status: FleetStatus, agents: AgentInfo[]): string {
@@ -192,29 +265,34 @@ function formatFleetOverview(status: FleetStatus, agents: AgentInfo[]): string {
     }
   }
 
-  // Agents table
+  // Agents section
   if (agents.length > 0) {
     lines.push("");
     lines.push(colorize("Agents", "bold"));
     lines.push("─".repeat(60));
 
-    // Table header
-    const nameWidth = Math.max(6, ...agents.map(a => a.name.length)) + 2;
-    const statusWidth = 10;
-    const schedWidth = 10;
-    const nextRunWidth = 15;
+    if (hasSubFleets(agents)) {
+      // Hierarchical display for composed fleets
+      lines.push(...formatFleetHierarchy(agents));
+    } else {
+      // Flat table for single-fleet configs (unchanged from today)
+      const nameWidth = Math.max(6, ...agents.map(a => a.name.length)) + 2;
+      const statusWidth = 10;
+      const schedWidth = 10;
+      const nextRunWidth = 15;
 
-    lines.push(
-      `${"NAME".padEnd(nameWidth)}${"STATUS".padEnd(statusWidth)}${"SCHEDULES".padEnd(schedWidth)}${"NEXT RUN".padEnd(nextRunWidth)}`
-    );
-    lines.push(colorize("─".repeat(nameWidth + statusWidth + schedWidth + nextRunWidth), "dim"));
-
-    // Table rows
-    for (const agent of agents) {
-      const nextRun = getNextScheduleRun(agent.schedules);
       lines.push(
-        `${agent.name.padEnd(nameWidth)}${formatStatus(agent.status).padEnd(statusWidth + (shouldUseColor() ? colors.reset.length + colors[getStatusColor(agent.status)].length : 0))}${String(agent.scheduleCount).padEnd(schedWidth)}${formatRelativeTime(nextRun).padEnd(nextRunWidth)}`
+        `${"NAME".padEnd(nameWidth)}${"STATUS".padEnd(statusWidth)}${"SCHEDULES".padEnd(schedWidth)}${"NEXT RUN".padEnd(nextRunWidth)}`
       );
+      lines.push(colorize("─".repeat(nameWidth + statusWidth + schedWidth + nextRunWidth), "dim"));
+
+      // Table rows
+      for (const agent of agents) {
+        const nextRun = getNextScheduleRun(agent.schedules);
+        lines.push(
+          `${agent.name.padEnd(nameWidth)}${formatStatus(agent.status).padEnd(statusWidth + (shouldUseColor() ? colors.reset.length + colors[getStatusColor(agent.status)].length : 0))}${String(agent.scheduleCount).padEnd(schedWidth)}${formatRelativeTime(nextRun).padEnd(nextRunWidth)}`
+        );
+      }
     }
   }
 
@@ -245,12 +323,16 @@ function getNextScheduleRun(schedules: ScheduleInfo[]): string | null {
 function formatAgentDetail(agent: AgentInfo): string {
   const lines: string[] = [];
 
-  // Header
+  // Header — show qualifiedName if in a sub-fleet, otherwise just name
+  const displayName = agent.qualifiedName !== agent.name ? agent.qualifiedName : agent.name;
   lines.push("");
-  lines.push(colorize(`Agent: ${agent.name}`, "bold"));
+  lines.push(colorize(`Agent: ${displayName}`, "bold"));
   lines.push("═".repeat(60));
 
   // Basic info
+  if (agent.fleetPath && agent.fleetPath.length > 0) {
+    lines.push(`Fleet:       ${agent.fleetPath.join(".")}`);
+  }
   if (agent.description) {
     lines.push(`Description: ${agent.description}`);
   }

@@ -124,7 +124,7 @@ export async function configValidateCommand(
 
     if (config.agents.length > 0) {
       for (const agent of config.agents) {
-        console.log(`  - ${agent.name}`);
+        console.log(`  - ${agent.qualifiedName}`);
       }
     }
 
@@ -263,7 +263,10 @@ function formatConfigForDisplay(config: ResolvedConfig): string {
 
   for (const agent of config.agents) {
     lines.push("");
-    lines.push(`[${agent.name}]`);
+    lines.push(`[${agent.qualifiedName}]`);
+    if (agent.fleetPath && agent.fleetPath.length > 0) {
+      lines.push(`  Fleet: ${agent.fleetPath.join(".")}`);
+    }
     if (agent.description) lines.push(`  Description: ${agent.description}`);
     lines.push(`  Config: ${path.relative(config.configDir, agent.configPath)}`);
 
