@@ -25,7 +25,7 @@ Go to **OAuth & Permissions** > **Bot Token Scopes** and add:
 - `chat:write`
 - `channels:history`
 - `files:write`
-- `im:history` (for DM support)
+- `reactions:write`
 
 ## 4. Subscribe to Events
 
@@ -105,6 +105,30 @@ Your bot automatically supports prefix commands:
 :::note
 Slack uses prefix commands (`!help`) rather than slash commands (`/help`). Just type the command as a regular message.
 :::
+
+## Optional: Enable Direct Messages
+
+If you want users to DM the bot directly, you need a few extra scopes and a settings change.
+
+### Add DM Scopes
+
+Go back to **OAuth & Permissions** > **Bot Token Scopes** and add:
+
+- `im:history`
+- `im:read`
+- `im:write`
+
+You may need to **reinstall the app** to your workspace after adding these scopes (Slack will prompt you if so).
+
+### Enable the Messages Tab
+
+1. Go to your app's settings at [api.slack.com/apps](https://api.slack.com/apps) and select your app
+2. Click **App Home** in the left sidebar
+3. Scroll down to the **Show Tabs** section
+4. Make sure the **Messages Tab** toggle is **enabled**
+5. Check the box labelled **"Allow users to send Slash commands and messages from the Messages tab"**
+
+Without these settings, users won't see a message input when they open a DM with your bot.
 
 ## Next Steps
 

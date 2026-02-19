@@ -42,8 +42,8 @@ fleet:
   name: my-fleet
   web:
     enabled: true
-    port: 3100        # Default port
-    host: "0.0.0.0"   # Default host
+    port: 3232         # Default port
+    host: "localhost"   # Default host
 ```
 
 Then start your fleet normally:
@@ -62,14 +62,14 @@ const fleet = new FleetManager({ configPath: "./herdctl.yaml" });
 await fleet.initialize();
 
 const web = new WebManager(fleet, {
-  port: 3100,
-  host: "0.0.0.0",
+  port: 3232,
+  host: "localhost",
   stateDir: ".herdctl",
 });
 
 await web.initialize();
 await web.start();
-// Dashboard available at http://localhost:3100
+// Dashboard available at http://localhost:3232
 ```
 
 ## Features
