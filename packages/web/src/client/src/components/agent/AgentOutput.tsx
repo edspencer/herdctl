@@ -66,9 +66,9 @@ export function AgentOutput({ agent }: AgentOutputProps) {
   const hasActiveJob = agent.status === "running" && agent.currentJobId;
   const jobIdToDisplay = hasActiveJob ? agent.currentJobId : null;
 
-  // Subscribe to the agent's output stream
+  // Subscribe to the agent's output stream (use qualifiedName for WS subscription)
   const { messages } = useJobOutput({
-    agentName: agent.name,
+    agentName: agent.qualifiedName,
     jobId: jobIdToDisplay,
   });
 

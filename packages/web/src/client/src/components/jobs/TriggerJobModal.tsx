@@ -58,9 +58,9 @@ export function TriggerJobModal({
     }
   }, [isOpen, preSelectedAgent, preSelectedSchedule]);
 
-  // Get schedules for the selected agent
+  // Get schedules for the selected agent (match by qualifiedName)
   const agentSchedules: ScheduleInfo[] =
-    agents.find((a) => a.name === selectedAgent)?.schedules ?? [];
+    agents.find((a) => a.qualifiedName === selectedAgent)?.schedules ?? [];
 
   // Reset schedule when agent changes (unless pre-selected)
   const handleAgentChange = useCallback((agentName: string) => {
@@ -162,8 +162,8 @@ export function TriggerJobModal({
               >
                 <option value="">Select an agent...</option>
                 {agents.map((agent) => (
-                  <option key={agent.name} value={agent.name}>
-                    {agent.name}
+                  <option key={agent.qualifiedName} value={agent.qualifiedName}>
+                    {agent.qualifiedName}
                   </option>
                 ))}
               </select>

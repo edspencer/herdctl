@@ -27,6 +27,8 @@ interface AgentHeaderProps {
 // =============================================================================
 
 export function AgentHeader({ agent }: AgentHeaderProps) {
+  const encodedName = encodeURIComponent(agent.qualifiedName);
+
   return (
     <div className="flex items-start gap-4">
       {/* Avatar — stretches to match content height */}
@@ -41,6 +43,12 @@ export function AgentHeader({ agent }: AgentHeaderProps) {
         {/* Top row: Name, status, and actions */}
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
+            {/* Fleet path breadcrumb (shown when agent belongs to a sub-fleet) */}
+            {agent.fleetPath.length > 0 && (
+              <p className="text-[11px] text-herd-muted font-medium uppercase tracking-wide mb-0.5">
+                {agent.fleetPath.join(" / ")}
+              </p>
+            )}
             <div className="flex items-center gap-3">
               <h1 className="text-lg font-semibold text-herd-fg">{agent.name}</h1>
               <StatusBadge status={agent.status} size="md" />
@@ -61,7 +69,7 @@ export function AgentHeader({ agent }: AgentHeaderProps) {
               Trigger Job
             </button>
             <Link
-              to={`/agents/${agent.name}/chat`}
+              to={`/agents/${encodedName}/chat`}
               className="border border-herd-border hover:bg-herd-hover text-herd-fg rounded-lg px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5"
             >
               <MessageSquare className="w-3.5 h-3.5" />
@@ -106,7 +114,7 @@ export function AgentHeader({ agent }: AgentHeaderProps) {
             Trigger Job
           </button>
           <Link
-            to={`/agents/${agent.name}/chat`}
+            to={`/agents/${encodedName}/chat`}
             className="border border-herd-border hover:bg-herd-hover text-herd-fg rounded-lg px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5"
           >
             <MessageSquare className="w-3.5 h-3.5" />

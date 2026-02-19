@@ -36,7 +36,7 @@ export interface UseAgentDetailResult {
  * - Updates the store with fresh data
  * - Returns agent from store (kept up-to-date by WebSocket)
  *
- * @param name - The agent name from route params
+ * @param qualifiedName - The agent qualified name from route params
  *
  * @example
  * ```tsx
@@ -52,19 +52,19 @@ export interface UseAgentDetailResult {
  * }
  * ```
  */
-export function useAgentDetail(name: string | null): UseAgentDetailResult {
+export function useAgentDetail(qualifiedName: string | null): UseAgentDetailResult {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
-  // Get agent from store (kept up-to-date by WebSocket)
-  const agent = useAgent(name);
+  // Get agent from store by qualifiedName (kept up-to-date by WebSocket)
+  const agent = useAgent(qualifiedName);
 
   // Get store update action
   const updateAgent = useStore((state) => state.updateAgent);
 
   useEffect(() => {
-    if (!name) {
+    if (!qualifiedName) {
       setLoading(false);
       setError(null);
       return;
@@ -77,7 +77,7 @@ export function useAgentDetail(name: string | null): UseAgentDetailResult {
       setError(null);
 
       try {
-        const agentData = await fetchAgent(name!);
+        const agentData = await fetchAgent(qualifiedName!);
 
         if (cancelled) return;
 
@@ -100,7 +100,7 @@ export function useAgentDetail(name: string | null): UseAgentDetailResult {
     return () => {
       cancelled = true;
     };
-  }, [name, retryCount]);
+  }, [qualifiedName, retryCount]);
 
   const retry = useCallback((): void => {
     setRetryCount((c) => c + 1);

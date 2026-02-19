@@ -17,7 +17,8 @@ import { Composer } from "./Composer";
 // =============================================================================
 
 export function ChatView() {
-  const { name: agentName, sessionId } = useParams<{ name: string; sessionId?: string }>();
+  // Route param `name` now contains the qualified name (e.g., "herdctl.security-auditor")
+  const { name: qualifiedName, sessionId } = useParams<{ name: string; sessionId?: string }>();
   const navigate = useNavigate();
   const { activeChatSessionId, chatError } = useChatMessages();
   const { chatSessions } = useChatSessions();
@@ -29,18 +30,18 @@ export function ChatView() {
     return () => {
       clearChatState();
     };
-  }, [agentName, clearChatState]);
+  }, [qualifiedName, clearChatState]);
 
   // Fetch messages when session ID changes
   useEffect(() => {
-    if (sessionId && agentName) {
-      fetchChatMessages(agentName, sessionId);
+    if (sessionId && qualifiedName) {
+      fetchChatMessages(qualifiedName, sessionId);
     } else {
       setActiveChatSession(null);
     }
-  }, [sessionId, agentName, fetchChatMessages, setActiveChatSession]);
+  }, [sessionId, qualifiedName, fetchChatMessages, setActiveChatSession]);
 
-  if (!agentName) {
+  if (!qualifiedName) {
     return (
       <div className="flex items-center justify-center h-full text-herd-muted">
         <p className="text-sm">Agent not found</p>
@@ -49,9 +50,9 @@ export function ChatView() {
   }
 
   const handleStartNewChat = async () => {
-    const newSessionId = await createChatSession(agentName);
+    const newSessionId = await createChatSession(qualifiedName);
     if (newSessionId) {
-      navigate(`/agents/${encodeURIComponent(agentName)}/chat/${newSessionId}`);
+      navigate(`/agents/${encodeURIComponent(qualifiedName)}/chat/${newSessionId}`);
     }
   };
 
@@ -72,10 +73,10 @@ export function ChatView() {
           )}
 
           {/* Message feed */}
-          <MessageFeed agentName={agentName} />
+          <MessageFeed agentName={qualifiedName} />
 
           {/* Composer */}
-          <Composer agentName={agentName} sessionId={sessionId} />
+          <Composer agentName={qualifiedName} sessionId={sessionId} />
         </>
       ) : (
         /* Welcome state when no session is selected */
@@ -86,7 +87,7 @@ export function ChatView() {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-herd-fg mb-1">
-                Chat with {agentName}
+                Chat with {qualifiedName}
               </h2>
               <p className="text-sm text-herd-muted max-w-sm">
                 {chatSessions.length > 0

@@ -90,11 +90,11 @@ export function useFleet() {
 }
 
 /**
- * Select a single agent by name
+ * Select a single agent by qualified name
  */
-export function useAgent(name: string | null) {
+export function useAgent(qualifiedName: string | null) {
   return useStore((state) =>
-    name ? state.agents.find((a) => a.name === name) ?? null : null
+    qualifiedName ? state.agents.find((a) => a.qualifiedName === qualifiedName) ?? null : null
   );
 }
 

@@ -37,7 +37,7 @@ export interface ChatState {
   chatStreamingContent: string;
   /** Error message for chat operations */
   chatError: string | null;
-  /** Recent sessions per agent for sidebar display */
+  /** Recent sessions per agent for sidebar display (keyed by qualifiedName) */
   sidebarSessions: Record<string, ChatSession[]>;
   /** Loading state for sidebar session fetch */
   sidebarSessionsLoading: boolean;

@@ -16,7 +16,7 @@ import { formatRelativeTime } from "../../lib/format";
 // =============================================================================
 
 interface SessionListProps {
-  /** Agent name to fetch sessions for */
+  /** Agent qualified name to fetch sessions for */
   agentName: string;
   /** Currently active session ID */
   activeSessionId: string | null;

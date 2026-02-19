@@ -21,5 +21,5 @@ interface AgentJobsProps {
 // =============================================================================
 
 export function AgentJobs({ agent }: AgentJobsProps) {
-  return <JobHistory agentName={agent.name} />;
+  return <JobHistory agentName={agent.qualifiedName} />;
 }

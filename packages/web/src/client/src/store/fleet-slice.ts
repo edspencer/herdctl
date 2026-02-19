@@ -120,9 +120,9 @@ export const createFleetSlice: StateCreator<FleetSlice, [], [], FleetSlice> = (s
   updateAgent: (payload) =>
     set((state) => {
       if (isAgentStartedPayload(payload)) {
-        // Agent started: add or update in list
+        // Agent started: add or update in list (match by qualifiedName)
         const existingIndex = state.agents.findIndex(
-          (a) => a.name === payload.agent.name
+          (a) => a.qualifiedName === payload.agent.qualifiedName
         );
 
         if (existingIndex >= 0) {
@@ -141,9 +141,9 @@ export const createFleetSlice: StateCreator<FleetSlice, [], [], FleetSlice> = (s
           };
         }
       } else {
-        // Agent stopped: update status or remove
+        // Agent stopped: update status or remove (agentName is now qualifiedName)
         const existingIndex = state.agents.findIndex(
-          (a) => a.name === payload.agentName
+          (a) => a.qualifiedName === payload.agentName
         );
 
         if (existingIndex >= 0) {
