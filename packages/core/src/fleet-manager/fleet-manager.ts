@@ -456,7 +456,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     if (overrides.web) {
       const existingWeb = fleet.web ?? {
         enabled: false,
-        port: 3456,
+        port: 3232,
         host: "localhost",
         session_expiry_hours: 24,
         open_browser: false,

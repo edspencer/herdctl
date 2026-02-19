@@ -32,15 +32,14 @@ fleet:
   name: my-fleet
   web:
     enabled: true
-    port: 3456
-    host: "0.0.0.0"
+    port: 3232
 ```
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `enabled` | boolean | `false` | Enable the web dashboard |
-| `port` | number | `3456` | Port to listen on |
-| `host` | string | `"0.0.0.0"` | Host to bind to |
+| `port` | number | `3232` | Port to listen on |
+| `host` | string | `"localhost"` | Host to bind to |
 | `session_expiry_hours` | number | `24` | Chat session expiry in hours |
 
 ### CLI Flags
@@ -48,7 +47,7 @@ fleet:
 You can also enable the dashboard via CLI flags on `herdctl start`:
 
 ```bash
-# Enable web dashboard on default port (3456)
+# Enable web dashboard on default port (3232)
 herdctl start --web
 
 # Enable on a custom port
@@ -62,13 +61,13 @@ CLI flags override configuration file settings.
 Once the fleet starts with the web dashboard enabled, open your browser to:
 
 ```
-http://localhost:3456
+http://localhost:3232
 ```
 
 You will see a log message confirming the dashboard URL:
 
 ```
-[web] Web dashboard available at http://0.0.0.0:3456
+[web] Web dashboard available at http://localhost:3232
 ```
 
 ## Dashboard Features

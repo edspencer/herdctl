@@ -84,7 +84,7 @@ describe("FleetConfigSchema", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.web?.enabled).toBe(false);
-      expect(result.data.web?.port).toBe(3456);
+      expect(result.data.web?.port).toBe(3232);
       expect(result.data.web?.host).toBe("localhost");
       expect(result.data.web?.session_expiry_hours).toBe(24);
       expect(result.data.web?.open_browser).toBe(false);
@@ -1016,7 +1016,7 @@ describe("WebSchema", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.enabled).toBe(false);
-      expect(result.data.port).toBe(3456);
+      expect(result.data.port).toBe(3232);
       expect(result.data.host).toBe("localhost");
       expect(result.data.session_expiry_hours).toBe(24);
       expect(result.data.open_browser).toBe(false);
@@ -1028,7 +1028,7 @@ describe("WebSchema", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.enabled).toBe(true);
-      expect(result.data.port).toBe(3456);
+      expect(result.data.port).toBe(3232);
       expect(result.data.host).toBe("localhost");
       expect(result.data.session_expiry_hours).toBe(24);
       expect(result.data.open_browser).toBe(false);

@@ -91,9 +91,9 @@ export async function createWebServer(
   // Register CORS for development (allow localhost origins)
   await server.register(fastifyCors, {
     origin: [
-      "http://localhost:3456",
+      "http://localhost:3232",
       "http://localhost:5173", // Vite dev server
-      "http://127.0.0.1:3456",
+      "http://127.0.0.1:3232",
       "http://127.0.0.1:5173",
       `http://${config.host}:${config.port}`,
     ],

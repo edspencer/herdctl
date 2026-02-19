@@ -482,7 +482,7 @@ Enable the web dashboard server.
 | Property | Value |
 |----------|-------|
 | **Type** | `number` (positive integer) |
-| **Default** | `3456` |
+| **Default** | `3232` |
 | **Required** | No |
 
 Port for the web dashboard to listen on.
@@ -492,7 +492,7 @@ Port for the web dashboard to listen on.
 | Property | Value |
 |----------|-------|
 | **Type** | `string` |
-| **Default** | `"0.0.0.0"` |
+| **Default** | `"localhost"` |
 | **Required** | No |
 
 Host to bind the web dashboard to.
@@ -511,8 +511,8 @@ Hours before web chat sessions expire.
 fleet:
   web:
     enabled: true
-    port: 3456
-    host: "0.0.0.0"
+    port: 3232
+    host: "localhost"
     session_expiry_hours: 24
 ```
 

@@ -918,7 +918,7 @@ export const WebhooksSchema = z.object({
  * ```yaml
  * web:
  *   enabled: true
- *   port: 3456
+ *   port: 3232
  *   host: localhost
  *   session_expiry_hours: 24
  *   open_browser: false
@@ -927,8 +927,8 @@ export const WebhooksSchema = z.object({
 export const WebSchema = z.object({
   /** Enable the web dashboard (default: false) */
   enabled: z.boolean().optional().default(false),
-  /** Port to serve the dashboard on (default: 3456) */
-  port: z.number().int().positive().optional().default(3456),
+  /** Port to serve the dashboard on (default: 3232) */
+  port: z.number().int().positive().optional().default(3232),
   /** Host to bind to (default: localhost) */
   host: z.string().optional().default("localhost"),
   /** Session expiry in hours (default: 24) */
