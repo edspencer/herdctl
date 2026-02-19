@@ -9,6 +9,7 @@ export default defineConfig({
 	integrations: [
 		sitemap(),
 		starlight({
+			customCss: ['./src/styles/custom.css'],
 			title: 'herdctl',
 			tagline: 'Autonomous Agent Fleet Management for Claude Code',
 			favicon: '/favicon.ico',
