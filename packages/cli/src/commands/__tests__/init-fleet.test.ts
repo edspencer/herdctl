@@ -106,10 +106,12 @@ describe("initFleetCommand", () => {
       expect(content).toContain("#   permission_mode: default");
     });
 
-    it("includes commented-out web section", async () => {
+    it("enables web dashboard by default", async () => {
       await initFleetCommand({});
       const content = fs.readFileSync(path.join(tempDir, "herdctl.yaml"), "utf-8");
-      expect(content).toContain("# web:");
+      expect(content).toContain("web:");
+      expect(content).toContain("enabled: true");
+      expect(content).toContain("port: 3232");
     });
 
     it("includes commented-out fleets section", async () => {

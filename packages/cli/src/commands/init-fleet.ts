@@ -43,10 +43,10 @@ fleet:
 #   #   network: bridge
 #   #   memory: 2g
 
-# Web dashboard
-# web:
-#   enabled: true
-#   port: 3232
+# Web dashboard — access at http://localhost:3232
+web:
+  enabled: true
+  port: 3232
 
 # Compose sub-fleets from other herdctl.yaml files
 # fleets:
