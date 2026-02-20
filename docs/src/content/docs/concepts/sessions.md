@@ -14,29 +14,21 @@ When Claude Code executes, it maintains a conversation context—the accumulated
 - **Fork** existing sessions to explore alternative approaches
 - **Isolate** conversations per channel in chat integrations
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         SESSION                                  │
-│  Claude's accumulated context and conversation history           │
-│                                                                  │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │ Message History                                             │ │
-│  │ ┌──────────────────────────────────────────────────────┐   │ │
-│  │ │ User: "Check for ready issues and implement one"     │   │ │
-│  │ └──────────────────────────────────────────────────────┘   │ │
-│  │ ┌──────────────────────────────────────────────────────┐   │ │
-│  │ │ Assistant: "I found issue #42. Reading the spec..." │   │ │
-│  │ └──────────────────────────────────────────────────────┘   │ │
-│  │ ┌──────────────────────────────────────────────────────┐   │ │
-│  │ │ Tool Use: Read src/api/users.ts                      │   │ │
-│  │ └──────────────────────────────────────────────────────┘   │ │
-│  │ ┌──────────────────────────────────────────────────────┐   │ │
-│  │ │ Assistant: "I'll add the validation logic..."        │   │ │
-│  │ └──────────────────────────────────────────────────────┘   │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                                                                  │
-│  Metadata: { id, agentId, mode, createdAt, lastActiveAt }       │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+sequenceDiagram
+  participant U as User/Schedule
+  participant A as Agent
+  participant T as Tools
+
+  Note over U,T: SESSION: Claude's accumulated context
+
+  U->>A: Check for ready issues and implement one
+  A->>A: I found issue #42. Reading the spec...
+  A->>T: Read src/api/users.ts
+  T-->>A: (file contents)
+  A->>A: I'll add the validation logic...
+
+  Note over U,T: Metadata: id, agentId, mode, createdAt, lastActiveAt
 ```
 
 ## Session Modes

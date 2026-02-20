@@ -124,6 +124,8 @@ Cron expressions use five fields:
 * * * * *
 ```
 
+<!-- This cron format diagram is intentionally kept as text for clarity -->
+
 ### Special Characters
 
 | Character | Meaning | Example |
@@ -458,21 +460,24 @@ Users can ask the bot questions like "What's the current price?" between schedul
 
 ### Decision Guide
 
-```
-Do you need to run at a specific time?
-├─ Yes → Use CRON
-│        "Daily at 9am", "Every Monday", "First of month"
-│
-└─ No → Is it event-driven?
-        ├─ Yes → Use WEBHOOK (when available)
-        │        "After deploy", "On CI failure"
-        │
-        └─ No → Is it interactive?
-                ├─ Yes → Use CHAT (when available)
-                │        "When mentioned", "On command"
-                │
-                └─ No → Use INTERVAL
-                        "Every 5 minutes", "Check regularly"
+```mermaid
+flowchart TD
+  A{"Run at a specific time?"}
+  A -->|Yes| CRON["Use CRON
+  Daily at 9am, Every Monday, First of month"]
+  A -->|No| B{"Event-driven?"}
+  B -->|Yes| WEBHOOK["Use WEBHOOK
+  After deploy, On CI failure"]
+  B -->|No| C{"Interactive?"}
+  C -->|Yes| CHAT["Use CHAT
+  When mentioned, On command"]
+  C -->|No| INTERVAL["Use INTERVAL
+  Every 5 minutes, Check regularly"]
+
+  style CRON fill:#4f46e5,color:#fff,stroke:#3730a3
+  style WEBHOOK fill:#7c3aed,color:#fff,stroke:#6d28d9
+  style CHAT fill:#059669,color:#fff,stroke:#047857
+  style INTERVAL fill:#d97706,color:#fff,stroke:#b45309
 ```
 
 ### Comparison Table

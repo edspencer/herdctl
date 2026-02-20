@@ -19,6 +19,68 @@ herdctl uses a file-based state system to track agents, jobs, and sessions. All 
     └── <agent-name>.log    # Agent-level logs
 ```
 
+### Visual Layout
+
+```mermaid
+graph TD
+    ROOT[".herdctl/"]
+    STATE["state.yaml"]
+    JOBS["jobs/"]
+    SESSIONS["sessions/"]
+    LOGS["logs/"]
+
+    ROOT --> STATE
+    ROOT --> JOBS
+    ROOT --> SESSIONS
+    ROOT --> LOGS
+
+    JOB1_YAML["job-2025-01-19-abc123.yaml"]
+    JOB1_JSONL["job-2025-01-19-abc123.jsonl"]
+    JOB2_YAML["job-2025-01-19-def456.yaml"]
+    JOB2_JSONL["job-2025-01-19-def456.jsonl"]
+
+    JOBS --> JOB1_YAML
+    JOBS --> JOB1_JSONL
+    JOBS --> JOB2_YAML
+    JOBS --> JOB2_JSONL
+
+    SESS1["bragdoc-coder.json"]
+    SESS2["bragdoc-marketer.json"]
+    SESS3["herdctl.security-auditor.json"]
+
+    SESSIONS --> SESS1
+    SESSIONS --> SESS2
+    SESSIONS --> SESS3
+
+    LOG1["bragdoc-coder.log"]
+    LOG2["bragdoc-marketer.log"]
+
+    LOGS --> LOG1
+    LOGS --> LOG2
+
+    style ROOT fill:#4f46e5,color:#fff,stroke:#3730a3
+    style STATE fill:#d97706,color:#fff,stroke:#b45309
+    style JOBS fill:#1e40af,color:#fff,stroke:#1e3a8a
+    style SESSIONS fill:#1e40af,color:#fff,stroke:#1e3a8a
+    style LOGS fill:#1e40af,color:#fff,stroke:#1e3a8a
+    style JOB1_YAML fill:#059669,color:#fff,stroke:#047857
+    style JOB1_JSONL fill:#7c3aed,color:#fff,stroke:#6d28d9
+    style JOB2_YAML fill:#059669,color:#fff,stroke:#047857
+    style JOB2_JSONL fill:#7c3aed,color:#fff,stroke:#6d28d9
+    style SESS1 fill:#059669,color:#fff,stroke:#047857
+    style SESS2 fill:#059669,color:#fff,stroke:#047857
+    style SESS3 fill:#059669,color:#fff,stroke:#047857
+    style LOG1 fill:#64748b,color:#fff,stroke:#475569
+    style LOG2 fill:#64748b,color:#fff,stroke:#475569
+```
+
+**Color key:** <span style="color:#4f46e5">Indigo</span> = root directory, <span style="color:#1e40af">Blue</span> = subdirectories, <span style="color:#d97706">Amber</span> = fleet state file, <span style="color:#059669">Green</span> = metadata/session files (.yaml, .json), <span style="color:#7c3aed">Purple</span> = streaming output logs (.jsonl), <span style="color:#64748b">Slate</span> = agent logs.
+
+**Naming conventions:**
+- **Job files** use the pattern `job-YYYY-MM-DD-<random6>` with both a `.yaml` (metadata) and `.jsonl` (streaming output) per job.
+- **Session files** use the agent's qualified name: `<agent-name>.json` for simple fleets, or `<fleet>.<agent>.json` for composed fleets.
+- **Log files** use `<agent-name>.log`.
+
 ### Subdirectory Purposes
 
 | Directory | Purpose |

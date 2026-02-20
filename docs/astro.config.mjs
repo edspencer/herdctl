@@ -2,10 +2,14 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import sitemap from '@astrojs/sitemap';
+import rehypeMermaid from 'rehype-mermaid';
 
 // https://astro.build/config
 export default defineConfig({
 	site: 'https://herdctl.dev',
+	markdown: {
+		rehypePlugins: [[rehypeMermaid, { strategy: 'pre-mermaid' }]],
+	},
 	integrations: [
 		sitemap(),
 		starlight({
@@ -18,6 +22,12 @@ export default defineConfig({
 				alt: 'herdctl',
 			},
 			head: [
+				// Mermaid client-side rendering
+				{
+					tag: 'script',
+					attrs: { type: 'module' },
+					content: `import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'; mermaid.initialize({ startOnLoad: true, theme: 'dark' });`,
+				},
 				// OpenGraph meta tags
 				{
 					tag: 'meta',
@@ -115,6 +125,7 @@ export default defineConfig({
 					collapsed: true,
 					items: [
 						{ label: 'Agents', slug: 'concepts/agents' },
+						{ label: 'Fleet Composition', slug: 'concepts/fleet-composition' },
 						{ label: 'Work Sources', slug: 'concepts/work-sources' },
 						{ label: 'Schedules', slug: 'concepts/schedules' },
 						{ label: 'Triggers', slug: 'concepts/triggers' },
@@ -162,7 +173,10 @@ export default defineConfig({
 					label: 'Internals',
 					collapsed: true,
 					items: [
+						{ label: 'Architecture', slug: 'internals/architecture' },
+						{ label: 'Chat Architecture', slug: 'internals/chat-architecture' },
 						{ label: 'Runner', slug: 'internals/runner' },
+						{ label: 'Scheduler', slug: 'internals/scheduler' },
 						{ label: 'State Management', slug: 'internals/state-management' },
 					],
 				},

@@ -7,23 +7,88 @@ The Runner is the execution engine that powers agent runs in herdctl. It integra
 
 ## Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         JobExecutor                                 │
-├─────────────────────────────────────────────────────────────────────┤
-│  1. Create job record                                               │
-│  2. Transform config → SDK options (sdk-adapter)                    │
-│  3. Execute SDK query (async iterator)                              │
-│  4. Process messages (message-processor)                            │
-│  5. Stream output to JSONL                                          │
-│  6. Update job status and session info                              │
-└─────────────────────────────────────────────────────────────────────┘
-         │                        │                        │
-         ▼                        ▼                        ▼
-   ┌──────────┐           ┌──────────────┐         ┌────────────┐
-   │ SDK      │           │ State        │         │ Error      │
-   │ Adapter  │           │ Management   │         │ Handler    │
-   └──────────┘           └──────────────┘         └────────────┘
+```mermaid
+flowchart TD
+  OPT["RunnerOptions
+  agent config + prompt"]
+  JE["JobExecutor
+  orchestrates full lifecycle"]
+  JOB["Create Job Record
+  status → running"]
+  SESS["Session Validation
+  resume / fork / fresh"]
+
+  subgraph runtime ["Runtime Layer"]
+    RF["RuntimeFactory"]
+    SDK_RT["SDKRuntime
+    query() via Agent SDK"]
+    CLI_RT["CLIRuntime
+    spawns claude CLI"]
+    DOCKER["ContainerRunner
+    Docker decorator"]
+  end
+
+  ADAPT["SDK Adapter
+  toSDKOptions()
+  config → SDK query options"]
+  CLAUDE["Claude Agent SDK
+  query() → AsyncIterable"]
+
+  subgraph processing ["Message Processing"]
+    MP["Message Processor
+    processSDKMessage()
+    SDK msg → JobOutput"]
+    TERM["Terminal Detection
+    isTerminalMessage()
+    result / error / end"]
+  end
+
+  JSONL[".herdctl/jobs/ID.jsonl
+  append per message"]
+  ERR["Error Handler
+  classifyError()
+  wrapError()"]
+  RESULT["RunnerResult
+  success · jobId · sessionId
+  summary · errorDetails"]
+
+  OPT --> JE
+  JE --> JOB
+  JOB --> SESS
+  SESS --> RF
+  RF -->|sdk| SDK_RT
+  RF -->|cli| CLI_RT
+  RF -.->|docker enabled| DOCKER
+  DOCKER -.-> SDK_RT
+  DOCKER -.-> CLI_RT
+  SDK_RT --> ADAPT
+  ADAPT --> CLAUDE
+  CLAUDE -->|"AsyncIterable
+  SDKMessage stream"| MP
+  CLI_RT -->|"session file watcher
+  SDKMessage stream"| MP
+  MP --> JSONL
+  MP --> TERM
+  TERM -->|not terminal| MP
+  TERM -->|terminal| ERR
+  ERR --> RESULT
+  JSONL --> RESULT
+
+  style OPT fill:#64748b,color:#fff,stroke:#475569
+  style JE fill:#4f46e5,color:#fff,stroke:#3730a3
+  style JOB fill:#1e40af,color:#fff,stroke:#1e3a8a
+  style SESS fill:#1e40af,color:#fff,stroke:#1e3a8a
+  style RF fill:#7c3aed,color:#fff,stroke:#6d28d9
+  style SDK_RT fill:#7c3aed,color:#fff,stroke:#6d28d9
+  style CLI_RT fill:#7c3aed,color:#fff,stroke:#6d28d9
+  style DOCKER fill:#7c3aed,color:#fff,stroke:#6d28d9
+  style ADAPT fill:#1e40af,color:#fff,stroke:#1e3a8a
+  style CLAUDE fill:#d97706,color:#fff,stroke:#b45309
+  style MP fill:#7c3aed,color:#fff,stroke:#6d28d9
+  style TERM fill:#7c3aed,color:#fff,stroke:#6d28d9
+  style JSONL fill:#059669,color:#fff,stroke:#047857
+  style ERR fill:#dc2626,color:#fff,stroke:#b91c1c
+  style RESULT fill:#059669,color:#fff,stroke:#047857
 ```
 
 The runner module consists of four main components:

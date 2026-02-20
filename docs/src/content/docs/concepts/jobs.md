@@ -30,6 +30,84 @@ PENDING → RUNNING → COMPLETED
                   → CANCELLED
 ```
 
+### Execution Flow
+
+The following diagram shows the full journey of a job from trigger to completion, including how the major components interact:
+
+```mermaid
+sequenceDiagram
+    participant Trigger as Trigger<br/>(Schedule/Manual)
+    participant Scheduler
+    participant FM as FleetManager
+    participant SE as ScheduleExecutor
+    participant JE as JobExecutor
+    participant RT as Runtime<br/>(SDK/CLI)
+    participant State as StateManager
+
+    Trigger->>Scheduler: Schedule is due / manual trigger
+    activate Scheduler
+    Scheduler->>Scheduler: Check: enabled, capacity, not running
+    Note right of Scheduler: Skip if disabled,<br/>at capacity, or<br/>already running
+    Scheduler->>FM: onTrigger(TriggerInfo)
+    deactivate Scheduler
+
+    activate FM
+    FM->>SE: executeSchedule(info)
+    activate SE
+    SE->>SE: Resolve prompt from schedule or agent default
+    SE->>JE: executor.execute(options)
+    activate JE
+
+    JE->>State: createJob(agent, trigger, prompt)
+    State-->>JE: job record (status: pending)
+
+    JE->>State: updateJob(status: running)
+
+    opt Session resume requested
+        JE->>State: getSessionInfo(agent)
+        State-->>JE: session (validate expiry + working dir)
+    end
+
+    JE->>RT: runtime.execute(prompt, agent, resume?)
+    activate RT
+    Note over RT: Returns AsyncIterable of messages
+
+    loop Stream SDK messages
+        RT-->>JE: SDKMessage (system, assistant, tool_use, etc.)
+        JE->>JE: processSDKMessage → JobOutput
+        JE->>State: appendJobOutput(JSONL)
+        JE-->>SE: onMessage callback (for events)
+    end
+
+    RT-->>JE: Terminal message (result or error)
+    deactivate RT
+
+    alt Success
+        JE->>State: updateJob(status: completed, summary)
+        JE->>State: updateSessionInfo(sessionId)
+        JE-->>SE: RunnerResult(success: true)
+    else Error / Failure
+        JE->>State: updateJob(status: failed, error)
+        JE-->>SE: RunnerResult(success: false, error)
+    end
+    deactivate JE
+
+    SE->>FM: Emit job:completed or job:failed
+    SE->>SE: Execute after_run / on_error hooks
+    deactivate SE
+    deactivate FM
+```
+
+The key participants in this flow are:
+
+- **Trigger**: A schedule firing (interval/cron) or a manual `herdctl trigger` command
+- **Scheduler**: Polls schedules and checks whether they are due, respecting concurrency limits
+- **FleetManager**: Top-level orchestrator that wires everything together
+- **ScheduleExecutor**: Handles the bridge between scheduler triggers and job execution
+- **JobExecutor**: Manages the full lifecycle of a single job -- creating records, streaming output, and updating final status
+- **Runtime**: The execution backend (Claude Agent SDK or CLI) that actually runs the agent and returns a stream of messages
+- **StateManager**: Persists job metadata, JSONL output, and session info to `.herdctl/`
+
 ### Status Definitions
 
 | Status | Description |

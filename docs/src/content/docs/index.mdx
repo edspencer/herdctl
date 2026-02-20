@@ -65,6 +65,52 @@ herdctl is deliberately minimal. It does not:
 
 If you want to build AI agents on Claude Code and need infrastructure to run them, herdctl is for you. If you want an all-in-one AI platform, look elsewhere.
 
+## Package Architecture
+
+herdctl is a monorepo of npm packages following a **library-first** design. All business logic lives in `@herdctl/core`; everything else is a thin wrapper or connector.
+
+```mermaid
+graph TD
+  CLI["herdctl (CLI)"]
+  WEB["@herdctl/web"]
+  DISCORD["@herdctl/discord"]
+  SLACK["@herdctl/slack"]
+  CHAT["@herdctl/chat"]
+  CORE["@herdctl/core"]
+
+  CLI --> CORE
+  CLI --> WEB
+  CLI --> DISCORD
+  CLI --> SLACK
+
+  WEB --> CHAT
+  WEB --> CORE
+
+  DISCORD --> CHAT
+  DISCORD --> CORE
+
+  SLACK --> CHAT
+  SLACK --> CORE
+
+  CHAT --> CORE
+
+  style CLI fill:#4f46e5,color:#fff,stroke:#3730a3
+  style WEB fill:#7c3aed,color:#fff,stroke:#6d28d9
+  style DISCORD fill:#7c3aed,color:#fff,stroke:#6d28d9
+  style SLACK fill:#7c3aed,color:#fff,stroke:#6d28d9
+  style CHAT fill:#1e40af,color:#fff,stroke:#1e3a8a
+  style CORE fill:#1e40af,color:#fff,stroke:#1e3a8a
+```
+
+| Package | Purpose |
+|---------|---------|
+| `@herdctl/core` | Fleet management, config, scheduler, state, runner |
+| `herdctl` | CLI — thin wrapper around FleetManager |
+| `@herdctl/web` | Web dashboard (React + Fastify + WebSocket) |
+| `@herdctl/chat` | Shared chat infrastructure for connectors |
+| `@herdctl/discord` | Discord bot connector |
+| `@herdctl/slack` | Slack bot connector |
+
 ## Configuration as Code
 
 Everything in herdctl is configured via YAML files that you can source-control alongside your code.

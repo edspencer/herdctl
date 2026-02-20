@@ -7,33 +7,36 @@ An **Agent** is a configured Claude Code instance with its own identity, workspa
 
 ## What is an Agent?
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                           AGENT                                 │
-│  A configured Claude instance with identity and permissions     │
-│                                                                 │
-│  • name: "bragdoc-marketer"                                     │
-│  • identity: CLAUDE.md, knowledge/                              │
-│  • workspace: ~/herdctl-workspace/bragdoc-ai                    │
-│  • permission_mode: "acceptEdits", allowed_tools: [...]         │
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │                    SCHEDULES                             │   │
-│  │  When and how to invoke this agent                       │   │
-│  │                                                          │   │
-│  │  ┌──────────────────────────────────────────────────┐   │   │
-│  │  │ Schedule: "issue-check"                          │   │   │
-│  │  │ trigger: { type: interval, every: 5m }           │   │   │
-│  │  │ prompt: "Check for ready issues..."              │   │   │
-│  │  └──────────────────────────────────────────────────┘   │   │
-│  │                                                          │   │
-│  │  ┌──────────────────────────────────────────────────┐   │   │
-│  │  │ Schedule: "daily-analytics"                      │   │   │
-│  │  │ trigger: { type: cron, expression: "0 9 * * *" } │   │   │
-│  │  │ prompt: "Analyze site traffic and report..."     │   │   │
-│  │  └──────────────────────────────────────────────────┘   │   │
-│  └─────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Agent["Agent"]:::indigo
+
+    Agent --> Identity["Identity"]:::blue
+    Agent --> Workspace["Workspace"]:::blue
+    Agent --> Schedules["Schedules"]:::blue
+    Agent --> Permissions["Permissions"]:::blue
+
+    Agent -.-> WorkSource["Work Source"]:::purple
+    Agent -.-> Chat["Chat"]:::purple
+    Agent -.-> MCP["MCP Servers"]:::purple
+    Agent -.-> Hooks["Hooks"]:::purple
+    Agent -.-> Session["Session"]:::purple
+
+    Identity --> ClaudeMD["CLAUDE.md"]:::green
+    Identity --> Knowledge["Knowledge files"]:::green
+    Identity --> SystemPrompt["System prompt"]:::green
+
+    Schedules --> Interval["Interval trigger"]:::green
+    Schedules --> Cron["Cron trigger"]:::green
+
+    Permissions --> Mode["Permission mode"]:::amber
+    Permissions --> Tools["Allowed / denied tools"]:::green
+
+    classDef indigo fill:#4f46e5,color:#fff,stroke:#3730a3
+    classDef blue fill:#1e40af,color:#fff,stroke:#1e3a8a
+    classDef purple fill:#7c3aed,color:#fff,stroke:#6d28d9
+    classDef green fill:#059669,color:#fff,stroke:#047857
+    classDef amber fill:#d97706,color:#fff,stroke:#b45309
 ```
 
 Each agent operates independently with:

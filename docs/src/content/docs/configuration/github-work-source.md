@@ -90,61 +90,32 @@ The GitHub adapter uses labels to manage work item state. This approach is:
 
 ### Workflow Diagram
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    GITHUB LABEL-BASED WORKFLOW                       │
-│                                                                      │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │                         ISSUE CREATED                          │  │
-│  │                    (no workflow labels)                        │  │
-│  └───────────────────────────────────────────────────────────────┘  │
-│                                │                                     │
-│                          Human adds                                  │
-│                        "ready" label                                 │
-│                                │                                     │
-│                                ▼                                     │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │                     READY FOR AGENT                            │  │
-│  │                                                                │  │
-│  │  Labels: [ready]                                               │  │
-│  │  State:  Open                                                  │  │
-│  │                                                                │  │
-│  │  Agent can now claim this issue                                │  │
-│  └───────────────────────────────────────────────────────────────┘  │
-│                                │                                     │
-│                         Agent calls                                  │
-│                         claimWork()                                  │
-│                                │                                     │
-│                                ▼                                     │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │                    CLAIMED BY AGENT                            │  │
-│  │                                                                │  │
-│  │  Labels: [agent-working]                                       │  │
-│  │  State:  Open                                                  │  │
-│  │                                                                │  │
-│  │  - "ready" label removed                                       │  │
-│  │  - "agent-working" label added                                 │  │
-│  │  - Other agents will skip this issue                           │  │
-│  └───────────────────────────────────────────────────────────────┘  │
-│                                │                                     │
-│              ┌─────────────────┴─────────────────┐                  │
-│              │                                   │                   │
-│       Work succeeds                        Work fails                │
-│      completeWork()                      releaseWork()               │
-│              │                                   │                   │
-│              ▼                                   ▼                   │
-│  ┌─────────────────────┐           ┌─────────────────────────────┐  │
-│  │     COMPLETED       │           │     RELEASED                 │  │
-│  │                     │           │                              │  │
-│  │  Labels: []         │           │  Labels: [ready]             │  │
-│  │  State:  Closed     │           │  State:  Open                │  │
-│  │                     │           │                              │  │
-│  │  - Comment posted   │           │  - "agent-working" removed   │  │
-│  │  - Issue closed     │           │  - "ready" label re-added    │  │
-│  │                     │           │  - Comment posted (optional) │  │
-│  └─────────────────────┘           └─────────────────────────────┘  │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+  IC["ISSUE CREATED
+  No workflow labels"]
+  IC -->|"Human adds 'ready' label"| RA["READY FOR AGENT
+  Labels: ready
+  State: Open"]
+  RA -->|"Agent calls claimWork()"| CA["CLAIMED BY AGENT
+  Labels: agent-working
+  State: Open"]
+  CA -->|"Work succeeds
+  completeWork()"| CO["COMPLETED
+  Labels: none
+  State: Closed
+  Comment posted, issue closed"]
+  CA -->|"Work fails
+  releaseWork()"| RE["RELEASED
+  Labels: ready
+  State: Open
+  Returned to queue"]
+
+  style IC fill:#64748b,color:#fff,stroke:#475569
+  style RA fill:#4f46e5,color:#fff,stroke:#3730a3
+  style CA fill:#d97706,color:#fff,stroke:#b45309
+  style CO fill:#059669,color:#fff,stroke:#047857
+  style RE fill:#dc2626,color:#fff,stroke:#b91c1c
 ```
 
 ### Label State Transitions
