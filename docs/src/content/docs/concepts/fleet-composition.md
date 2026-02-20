@@ -214,6 +214,28 @@ When composing fleets, configuration values merge across levels. The merge prior
 4. **Per-agent `overrides`** — from the sub-fleet's `agents` entry
 5. **Per-fleet `overrides`** — from the super-fleet's `fleets` entry (highest priority)
 
+```mermaid
+flowchart LR
+  L1["1. Super-fleet\ndefaults"]
+  L2["2. Sub-fleet\ndefaults"]
+  L3["3. Agent's own\nconfig"]
+  L4["4. Per-agent\noverrides"]
+  L5["5. Per-fleet\noverrides"]
+
+  L1 -->|"overridden by"| L2
+  L2 -->|"overridden by"| L3
+  L3 -->|"overridden by"| L4
+  L4 -->|"overridden by"| L5
+
+  style L1 fill:#059669,color:#fff,stroke:#047857
+  style L2 fill:#1e40af,color:#fff,stroke:#1e3a8a
+  style L3 fill:#7c3aed,color:#fff,stroke:#6d28d9
+  style L4 fill:#1e40af,color:#fff,stroke:#1e3a8a
+  style L5 fill:#4f46e5,color:#fff,stroke:#3730a3
+```
+
+*Lowest priority on the left, highest on the right — later levels always win.*
+
 ```yaml
 # Super-fleet: sets a default model for everyone
 defaults:

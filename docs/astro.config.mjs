@@ -164,6 +164,7 @@ export default defineConfig({
 					collapsed: true,
 					items: [
 						{ label: 'Architecture', slug: 'internals/architecture' },
+						{ label: 'Chat Architecture', slug: 'internals/chat-architecture' },
 						{ label: 'Runner', slug: 'internals/runner' },
 						{ label: 'Scheduler', slug: 'internals/scheduler' },
 						{ label: 'State Management', slug: 'internals/state-management' },
