@@ -5,13 +5,13 @@
 export {
   // Constants
   DISCORD_MAX_MESSAGE_LENGTH,
-  // Functions
-  startTypingIndicator,
-  sendSplitMessage,
-  sendWithTyping,
   escapeMarkdown,
   // Types
   type SendableChannel,
   type SendSplitOptions,
+  sendSplitMessage,
+  sendWithTyping,
+  // Functions
+  startTypingIndicator,
   type TypingController,
 } from "./formatting.js";

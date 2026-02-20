@@ -5,9 +5,9 @@
  * as well as job control actions (cancel, fork).
  */
 
-import type { FastifyInstance } from "fastify";
 import type { FleetManager, JobStatus, listJobs, ResolvedAgent } from "@herdctl/core";
 import { createLogger, resolveWorkingDirectory } from "@herdctl/core";
+import type { FastifyInstance } from "fastify";
 
 const logger = createLogger("web:jobs");
 
@@ -59,7 +59,7 @@ interface ListJobsQuery {
 export function registerJobRoutes(
   server: FastifyInstance,
   fleetManager: FleetManager,
-  listJobsFn: typeof listJobs
+  listJobsFn: typeof listJobs,
 ): void {
   /**
    * GET /api/jobs
@@ -99,10 +99,7 @@ export function registerJobRoutes(
       const result = await listJobsFn(jobsDir, filter);
 
       // Apply pagination
-      const paginatedJobs = result.jobs.slice(
-        clampedOffset,
-        clampedOffset + clampedLimit
-      );
+      const paginatedJobs = result.jobs.slice(clampedOffset, clampedOffset + clampedLimit);
 
       const agents = fleetManager.getAgents();
       return reply.send({

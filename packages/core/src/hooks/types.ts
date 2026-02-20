@@ -12,25 +12,38 @@
 // Import config types that are validated by Zod
 // We import both output types (after defaults) and input types (for construction)
 import type {
+  AgentHooks,
+  DiscordHookConfig,
+  DiscordHookConfigInput,
+  HookConfig,
+  HookConfigInput,
+  HookEvent,
+  ShellHookConfig,
+  // Input types allow optional fields (for test construction)
+  ShellHookConfigInput,
+  SlackHookConfig,
+  SlackHookConfigInput,
+  WebhookHookConfig,
+  WebhookHookConfigInput,
+} from "../config/schema.js";
+
+// Re-export for convenience within the hooks module
+// Export both output types (for processed config) and input types (for test construction)
+export type {
   HookEvent,
   HookConfig,
   ShellHookConfig,
   WebhookHookConfig,
   DiscordHookConfig,
   SlackHookConfig,
-  AgentHooks,
-  // Input types allow optional fields (for test construction)
+};
+export type {
   ShellHookConfigInput,
   WebhookHookConfigInput,
   DiscordHookConfigInput,
   SlackHookConfigInput,
   HookConfigInput,
-} from "../config/schema.js";
-
-// Re-export for convenience within the hooks module
-// Export both output types (for processed config) and input types (for test construction)
-export type { HookEvent, HookConfig, ShellHookConfig, WebhookHookConfig, DiscordHookConfig, SlackHookConfig };
-export type { ShellHookConfigInput, WebhookHookConfigInput, DiscordHookConfigInput, SlackHookConfigInput, HookConfigInput };
+};
 
 // =============================================================================
 // Hook Context (Runtime Type)

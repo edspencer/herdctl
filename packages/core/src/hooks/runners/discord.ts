@@ -5,7 +5,7 @@
  * Used for team visibility into fleet activity.
  */
 
-import type { HookContext, HookResult, DiscordHookConfigInput } from "../types.js";
+import type { DiscordHookConfigInput, HookContext, HookResult } from "../types.js";
 
 /**
  * Default timeout for Discord API requests in milliseconds
@@ -90,7 +90,7 @@ function truncateOutput(output: string, maxLength: number): string {
   if (output.length <= maxLength) {
     return output;
   }
-  return output.slice(0, maxLength - 3) + "...";
+  return `${output.slice(0, maxLength - 3)}...`;
 }
 
 /**
@@ -303,7 +303,7 @@ export class DiscordHookRunner {
         // 2xx status codes are success
         if (response.ok) {
           this.logger.info(
-            `Discord hook completed successfully in ${durationMs}ms: channel ${config.channel_id} (${response.status})`
+            `Discord hook completed successfully in ${durationMs}ms: channel ${config.channel_id} (${response.status})`,
           );
           return {
             success: true,

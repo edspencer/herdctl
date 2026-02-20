@@ -8,11 +8,11 @@
  * agent configuration to SDK options using the existing toSDKOptions adapter.
  */
 
-import { query, tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
+import { createSdkMcpServer, query, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { toSDKOptions } from "../sdk-adapter.js";
-import type { RuntimeInterface, RuntimeExecuteOptions } from "./interface.js";
-import type { SDKMessage, InjectedMcpServerDef } from "../types.js";
+import type { InjectedMcpServerDef, SDKMessage } from "../types.js";
+import type { RuntimeExecuteOptions, RuntimeInterface } from "./interface.js";
 
 /**
  * Convert a JSON Schema property to a Zod schema.
@@ -50,7 +50,10 @@ function jsonPropertyToZod(prop: Record<string, unknown>, isRequired: boolean) {
  */
 function defToSdkMcpServer(def: InjectedMcpServerDef) {
   const sdkTools = def.tools.map((toolDef) => {
-    const properties = (toolDef.inputSchema.properties ?? {}) as Record<string, Record<string, unknown>>;
+    const properties = (toolDef.inputSchema.properties ?? {}) as Record<
+      string,
+      Record<string, unknown>
+    >;
     const requiredFields = (toolDef.inputSchema.required ?? []) as string[];
 
     // Build Zod shape from JSON Schema properties
@@ -59,12 +62,7 @@ function defToSdkMcpServer(def: InjectedMcpServerDef) {
       zodShape[key] = jsonPropertyToZod(prop, requiredFields.includes(key));
     }
 
-    return tool(
-      toolDef.name,
-      toolDef.description,
-      zodShape,
-      toolDef.handler,
-    );
+    return tool(toolDef.name, toolDef.description, zodShape, toolDef.handler);
   });
 
   return createSdkMcpServer({
@@ -137,7 +135,10 @@ export class SDKRuntime implements RuntimeInterface {
 
       // File uploads via MCP tools can take longer than the default 60s timeout.
       // Set a safe default if not already configured by the user.
-      if (options.injectedMcpServers["herdctl-file-sender"] && !process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT) {
+      if (
+        options.injectedMcpServers["herdctl-file-sender"] &&
+        !process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT
+      ) {
         process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT = "120000";
       }
     }

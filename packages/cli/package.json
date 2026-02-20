@@ -19,7 +19,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --exclude src/__tests__/smoke.test.ts",
     "test:smoke": "vitest run src/__tests__/smoke.test.ts",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "lint": "biome check src/"
   },
   "dependencies": {
     "@herdctl/core": "workspace:*",

@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from "vitest";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import { tmpdir } from "node:os";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { statusCommand } from "../status.js";
 
 // Store mock FleetManager for access in tests
@@ -127,9 +127,9 @@ vi.mock("@herdctl/core", async () => {
       this.getAgentInfoByName = vi.fn().mockImplementation((name: string) => {
         const agent = currentAgentInfo.find((a) => a.name === name || a.qualifiedName === name);
         if (!agent) {
-          const error = new (actual as { AgentNotFoundError: new (message: string) => Error }).AgentNotFoundError(
-            `Agent '${name}' not found`
-          );
+          const error = new (
+            actual as { AgentNotFoundError: new (message: string) => Error }
+          ).AgentNotFoundError(`Agent '${name}' not found`);
           return Promise.reject(error);
         }
         return Promise.resolve(agent);
@@ -146,13 +146,11 @@ vi.mock("@herdctl/core", async () => {
   };
 });
 
-import { AgentNotFoundError, ConfigNotFoundError } from "@herdctl/core";
-
 // Helper to create a temp directory
 function createTempDir(): string {
   const baseDir = path.join(
     tmpdir(),
-    `herdctl-cli-status-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-cli-status-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   fs.mkdirSync(baseDir, { recursive: true });
   return fs.realpathSync(baseDir);
@@ -414,7 +412,9 @@ describe("statusCommand", () => {
       }
 
       expect(exitCode).toBe(1);
-      expect(consoleErrors.some((err) => err.includes("Agent 'nonexistent-agent' not found"))).toBe(true);
+      expect(consoleErrors.some((err) => err.includes("Agent 'nonexistent-agent' not found"))).toBe(
+        true,
+      );
     });
   });
 

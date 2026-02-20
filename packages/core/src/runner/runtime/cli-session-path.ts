@@ -6,9 +6,9 @@
  * directories and specific session files.
  */
 
-import * as path from "node:path";
-import * as os from "node:os";
 import { readdir, stat } from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 
 /**
  * Encode a workspace path for CLI session storage
@@ -72,10 +72,7 @@ export function getCliSessionDir(workspacePath: string): string {
  * @param sessionId - CLI session ID (UUID format)
  * @returns Absolute path to session JSONL file
  */
-export function getCliSessionFile(
-  workspacePath: string,
-  sessionId: string,
-): string {
+export function getCliSessionFile(workspacePath: string, sessionId: string): string {
   const sessionDir = getCliSessionDir(workspacePath);
   return path.join(sessionDir, `${sessionId}.jsonl`);
 }
@@ -99,9 +96,7 @@ export function getCliSessionFile(
  * @returns Promise resolving to path of newest .jsonl file
  * @throws {Error} If directory doesn't exist or contains no .jsonl files
  */
-export async function findNewestSessionFile(
-  sessionDir: string,
-): Promise<string> {
+export async function findNewestSessionFile(sessionDir: string): Promise<string> {
   try {
     const files = await readdir(sessionDir);
     const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
@@ -193,7 +188,5 @@ export async function waitForNewSessionFile(
     await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
   }
 
-  throw new Error(
-    `Timeout waiting for new session file in ${sessionDir} (waited ${timeoutMs}ms)`,
-  );
+  throw new Error(`Timeout waiting for new session file in ${sessionDir} (waited ${timeoutMs}ms)`);
 }

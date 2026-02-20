@@ -4,15 +4,15 @@
  * Tests job history queries, output streaming, and retention management.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtemp, rm, mkdir, writeFile, appendFile } from "fs/promises";
-import { tmpdir } from "os";
-import { join } from "path";
-import { JobManager } from "../job-manager.js";
-import { JobNotFoundError } from "../errors.js";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createJob, updateJob } from "../../state/job-metadata.js";
 import { appendJobOutput } from "../../state/job-output.js";
 import type { JobMetadata } from "../../state/schemas/job-metadata.js";
+import { JobNotFoundError } from "../errors.js";
+import { JobManager } from "../job-manager.js";
 
 describe("JobManager", () => {
   let tempDir: string;
@@ -46,8 +46,7 @@ describe("JobManager", () => {
     if (options.status && options.status !== "pending") {
       return await updateJob(jobsDir, job.id, {
         status: options.status,
-        finished_at:
-          options.status === "running" ? undefined : new Date().toISOString(),
+        finished_at: options.status === "running" ? undefined : new Date().toISOString(),
         exit_reason:
           options.status === "completed"
             ? "success"
@@ -182,11 +181,9 @@ describe("JobManager", () => {
 
       expect(result.jobs).toHaveLength(2);
       expect(result.total).toBe(2);
-      expect(
-        result.jobs.every(
-          (j) => j.agent === "agent-1" && j.status === "completed"
-        )
-      ).toBe(true);
+      expect(result.jobs.every((j) => j.agent === "agent-1" && j.status === "completed")).toBe(
+        true,
+      );
     });
 
     it("returns jobs sorted by started_at descending", async () => {
@@ -222,16 +219,12 @@ describe("JobManager", () => {
     it("throws JobNotFoundError for unknown ID", async () => {
       const manager = new JobManager({ jobsDir });
 
-      await expect(manager.getJob("job-2099-01-01-xxxxxx")).rejects.toThrow(
-        JobNotFoundError
-      );
+      await expect(manager.getJob("job-2099-01-01-xxxxxx")).rejects.toThrow(JobNotFoundError);
 
-      await expect(manager.getJob("job-2099-01-01-xxxxxx")).rejects.toMatchObject(
-        {
-          name: "JobNotFoundError",
-          jobId: "job-2099-01-01-xxxxxx",
-        }
-      );
+      await expect(manager.getJob("job-2099-01-01-xxxxxx")).rejects.toMatchObject({
+        name: "JobNotFoundError",
+        jobId: "job-2099-01-01-xxxxxx",
+      });
     });
 
     it("returns job without output by default", async () => {
@@ -276,9 +269,9 @@ describe("JobManager", () => {
     it("throws JobNotFoundError for unknown job", async () => {
       const manager = new JobManager({ jobsDir });
 
-      await expect(
-        manager.streamJobOutput("job-2099-01-01-xxxxxx")
-      ).rejects.toThrow(JobNotFoundError);
+      await expect(manager.streamJobOutput("job-2099-01-01-xxxxxx")).rejects.toThrow(
+        JobNotFoundError,
+      );
     });
 
     it("emits existing messages immediately", async () => {
@@ -503,7 +496,7 @@ describe("JobManager", () => {
   describe("job persistence survives restarts", () => {
     it("jobs persist after creating new JobManager instance", async () => {
       // Create first manager and add jobs
-      const manager1 = new JobManager({ jobsDir });
+      const _manager1 = new JobManager({ jobsDir });
       const created = await createTestJob({ agent: "test-agent" });
 
       // Create new manager instance (simulating restart)
@@ -517,7 +510,7 @@ describe("JobManager", () => {
 
     it("job output persists after creating new JobManager instance", async () => {
       // Create first manager and add job with output
-      const manager1 = new JobManager({ jobsDir });
+      const _manager1 = new JobManager({ jobsDir });
       const created = await createTestJob({ agent: "test-agent" });
 
       await appendJobOutput(jobsDir, created.id, {
@@ -532,9 +525,7 @@ describe("JobManager", () => {
       const job = await manager2.getJob(created.id, { includeOutput: true });
       expect(job.output).toBeDefined();
       expect(job.output).toHaveLength(1);
-      expect((job.output![0] as { content?: string }).content).toBe(
-        "Persistent message"
-      );
+      expect((job.output![0] as { content?: string }).content).toBe("Persistent message");
     });
   });
 
@@ -664,10 +655,7 @@ describe("JobManager", () => {
 
       // Write invalid JSON directly to output file (correct path format)
       const outputPath = join(jobsDir, `${created.id}.jsonl`);
-      await writeFile(
-        outputPath,
-        'not valid json\n{"type": "assistant", "content": "valid"}\n'
-      );
+      await writeFile(outputPath, 'not valid json\n{"type": "assistant", "content": "valid"}\n');
 
       const messages: unknown[] = [];
       const stream = await manager.streamJobOutput(created.id);
@@ -860,9 +848,7 @@ describe("JobManager", () => {
       const manager = new JobManager({ jobsDir });
       await createTestJob({ agent: "agent-1", status: "completed" });
 
-      const job = await manager.getJob(
-        (await manager.getJobs()).jobs[0].id
-      );
+      const job = await manager.getJob((await manager.getJobs()).jobs[0].id);
       expect(job).toBeDefined();
     });
   });

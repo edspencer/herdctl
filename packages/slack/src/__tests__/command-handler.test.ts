@@ -1,15 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
+import type { IChatSessionManager } from "@herdctl/chat";
+import { describe, expect, it, vi } from "vitest";
 import {
+  type CommandContext,
   CommandHandler,
   type PrefixCommand,
-  type CommandContext,
 } from "../commands/command-handler.js";
-import type { IChatSessionManager } from "@herdctl/chat";
 import type { SlackConnectorState } from "../types.js";
 
-const createMockContext = (
-  overrides: Partial<CommandContext> = {}
-): CommandContext => ({
+const createMockContext = (overrides: Partial<CommandContext> = {}): CommandContext => ({
   agentName: "test-agent",
   channelId: "C0123456789",
   userId: "U0123456789",
@@ -34,10 +32,7 @@ const createMockContext = (
   ...overrides,
 });
 
-const createTestCommand = (
-  name: string,
-  executeFn?: PrefixCommand["execute"]
-): PrefixCommand => ({
+const createTestCommand = (name: string, executeFn?: PrefixCommand["execute"]): PrefixCommand => ({
   name,
   description: `Test ${name} command`,
   execute: executeFn ?? vi.fn().mockResolvedValue(undefined),
@@ -147,16 +142,14 @@ describe("CommandHandler", () => {
       handler.registerCommand(
         createTestCommand("fail", async () => {
           throw new Error("Command failed");
-        })
+        }),
       );
 
       const context = createMockContext();
       const result = await handler.executeCommand("!fail", context);
 
       expect(result).toBe(true); // Command was attempted
-      expect(context.reply).toHaveBeenCalledWith(
-        expect.stringContaining("error")
-      );
+      expect(context.reply).toHaveBeenCalledWith(expect.stringContaining("error"));
     });
 
     it("handles reply error during error handling", async () => {
@@ -164,7 +157,7 @@ describe("CommandHandler", () => {
       handler.registerCommand(
         createTestCommand("fail", async () => {
           throw new Error("Command failed");
-        })
+        }),
       );
 
       const context = createMockContext({

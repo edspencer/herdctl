@@ -7,7 +7,15 @@
  * - Building conversation context from message history
  */
 
-import type { Message, Collection, Snowflake, TextChannel, DMChannel, NewsChannel, ThreadChannel } from "discord.js";
+import type {
+  Collection,
+  DMChannel,
+  Message,
+  NewsChannel,
+  Snowflake,
+  TextChannel,
+  ThreadChannel,
+} from "discord.js";
 
 // =============================================================================
 // Types
@@ -120,7 +128,7 @@ export function isBotMentioned(message: Message, botUserId: string): boolean {
 export function shouldProcessMessage(
   message: Message,
   botUserId: string,
-  mode: "mention" | "auto"
+  mode: "mention" | "auto",
 ): boolean {
   // Never process messages from bots (including self)
   if (message.author.bot) {
@@ -174,11 +182,7 @@ export function stripBotMention(content: string, botUserId: string): string {
  * @param botUserId - The bot's user ID
  * @returns Content with bot role mentions removed
  */
-export function stripBotRoleMentions(
-  content: string,
-  message: Message,
-  botUserId: string
-): string {
+export function stripBotRoleMentions(content: string, message: Message, botUserId: string): string {
   let result = content;
 
   // Find role mentions where the bot is a member and strip them
@@ -222,10 +226,7 @@ export function stripMentions(content: string, botUserId?: string): string {
  * @param botUserId - The bot's user ID
  * @returns Processed context message
  */
-export function processMessage(
-  message: Message,
-  botUserId: string
-): ContextMessage {
+export function processMessage(message: Message, botUserId: string): ContextMessage {
   // Strip both user mentions and role mentions where bot is a member
   let content = stripBotMention(message.content, botUserId);
   content = stripBotRoleMentions(content, message, botUserId);
@@ -252,7 +253,7 @@ export function processMessage(
 export async function fetchMessageHistory(
   channel: TextBasedChannel,
   beforeMessageId: string,
-  limit: number
+  limit: number,
 ): Promise<Collection<Snowflake, Message>> {
   return channel.messages.fetch({
     before: beforeMessageId,
@@ -289,13 +290,9 @@ export async function buildConversationContext(
   triggerMessage: Message,
   channel: TextBasedChannel,
   botUserId: string,
-  options: ContextBuildOptions = {}
+  options: ContextBuildOptions = {},
 ): Promise<ConversationContext> {
-  const {
-    maxMessages = 10,
-    includeBotMessages = true,
-    prioritizeUserMessages = true,
-  } = options;
+  const { maxMessages = 10, includeBotMessages = true, prioritizeUserMessages = true } = options;
 
   // Process the trigger message
   const wasMentioned = isBotMentioned(triggerMessage, botUserId);
@@ -306,11 +303,7 @@ export async function buildConversationContext(
   // Fetch message history (messages before the trigger)
   // Fetch more than we need to allow for filtering
   const fetchLimit = prioritizeUserMessages ? maxMessages * 2 : maxMessages;
-  const history = await fetchMessageHistory(
-    channel,
-    triggerMessage.id,
-    fetchLimit
-  );
+  const history = await fetchMessageHistory(channel, triggerMessage.id, fetchLimit);
 
   // Convert to array and process
   let processedMessages = Array.from(history.values())
@@ -342,17 +335,13 @@ export async function buildConversationContext(
 
     // Sort by timestamp (oldest first)
     processedMessages = selectedMessages.sort(
-      (a, b) =>
-        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
     );
   } else {
     // Take messages and sort by timestamp (oldest first) for chronological order
     processedMessages = processedMessages
       .slice(0, maxMessages)
-      .sort(
-        (a, b) =>
-          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-      );
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   }
 
   return {

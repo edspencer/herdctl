@@ -9,9 +9,9 @@
  * - herdctl sessions resume [session-id] Resume a session in Claude Code
  */
 
-import { listSessions, loadConfig, type SessionInfo } from "@herdctl/core";
-import { join } from "node:path";
 import { spawn } from "node:child_process";
+import { join } from "node:path";
+import { listSessions, loadConfig, type SessionInfo } from "@herdctl/core";
 
 export interface SessionsOptions {
   agent?: string;
@@ -102,7 +102,7 @@ function formatRelativeTime(isoTimestamp: string): string {
  */
 function formatSessionsTable(
   sessions: SessionInfo[],
-  agentWorkspaces: Map<string, string | undefined>
+  agentWorkspaces: Map<string, string | undefined>,
 ): string {
   const lines: string[] = [];
 
@@ -110,7 +110,9 @@ function formatSessionsTable(
     lines.push("");
     lines.push(colorize("No sessions found.", "dim"));
     lines.push("");
-    lines.push(colorize("Sessions are created when agents run with session persistence enabled.", "dim"));
+    lines.push(
+      colorize("Sessions are created when agents run with session persistence enabled.", "dim"),
+    );
     lines.push("");
     return lines.join("\n");
   }
@@ -128,9 +130,11 @@ function formatSessionsTable(
 
   // Table header
   lines.push(
-    `${"AGENT".padEnd(agentWidth)}${"SESSION ID".padEnd(sessionIdWidth)}${"LAST ACTIVE".padEnd(lastActiveWidth)}${"JOBS".padEnd(jobsWidth)}`
+    `${"AGENT".padEnd(agentWidth)}${"SESSION ID".padEnd(sessionIdWidth)}${"LAST ACTIVE".padEnd(lastActiveWidth)}${"JOBS".padEnd(jobsWidth)}`,
   );
-  lines.push(colorize("─".repeat(agentWidth + sessionIdWidth + lastActiveWidth + jobsWidth), "dim"));
+  lines.push(
+    colorize("─".repeat(agentWidth + sessionIdWidth + lastActiveWidth + jobsWidth), "dim"),
+  );
 
   // Table rows
   for (const session of sessions) {
@@ -139,7 +143,7 @@ function formatSessionsTable(
       : agentWidth;
 
     lines.push(
-      `${colorize(session.agent_name, "cyan").padEnd(agentPad)}${session.session_id.padEnd(sessionIdWidth)}${formatRelativeTime(session.last_used_at).padEnd(lastActiveWidth)}${String(session.job_count).padEnd(jobsWidth)}`
+      `${colorize(session.agent_name, "cyan").padEnd(agentPad)}${session.session_id.padEnd(sessionIdWidth)}${formatRelativeTime(session.last_used_at).padEnd(lastActiveWidth)}${String(session.job_count).padEnd(jobsWidth)}`,
     );
   }
 
@@ -166,7 +170,7 @@ function formatSessionsTable(
  */
 function formatSessionsVerbose(
   sessions: SessionInfo[],
-  agentWorkspaces: Map<string, string | undefined>
+  agentWorkspaces: Map<string, string | undefined>,
 ): string {
   const lines: string[] = [];
 
@@ -184,13 +188,15 @@ function formatSessionsVerbose(
   for (const session of sessions) {
     lines.push("");
     lines.push(
-      `${colorize(session.agent_name, "cyan")} ${colorize(`(${session.job_count} jobs, ${formatRelativeTime(session.last_used_at)})`, "dim")}`
+      `${colorize(session.agent_name, "cyan")} ${colorize(`(${session.job_count} jobs, ${formatRelativeTime(session.last_used_at)})`, "dim")}`,
     );
     lines.push(`  Session: ${session.session_id}`);
 
     const workspace = agentWorkspaces.get(session.agent_name);
     if (workspace) {
-      lines.push(`  Resume:  ${colorize(`cd ${workspace} && claude --resume ${session.session_id}`, "green")}`);
+      lines.push(
+        `  Resume:  ${colorize(`cd ${workspace} && claude --resume ${session.session_id}`, "green")}`,
+      );
     } else {
       lines.push(`  Resume:  ${colorize(`claude --resume ${session.session_id}`, "green")}`);
     }
@@ -291,7 +297,7 @@ export async function sessionsCommand(options: SessionsOptions): Promise<void> {
             code: "UNKNOWN_ERROR",
             message: error instanceof Error ? error.message : String(error),
           },
-        })
+        }),
       );
       process.exit(1);
     }
@@ -306,7 +312,7 @@ export async function sessionsCommand(options: SessionsOptions): Promise<void> {
  */
 async function getAgentWorkspace(
   agentName: string,
-  configPath: string
+  configPath: string,
 ): Promise<string | undefined> {
   try {
     const config = await loadConfig(configPath);
@@ -332,7 +338,7 @@ async function getAgentWorkspace(
  */
 export async function sessionsResumeCommand(
   sessionId: string | undefined,
-  options: SessionsResumeOptions
+  options: SessionsResumeOptions,
 ): Promise<void> {
   const stateDir = options.state || DEFAULT_STATE_DIR;
 
@@ -356,7 +362,7 @@ export async function sessionsResumeCommand(
     if (sessionId) {
       // Find by session ID (support partial matches)
       session = sessions.find(
-        (s) => s.session_id === sessionId || s.session_id.startsWith(sessionId)
+        (s) => s.session_id === sessionId || s.session_id.startsWith(sessionId),
       );
 
       if (!session) {
@@ -388,7 +394,7 @@ export async function sessionsResumeCommand(
     // Display what we're resuming
     console.log("");
     console.log(
-      `Resuming session for ${colorize(session.agent_name, "cyan")} (${session.job_count} jobs, last active ${formatRelativeTime(session.last_used_at)})`
+      `Resuming session for ${colorize(session.agent_name, "cyan")} (${session.job_count} jobs, last active ${formatRelativeTime(session.last_used_at)})`,
     );
     console.log(`Session: ${colorize(session.session_id, "dim")}`);
     if (workspace) {

@@ -5,12 +5,12 @@
  * optionally selecting a schedule, and optionally providing a prompt override.
  */
 
-import { useState, useEffect, useCallback } from "react";
-import { X, Play, AlertCircle, CheckCircle } from "lucide-react";
-import { useFleet } from "../../store";
+import { AlertCircle, CheckCircle, Play, X } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { triggerAgent } from "../../lib/api";
-import { Spinner } from "../ui";
 import type { ScheduleInfo } from "../../lib/types";
+import { useFleet } from "../../store";
+import { Spinner } from "../ui";
 
 // =============================================================================
 // Types
@@ -120,15 +120,20 @@ export function TriggerJobModal({
   if (!isOpen) return null;
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: modal backdrop dismissal via click
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
       onClick={handleBackdropClick}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onClose();
+      }}
     >
       <div className="bg-herd-card border border-herd-border rounded-[10px] p-5 max-w-md w-full mx-4 shadow-lg">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-herd-fg">Trigger Job</h3>
           <button
+            type="button"
             onClick={onClose}
             className="p-1 hover:bg-herd-hover rounded transition-colors"
             aria-label="Close modal"
@@ -225,6 +230,7 @@ export function TriggerJobModal({
             {/* Actions */}
             <div className="flex justify-end gap-2">
               <button
+                type="button"
                 onClick={onClose}
                 disabled={submitting}
                 className="border border-herd-border hover:bg-herd-hover text-herd-fg rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -232,6 +238,7 @@ export function TriggerJobModal({
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleSubmit}
                 disabled={submitting || !selectedAgent}
                 className="bg-herd-primary hover:bg-herd-primary-hover text-white rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"

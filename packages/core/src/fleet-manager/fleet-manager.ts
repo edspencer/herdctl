@@ -15,52 +15,50 @@ import { EventEmitter } from "node:events";
 import { resolve } from "node:path";
 
 import {
-  loadConfig,
-  type ResolvedConfig,
-  type ResolvedAgent,
-  ConfigNotFoundError,
   ConfigError,
+  ConfigNotFoundError,
+  loadConfig,
+  type ResolvedAgent,
+  type ResolvedConfig,
 } from "../config/index.js";
-import { initStateDirectory, type StateDirectory } from "../state/index.js";
 import { Scheduler, type TriggerInfo } from "../scheduler/index.js";
-
-import type { FleetManagerContext } from "./context.js";
-import type {
-  FleetManagerOptions,
-  FleetConfigOverrides,
-  FleetManagerState,
-  FleetManagerStatus,
-  FleetManagerLogger,
-  FleetManagerStopOptions,
-  FleetStatus,
-  AgentInfo,
-  ScheduleInfo,
-  TriggerOptions,
-  TriggerResult,
-  JobModifications,
-  CancelJobResult,
-  ForkJobResult,
-  LogEntry,
-  LogStreamOptions,
-  ConfigChange,
-  ConfigReloadedPayload,
-} from "./types.js";
-import {
-  InvalidStateError,
-  ConfigurationError,
-  FleetManagerStateDirError,
-  FleetManagerShutdownError,
-} from "./errors.js";
-
-// Module classes
-import { StatusQueries } from "./status-queries.js";
-import { ScheduleManagement } from "./schedule-management.js";
+import { initStateDirectory, type StateDirectory } from "../state/index.js";
+import { createLogger } from "../utils/logger.js";
+import type { IChatManager } from "./chat-manager-interface.js";
 import { ConfigReload, computeConfigChanges } from "./config-reload.js";
+import type { FleetManagerContext } from "./context.js";
+import {
+  ConfigurationError,
+  FleetManagerShutdownError,
+  FleetManagerStateDirError,
+  InvalidStateError,
+} from "./errors.js";
 import { JobControl } from "./job-control.js";
 import { LogStreaming } from "./log-streaming.js";
 import { ScheduleExecutor } from "./schedule-executor.js";
-import { createLogger } from "../utils/logger.js";
-import type { IChatManager } from "./chat-manager-interface.js";
+import { ScheduleManagement } from "./schedule-management.js";
+// Module classes
+import { StatusQueries } from "./status-queries.js";
+import type {
+  AgentInfo,
+  CancelJobResult,
+  ConfigChange,
+  ConfigReloadedPayload,
+  FleetConfigOverrides,
+  FleetManagerLogger,
+  FleetManagerOptions,
+  FleetManagerState,
+  FleetManagerStatus,
+  FleetManagerStopOptions,
+  FleetStatus,
+  ForkJobResult,
+  JobModifications,
+  LogEntry,
+  LogStreamOptions,
+  ScheduleInfo,
+  TriggerOptions,
+  TriggerResult,
+} from "./types.js";
 
 const DEFAULT_CHECK_INTERVAL = 1000;
 
@@ -122,18 +120,42 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   // FleetManagerContext Implementation
   // ===========================================================================
 
-  getConfig(): ResolvedConfig | null { return this.config; }
-  getStateDir(): string { return this.stateDir; }
-  getStateDirInfo(): StateDirectory | null { return this.stateDirInfo; }
-  getLogger(): FleetManagerLogger { return this.logger; }
-  getScheduler(): Scheduler | null { return this.scheduler; }
-  getStatus(): FleetManagerStatus { return this.status; }
-  getInitializedAt(): string | null { return this.initializedAt; }
-  getStartedAt(): string | null { return this.startedAt; }
-  getStoppedAt(): string | null { return this.stoppedAt; }
-  getLastError(): string | null { return this.lastError; }
-  getCheckInterval(): number { return this.checkInterval; }
-  getEmitter(): EventEmitter { return this; }
+  getConfig(): ResolvedConfig | null {
+    return this.config;
+  }
+  getStateDir(): string {
+    return this.stateDir;
+  }
+  getStateDirInfo(): StateDirectory | null {
+    return this.stateDirInfo;
+  }
+  getLogger(): FleetManagerLogger {
+    return this.logger;
+  }
+  getScheduler(): Scheduler | null {
+    return this.scheduler;
+  }
+  getStatus(): FleetManagerStatus {
+    return this.status;
+  }
+  getInitializedAt(): string | null {
+    return this.initializedAt;
+  }
+  getStartedAt(): string | null {
+    return this.startedAt;
+  }
+  getStoppedAt(): string | null {
+    return this.stoppedAt;
+  }
+  getLastError(): string | null {
+    return this.lastError;
+  }
+  getCheckInterval(): number {
+    return this.checkInterval;
+  }
+  getEmitter(): EventEmitter {
+    return this;
+  }
 
   /**
    * Get a chat manager by platform name
@@ -164,7 +186,9 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     };
   }
 
-  getAgents(): ResolvedAgent[] { return this.config?.agents ?? []; }
+  getAgents(): ResolvedAgent[] {
+    return this.config?.agents ?? [];
+  }
 
   // ===========================================================================
   // Lifecycle Methods
@@ -254,7 +278,12 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       return;
     }
 
-    const { waitForJobs = true, timeout = 30000, cancelOnTimeout = false, cancelTimeout = 10000 } = options ?? {};
+    const {
+      waitForJobs = true,
+      timeout = 30000,
+      cancelOnTimeout = false,
+      cancelTimeout = 10000,
+    } = options ?? {};
 
     this.logger.info("Stopping fleet manager...");
     this.status = "stopping";
@@ -303,30 +332,69 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   // ===========================================================================
 
   // Status Queries
-  async getFleetStatus(): Promise<FleetStatus> { return this.statusQueries.getFleetStatus(); }
-  async getAgentInfo(): Promise<AgentInfo[]> { return this.statusQueries.getAgentInfo(); }
-  async getAgentInfoByName(name: string): Promise<AgentInfo> { return this.statusQueries.getAgentInfoByName(name); }
+  async getFleetStatus(): Promise<FleetStatus> {
+    return this.statusQueries.getFleetStatus();
+  }
+  async getAgentInfo(): Promise<AgentInfo[]> {
+    return this.statusQueries.getAgentInfo();
+  }
+  async getAgentInfoByName(name: string): Promise<AgentInfo> {
+    return this.statusQueries.getAgentInfoByName(name);
+  }
 
   // Schedule Management
-  async getSchedules(): Promise<ScheduleInfo[]> { return this.scheduleManagement.getSchedules(); }
-  async getSchedule(agentName: string, scheduleName: string): Promise<ScheduleInfo> { return this.scheduleManagement.getSchedule(agentName, scheduleName); }
-  async enableSchedule(agentName: string, scheduleName: string): Promise<ScheduleInfo> { return this.scheduleManagement.enableSchedule(agentName, scheduleName); }
-  async disableSchedule(agentName: string, scheduleName: string): Promise<ScheduleInfo> { return this.scheduleManagement.disableSchedule(agentName, scheduleName); }
+  async getSchedules(): Promise<ScheduleInfo[]> {
+    return this.scheduleManagement.getSchedules();
+  }
+  async getSchedule(agentName: string, scheduleName: string): Promise<ScheduleInfo> {
+    return this.scheduleManagement.getSchedule(agentName, scheduleName);
+  }
+  async enableSchedule(agentName: string, scheduleName: string): Promise<ScheduleInfo> {
+    return this.scheduleManagement.enableSchedule(agentName, scheduleName);
+  }
+  async disableSchedule(agentName: string, scheduleName: string): Promise<ScheduleInfo> {
+    return this.scheduleManagement.disableSchedule(agentName, scheduleName);
+  }
 
   // Config Reload
-  async reload(): Promise<ConfigReloadedPayload> { return this.configReloadModule.reload(); }
-  computeConfigChanges(oldConfig: ResolvedConfig | null, newConfig: ResolvedConfig): ConfigChange[] { return computeConfigChanges(oldConfig, newConfig); }
+  async reload(): Promise<ConfigReloadedPayload> {
+    return this.configReloadModule.reload();
+  }
+  computeConfigChanges(
+    oldConfig: ResolvedConfig | null,
+    newConfig: ResolvedConfig,
+  ): ConfigChange[] {
+    return computeConfigChanges(oldConfig, newConfig);
+  }
 
   // Job Control
-  async trigger(agentName: string, scheduleName?: string, options?: TriggerOptions): Promise<TriggerResult> { return this.jobControl.trigger(agentName, scheduleName, options); }
-  async cancelJob(jobId: string, options?: { timeout?: number }): Promise<CancelJobResult> { return this.jobControl.cancelJob(jobId, options); }
-  async forkJob(jobId: string, modifications?: JobModifications): Promise<ForkJobResult> { return this.jobControl.forkJob(jobId, modifications); }
-  async getJobFinalOutput(jobId: string): Promise<string> { return this.jobControl.getJobFinalOutput(jobId); }
+  async trigger(
+    agentName: string,
+    scheduleName?: string,
+    options?: TriggerOptions,
+  ): Promise<TriggerResult> {
+    return this.jobControl.trigger(agentName, scheduleName, options);
+  }
+  async cancelJob(jobId: string, options?: { timeout?: number }): Promise<CancelJobResult> {
+    return this.jobControl.cancelJob(jobId, options);
+  }
+  async forkJob(jobId: string, modifications?: JobModifications): Promise<ForkJobResult> {
+    return this.jobControl.forkJob(jobId, modifications);
+  }
+  async getJobFinalOutput(jobId: string): Promise<string> {
+    return this.jobControl.getJobFinalOutput(jobId);
+  }
 
   // Log Streaming
-  async *streamLogs(options?: LogStreamOptions): AsyncIterable<LogEntry> { yield* this.logStreaming.streamLogs(options); }
-  async *streamJobOutput(jobId: string): AsyncIterable<LogEntry> { yield* this.logStreaming.streamJobOutput(jobId); }
-  async *streamAgentLogs(agentName: string): AsyncIterable<LogEntry> { yield* this.logStreaming.streamAgentLogs(agentName); }
+  async *streamLogs(options?: LogStreamOptions): AsyncIterable<LogEntry> {
+    yield* this.logStreaming.streamLogs(options);
+  }
+  async *streamJobOutput(jobId: string): AsyncIterable<LogEntry> {
+    yield* this.logStreaming.streamJobOutput(jobId);
+  }
+  async *streamAgentLogs(agentName: string): AsyncIterable<LogEntry> {
+    yield* this.logStreaming.streamAgentLogs(agentName);
+  }
 
   // ===========================================================================
   // Private Methods
@@ -334,8 +402,16 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
 
   private initializeModules(): void {
     this.statusQueries = new StatusQueries(this);
-    this.scheduleManagement = new ScheduleManagement(this, () => this.statusQueries.readFleetStateSnapshot());
-    this.configReloadModule = new ConfigReload(this, () => this.loadConfiguration(), (config) => { this.config = config; });
+    this.scheduleManagement = new ScheduleManagement(this, () =>
+      this.statusQueries.readFleetStateSnapshot(),
+    );
+    this.configReloadModule = new ConfigReload(
+      this,
+      () => this.loadConfiguration(),
+      (config) => {
+        this.config = config;
+      },
+    );
     this.jobControl = new JobControl(this, () => this.statusQueries.getAgentInfo());
     this.logStreaming = new LogStreaming(this);
     this.scheduleExecutor = new ScheduleExecutor(this);
@@ -355,9 +431,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     if (!this.config) return;
 
     // Check if any agents have Discord configured
-    const hasDiscordAgents = this.config.agents.some(
-      (agent) => agent.chat?.discord !== undefined
-    );
+    const hasDiscordAgents = this.config.agents.some((agent) => agent.chat?.discord !== undefined);
 
     if (hasDiscordAgents) {
       try {
@@ -372,14 +446,14 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
         this.logger.debug("Discord chat manager created");
       } catch {
         // Package not installed - warn since Discord is explicitly configured
-        this.logger.warn("@herdctl/discord not installed, skipping Discord integration — install it with: pnpm add @herdctl/discord");
+        this.logger.warn(
+          "@herdctl/discord not installed, skipping Discord integration — install it with: pnpm add @herdctl/discord",
+        );
       }
     }
 
     // Check if any agents have Slack configured
-    const hasSlackAgents = this.config.agents.some(
-      (agent) => agent.chat?.slack !== undefined
-    );
+    const hasSlackAgents = this.config.agents.some((agent) => agent.chat?.slack !== undefined);
 
     if (hasSlackAgents) {
       try {
@@ -394,7 +468,9 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
         this.logger.debug("Slack chat manager created");
       } catch {
         // Package not installed - warn since Slack is explicitly configured
-        this.logger.warn("@herdctl/slack not installed, skipping Slack integration — install it with: pnpm add @herdctl/slack");
+        this.logger.warn(
+          "@herdctl/slack not installed, skipping Slack integration — install it with: pnpm add @herdctl/slack",
+        );
       }
     }
 
@@ -412,7 +488,9 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
         this.logger.debug("Web chat manager created");
       } catch {
         // Package not installed - warn since web is explicitly enabled in config
-        this.logger.warn("@herdctl/web not installed, skipping web dashboard — install it with: pnpm add @herdctl/web");
+        this.logger.warn(
+          "@herdctl/web not installed, skipping web dashboard — install it with: pnpm add @herdctl/web",
+        );
       }
     }
   }
@@ -423,12 +501,21 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       config = await loadConfig(this.configPath);
     } catch (error) {
       if (error instanceof ConfigNotFoundError) {
-        throw new ConfigurationError(`Configuration file not found. ${error.message}`, { configPath: this.configPath, cause: error });
+        throw new ConfigurationError(`Configuration file not found. ${error.message}`, {
+          configPath: this.configPath,
+          cause: error,
+        });
       }
       if (error instanceof ConfigError) {
-        throw new ConfigurationError(`Invalid configuration: ${error.message}`, { configPath: this.configPath, cause: error });
+        throw new ConfigurationError(`Invalid configuration: ${error.message}`, {
+          configPath: this.configPath,
+          cause: error,
+        });
       }
-      throw new ConfigurationError(`Failed to load configuration: ${error instanceof Error ? error.message : String(error)}`, { configPath: this.configPath, cause: error instanceof Error ? error : undefined });
+      throw new ConfigurationError(
+        `Failed to load configuration: ${error instanceof Error ? error.message : String(error)}`,
+        { configPath: this.configPath, cause: error instanceof Error ? error : undefined },
+      );
     }
 
     // Apply runtime config overrides (e.g., from CLI flags)
@@ -504,13 +591,13 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     if (duplicates.length === 1) {
       // Single duplicate - use spec format with "found" for backward compatibility
       throw new ConfigurationError(
-        `Duplicate agent qualified name found: "${duplicates[0]}". Agent names must be unique within a fleet.`
+        `Duplicate agent qualified name found: "${duplicates[0]}". Agent names must be unique within a fleet.`,
       );
     } else if (duplicates.length > 1) {
       // Multiple duplicates - list all of them
-      const duplicateList = duplicates.map(name => `"${name}"`).join(", ");
+      const duplicateList = duplicates.map((name) => `"${name}"`).join(", ");
       throw new ConfigurationError(
-        `Duplicate agent qualified names found: ${duplicateList}. Agent names must be unique within a fleet.`
+        `Duplicate agent qualified names found: ${duplicateList}. Agent names must be unique within a fleet.`,
       );
     }
   }
@@ -519,14 +606,20 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     try {
       return await initStateDirectory({ path: this.stateDir });
     } catch (error) {
-      throw new FleetManagerStateDirError(`Failed to initialize state directory: ${error instanceof Error ? error.message : String(error)}`, this.stateDir, { cause: error instanceof Error ? error : undefined });
+      throw new FleetManagerStateDirError(
+        `Failed to initialize state directory: ${error instanceof Error ? error.message : String(error)}`,
+        this.stateDir,
+        { cause: error instanceof Error ? error : undefined },
+      );
     }
   }
 
   private startSchedulerAsync(agents: ResolvedAgent[]): void {
     this.scheduler!.start(agents).catch((error) => {
       if (this.status === "running" || this.status === "starting") {
-        this.logger.error(`Scheduler error: ${error instanceof Error ? error.message : String(error)}`);
+        this.logger.error(
+          `Scheduler error: ${error instanceof Error ? error.message : String(error)}`,
+        );
         this.status = "error";
         this.lastError = error instanceof Error ? error.message : String(error);
         this.emit("error", error instanceof Error ? error : new Error(String(error)));
@@ -543,7 +636,10 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
 
     const { writeFleetState } = await import("../state/fleet-state.js");
     const currentState = await this.statusQueries.readFleetStateSnapshot();
-    const updatedState = { ...currentState, fleet: { ...currentState.fleet, stoppedAt: new Date().toISOString() } };
+    const updatedState = {
+      ...currentState,
+      fleet: { ...currentState.fleet, stoppedAt: new Date().toISOString() },
+    };
 
     try {
       await writeFleetState(this.stateDirInfo.stateFile, updatedState);

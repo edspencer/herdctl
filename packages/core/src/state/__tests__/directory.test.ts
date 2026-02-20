@@ -1,40 +1,24 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import {
-  mkdir,
-  rm,
-  realpath,
-  readFile,
-  writeFile,
-  chmod,
-  stat,
-} from "node:fs/promises";
+import { chmod, mkdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { platform, tmpdir } from "node:os";
 import { join } from "node:path";
-import { tmpdir, platform } from "node:os";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
 
+import { getStateDirectory, initStateDirectory, validateStateDirectory } from "../directory.js";
 import {
-  initStateDirectory,
-  getStateDirectory,
-  validateStateDirectory,
-} from "../directory.js";
-import {
+  getPermissionErrorMessage,
   StateDirectoryCreateError,
   StateDirectoryValidationError,
-  StateFileError,
   StateError,
-  getPermissionErrorMessage,
+  StateFileError,
 } from "../errors.js";
-import {
-  DEFAULT_STATE_DIR_NAME,
-  STATE_FILE_NAME,
-  STATE_SUBDIRECTORIES,
-} from "../types.js";
+import { DEFAULT_STATE_DIR_NAME, STATE_FILE_NAME, STATE_SUBDIRECTORIES } from "../types.js";
 
 // Helper to create a temp directory
 async function createTempDir(): Promise<string> {
   const baseDir = join(
     tmpdir(),
-    `herdctl-state-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-state-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   await mkdir(baseDir, { recursive: true });
   // Resolve to real path to handle macOS /var -> /private/var symlink
@@ -193,7 +177,7 @@ describe("initStateDirectory", () => {
 
     // Modify the state file
     const stateFilePath = join(stateDirPath, STATE_FILE_NAME);
-    const modifiedState = {
+    const _modifiedState = {
       fleet: { started_at: "2024-01-01T00:00:00Z" },
       agents: {
         "test-agent": {
@@ -202,7 +186,11 @@ describe("initStateDirectory", () => {
         },
       },
     };
-    await writeFile(stateFilePath, `fleet:\n  started_at: "2024-01-01T00:00:00Z"\nagents:\n  test-agent:\n    status: idle\n    last_job: job-123\n`, "utf-8");
+    await writeFile(
+      stateFilePath,
+      `fleet:\n  started_at: "2024-01-01T00:00:00Z"\nagents:\n  test-agent:\n    status: idle\n    last_job: job-123\n`,
+      "utf-8",
+    );
 
     // Second init should preserve content
     await initStateDirectory({ path: stateDirPath });
@@ -214,7 +202,7 @@ describe("initStateDirectory", () => {
     expect(parsed.agents["test-agent"].last_job).toBe("job-123");
   });
 
-  it("throws StateDirectoryCreateError when parent directory is not writable", async function () {
+  it("throws StateDirectoryCreateError when parent directory is not writable", async () => {
     // Skip on Windows - permission model differs
     if (platform() === "win32") {
       return;
@@ -228,7 +216,7 @@ describe("initStateDirectory", () => {
 
     try {
       await expect(initStateDirectory({ path: stateDirPath })).rejects.toThrow(
-        StateDirectoryCreateError
+        StateDirectoryCreateError,
       );
     } finally {
       // Restore permissions for cleanup
@@ -249,9 +237,7 @@ describe("initStateDirectory", () => {
     const stateFilePath = join(stateDirPath, STATE_FILE_NAME);
     await writeFile(stateFilePath, "agents:\n  test-agent:\n    status: invalid-status\n", "utf-8");
 
-    await expect(initStateDirectory({ path: stateDirPath })).rejects.toThrow(
-      StateFileError
-    );
+    await expect(initStateDirectory({ path: stateDirPath })).rejects.toThrow(StateFileError);
   });
 
   it("throws StateFileError when state.yaml is not valid YAML", async () => {
@@ -267,9 +253,7 @@ describe("initStateDirectory", () => {
     const stateFilePath = join(stateDirPath, STATE_FILE_NAME);
     await writeFile(stateFilePath, "invalid: yaml: content: [", "utf-8");
 
-    await expect(initStateDirectory({ path: stateDirPath })).rejects.toThrow(
-      StateFileError
-    );
+    await expect(initStateDirectory({ path: stateDirPath })).rejects.toThrow(StateFileError);
   });
 
   it("creates nested directory structure", async () => {
@@ -390,7 +374,7 @@ describe("error classes", () => {
     const error = new StateDirectoryCreateError(
       "Failed to create directory",
       "/path/to/dir",
-      cause
+      cause,
     );
 
     expect(error.name).toBe("StateDirectoryCreateError");
@@ -401,10 +385,7 @@ describe("error classes", () => {
   });
 
   it("StateDirectoryCreateError works without cause", () => {
-    const error = new StateDirectoryCreateError(
-      "Failed to create directory",
-      "/path/to/dir"
-    );
+    const error = new StateDirectoryCreateError("Failed to create directory", "/path/to/dir");
 
     expect(error.name).toBe("StateDirectoryCreateError");
     expect(error.code).toBeUndefined();
@@ -413,10 +394,7 @@ describe("error classes", () => {
 
   it("StateDirectoryValidationError has correct properties", () => {
     const missingPaths = ["/path/to/jobs", "/path/to/sessions"];
-    const error = new StateDirectoryValidationError(
-      "Validation failed",
-      missingPaths
-    );
+    const error = new StateDirectoryValidationError("Validation failed", missingPaths);
 
     expect(error.name).toBe("StateDirectoryValidationError");
     expect(error.message).toBe("Validation failed");
@@ -429,7 +407,7 @@ describe("error classes", () => {
       "Failed to write state file",
       "/path/to/state.yaml",
       "write",
-      cause
+      cause,
     );
 
     expect(error.name).toBe("StateFileError");
@@ -440,11 +418,7 @@ describe("error classes", () => {
   });
 
   it("StateFileError has correct properties for read operation", () => {
-    const error = new StateFileError(
-      "Failed to read state file",
-      "/path/to/state.yaml",
-      "read"
-    );
+    const error = new StateFileError("Failed to read state file", "/path/to/state.yaml", "read");
 
     expect(error.name).toBe("StateFileError");
     expect(error.operation).toBe("read");
@@ -530,13 +504,11 @@ describe("state.yaml schema", () => {
       await writeFile(
         stateFilePath,
         `fleet: {}\nagents:\n  test-agent:\n    status: ${status}\n`,
-        "utf-8"
+        "utf-8",
       );
 
       // Should not throw
-      await expect(
-        initStateDirectory({ path: stateDirPath })
-      ).resolves.toBeDefined();
+      await expect(initStateDirectory({ path: stateDirPath })).resolves.toBeDefined();
     }
   });
 
@@ -562,9 +534,7 @@ agents:
     await writeFile(stateFilePath, completeState, "utf-8");
 
     // Should not throw
-    await expect(
-      initStateDirectory({ path: stateDirPath })
-    ).resolves.toBeDefined();
+    await expect(initStateDirectory({ path: stateDirPath })).resolves.toBeDefined();
   });
 
   it("accepts empty agents object", async () => {
@@ -575,9 +545,7 @@ agents:
     await writeFile(stateFilePath, "fleet: {}\nagents: {}\n", "utf-8");
 
     // Should not throw
-    await expect(
-      initStateDirectory({ path: stateDirPath })
-    ).resolves.toBeDefined();
+    await expect(initStateDirectory({ path: stateDirPath })).resolves.toBeDefined();
   });
 
   it("accepts minimal valid state", async () => {
@@ -588,8 +556,6 @@ agents:
     await writeFile(stateFilePath, "{}\n", "utf-8");
 
     // Should not throw - empty object is valid due to defaults
-    await expect(
-      initStateDirectory({ path: stateDirPath })
-    ).resolves.toBeDefined();
+    await expect(initStateDirectory({ path: stateDirPath })).resolves.toBeDefined();
   });
 });

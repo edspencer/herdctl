@@ -1,10 +1,10 @@
-import { describe, it, expect } from "vitest";
 import { join } from "node:path";
+import { describe, expect, it } from "vitest";
 import {
+  buildSafeFilePath,
+  isValidIdentifier,
   PathTraversalError,
   SAFE_IDENTIFIER_PATTERN,
-  isValidIdentifier,
-  buildSafeFilePath,
 } from "../path-safety.js";
 
 describe("PathTraversalError", () => {
@@ -117,15 +117,9 @@ describe("buildSafeFilePath", () => {
     });
 
     it("handles different file extensions", () => {
-      expect(buildSafeFilePath(baseDir, "agent", ".json")).toBe(
-        join(baseDir, "agent.json")
-      );
-      expect(buildSafeFilePath(baseDir, "agent", ".yaml")).toBe(
-        join(baseDir, "agent.yaml")
-      );
-      expect(buildSafeFilePath(baseDir, "agent", ".yml")).toBe(
-        join(baseDir, "agent.yml")
-      );
+      expect(buildSafeFilePath(baseDir, "agent", ".json")).toBe(join(baseDir, "agent.json"));
+      expect(buildSafeFilePath(baseDir, "agent", ".yaml")).toBe(join(baseDir, "agent.yaml"));
+      expect(buildSafeFilePath(baseDir, "agent", ".yml")).toBe(join(baseDir, "agent.yml"));
     });
 
     it("handles single character identifiers", () => {
@@ -151,39 +145,29 @@ describe("buildSafeFilePath", () => {
 
   describe("path traversal attempts", () => {
     it("throws for parent directory traversal (../)", () => {
-      expect(() => buildSafeFilePath(baseDir, "../evil", ".json")).toThrow(
-        PathTraversalError
-      );
+      expect(() => buildSafeFilePath(baseDir, "../evil", ".json")).toThrow(PathTraversalError);
     });
 
     it("throws for deep parent traversal (../../..)", () => {
-      expect(() =>
-        buildSafeFilePath(baseDir, "../../../etc/passwd", ".json")
-      ).toThrow(PathTraversalError);
+      expect(() => buildSafeFilePath(baseDir, "../../../etc/passwd", ".json")).toThrow(
+        PathTraversalError,
+      );
     });
 
     it("throws for Windows-style traversal (..\\)", () => {
-      expect(() => buildSafeFilePath(baseDir, "..\\evil", ".json")).toThrow(
-        PathTraversalError
-      );
+      expect(() => buildSafeFilePath(baseDir, "..\\evil", ".json")).toThrow(PathTraversalError);
     });
 
     it("throws for absolute paths", () => {
-      expect(() => buildSafeFilePath(baseDir, "/etc/passwd", ".json")).toThrow(
-        PathTraversalError
-      );
+      expect(() => buildSafeFilePath(baseDir, "/etc/passwd", ".json")).toThrow(PathTraversalError);
     });
 
     it("throws for paths with forward slashes", () => {
-      expect(() => buildSafeFilePath(baseDir, "sub/dir", ".json")).toThrow(
-        PathTraversalError
-      );
+      expect(() => buildSafeFilePath(baseDir, "sub/dir", ".json")).toThrow(PathTraversalError);
     });
 
     it("throws for paths with backslashes", () => {
-      expect(() => buildSafeFilePath(baseDir, "sub\\dir", ".json")).toThrow(
-        PathTraversalError
-      );
+      expect(() => buildSafeFilePath(baseDir, "sub\\dir", ".json")).toThrow(PathTraversalError);
     });
 
     it("includes helpful info in the error", () => {
@@ -202,27 +186,19 @@ describe("buildSafeFilePath", () => {
 
   describe("other invalid identifiers", () => {
     it("throws for empty identifier", () => {
-      expect(() => buildSafeFilePath(baseDir, "", ".json")).toThrow(
-        PathTraversalError
-      );
+      expect(() => buildSafeFilePath(baseDir, "", ".json")).toThrow(PathTraversalError);
     });
 
     it("throws for identifier starting with hyphen", () => {
-      expect(() => buildSafeFilePath(baseDir, "-agent", ".json")).toThrow(
-        PathTraversalError
-      );
+      expect(() => buildSafeFilePath(baseDir, "-agent", ".json")).toThrow(PathTraversalError);
     });
 
     it("throws for identifier starting with underscore", () => {
-      expect(() => buildSafeFilePath(baseDir, "_agent", ".json")).toThrow(
-        PathTraversalError
-      );
+      expect(() => buildSafeFilePath(baseDir, "_agent", ".json")).toThrow(PathTraversalError);
     });
 
     it("throws for identifier with spaces", () => {
-      expect(() => buildSafeFilePath(baseDir, "my agent", ".json")).toThrow(
-        PathTraversalError
-      );
+      expect(() => buildSafeFilePath(baseDir, "my agent", ".json")).toThrow(PathTraversalError);
     });
 
     it("accepts identifiers with dots (qualified names)", () => {
@@ -231,15 +207,9 @@ describe("buildSafeFilePath", () => {
     });
 
     it("throws for identifier with special characters", () => {
-      expect(() => buildSafeFilePath(baseDir, "agent@home", ".json")).toThrow(
-        PathTraversalError
-      );
-      expect(() => buildSafeFilePath(baseDir, "agent$var", ".json")).toThrow(
-        PathTraversalError
-      );
-      expect(() => buildSafeFilePath(baseDir, "agent%20", ".json")).toThrow(
-        PathTraversalError
-      );
+      expect(() => buildSafeFilePath(baseDir, "agent@home", ".json")).toThrow(PathTraversalError);
+      expect(() => buildSafeFilePath(baseDir, "agent$var", ".json")).toThrow(PathTraversalError);
+      expect(() => buildSafeFilePath(baseDir, "agent%20", ".json")).toThrow(PathTraversalError);
     });
   });
 

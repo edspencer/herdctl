@@ -54,6 +54,7 @@ export function ConnectionBanner({ status, onRetry }: ConnectionBannerProps) {
           <span>Connection lost</span>
           {onRetry && (
             <button
+              type="button"
               onClick={onRetry}
               className="ml-2 px-2 py-0.5 rounded bg-herd-status-error/20 hover:bg-herd-status-error/30 transition-colors"
             >

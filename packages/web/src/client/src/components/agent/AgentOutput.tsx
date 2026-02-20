@@ -5,11 +5,11 @@
  * Manages WebSocket subscription and displays live output for the agent's current job.
  */
 
-import { Terminal, History } from "lucide-react";
+import { History, Terminal } from "lucide-react";
 import { useJobOutput } from "../../hooks/useJobOutput";
+import type { AgentInfo } from "../../lib/types";
 import { Card } from "../ui";
 import { JobOutput } from "./JobOutput";
-import type { AgentInfo } from "../../lib/types";
 
 // =============================================================================
 // Types
@@ -42,6 +42,7 @@ function NoActiveJob({ lastJobId, onViewLastJob }: NoActiveJobProps) {
         </div>
         {lastJobId && onViewLastJob && (
           <button
+            type="button"
             onClick={onViewLastJob}
             className="
               flex items-center gap-1.5 mt-2

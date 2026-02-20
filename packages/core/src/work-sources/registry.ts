@@ -6,9 +6,9 @@
  * based on configuration.
  */
 
-import type { WorkSourceAdapter } from "./index.js";
 import type { WorkSourceLabels } from "../config/schema.js";
-import { UnknownWorkSourceError, DuplicateWorkSourceError } from "./errors.js";
+import { DuplicateWorkSourceError, UnknownWorkSourceError } from "./errors.js";
+import type { WorkSourceAdapter } from "./index.js";
 
 // =============================================================================
 // Types
@@ -70,10 +70,7 @@ const registry = new Map<string, WorkSourceFactory>();
  * registerWorkSource('linear', (config) => new LinearAdapter(config));
  * ```
  */
-export function registerWorkSource(
-  type: string,
-  factory: WorkSourceFactory
-): void {
+export function registerWorkSource(type: string, factory: WorkSourceFactory): void {
   if (registry.has(type)) {
     throw new DuplicateWorkSourceError(type);
   }

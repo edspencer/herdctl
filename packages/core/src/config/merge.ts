@@ -9,12 +9,11 @@
 
 import type {
   AgentConfig,
-  Defaults,
-  WorkSource,
-  Session,
+  AgentWorkingDirectory,
   Docker,
   PermissionMode,
-  AgentWorkingDirectory,
+  Session,
+  WorkSource,
 } from "./schema.js";
 
 // =============================================================================
@@ -48,7 +47,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  */
 export function deepMerge<T extends Record<string, unknown>>(
   base: T | undefined,
-  override: T | undefined
+  override: T | undefined,
 ): T | undefined {
   // If base is undefined, return override
   if (base === undefined) {
@@ -154,7 +153,7 @@ export interface ExtendedDefaults {
  */
 export function mergeAgentConfig(
   defaults: ExtendedDefaults | undefined,
-  agent: AgentConfig
+  agent: AgentConfig,
 ): AgentConfig {
   // If no defaults, return agent as-is
   if (!defaults) {
@@ -168,7 +167,7 @@ export function mergeAgentConfig(
   if (defaults.work_source || agent.work_source) {
     result.work_source = deepMerge(
       defaults.work_source as Record<string, unknown> | undefined,
-      agent.work_source as Record<string, unknown> | undefined
+      agent.work_source as Record<string, unknown> | undefined,
     ) as AgentConfig["work_source"];
   }
 
@@ -176,7 +175,7 @@ export function mergeAgentConfig(
   if (defaults.session || agent.session) {
     result.session = deepMerge(
       defaults.session as Record<string, unknown> | undefined,
-      agent.session as Record<string, unknown> | undefined
+      agent.session as Record<string, unknown> | undefined,
     ) as AgentConfig["session"];
   }
 
@@ -184,7 +183,7 @@ export function mergeAgentConfig(
   if (defaults.docker || agent.docker) {
     result.docker = deepMerge(
       defaults.docker as Record<string, unknown> | undefined,
-      agent.docker as Record<string, unknown> | undefined
+      agent.docker as Record<string, unknown> | undefined,
     ) as AgentConfig["docker"];
   }
 
@@ -192,7 +191,7 @@ export function mergeAgentConfig(
   if (defaults.instances || agent.instances) {
     result.instances = deepMerge(
       defaults.instances as Record<string, unknown> | undefined,
-      agent.instances as Record<string, unknown> | undefined
+      agent.instances as Record<string, unknown> | undefined,
     ) as AgentConfig["instances"];
   }
 
@@ -200,10 +199,7 @@ export function mergeAgentConfig(
   // If agent has no working_directory, use fleet default
   // If both are objects, deep merge them
   // If either is a string, agent takes precedence
-  if (
-    agent.working_directory === undefined &&
-    defaults.working_directory !== undefined
-  ) {
+  if (agent.working_directory === undefined && defaults.working_directory !== undefined) {
     result.working_directory = defaults.working_directory;
   } else if (
     agent.working_directory &&
@@ -213,7 +209,7 @@ export function mergeAgentConfig(
   ) {
     result.working_directory = deepMerge(
       defaults.working_directory as Record<string, unknown>,
-      agent.working_directory as Record<string, unknown>
+      agent.working_directory as Record<string, unknown>,
     ) as AgentConfig["working_directory"];
   }
 
@@ -226,18 +222,12 @@ export function mergeAgentConfig(
     result.max_turns = defaults.max_turns;
   }
 
-  if (
-    defaults.permission_mode !== undefined &&
-    result.permission_mode === undefined
-  ) {
+  if (defaults.permission_mode !== undefined && result.permission_mode === undefined) {
     result.permission_mode = defaults.permission_mode;
   }
 
   // Merge array values (agent takes precedence if defined - arrays are replaced, not merged)
-  if (
-    defaults.allowed_tools !== undefined &&
-    result.allowed_tools === undefined
-  ) {
+  if (defaults.allowed_tools !== undefined && result.allowed_tools === undefined) {
     result.allowed_tools = defaults.allowed_tools;
   }
 
@@ -257,7 +247,7 @@ export function mergeAgentConfig(
  */
 export function mergeAllAgentConfigs(
   defaults: ExtendedDefaults | undefined,
-  agents: AgentConfig[]
+  agents: AgentConfig[],
 ): AgentConfig[] {
   return agents.map((agent) => mergeAgentConfig(defaults, agent));
 }

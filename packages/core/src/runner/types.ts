@@ -5,7 +5,7 @@
  */
 
 import type { ResolvedAgent } from "../config/index.js";
-import type { TriggerType, JobOutputInput } from "../state/index.js";
+import type { JobOutputInput, TriggerType } from "../state/index.js";
 
 // =============================================================================
 // Runner Options Types
@@ -216,9 +216,7 @@ export interface SDKMcpServerConfig {
  * - A plain string for custom prompts
  * - An object with type: 'preset' for using Claude Code's default prompt
  */
-export type SDKSystemPrompt =
-  | string
-  | { type: "preset"; preset: "claude_code"; append?: string };
+export type SDKSystemPrompt = string | { type: "preset"; preset: "claude_code"; append?: string };
 
 /**
  * SDK query options (matching Claude Agent SDK types)
@@ -226,7 +224,13 @@ export type SDKSystemPrompt =
 export interface SDKQueryOptions {
   allowedTools?: string[];
   deniedTools?: string[];
-  permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "delegate" | "dontAsk";
+  permissionMode?:
+    | "default"
+    | "acceptEdits"
+    | "bypassPermissions"
+    | "plan"
+    | "delegate"
+    | "dontAsk";
   systemPrompt?: SDKSystemPrompt;
   settingSources?: string[];
   mcpServers?: Record<string, SDKMcpServerConfig>;

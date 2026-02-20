@@ -4,8 +4,8 @@
  * Displays job history for a specific agent using the shared JobHistory component.
  */
 
-import { JobHistory } from "../jobs";
 import type { AgentInfo } from "../../lib/types";
+import { JobHistory } from "../jobs";
 
 // =============================================================================
 // Types

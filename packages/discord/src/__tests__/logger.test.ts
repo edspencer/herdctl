@@ -1,24 +1,28 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import type { AgentChatDiscord } from "@herdctl/core";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  DiscordLogger,
-  createLoggerFromConfig,
   createDefaultDiscordLogger,
+  createLoggerFromConfig,
+  DiscordLogger,
   type DiscordLogLevel,
 } from "../logger.js";
-import type { AgentChatDiscord } from "@herdctl/core";
 
 // =============================================================================
 // Test Fixtures
 // =============================================================================
 
-function createMockDiscordConfig(
-  logLevel: DiscordLogLevel = "standard"
-): AgentChatDiscord {
+function createMockDiscordConfig(logLevel: DiscordLogLevel = "standard"): AgentChatDiscord {
   return {
     bot_token_env: "TEST_BOT_TOKEN",
     session_expiry_hours: 24,
     log_level: logLevel,
-    output: { tool_results: true, tool_result_max_length: 900, system_status: true, result_summary: false, errors: true },
+    output: {
+      tool_results: true,
+      tool_result_max_length: 900,
+      system_status: true,
+      result_summary: false,
+      errors: true,
+    },
     guilds: [],
   };
 }
@@ -213,7 +217,7 @@ describe("DiscordLogger", () => {
           prompt: "[REDACTED 11 chars]",
           token: "[REDACTED 12 chars]",
           safeKey: "safe value",
-        })
+        }),
       );
     });
 
@@ -233,7 +237,7 @@ describe("DiscordLogger", () => {
         "test",
         expect.objectContaining({
           content: "sensitive content",
-        })
+        }),
       );
     });
 
@@ -253,7 +257,7 @@ describe("DiscordLogger", () => {
         "test",
         expect.objectContaining({
           content: "[REDACTED 3 items]",
-        })
+        }),
       );
     });
 
@@ -279,7 +283,7 @@ describe("DiscordLogger", () => {
             content: "[REDACTED 16 chars]",
             safe: "safe value",
           },
-        })
+        }),
       );
     });
 
@@ -299,7 +303,7 @@ describe("DiscordLogger", () => {
         "test",
         expect.objectContaining({
           content: "sensitive content",
-        })
+        }),
       );
     });
   });
@@ -313,10 +317,7 @@ describe("DiscordLogger", () => {
 
       logger.info("simple message");
 
-      expect(console.info).toHaveBeenCalledWith(
-        "[discord:test]",
-        "simple message"
-      );
+      expect(console.info).toHaveBeenCalledWith("[discord:test]", "simple message");
     });
 
     it("logs message with data", () => {
@@ -327,11 +328,9 @@ describe("DiscordLogger", () => {
 
       logger.info("message with data", { key: "value" });
 
-      expect(console.info).toHaveBeenCalledWith(
-        "[discord:test]",
-        "message with data",
-        { key: "value" }
-      );
+      expect(console.info).toHaveBeenCalledWith("[discord:test]", "message with data", {
+        key: "value",
+      });
     });
   });
 });
@@ -376,10 +375,7 @@ describe("createLoggerFromConfig", () => {
 
     logger.info("test");
 
-    expect(console.info).toHaveBeenCalledWith(
-      "[discord:my-agent]",
-      "test"
-    );
+    expect(console.info).toHaveBeenCalledWith("[discord:my-agent]", "test");
   });
 });
 

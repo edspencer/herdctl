@@ -61,7 +61,7 @@ export interface WorkingDirectoryValidation {
  */
 export function validateWorkingDirectory(
   session: SessionInfo | null,
-  currentWorkingDirectory: string | undefined
+  currentWorkingDirectory: string | undefined,
 ): WorkingDirectoryValidation {
   // No session to validate
   if (!session) {

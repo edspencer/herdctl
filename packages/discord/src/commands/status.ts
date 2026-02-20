@@ -5,8 +5,8 @@
  * and session information for the current channel.
  */
 
-import type { SlashCommand, CommandContext } from "./types.js";
-import { formatTimestamp, formatDuration, getStatusEmoji } from "@herdctl/chat";
+import { formatDuration, formatTimestamp, getStatusEmoji } from "@herdctl/chat";
+import type { CommandContext, SlashCommand } from "./types.js";
 
 export const statusCommand: SlashCommand = {
   name: "status",

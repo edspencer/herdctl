@@ -94,7 +94,7 @@ function truncateOutput(output: string, maxLength: number): string {
   if (output.length <= maxLength) {
     return output;
   }
-  return output.slice(0, maxLength - 3) + "...";
+  return `${output.slice(0, maxLength - 3)}...`;
 }
 
 /**
@@ -327,7 +327,7 @@ export class SlackHookRunner {
             const json = JSON.parse(responseBody);
             if (json.ok) {
               this.logger.info(
-                `Slack hook completed successfully in ${durationMs}ms: channel ${config.channel_id}`
+                `Slack hook completed successfully in ${durationMs}ms: channel ${config.channel_id}`,
               );
               return {
                 success: true,

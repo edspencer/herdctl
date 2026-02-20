@@ -13,19 +13,19 @@
  * - Warnings for approaching rate limit (< 100 remaining)
  */
 
+import { WorkSourceError } from "../errors.js";
 import type { WorkSourceAdapter } from "../index.js";
+import type { WorkSourceConfig } from "../registry.js";
 import type {
+  ClaimResult,
   FetchOptions,
   FetchResult,
-  ClaimResult,
-  WorkResult,
   ReleaseOptions,
   ReleaseResult,
   WorkItem,
   WorkItemPriority,
+  WorkResult,
 } from "../types.js";
-import type { WorkSourceConfig } from "../registry.js";
-import { WorkSourceError } from "../errors.js";
 
 // =============================================================================
 // Rate Limit Types
@@ -160,7 +160,7 @@ export class GitHubAPIError extends WorkSourceError {
       endpoint?: string;
       rateLimitInfo?: RateLimitInfo;
       isRateLimitError?: boolean;
-    }
+    },
   ) {
     super(message, options);
     this.name = "GitHubAPIError";
@@ -240,15 +240,13 @@ export class GitHubAuthError extends WorkSourceError {
       cause?: Error;
       foundScopes: string[];
       requiredScopes: string[];
-    }
+    },
   ) {
     super(message, options);
     this.name = "GitHubAuthError";
     this.foundScopes = options.foundScopes;
     this.requiredScopes = options.requiredScopes;
-    this.missingScopes = options.requiredScopes.filter(
-      (s) => !options.foundScopes.includes(s)
-    );
+    this.missingScopes = options.requiredScopes.filter((s) => !options.foundScopes.includes(s));
   }
 }
 
@@ -328,7 +326,7 @@ export function isRateLimitResponse(response: Response): boolean {
 export function calculateBackoffDelay(
   attempt: number,
   options: Required<RetryOptions>,
-  rateLimitResetMs?: number
+  rateLimitResetMs?: number,
 ): number {
   // If we have rate limit reset info, use that as the delay
   if (rateLimitResetMs !== undefined && rateLimitResetMs > 0) {
@@ -337,7 +335,7 @@ export function calculateBackoffDelay(
   }
 
   // Calculate exponential backoff: baseDelay * 2^attempt
-  const exponentialDelay = options.baseDelayMs * Math.pow(2, attempt);
+  const exponentialDelay = options.baseDelayMs * 2 ** attempt;
 
   // Cap at max delay
   const cappedDelay = Math.min(exponentialDelay, options.maxDelayMs);
@@ -416,9 +414,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
   private getOwnerRepo(): { owner: string; repo: string } {
     const { owner, repo } = this.config;
     if (!owner || !repo) {
-      throw new GitHubAPIError(
-        "GitHub adapter requires 'owner' and 'repo' configuration"
-      );
+      throw new GitHubAPIError("GitHub adapter requires 'owner' and 'repo' configuration");
     }
     return { owner, repo };
   }
@@ -441,7 +437,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
         {
           foundScopes: [],
           requiredScopes: [...REQUIRED_SCOPES],
-        }
+        },
       );
     }
 
@@ -459,7 +455,10 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
       // Extract scopes from response header
       const scopesHeader = response.headers.get("X-OAuth-Scopes");
       const scopes = scopesHeader
-        ? scopesHeader.split(",").map((s) => s.trim()).filter((s) => s.length > 0)
+        ? scopesHeader
+            .split(",")
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0)
         : [];
 
       // Update rate limit info
@@ -471,23 +470,20 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
 
       if (!response.ok) {
         if (response.status === 401) {
-          throw new GitHubAuthError(
-            "Invalid GitHub token. The token may be expired or revoked.",
-            {
-              foundScopes: scopes,
-              requiredScopes: [...REQUIRED_SCOPES],
-            }
-          );
+          throw new GitHubAuthError("Invalid GitHub token. The token may be expired or revoked.", {
+            foundScopes: scopes,
+            requiredScopes: [...REQUIRED_SCOPES],
+          });
         }
-        throw new GitHubAPIError(
-          `GitHub API error: ${response.status} ${response.statusText}`,
-          { statusCode: response.status, endpoint: "/user" }
-        );
+        throw new GitHubAPIError(`GitHub API error: ${response.status} ${response.statusText}`, {
+          statusCode: response.status,
+          endpoint: "/user",
+        });
       }
 
       // Check for required scopes
       const hasRequiredScopes = REQUIRED_SCOPES.every((required) =>
-        scopes.some((scope) => scope === required || scope.startsWith(`${required}:`))
+        scopes.some((scope) => scope === required || scope.startsWith(`${required}:`)),
       );
 
       if (!hasRequiredScopes) {
@@ -496,7 +492,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
           {
             foundScopes: scopes,
             requiredScopes: [...REQUIRED_SCOPES],
-          }
+          },
         );
       }
 
@@ -507,7 +503,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
       }
       throw new GitHubAPIError(
         `Failed to validate GitHub token: ${error instanceof Error ? error.message : String(error)}`,
-        { cause: error instanceof Error ? error : undefined, endpoint: "/user" }
+        { cause: error instanceof Error ? error : undefined, endpoint: "/user" },
       );
     }
   }
@@ -529,11 +525,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
    * - Network error retries (max 3 attempts by default)
    * - Rate limit status tracking and warnings
    */
-  private async apiRequest<T>(
-    method: string,
-    endpoint: string,
-    body?: unknown
-  ): Promise<T> {
+  private async apiRequest<T>(method: string, endpoint: string, body?: unknown): Promise<T> {
     const token = this.getToken();
     const headers: Record<string, string> = {
       Accept: "application/vnd.github+json",
@@ -541,7 +533,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
     };
 
     if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
+      headers.Authorization = `Bearer ${token}`;
     }
 
     const url = `${this.apiBaseUrl}${endpoint}`;
@@ -589,7 +581,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
             const delay = calculateBackoffDelay(
               attempt,
               this.retryOptions,
-              error.getTimeUntilReset()
+              error.getTimeUntilReset(),
             );
             await sleep(delay);
             continue;
@@ -613,7 +605,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
         // Network errors - wrap and potentially retry
         const networkError = new GitHubAPIError(
           `Failed to connect to GitHub API: ${error instanceof Error ? error.message : String(error)}`,
-          { cause: error instanceof Error ? error : undefined, endpoint }
+          { cause: error instanceof Error ? error : undefined, endpoint },
         );
 
         if (networkError.isRetryable() && attempt < this.retryOptions.maxRetries) {
@@ -640,7 +632,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
   private async apiRequestWithHeaders<T>(
     method: string,
     endpoint: string,
-    body?: unknown
+    body?: unknown,
   ): Promise<{ data: T; headers: Headers }> {
     const token = this.getToken();
     const headers: Record<string, string> = {
@@ -649,7 +641,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
     };
 
     if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
+      headers.Authorization = `Bearer ${token}`;
     }
 
     const url = `${this.apiBaseUrl}${endpoint}`;
@@ -697,7 +689,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
             const delay = calculateBackoffDelay(
               attempt,
               this.retryOptions,
-              error.getTimeUntilReset()
+              error.getTimeUntilReset(),
             );
             await sleep(delay);
             continue;
@@ -722,7 +714,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
         // Network errors - wrap and potentially retry
         const networkError = new GitHubAPIError(
           `Failed to connect to GitHub API: ${error instanceof Error ? error.message : String(error)}`,
-          { cause: error instanceof Error ? error : undefined, endpoint }
+          { cause: error instanceof Error ? error : undefined, endpoint },
         );
 
         if (networkError.isRetryable() && attempt < this.retryOptions.maxRetries) {
@@ -748,7 +740,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
     const match = workItemId.match(/^github-(\d+)$/);
     if (!match) {
       throw new GitHubAPIError(
-        `Invalid work item ID format: "${workItemId}". Expected "github-{number}"`
+        `Invalid work item ID format: "${workItemId}". Expected "github-{number}"`,
       );
     }
     return parseInt(match[1], 10);
@@ -793,16 +785,12 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
     const lowerLabels = labels.map((l) => l.toLowerCase());
 
     if (
-      lowerLabels.some(
-        (l) => l.includes("critical") || l.includes("p0") || l.includes("urgent")
-      )
+      lowerLabels.some((l) => l.includes("critical") || l.includes("p0") || l.includes("urgent"))
     ) {
       return "critical";
     }
     if (
-      lowerLabels.some(
-        (l) => l.includes("high") || l.includes("p1") || l.includes("important")
-      )
+      lowerLabels.some((l) => l.includes("high") || l.includes("p1") || l.includes("important"))
     ) {
       return "high";
     }
@@ -874,7 +862,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
 
     const { data: issues, headers } = await this.apiRequestWithHeaders<GitHubIssue[]>(
       "GET",
-      endpoint
+      endpoint,
     );
 
     // Filter out issues with excluded labels and issues that are already claimed
@@ -883,22 +871,20 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
 
       // Exclude issues with any of the exclude labels
       const hasExcludedLabel = this.excludeLabels.some((excluded) =>
-        labelNames.includes(excluded.toLowerCase())
+        labelNames.includes(excluded.toLowerCase()),
       );
       if (hasExcludedLabel) return false;
 
       // Unless includeClaimed is true, exclude issues with in_progress label
       if (!options?.includeClaimed) {
-        const hasInProgressLabel = labelNames.includes(
-          this.labels.in_progress.toLowerCase()
-        );
+        const hasInProgressLabel = labelNames.includes(this.labels.in_progress.toLowerCase());
         if (hasInProgressLabel) return false;
       }
 
       // Apply additional label filters if specified
       if (options?.labels && options.labels.length > 0) {
         const hasAllLabels = options.labels.every((required) =>
-          labelNames.includes(required.toLowerCase())
+          labelNames.includes(required.toLowerCase()),
         );
         if (!hasAllLabels) return false;
       }
@@ -909,9 +895,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
     // Filter by priority if specified
     let workItems = filteredIssues.map((issue) => this.issueToWorkItem(issue));
     if (options?.priority && options.priority.length > 0) {
-      workItems = workItems.filter((item) =>
-        options.priority!.includes(item.priority)
-      );
+      workItems = workItems.filter((item) => options.priority!.includes(item.priority));
     }
 
     // Extract pagination info from Link header
@@ -935,7 +919,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
       // First, get the current issue to verify it exists and is claimable
       const issue = await this.apiRequest<GitHubIssue>(
         "GET",
-        `/repos/${owner}/${repo}/issues/${issueNumber}`
+        `/repos/${owner}/${repo}/issues/${issueNumber}`,
       );
 
       if (!issue) {
@@ -966,18 +950,16 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
       }
 
       // Add the in-progress label
-      await this.apiRequest<void>(
-        "POST",
-        `/repos/${owner}/${repo}/issues/${issueNumber}/labels`,
-        { labels: [this.labels.in_progress] }
-      );
+      await this.apiRequest<void>("POST", `/repos/${owner}/${repo}/issues/${issueNumber}/labels`, {
+        labels: [this.labels.in_progress],
+      });
 
       // Remove the ready label (if present)
       if (labelNames.includes(this.labels.ready.toLowerCase())) {
         try {
           await this.apiRequest<void>(
             "DELETE",
-            `/repos/${owner}/${repo}/issues/${issueNumber}/labels/${encodeURIComponent(this.labels.ready)}`
+            `/repos/${owner}/${repo}/issues/${issueNumber}/labels/${encodeURIComponent(this.labels.ready)}`,
           );
         } catch {
           // Ignore errors removing the ready label - it might not exist
@@ -987,7 +969,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
       // Fetch the updated issue
       const updatedIssue = await this.apiRequest<GitHubIssue>(
         "GET",
-        `/repos/${owner}/${repo}/issues/${issueNumber}`
+        `/repos/${owner}/${repo}/issues/${issueNumber}`,
       );
 
       return {
@@ -1033,11 +1015,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
 
     // Build the completion comment
     const outcomeEmoji =
-      result.outcome === "success"
-        ? "✅"
-        : result.outcome === "partial"
-          ? "⚠️"
-          : "❌";
+      result.outcome === "success" ? "✅" : result.outcome === "partial" ? "⚠️" : "❌";
 
     let commentBody = `## ${outcomeEmoji} Work Completed\n\n`;
     commentBody += `**Outcome:** ${result.outcome}\n\n`;
@@ -1059,17 +1037,15 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
     }
 
     // Post the comment
-    await this.apiRequest<void>(
-      "POST",
-      `/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
-      { body: commentBody }
-    );
+    await this.apiRequest<void>("POST", `/repos/${owner}/${repo}/issues/${issueNumber}/comments`, {
+      body: commentBody,
+    });
 
     // Remove the in-progress label
     try {
       await this.apiRequest<void>(
         "DELETE",
-        `/repos/${owner}/${repo}/issues/${issueNumber}/labels/${encodeURIComponent(this.labels.in_progress)}`
+        `/repos/${owner}/${repo}/issues/${issueNumber}/labels/${encodeURIComponent(this.labels.in_progress)}`,
       );
     } catch {
       // Ignore errors removing the label
@@ -1077,21 +1053,17 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
 
     // Close the issue if the outcome was success
     if (result.outcome === "success") {
-      await this.apiRequest<void>(
-        "PATCH",
-        `/repos/${owner}/${repo}/issues/${issueNumber}`,
-        { state: "closed", state_reason: "completed" }
-      );
+      await this.apiRequest<void>("PATCH", `/repos/${owner}/${repo}/issues/${issueNumber}`, {
+        state: "closed",
+        state_reason: "completed",
+      });
     }
   }
 
   /**
    * Release a claimed work item by removing in-progress label and re-adding ready label
    */
-  async releaseWork(
-    workItemId: string,
-    options?: ReleaseOptions
-  ): Promise<ReleaseResult> {
+  async releaseWork(workItemId: string, options?: ReleaseOptions): Promise<ReleaseResult> {
     const { owner, repo } = this.getOwnerRepo();
     const issueNumber = this.parseWorkItemId(workItemId);
 
@@ -1101,7 +1073,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
         await this.apiRequest<void>(
           "POST",
           `/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
-          { body: `⏸️ **Work Released**\n\nReason: ${options.reason}` }
+          { body: `⏸️ **Work Released**\n\nReason: ${options.reason}` },
         );
       }
 
@@ -1109,7 +1081,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
       try {
         await this.apiRequest<void>(
           "DELETE",
-          `/repos/${owner}/${repo}/issues/${issueNumber}/labels/${encodeURIComponent(this.labels.in_progress)}`
+          `/repos/${owner}/${repo}/issues/${issueNumber}/labels/${encodeURIComponent(this.labels.in_progress)}`,
         );
       } catch {
         // Ignore errors removing the label
@@ -1120,7 +1092,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
         await this.apiRequest<void>(
           "POST",
           `/repos/${owner}/${repo}/issues/${issueNumber}/labels`,
-          { labels: [this.labels.ready] }
+          { labels: [this.labels.ready] },
         );
       }
 
@@ -1143,7 +1115,7 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
     try {
       const issue = await this.apiRequest<GitHubIssue>(
         "GET",
-        `/repos/${owner}/${repo}/issues/${issueNumber}`
+        `/repos/${owner}/${repo}/issues/${issueNumber}`,
       );
 
       return this.issueToWorkItem(issue);
@@ -1159,8 +1131,6 @@ export class GitHubWorkSourceAdapter implements WorkSourceAdapter {
 /**
  * Factory function for creating GitHub adapters
  */
-export function createGitHubAdapter(
-  config: WorkSourceConfig
-): WorkSourceAdapter {
+export function createGitHubAdapter(config: WorkSourceConfig): WorkSourceAdapter {
   return new GitHubWorkSourceAdapter(config as GitHubWorkSourceConfig);
 }

@@ -5,29 +5,27 @@
  * This module is shared between Discord, Slack, and other chat platforms.
  */
 
-export { ChatSessionManager } from "./session-manager.js";
-
 export {
-  // Schemas
-  ChannelSessionSchema,
-  ChatSessionStateSchema,
-  // Types
-  type ChannelSession,
-  type ChatSessionState,
-  type SessionManagerLogger,
-  type ChatSessionManagerOptions,
-  type SessionResult,
-  type IChatSessionManager,
-  // Factory functions
-  createInitialSessionState,
-  createChannelSession,
-} from "./types.js";
-
-export {
+  isSessionManagerError,
+  SessionDirectoryCreateError,
   SessionErrorCode,
   SessionManagerError,
   SessionStateReadError,
   SessionStateWriteError,
-  SessionDirectoryCreateError,
-  isSessionManagerError,
 } from "./errors.js";
+export { ChatSessionManager } from "./session-manager.js";
+export {
+  // Types
+  type ChannelSession,
+  // Schemas
+  ChannelSessionSchema,
+  type ChatSessionManagerOptions,
+  type ChatSessionState,
+  ChatSessionStateSchema,
+  createChannelSession,
+  // Factory functions
+  createInitialSessionState,
+  type IChatSessionManager,
+  type SessionManagerLogger,
+  type SessionResult,
+} from "./types.js";

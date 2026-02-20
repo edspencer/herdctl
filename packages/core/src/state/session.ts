@@ -9,17 +9,11 @@
  */
 
 import { readdir, unlink } from "node:fs/promises";
-import { atomicWriteJson } from "./utils/atomic.js";
-import { safeReadJson } from "./utils/reads.js";
-import { buildSafeFilePath } from "./utils/path-safety.js";
-import {
-  SessionInfoSchema,
-  createSessionInfo,
-  type SessionInfo,
-  type SessionMode,
-  type CreateSessionOptions,
-} from "./schemas/session-info.js";
 import { StateFileError } from "./errors.js";
+import { createSessionInfo, type SessionInfo, SessionInfoSchema } from "./schemas/session-info.js";
+import { atomicWriteJson } from "./utils/atomic.js";
+import { buildSafeFilePath } from "./utils/path-safety.js";
+import { safeReadJson } from "./utils/reads.js";
 
 // =============================================================================
 // Types
@@ -55,9 +49,7 @@ export interface SessionLogger {
 /**
  * Partial updates for session info
  */
-export type SessionInfoUpdates = Partial<
-  Omit<SessionInfo, "agent_name" | "created_at">
->;
+export type SessionInfoUpdates = Partial<Omit<SessionInfo, "agent_name" | "created_at">>;
 
 // =============================================================================
 // Helper Functions
@@ -109,7 +101,7 @@ function getSessionFilePath(sessionsDir: string, agentName: string): string {
 export async function getSessionInfo(
   sessionsDir: string,
   agentName: string,
-  options: SessionOptions = {}
+  options: SessionOptions = {},
 ): Promise<SessionInfo | null> {
   const { logger = console, timeout } = options;
   const filePath = getSessionFilePath(sessionsDir, agentName);
@@ -123,9 +115,7 @@ export async function getSessionInfo(
     }
 
     // Log other errors but don't throw - treat as missing
-    logger.warn(
-      `Failed to read session file for ${agentName}: ${result.error.message}`
-    );
+    logger.warn(`Failed to read session file for ${agentName}: ${result.error.message}`);
     return null;
   }
 
@@ -133,7 +123,7 @@ export async function getSessionInfo(
   const parseResult = SessionInfoSchema.safeParse(result.data);
   if (!parseResult.success) {
     logger.warn(
-      `Corrupted session file for ${agentName}: ${parseResult.error.message}. Returning null.`
+      `Corrupted session file for ${agentName}: ${parseResult.error.message}. Returning null.`,
     );
     return null;
   }
@@ -143,27 +133,28 @@ export async function getSessionInfo(
   // If timeout is provided, validate session expiry and optionally file existence
   // Dynamic import to avoid circular dependency with session-validation.ts
   if (timeout) {
-    const { validateSession, validateSessionWithFileCheck } = await import("./session-validation.js");
+    const { validateSession, validateSessionWithFileCheck } = await import(
+      "./session-validation.js"
+    );
 
     // For CLI runtime, check both expiration and file existence
     // For SDK runtime (or unspecified), only check expiration
-    const validation = options.runtime === "cli"
-      ? await validateSessionWithFileCheck(session, timeout, { sessionsDir })
-      : validateSession(session, timeout);
+    const validation =
+      options.runtime === "cli"
+        ? await validateSessionWithFileCheck(session, timeout, { sessionsDir })
+        : validateSession(session, timeout);
 
     if (!validation.valid) {
       if (validation.reason === "expired" || validation.reason === "file_not_found") {
         logger.warn(
-          `Session for ${agentName} is invalid: ${validation.message}. Clearing stale session.`
+          `Session for ${agentName} is invalid: ${validation.message}. Clearing stale session.`,
         );
         // Clear the invalid session to prevent stale session IDs from being used
         await clearSession(sessionsDir, agentName).catch(() => {
           // Ignore errors during cleanup - session is already treated as invalid
         });
       } else if (validation.reason === "invalid_timeout") {
-        logger.warn(
-          `Invalid timeout format for session validation: ${validation.message}`
-        );
+        logger.warn(`Invalid timeout format for session validation: ${validation.message}`);
         // Still return session if timeout format is invalid - don't fail the operation
         return session;
       }
@@ -204,7 +195,7 @@ export async function getSessionInfo(
 export async function updateSessionInfo(
   sessionsDir: string,
   agentName: string,
-  updates: SessionInfoUpdates
+  updates: SessionInfoUpdates,
 ): Promise<SessionInfo> {
   const filePath = getSessionFilePath(sessionsDir, agentName);
 
@@ -236,7 +227,7 @@ export async function updateSessionInfo(
       throw new StateFileError(
         "session_id is required when creating a new session",
         filePath,
-        "write"
+        "write",
       );
     }
 
@@ -267,7 +258,7 @@ export async function updateSessionInfo(
       `Failed to update session file for ${agentName}: ${(error as Error).message}`,
       filePath,
       "write",
-      error as Error
+      error as Error,
     );
   }
 
@@ -291,10 +282,7 @@ export async function updateSessionInfo(
  * }
  * ```
  */
-export async function clearSession(
-  sessionsDir: string,
-  agentName: string
-): Promise<boolean> {
+export async function clearSession(sessionsDir: string, agentName: string): Promise<boolean> {
   const filePath = getSessionFilePath(sessionsDir, agentName);
 
   try {
@@ -308,7 +296,7 @@ export async function clearSession(
       `Failed to delete session file for ${agentName}: ${(error as Error).message}`,
       filePath,
       "write",
-      error as Error
+      error as Error,
     );
   }
 }
@@ -333,7 +321,7 @@ export async function clearSession(
  */
 export async function listSessions(
   sessionsDir: string,
-  options: SessionOptions = {}
+  options: SessionOptions = {},
 ): Promise<SessionInfo[]> {
   const { logger = console } = options;
 

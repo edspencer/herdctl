@@ -10,33 +10,29 @@
  * @module manager
  */
 
+import {
+  type ChatConnectorLogger,
+  ChatSessionManager,
+  extractMessageContent,
+  extractToolResults,
+  extractToolUseBlocks,
+  getToolInputSummary,
+  StreamingResponder,
+  splitMessage,
+  TOOL_EMOJIS,
+} from "@herdctl/chat";
 import type {
+  ChatManagerConnectorState,
   FleetManagerContext,
   IChatManager,
-  ChatManagerConnectorState,
-  TriggerOptions,
-  TriggerResult,
   ResolvedAgent,
 } from "@herdctl/core";
-import {
-  StreamingResponder,
-  extractMessageContent,
-  splitMessage,
-  ChatSessionManager,
-  extractToolUseBlocks,
-  extractToolResults,
-  getToolInputSummary,
-  TOOL_EMOJIS,
-  type ChatConnectorLogger,
-} from "@herdctl/chat";
 
 import { DiscordConnector } from "./discord-connector.js";
 import type {
-  DiscordConnectorState,
+  DiscordConnectorEventMap,
   DiscordReplyEmbed,
   DiscordReplyEmbedField,
-  DiscordReplyPayload,
-  DiscordConnectorEventMap,
 } from "./types.js";
 
 // =============================================================================
@@ -94,8 +90,11 @@ export class DiscordManager implements IChatManager {
 
     // Find agents with Discord configured
     const discordAgents = config.agents.filter(
-      (agent): agent is ResolvedAgent & { chat: { discord: NonNullable<ResolvedAgent["chat"]>["discord"] } } =>
-        agent.chat?.discord !== undefined
+      (
+        agent,
+      ): agent is ResolvedAgent & {
+        chat: { discord: NonNullable<ResolvedAgent["chat"]>["discord"] };
+      } => agent.chat?.discord !== undefined,
     );
 
     if (discordAgents.length === 0) {
@@ -115,7 +114,7 @@ export class DiscordManager implements IChatManager {
         const botToken = process.env[discordConfig.bot_token_env];
         if (!botToken) {
           logger.warn(
-            `Discord bot token not found in environment variable '${discordConfig.bot_token_env}' for agent '${agent.qualifiedName}'`
+            `Discord bot token not found in environment variable '${discordConfig.bot_token_env}' for agent '${agent.qualifiedName}'`,
           );
           continue;
         }
@@ -158,7 +157,9 @@ export class DiscordManager implements IChatManager {
         logger.debug(`Created Discord connector for agent '${agent.qualifiedName}'`);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.error(`Failed to create Discord connector for agent '${agent.qualifiedName}': ${errorMessage}`);
+        logger.error(
+          `Failed to create Discord connector for agent '${agent.qualifiedName}': ${errorMessage}`,
+        );
         // Continue with other agents - don't fail the whole initialization
       }
     }
@@ -202,14 +203,14 @@ export class DiscordManager implements IChatManager {
           const errorMessage = error instanceof Error ? error.message : String(error);
           logger.error(`Failed to connect Discord for agent '${qualifiedName}': ${errorMessage}`);
           // Don't re-throw - we want to continue connecting other agents
-        })
+        }),
       );
     }
 
     await Promise.all(connectPromises);
 
     const connectedCount = Array.from(this.connectors.values()).filter((c) =>
-      c.isConnected()
+      c.isConnected(),
     ).length;
     logger.info(`Discord connectors started: ${connectedCount}/${this.connectors.size} connected`);
   }
@@ -238,7 +239,9 @@ export class DiscordManager implements IChatManager {
       try {
         const activeSessionCount = await connector.sessionManager.getActiveSessionCount();
         if (activeSessionCount > 0) {
-          logger.debug(`Preserving ${activeSessionCount} active session(s) for agent '${qualifiedName}'`);
+          logger.debug(
+            `Preserving ${activeSessionCount} active session(s) for agent '${qualifiedName}'`,
+          );
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -255,7 +258,7 @@ export class DiscordManager implements IChatManager {
           const errorMessage = error instanceof Error ? error.message : String(error);
           logger.error(`Error disconnecting Discord for agent '${qualifiedName}': ${errorMessage}`);
           // Don't re-throw - graceful shutdown should continue
-        })
+        }),
       );
     }
 
@@ -288,9 +291,7 @@ export class DiscordManager implements IChatManager {
    * @returns Number of connectors that are currently connected
    */
   getConnectedCount(): number {
-    return Array.from(this.connectors.values()).filter((c) =>
-      c.isConnected()
-    ).length;
+    return Array.from(this.connectors.values()).filter((c) => c.isConnected()).length;
   }
 
   /**
@@ -358,14 +359,13 @@ export class DiscordManager implements IChatManager {
    * @param qualifiedName - Qualified name of the agent handling the message
    * @param event - The Discord message event
    */
-  private async handleMessage(
-    qualifiedName: string,
-    event: DiscordMessageEvent
-  ): Promise<void> {
+  private async handleMessage(qualifiedName: string, event: DiscordMessageEvent): Promise<void> {
     const logger = this.ctx.getLogger();
     const emitter = this.ctx.getEmitter();
 
-    logger.info(`Discord message for agent '${qualifiedName}': ${event.prompt.substring(0, 50)}...`);
+    logger.info(
+      `Discord message for agent '${qualifiedName}': ${event.prompt.substring(0, 50)}...`,
+    );
 
     // Get the agent configuration (lookup by qualifiedName)
     const config = this.ctx.getConfig();
@@ -398,9 +398,13 @@ export class DiscordManager implements IChatManager {
         const existingSession = await connector.sessionManager.getSession(event.metadata.channelId);
         if (existingSession) {
           existingSessionId = existingSession.sessionId;
-          logger.debug(`Resuming session for channel ${event.metadata.channelId}: ${existingSessionId}`);
+          logger.debug(
+            `Resuming session for channel ${event.metadata.channelId}: ${existingSessionId}`,
+          );
         } else {
-          logger.debug(`No existing session for channel ${event.metadata.channelId}, starting new conversation`);
+          logger.debug(
+            `No existing session for channel ${event.metadata.channelId}, starting new conversation`,
+          );
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -427,7 +431,10 @@ export class DiscordManager implements IChatManager {
 
     try {
       // Track pending tool_use blocks so we can pair them with results
-      const pendingToolUses = new Map<string, { name: string; input?: unknown; startTime: number }>();
+      const pendingToolUses = new Map<
+        string,
+        { name: string; input?: unknown; startTime: number }
+      >();
       let embedsSent = 0;
 
       // Execute job via FleetManager.trigger() through the context
@@ -465,7 +472,11 @@ export class DiscordManager implements IChatManager {
           // Build and send embeds for tool results
           if (message.type === "user" && outputConfig.tool_results) {
             // Cast to the shape expected by extractToolResults
-            const userMessage = message as { type: string; message?: { content?: unknown }; tool_use_result?: unknown };
+            const userMessage = message as {
+              type: string;
+              message?: { content?: unknown };
+              tool_use_result?: unknown;
+            };
             const toolResults = extractToolResults(userMessage);
             for (const toolResult of toolResults) {
               // Look up the matching tool_use for name, input, and timing
@@ -493,16 +504,19 @@ export class DiscordManager implements IChatManager {
           if (message.type === "system" && outputConfig.system_status) {
             const sysMessage = message as { subtype?: string; status?: string | null };
             if (sysMessage.subtype === "status" && sysMessage.status) {
-              const statusText = sysMessage.status === "compacting"
-                ? "Compacting context..."
-                : `Status: ${sysMessage.status}`;
+              const statusText =
+                sysMessage.status === "compacting"
+                  ? "Compacting context..."
+                  : `Status: ${sysMessage.status}`;
               await streamer.flush();
               await event.reply({
-                embeds: [{
-                  title: "\u2699\uFE0F System",
-                  description: statusText,
-                  color: DiscordManager.EMBED_COLOR_SYSTEM,
-                }],
+                embeds: [
+                  {
+                    title: "\u2699\uFE0F System",
+                    description: statusText,
+                    color: DiscordManager.EMBED_COLOR_SYSTEM,
+                  },
+                ],
               });
               embedsSent++;
             }
@@ -556,27 +570,33 @@ export class DiscordManager implements IChatManager {
             const isError = resultMessage.is_error === true;
             await streamer.flush();
             await event.reply({
-              embeds: [{
-                title: isError ? "\u274C Task Failed" : "\u2705 Task Complete",
-                color: isError ? DiscordManager.EMBED_COLOR_ERROR : DiscordManager.EMBED_COLOR_SUCCESS,
-                fields,
-              }],
+              embeds: [
+                {
+                  title: isError ? "\u274C Task Failed" : "\u2705 Task Complete",
+                  color: isError
+                    ? DiscordManager.EMBED_COLOR_ERROR
+                    : DiscordManager.EMBED_COLOR_SUCCESS,
+                  fields,
+                },
+              ],
             });
             embedsSent++;
           }
 
           // Show SDK error messages
           if (message.type === "error" && outputConfig.errors) {
-            const errorText = typeof message.content === "string"
-              ? message.content
-              : "An unknown error occurred";
+            const errorText =
+              typeof message.content === "string" ? message.content : "An unknown error occurred";
             await streamer.flush();
             await event.reply({
-              embeds: [{
-                title: "\u274C Error",
-                description: errorText.length > 4000 ? errorText.substring(0, 4000) + "..." : errorText,
-                color: DiscordManager.EMBED_COLOR_ERROR,
-              }],
+              embeds: [
+                {
+                  title: "\u274C Error",
+                  description:
+                    errorText.length > 4000 ? `${errorText.substring(0, 4000)}...` : errorText,
+                  color: DiscordManager.EMBED_COLOR_ERROR,
+                },
+              ],
             });
             embedsSent++;
           }
@@ -593,16 +613,23 @@ export class DiscordManager implements IChatManager {
       // Flush any remaining buffered content
       await streamer.flush();
 
-      logger.debug(`Discord job completed: ${result.jobId} for agent '${qualifiedName}'${result.sessionId ? ` (session: ${result.sessionId})` : ""}`);
+      logger.debug(
+        `Discord job completed: ${result.jobId} for agent '${qualifiedName}'${result.sessionId ? ` (session: ${result.sessionId})` : ""}`,
+      );
 
       // If no messages were sent (text or embeds), send an appropriate fallback
       if (!streamer.hasSentMessages() && embedsSent === 0) {
         if (result.success) {
-          await event.reply("I've completed the task, but I don't have a specific response to share.");
+          await event.reply(
+            "I've completed the task, but I don't have a specific response to share.",
+          );
         } else {
           // Job failed without streaming any messages - send error details
-          const errorMessage = result.errorDetails?.message ?? result.error?.message ?? "An unknown error occurred";
-          await event.reply(`\u274C **Error:** ${errorMessage}\n\nThe task could not be completed. Please check the logs for more details.`);
+          const errorMessage =
+            result.errorDetails?.message ?? result.error?.message ?? "An unknown error occurred";
+          await event.reply(
+            `\u274C **Error:** ${errorMessage}\n\nThe task could not be completed. Please check the logs for more details.`,
+          );
         }
 
         // Stop typing after sending fallback message (if not already stopped)
@@ -617,14 +644,19 @@ export class DiscordManager implements IChatManager {
       if (connector && result.sessionId && result.success) {
         try {
           await connector.sessionManager.setSession(event.metadata.channelId, result.sessionId);
-          logger.debug(`Stored session ${result.sessionId} for channel ${event.metadata.channelId}`);
+          logger.debug(
+            `Stored session ${result.sessionId} for channel ${event.metadata.channelId}`,
+          );
         } catch (sessionError) {
-          const errorMessage = sessionError instanceof Error ? sessionError.message : String(sessionError);
+          const errorMessage =
+            sessionError instanceof Error ? sessionError.message : String(sessionError);
           logger.warn(`Failed to store session: ${errorMessage}`);
           // Don't fail the message handling for session storage failure
         }
       } else if (connector && result.sessionId && !result.success) {
-        logger.debug(`Not storing session ${result.sessionId} for channel ${event.metadata.channelId} - job failed`);
+        logger.debug(
+          `Not storing session ${result.sessionId} for channel ${event.metadata.channelId} - job failed`,
+        );
       }
 
       // Emit event for tracking
@@ -733,9 +765,10 @@ export class DiscordManager implements IChatManager {
     const outputLength = toolResult.output.length;
     fields.push({
       name: "Output",
-      value: outputLength >= 1000
-        ? `${(outputLength / 1000).toFixed(1)}k chars`
-        : `${outputLength} chars`,
+      value:
+        outputLength >= 1000
+          ? `${(outputLength / 1000).toFixed(1)}k chars`
+          : `${outputLength} chars`,
       inline: true,
     });
 
@@ -745,7 +778,9 @@ export class DiscordManager implements IChatManager {
       const maxChars = maxOutputChars ?? DiscordManager.TOOL_OUTPUT_MAX_CHARS;
       let outputText = trimmedOutput;
       if (outputText.length > maxChars) {
-        outputText = outputText.substring(0, maxChars) + `\n... (${outputLength.toLocaleString()} chars total)`;
+        outputText =
+          outputText.substring(0, maxChars) +
+          `\n... (${outputLength.toLocaleString()} chars total)`;
       }
       fields.push({
         name: isError ? "Error" : "Result",
@@ -823,10 +858,7 @@ export class DiscordManager implements IChatManager {
    * @param reply - The reply function from the message event
    * @param content - The content to send
    */
-  async sendResponse(
-    reply: (content: string) => Promise<void>,
-    content: string
-  ): Promise<void> {
+  async sendResponse(reply: (content: string) => Promise<void>, content: string): Promise<void> {
     const chunks = this.splitResponse(content);
 
     for (const chunk of chunks) {

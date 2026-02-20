@@ -7,18 +7,18 @@
  * Output files are stored at: .herdctl/jobs/job-<id>.jsonl
  */
 
-import { join } from "node:path";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
+import { join } from "node:path";
 import { createInterface } from "node:readline";
-import { appendJsonl } from "./utils/atomic.js";
 import { StateFileError } from "./errors.js";
 import {
-  type JobOutputMessage,
-  type JobOutputInput,
   isValidJobOutputInput,
+  type JobOutputInput,
+  type JobOutputMessage,
   JobOutputMessageSchema,
 } from "./schemas/job-output.js";
+import { appendJsonl } from "./utils/atomic.js";
 
 // =============================================================================
 // Types
@@ -88,14 +88,14 @@ export function getJobOutputPath(jobsDir: string, jobId: string): string {
 export async function appendJobOutput(
   jobsDir: string,
   jobId: string,
-  message: JobOutputInput
+  message: JobOutputInput,
 ): Promise<void> {
   // Validate message structure
   if (!isValidJobOutputInput(message)) {
     throw new StateFileError(
       `Invalid job output message: must have a valid 'type' field`,
       getJobOutputPath(jobsDir, jobId),
-      "write"
+      "write",
     );
   }
 
@@ -114,7 +114,7 @@ export async function appendJobOutput(
       `Failed to append to job output: ${(error as Error).message}`,
       outputPath,
       "write",
-      error as Error
+      error as Error,
     );
   }
 }
@@ -141,7 +141,7 @@ export async function appendJobOutput(
 export async function appendJobOutputBatch(
   jobsDir: string,
   jobId: string,
-  messages: JobOutputInput[]
+  messages: JobOutputInput[],
 ): Promise<void> {
   const outputPath = getJobOutputPath(jobsDir, jobId);
 
@@ -151,7 +151,7 @@ export async function appendJobOutputBatch(
       throw new StateFileError(
         `Invalid job output message at index ${i}: must have a valid 'type' field`,
         outputPath,
-        "write"
+        "write",
       );
     }
   }
@@ -171,7 +171,7 @@ export async function appendJobOutputBatch(
         `Failed to append to job output: ${(error as Error).message}`,
         outputPath,
         "write",
-        error as Error
+        error as Error,
       );
     }
   }
@@ -203,7 +203,7 @@ export async function appendJobOutputBatch(
 export async function* readJobOutput(
   jobsDir: string,
   jobId: string,
-  options: ReadJobOutputOptions = {}
+  options: ReadJobOutputOptions = {},
 ): AsyncGenerator<JobOutputMessage, void, undefined> {
   const { skipInvalidLines = false, logger = console } = options;
   const outputPath = getJobOutputPath(jobsDir, jobId);
@@ -220,7 +220,7 @@ export async function* readJobOutput(
       `Failed to read job output: ${(error as Error).message}`,
       outputPath,
       "read",
-      error as Error
+      error as Error,
     );
   }
 
@@ -251,13 +251,13 @@ export async function* readJobOutput(
           yield validated.data;
         } else if (skipInvalidLines) {
           logger.warn(
-            `[herdctl] Skipping invalid message at line ${lineNumber} in ${outputPath}: ${validated.error.message}`
+            `[herdctl] Skipping invalid message at line ${lineNumber} in ${outputPath}: ${validated.error.message}`,
           );
         } else {
           throw new StateFileError(
             `Invalid job output message at line ${lineNumber}: ${validated.error.message}`,
             outputPath,
-            "read"
+            "read",
           );
         }
       } catch (error) {
@@ -267,14 +267,14 @@ export async function* readJobOutput(
 
         if (skipInvalidLines) {
           logger.warn(
-            `[herdctl] Skipping malformed JSON at line ${lineNumber} in ${outputPath}: ${(error as Error).message}`
+            `[herdctl] Skipping malformed JSON at line ${lineNumber} in ${outputPath}: ${(error as Error).message}`,
           );
         } else {
           throw new StateFileError(
             `Failed to parse job output at line ${lineNumber}: ${(error as Error).message}`,
             outputPath,
             "read",
-            error as Error
+            error as Error,
           );
         }
       }
@@ -306,7 +306,7 @@ export async function* readJobOutput(
 export async function readJobOutputAll(
   jobsDir: string,
   jobId: string,
-  options: ReadJobOutputOptions = {}
+  options: ReadJobOutputOptions = {},
 ): Promise<JobOutputMessage[]> {
   const messages: JobOutputMessage[] = [];
   for await (const message of readJobOutput(jobsDir, jobId, options)) {

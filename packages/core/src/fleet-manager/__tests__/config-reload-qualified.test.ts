@@ -5,16 +5,16 @@
  * qualifiedName as the diff key, which supports nested fleet agents.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
+import type { ResolvedAgent, ResolvedConfig } from "../../config/index.js";
 import {
   computeConfigChanges,
   computeScheduleChanges,
   getAddedAgentNames,
-  getRemovedAgentNames,
-  getModifiedAgentNames,
   getChangesSummary,
+  getModifiedAgentNames,
+  getRemovedAgentNames,
 } from "../config-reload.js";
-import type { ResolvedConfig, ResolvedAgent } from "../../config/index.js";
 
 // =============================================================================
 // Helpers
@@ -31,10 +31,9 @@ import type { ResolvedConfig, ResolvedAgent } from "../../config/index.js";
 function makeAgent(
   name: string,
   fleetPath: string[] = [],
-  overrides: Record<string, unknown> = {}
+  overrides: Record<string, unknown> = {},
 ): ResolvedAgent {
-  const qualifiedName =
-    fleetPath.length > 0 ? fleetPath.join(".") + "." + name : name;
+  const qualifiedName = fleetPath.length > 0 ? `${fleetPath.join(".")}.${name}` : name;
   return {
     name,
     configPath: `/fake/${name}.yaml`,
@@ -63,9 +62,7 @@ function makeConfig(agents: ResolvedAgent[]): ResolvedConfig {
 describe("computeConfigChanges with qualified names", () => {
   describe("sub-fleet agent added", () => {
     it("detects a new agent in a sub-fleet as added with qualified name", () => {
-      const oldConfig = makeConfig([
-        makeAgent("auditor", ["project-a"]),
-      ]);
+      const oldConfig = makeConfig([makeAgent("auditor", ["project-a"])]);
       const newConfig = makeConfig([
         makeAgent("auditor", ["project-a"]),
         makeAgent("new-agent", ["project-a"]),
@@ -78,7 +75,7 @@ describe("computeConfigChanges with qualified names", () => {
           type: "added",
           category: "agent",
           name: "project-a.new-agent",
-        })
+        }),
       );
 
       const addedNames = getAddedAgentNames(changes);
@@ -86,9 +83,7 @@ describe("computeConfigChanges with qualified names", () => {
     });
 
     it("detects a new agent with schedules in a sub-fleet", () => {
-      const oldConfig = makeConfig([
-        makeAgent("auditor", ["project-a"]),
-      ]);
+      const oldConfig = makeConfig([makeAgent("auditor", ["project-a"])]);
       const newConfig = makeConfig([
         makeAgent("auditor", ["project-a"]),
         makeAgent("new-agent", ["project-a"], {
@@ -107,7 +102,7 @@ describe("computeConfigChanges with qualified names", () => {
           type: "added",
           category: "agent",
           name: "project-a.new-agent",
-        })
+        }),
       );
 
       // Schedules added with qualified name prefix
@@ -116,14 +111,14 @@ describe("computeConfigChanges with qualified names", () => {
           type: "added",
           category: "schedule",
           name: "project-a.new-agent/hourly",
-        })
+        }),
       );
       expect(changes).toContainEqual(
         expect.objectContaining({
           type: "added",
           category: "schedule",
           name: "project-a.new-agent/daily",
-        })
+        }),
       );
     });
   });
@@ -156,9 +151,7 @@ describe("computeConfigChanges with qualified names", () => {
         }),
         makeAgent("monitor", []),
       ]);
-      const newConfig = makeConfig([
-        makeAgent("monitor", []),
-      ]);
+      const newConfig = makeConfig([makeAgent("monitor", [])]);
 
       const changes = computeConfigChanges(oldConfig, newConfig);
 
@@ -167,14 +160,14 @@ describe("computeConfigChanges with qualified names", () => {
           type: "removed",
           category: "agent",
           name: "project-a.auditor",
-        })
+        }),
       );
       expect(changes).toContainEqual(
         expect.objectContaining({
           type: "removed",
           category: "schedule",
           name: "project-a.auditor/check",
-        })
+        }),
       );
     });
   });
@@ -196,7 +189,7 @@ describe("computeConfigChanges with qualified names", () => {
           category: "agent",
           name: "project-a.auditor",
           details: expect.stringContaining("description"),
-        })
+        }),
       );
 
       const modifiedNames = getModifiedAgentNames(changes);
@@ -223,7 +216,7 @@ describe("computeConfigChanges with qualified names", () => {
           category: "agent",
           name: "project-b.frontend.designer",
           details: expect.stringContaining("model"),
-        })
+        }),
       );
     });
   });
@@ -251,13 +244,8 @@ describe("computeConfigChanges with qualified names", () => {
 
   describe("single-fleet backward compatibility", () => {
     it("uses bare name when fleetPath is empty (qualifiedName === name)", () => {
-      const oldConfig = makeConfig([
-        makeAgent("agent-1", []),
-      ]);
-      const newConfig = makeConfig([
-        makeAgent("agent-1", []),
-        makeAgent("agent-2", []),
-      ]);
+      const oldConfig = makeConfig([makeAgent("agent-1", [])]);
+      const newConfig = makeConfig([makeAgent("agent-1", []), makeAgent("agent-2", [])]);
 
       const changes = computeConfigChanges(oldConfig, newConfig);
 
@@ -266,7 +254,7 @@ describe("computeConfigChanges with qualified names", () => {
           type: "added",
           category: "agent",
           name: "agent-2",
-        })
+        }),
       );
 
       // Verify name is the bare name, not prefixed
@@ -275,13 +263,8 @@ describe("computeConfigChanges with qualified names", () => {
     });
 
     it("detects removal using bare name for root agents", () => {
-      const oldConfig = makeConfig([
-        makeAgent("agent-1", []),
-        makeAgent("agent-2", []),
-      ]);
-      const newConfig = makeConfig([
-        makeAgent("agent-1", []),
-      ]);
+      const oldConfig = makeConfig([makeAgent("agent-1", []), makeAgent("agent-2", [])]);
+      const newConfig = makeConfig([makeAgent("agent-1", [])]);
 
       const changes = computeConfigChanges(oldConfig, newConfig);
 
@@ -290,17 +273,13 @@ describe("computeConfigChanges with qualified names", () => {
           type: "removed",
           category: "agent",
           name: "agent-2",
-        })
+        }),
       );
     });
 
     it("detects modifications using bare name for root agents", () => {
-      const oldConfig = makeConfig([
-        makeAgent("agent-1", [], { description: "Old" }),
-      ]);
-      const newConfig = makeConfig([
-        makeAgent("agent-1", [], { description: "New" }),
-      ]);
+      const oldConfig = makeConfig([makeAgent("agent-1", [], { description: "Old" })]);
+      const newConfig = makeConfig([makeAgent("agent-1", [], { description: "New" })]);
 
       const changes = computeConfigChanges(oldConfig, newConfig);
 
@@ -310,17 +289,13 @@ describe("computeConfigChanges with qualified names", () => {
           category: "agent",
           name: "agent-1",
           details: expect.stringContaining("description"),
-        })
+        }),
       );
     });
 
     it("reports no changes when root-level agents are identical", () => {
-      const oldConfig = makeConfig([
-        makeAgent("agent-1", [], { description: "Same" }),
-      ]);
-      const newConfig = makeConfig([
-        makeAgent("agent-1", [], { description: "Same" }),
-      ]);
+      const oldConfig = makeConfig([makeAgent("agent-1", [], { description: "Same" })]);
+      const newConfig = makeConfig([makeAgent("agent-1", [], { description: "Same" })]);
 
       const changes = computeConfigChanges(oldConfig, newConfig);
       expect(changes).toHaveLength(0);
@@ -334,9 +309,7 @@ describe("computeConfigChanges with qualified names", () => {
         makeAgent("auditor", ["project-b"]),
       ]);
       // Remove only from project-b
-      const newConfig = makeConfig([
-        makeAgent("auditor", ["project-a"]),
-      ]);
+      const newConfig = makeConfig([makeAgent("auditor", ["project-a"])]);
 
       const changes = computeConfigChanges(oldConfig, newConfig);
 
@@ -363,9 +336,7 @@ describe("computeConfigChanges with qualified names", () => {
     });
 
     it("detects addition in one fleet without affecting another", () => {
-      const oldConfig = makeConfig([
-        makeAgent("auditor", ["project-a"]),
-      ]);
+      const oldConfig = makeConfig([makeAgent("auditor", ["project-a"])]);
       const newConfig = makeConfig([
         makeAgent("auditor", ["project-a"]),
         makeAgent("auditor", ["project-b"]),
@@ -381,10 +352,7 @@ describe("computeConfigChanges with qualified names", () => {
 
   describe("null oldConfig (first load)", () => {
     it("treats all agents as added on first load", () => {
-      const newConfig = makeConfig([
-        makeAgent("auditor", ["project-a"]),
-        makeAgent("monitor", []),
-      ]);
+      const newConfig = makeConfig([makeAgent("auditor", ["project-a"]), makeAgent("monitor", [])]);
 
       const changes = computeConfigChanges(null, newConfig);
 
@@ -413,7 +381,7 @@ describe("computeScheduleChanges with qualified names", () => {
         type: "added",
         category: "schedule",
         name: "project-a.auditor/hourly",
-      })
+      }),
     );
   });
 
@@ -434,7 +402,7 @@ describe("computeScheduleChanges with qualified names", () => {
         type: "removed",
         category: "schedule",
         name: "project-a.auditor/hourly",
-      })
+      }),
     );
   });
 
@@ -457,7 +425,7 @@ describe("computeScheduleChanges with qualified names", () => {
         type: "modified",
         category: "schedule",
         name: "project-a.auditor/hourly",
-      })
+      }),
     );
   });
 
@@ -480,7 +448,7 @@ describe("computeScheduleChanges with qualified names", () => {
         type: "modified",
         category: "schedule",
         name: "project-b.frontend.designer/check",
-      })
+      }),
     );
   });
 
@@ -503,7 +471,7 @@ describe("computeScheduleChanges with qualified names", () => {
         type: "modified",
         category: "schedule",
         name: "monitor/check",
-      })
+      }),
     );
   });
 });

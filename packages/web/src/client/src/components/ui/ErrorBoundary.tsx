@@ -5,8 +5,8 @@
  * Supports optional custom fallback UI via the `fallback` prop.
  */
 
-import { Component, type ReactNode, type ErrorInfo } from "react";
 import { AlertTriangle } from "lucide-react";
+import { Component, type ErrorInfo, type ReactNode } from "react";
 
 // =============================================================================
 // Types
@@ -62,15 +62,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         <div className="flex items-center justify-center p-6">
           <div className="bg-herd-card border border-herd-border rounded-[10px] p-6 max-w-md w-full text-center">
             <AlertTriangle className="w-12 h-12 text-herd-status-error mx-auto mb-3" />
-            <h2 className="text-sm font-medium text-herd-fg mb-2">
-              Something went wrong
-            </h2>
+            <h2 className="text-sm font-medium text-herd-fg mb-2">Something went wrong</h2>
             {this.state.error && (
               <div className="bg-herd-code-bg text-herd-code-fg rounded-lg px-3 py-2 text-xs font-mono text-left mb-4 overflow-x-auto">
                 {this.state.error.message}
               </div>
             )}
             <button
+              type="button"
               onClick={this.handleReset}
               className="bg-herd-primary hover:bg-herd-primary-hover text-white rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
             >

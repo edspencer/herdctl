@@ -6,18 +6,18 @@
  * Body contains the tool content in monospace.
  */
 
-import { useState } from "react";
 import {
-  ChevronRight,
-  Terminal,
-  FileText,
-  FilePen,
-  FileCode,
-  Search,
-  Globe,
   Bot,
+  ChevronRight,
+  FileCode,
+  FilePen,
+  FileText,
+  Globe,
+  Search,
+  Terminal,
   Wrench,
 } from "lucide-react";
+import { useState } from "react";
 
 // =============================================================================
 // Types
@@ -92,14 +92,10 @@ export function ToolBlock({
         onClick={() => setCollapsed(!collapsed)}
         className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-herd-muted hover:bg-herd-hover transition-colors"
       >
-        <ChevronRight
-          className={`w-3 h-3 transition-transform ${collapsed ? "" : "rotate-90"}`}
-        />
+        <ChevronRight className={`w-3 h-3 transition-transform ${collapsed ? "" : "rotate-90"}`} />
         <Icon className="w-3.5 h-3.5" />
         <span>{toolName}</span>
-        {duration && (
-          <span className="ml-auto text-[11px] text-herd-muted/60">{duration}</span>
-        )}
+        {duration && <span className="ml-auto text-[11px] text-herd-muted/60">{duration}</span>}
       </button>
 
       {/* Body - collapsible */}

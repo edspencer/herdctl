@@ -5,8 +5,8 @@
  * Uses the cron-parser library for robust parsing and validation.
  */
 
-import cronParser, { CronExpression } from "cron-parser";
-import { CronParseError, CRON_FIELDS, type CronFieldInfo } from "./errors.js";
+import cronParser, { type CronExpression } from "cron-parser";
+import { CRON_FIELDS, type CronFieldInfo, CronParseError } from "./errors.js";
 
 /**
  * Mapping of common cron shorthands to their 5-field equivalents
@@ -73,13 +73,13 @@ export interface ParsedCronExpression {
  */
 export function parseCronExpression(
   expression: string,
-  options?: CronParseOptions
+  options?: CronParseOptions,
 ): ParsedCronExpression {
   // Handle empty string
   if (!expression || expression.trim() === "") {
     throw new CronParseError(
       'Cron expression cannot be empty. Expected a 5-field cron expression (e.g., "0 9 * * *") or a shorthand like "@daily"',
-      expression
+      expression,
     );
   }
 
@@ -97,7 +97,7 @@ export function parseCronExpression(
         .join(", ");
       throw new CronParseError(
         `Unknown cron shorthand "${trimmed}". Valid shorthands are: ${validShorthands}`,
-        expression
+        expression,
       );
     }
     cronExpr = expanded;
@@ -109,7 +109,7 @@ export function parseCronExpression(
     throw new CronParseError(
       CronParseError.buildMessage(trimmed, fieldCountError.reason, fieldCountError.example),
       expression,
-      { field: "fields", example: fieldCountError.example?.expression }
+      { field: "fields", example: fieldCountError.example?.expression },
     );
   }
 
@@ -119,7 +119,7 @@ export function parseCronExpression(
     throw new CronParseError(
       CronParseError.buildMessage(trimmed, fieldError.reason, fieldError.example),
       expression,
-      { cause: undefined, field: fieldError.field, example: fieldError.example?.expression }
+      { cause: undefined, field: fieldError.field, example: fieldError.example?.expression },
     );
   }
 
@@ -147,8 +147,8 @@ export function parseCronExpression(
       {
         cause: error instanceof Error ? error : undefined,
         field: parsedError.field,
-        example: parsedError.example?.expression
-      }
+        example: parsedError.example?.expression,
+      },
     );
   }
 }
@@ -215,7 +215,7 @@ function validateField(value: string, fieldInfo: CronFieldInfo): FieldValidation
   // Handle step syntax (e.g., */15)
   if (value.startsWith("*/")) {
     const step = parseInt(value.slice(2), 10);
-    if (isNaN(step) || step <= 0) {
+    if (Number.isNaN(step) || step <= 0) {
       return {
         reason: `invalid step value "${value}" for ${fieldInfo.name}`,
         field: fieldInfo.name,
@@ -231,7 +231,7 @@ function validateField(value: string, fieldInfo: CronFieldInfo): FieldValidation
     if (parts.length === 2) {
       const start = parseInt(parts[0], 10);
       const end = parseInt(parts[1], 10);
-      if (!isNaN(start) && !isNaN(end)) {
+      if (!Number.isNaN(start) && !Number.isNaN(end)) {
         if (start < fieldInfo.min || start > fieldInfo.max) {
           return {
             reason: `${fieldInfo.name} must be ${fieldInfo.min}-${fieldInfo.max}`,
@@ -256,7 +256,7 @@ function validateField(value: string, fieldInfo: CronFieldInfo): FieldValidation
     const parts = value.split(",");
     for (const part of parts) {
       const num = parseInt(part, 10);
-      if (!isNaN(num) && (num < fieldInfo.min || num > fieldInfo.max)) {
+      if (!Number.isNaN(num) && (num < fieldInfo.min || num > fieldInfo.max)) {
         return {
           reason: `${fieldInfo.name} must be ${fieldInfo.min}-${fieldInfo.max}`,
           field: fieldInfo.name,
@@ -269,7 +269,7 @@ function validateField(value: string, fieldInfo: CronFieldInfo): FieldValidation
 
   // Handle simple numeric values
   const num = parseInt(value, 10);
-  if (!isNaN(num)) {
+  if (!Number.isNaN(num)) {
     if (num < fieldInfo.min || num > fieldInfo.max) {
       return {
         reason: `${fieldInfo.name} must be ${fieldInfo.min}-${fieldInfo.max}`,
@@ -305,10 +305,7 @@ function getExampleForField(fieldInfo: CronFieldInfo): { expression: string; des
 /**
  * Parse error message from cron-parser and extract field info
  */
-function parseErrorMessage(
-  errorMessage: string,
-  expression: string
-): FieldValidationError {
+function parseErrorMessage(errorMessage: string, _expression: string): FieldValidationError {
   // Try to identify which field failed
   const lowerMsg = errorMessage.toLowerCase();
 
@@ -319,7 +316,7 @@ function parseErrorMessage(
     const rangeMatch = errorMessage.match(/expected range (\d+)-(\d+)/i);
 
     if (valueMatch && rangeMatch) {
-      const value = parseInt(valueMatch[1], 10);
+      const _value = parseInt(valueMatch[1], 10);
       const min = parseInt(rangeMatch[1], 10);
       const max = parseInt(rangeMatch[2], 10);
 
@@ -385,11 +382,7 @@ function identifyFieldByRange(min: number, max: number): CronFieldInfo | null {
  * getNextCronTrigger("@daily", new Date("2024-01-15T12:00:00Z"))
  * // Returns 2024-01-16T00:00:00Z
  */
-export function getNextCronTrigger(
-  expression: string,
-  fromDate?: Date,
-  tz?: string
-): Date {
+export function getNextCronTrigger(expression: string, fromDate?: Date, tz?: string): Date {
   const parsed = parseCronExpression(expression, {
     currentDate: fromDate,
     tz: tz ?? "UTC",
@@ -441,10 +434,7 @@ export function isValidCronExpression(expression: string): boolean {
  * const midHour = new Date("2024-01-15T10:07:00");
  * calculateNextCronTrigger("0,15,30,45 * * * *", midHour)  // Returns 2024-01-15T10:15:00 (local)
  */
-export function calculateNextCronTrigger(
-  expression: string,
-  after?: Date
-): Date {
+export function calculateNextCronTrigger(expression: string, after?: Date): Date {
   // Get the system timezone
   const systemTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -471,10 +461,7 @@ export function calculateNextCronTrigger(
  * // If current time is 11:30 and cron is @hourly (at :00)
  * calculatePreviousCronTrigger("@hourly")  // Returns 11:00
  */
-export function calculatePreviousCronTrigger(
-  expression: string,
-  before?: Date
-): Date {
+export function calculatePreviousCronTrigger(expression: string, before?: Date): Date {
   // Get the system timezone
   const systemTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 

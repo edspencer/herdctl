@@ -1,10 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import {
-  LOG_LEVEL_ORDER,
-  getLogLevel,
-  shouldLog,
-  createLogger,
-} from "../logger.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createLogger, getLogLevel, LOG_LEVEL_ORDER, shouldLog } from "../logger.js";
 
 // =============================================================================
 // getLogLevel

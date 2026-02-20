@@ -1,13 +1,13 @@
-import { describe, it, expect } from "vitest";
 import type { ChatDM, DiscordGuild } from "@herdctl/core";
+import { describe, expect, it } from "vitest";
 import {
-  isDMEnabled,
-  getDMMode,
   checkDMUserFilter,
-  findChannelConfig,
-  resolveChannelConfig,
-  DEFAULT_DM_CONTEXT_MESSAGES,
   DEFAULT_CHANNEL_CONTEXT_MESSAGES,
+  DEFAULT_DM_CONTEXT_MESSAGES,
+  findChannelConfig,
+  getDMMode,
+  isDMEnabled,
+  resolveChannelConfig,
 } from "../auto-mode-handler.js";
 
 // =============================================================================

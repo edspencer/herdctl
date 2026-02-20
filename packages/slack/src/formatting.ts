@@ -18,15 +18,15 @@ import { slackifyMarkdown } from "slackify-markdown";
 // Re-export message splitting utilities from @herdctl/chat
 // These are identical between Discord and Slack, just with different max lengths
 export {
-  findSplitPoint,
-  splitMessage,
-  needsSplit,
-  truncateMessage,
-  formatCodeBlock,
   DEFAULT_MESSAGE_DELAY_MS,
-  MIN_CHUNK_SIZE,
+  findSplitPoint,
+  formatCodeBlock,
   type MessageSplitOptions,
+  MIN_CHUNK_SIZE,
+  needsSplit,
   type SplitResult,
+  splitMessage,
+  truncateMessage,
 } from "@herdctl/chat";
 
 // =============================================================================
@@ -83,9 +83,7 @@ export function markdownToMrkdwn(text: string): string {
  *
  * Used to display context usage information in a color-coded footer.
  */
-export function createContextAttachment(
-  contextPercent: number
-): ContextAttachment {
+export function createContextAttachment(contextPercent: number): ContextAttachment {
   return {
     footer: `Context: ${Math.round(contextPercent)}% remaining`,
     color: contextPercent < 20 ? "#ff0000" : "#36a64f",

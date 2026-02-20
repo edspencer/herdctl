@@ -5,10 +5,9 @@
  * connection state, and event definitions.
  */
 
-import type { AgentConfig, AgentChatDiscord } from "@herdctl/core";
-import type { FleetManager } from "@herdctl/core";
 import type { IChatSessionManager } from "@herdctl/chat";
-import type { ContextMessage, ConversationContext } from "./mention-handler.js";
+import type { AgentChatDiscord, AgentConfig, FleetManager } from "@herdctl/core";
+import type { ConversationContext } from "./mention-handler.js";
 
 // =============================================================================
 // Connector Options

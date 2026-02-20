@@ -5,10 +5,10 @@
  * Combines REST data with WebSocket-updated store data.
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { fetchAgent } from "../lib/api";
-import { useStore, useAgent } from "../store";
 import type { AgentInfo } from "../lib/types";
+import { useAgent, useStore } from "../store";
 
 // =============================================================================
 // Types
@@ -55,7 +55,7 @@ export interface UseAgentDetailResult {
 export function useAgentDetail(qualifiedName: string | null): UseAgentDetailResult {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
+  const [_retryCount, setRetryCount] = useState(0);
 
   // Get agent from store by qualifiedName (kept up-to-date by WebSocket)
   const agent = useAgent(qualifiedName);
@@ -88,8 +88,7 @@ export function useAgentDetail(qualifiedName: string | null): UseAgentDetailResu
       } catch (err) {
         if (cancelled) return;
 
-        const message =
-          err instanceof Error ? err.message : "Failed to fetch agent";
+        const message = err instanceof Error ? err.message : "Failed to fetch agent";
         setError(message);
         setLoading(false);
       }
@@ -100,7 +99,11 @@ export function useAgentDetail(qualifiedName: string | null): UseAgentDetailResu
     return () => {
       cancelled = true;
     };
-  }, [qualifiedName, retryCount]);
+  }, [
+    qualifiedName, // Update store with fresh data
+    // Wrap agent data in AgentStartedPayload format
+    updateAgent,
+  ]);
 
   const retry = useCallback((): void => {
     setRetryCount((c) => c + 1);

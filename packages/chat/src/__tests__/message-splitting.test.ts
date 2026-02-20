@@ -2,16 +2,16 @@
  * Tests for message splitting utilities
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  findSplitPoint,
-  splitMessage,
-  needsSplit,
-  truncateMessage,
-  formatCodeBlock,
-  DEFAULT_SPLIT_POINTS,
-  MIN_CHUNK_SIZE,
   DEFAULT_MESSAGE_DELAY_MS,
+  DEFAULT_SPLIT_POINTS,
+  findSplitPoint,
+  formatCodeBlock,
+  MIN_CHUNK_SIZE,
+  needsSplit,
+  splitMessage,
+  truncateMessage,
 } from "../message-splitting.js";
 
 describe("message-splitting", () => {
@@ -25,29 +25,29 @@ describe("message-splitting", () => {
       // "First paragraph.\n\n" is 18 chars, maxLength 18 fits exactly
       // We need text > maxLength to trigger a split, and the split point
       // must be > MIN_CHUNK_SIZE (100). Use a larger test case.
-      const text = "A".repeat(105) + ".\n\nSecond paragraph that is longer.";
+      const text = `${"A".repeat(105)}.\n\nSecond paragraph that is longer.`;
       const splitIndex = findSplitPoint(text, 115);
       // Should split after the paragraph break
-      expect(text.slice(0, splitIndex)).toBe("A".repeat(105) + ".\n\n");
+      expect(text.slice(0, splitIndex)).toBe(`${"A".repeat(105)}.\n\n`);
     });
 
     it("splits at newlines when no paragraph break", () => {
-      const text = "A".repeat(150) + "\n" + "B".repeat(50);
+      const text = `${"A".repeat(150)}\n${"B".repeat(50)}`;
       const splitIndex = findSplitPoint(text, 160);
       // Should split at the newline
-      expect(text.slice(0, splitIndex)).toBe("A".repeat(150) + "\n");
+      expect(text.slice(0, splitIndex)).toBe(`${"A".repeat(150)}\n`);
     });
 
     it("splits at sentence boundaries", () => {
       // Create text where the sentence boundary is past MIN_CHUNK_SIZE
-      const text = "A".repeat(110) + ". Second sentence is much longer and exceeds the limit.";
+      const text = `${"A".repeat(110)}. Second sentence is much longer and exceeds the limit.`;
       const splitIndex = findSplitPoint(text, 120);
-      expect(text.slice(0, splitIndex)).toBe("A".repeat(110) + ". ");
+      expect(text.slice(0, splitIndex)).toBe(`${"A".repeat(110)}. `);
     });
 
     it("splits at spaces when no sentence boundary", () => {
       // Create long enough text with no sentence boundaries
-      const text = "A".repeat(110) + " Word2 Word3 Word4 Word5 Word6 Word7 Word8";
+      const text = `${"A".repeat(110)} Word2 Word3 Word4 Word5 Word6 Word7 Word8`;
       const splitIndex = findSplitPoint(text, 120);
       // Should split at a space
       expect(text.charAt(splitIndex - 1)).toBe(" ");
@@ -60,7 +60,7 @@ describe("message-splitting", () => {
     });
 
     it("respects MIN_CHUNK_SIZE", () => {
-      const text = "A. " + "B".repeat(200);
+      const text = `A. ${"B".repeat(200)}`;
       const splitIndex = findSplitPoint(text, 200);
       // Should not split at "A. " because it's too short (less than MIN_CHUNK_SIZE)
       expect(splitIndex).toBeGreaterThan(MIN_CHUNK_SIZE);
@@ -86,10 +86,10 @@ describe("message-splitting", () => {
 
     it("preserves boundaries by default", () => {
       // Use content where the split point is past MIN_CHUNK_SIZE
-      const content = "A".repeat(105) + ".\n\nSecond paragraph.";
+      const content = `${"A".repeat(105)}.\n\nSecond paragraph.`;
       const result = splitMessage(content, { maxLength: 115 });
       // Should split after the paragraph break, trimmed
-      expect(result.chunks[0]).toBe("A".repeat(105) + ".");
+      expect(result.chunks[0]).toBe(`${"A".repeat(105)}.`);
     });
 
     it("can disable boundary preservation", () => {
@@ -101,13 +101,13 @@ describe("message-splitting", () => {
 
     it("uses custom split points", () => {
       // Need content long enough to exceed MIN_CHUNK_SIZE before the split point
-      const content = "A".repeat(105) + "|Part2|Part3";
+      const content = `${"A".repeat(105)}|Part2|Part3`;
       const result = splitMessage(content, {
         maxLength: 110,
         splitPoints: ["|"],
       });
       // Should split at the pipe (trimmed, so just the As and pipe)
-      expect(result.chunks[0]).toBe("A".repeat(105) + "|");
+      expect(result.chunks[0]).toBe(`${"A".repeat(105)}|`);
     });
 
     it("trims chunks", () => {
@@ -159,7 +159,7 @@ describe("message-splitting", () => {
 
     it("formats code with language", () => {
       expect(formatCodeBlock("const x = 1;", "typescript")).toBe(
-        "```typescript\nconst x = 1;\n```"
+        "```typescript\nconst x = 1;\n```",
       );
     });
 

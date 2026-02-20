@@ -1,25 +1,21 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdir, rm, realpath, writeFile, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { readFleetState, writeFleetState } from "../../state/fleet-state.js";
+import { createDefaultScheduleState, type FleetState } from "../../state/schemas/fleet-state.js";
 import {
-  getScheduleState,
-  updateScheduleState,
   getAgentScheduleStates,
+  getScheduleState,
   type ScheduleStateLogger,
+  updateScheduleState,
 } from "../schedule-state.js";
-import {
-  createDefaultScheduleState,
-  type ScheduleState,
-  type FleetState,
-} from "../../state/schemas/fleet-state.js";
-import { writeFleetState, readFleetState } from "../../state/fleet-state.js";
 
 // Helper to create a temp directory
 async function createTempDir(): Promise<string> {
   const baseDir = join(
     tmpdir(),
-    `herdctl-schedule-state-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-schedule-state-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   await mkdir(baseDir, { recursive: true });
   // Resolve to real path to handle macOS /var -> /private/var symlink
@@ -27,7 +23,7 @@ async function createTempDir(): Promise<string> {
 }
 
 // Helper to create a mock logger
-function createMockLogger(): ScheduleStateLogger & { warnings: string[] } {
+function _createMockLogger(): ScheduleStateLogger & { warnings: string[] } {
   const warnings: string[] = [];
   return {
     warnings,

@@ -1,9 +1,5 @@
-import { describe, it, expect } from "vitest";
-import {
-  SchedulerError,
-  IntervalParseError,
-  ScheduleTriggerError,
-} from "../errors.js";
+import { describe, expect, it } from "vitest";
+import { IntervalParseError, SchedulerError, ScheduleTriggerError } from "../errors.js";
 
 // =============================================================================
 // SchedulerError (Base Class)
@@ -73,11 +69,7 @@ describe("IntervalParseError", () => {
 
 describe("ScheduleTriggerError", () => {
   it("creates error with message, agentName, and scheduleName", () => {
-    const error = new ScheduleTriggerError(
-      "trigger failed",
-      "my-agent",
-      "hourly-schedule"
-    );
+    const error = new ScheduleTriggerError("trigger failed", "my-agent", "hourly-schedule");
 
     expect(error.message).toBe("trigger failed");
     expect(error.name).toBe("ScheduleTriggerError");
@@ -92,7 +84,7 @@ describe("ScheduleTriggerError", () => {
     const error = new ScheduleTriggerError(
       "test",
       "agent-with-dashes",
-      "schedule_with_underscores"
+      "schedule_with_underscores",
     );
 
     expect(error.agentName).toBe("agent-with-dashes");
@@ -101,32 +93,19 @@ describe("ScheduleTriggerError", () => {
 
   it("preserves cause when provided", () => {
     const cause = new Error("underlying failure");
-    const error = new ScheduleTriggerError(
-      "trigger failed",
-      "my-agent",
-      "my-schedule",
-      { cause }
-    );
+    const error = new ScheduleTriggerError("trigger failed", "my-agent", "my-schedule", { cause });
 
     expect(error.cause).toBe(cause);
   });
 
   it("has undefined cause when not provided", () => {
-    const error = new ScheduleTriggerError(
-      "trigger failed",
-      "my-agent",
-      "my-schedule"
-    );
+    const error = new ScheduleTriggerError("trigger failed", "my-agent", "my-schedule");
 
     expect(error.cause).toBeUndefined();
   });
 
   it("can be caught as SchedulerError", () => {
-    const error = new ScheduleTriggerError(
-      "failed",
-      "agent",
-      "schedule"
-    );
+    const error = new ScheduleTriggerError("failed", "agent", "schedule");
 
     let caught = false;
     try {
@@ -146,12 +125,10 @@ describe("ScheduleTriggerError", () => {
       `Failed to trigger agent: ${networkError.message}`,
       "remote-agent",
       "sync-schedule",
-      { cause: networkError }
+      { cause: networkError },
     );
 
-    expect(triggerError.message).toBe(
-      "Failed to trigger agent: Connection refused"
-    );
+    expect(triggerError.message).toBe("Failed to trigger agent: Connection refused");
     expect(triggerError.cause).toBe(networkError);
     expect(triggerError.agentName).toBe("remote-agent");
     expect(triggerError.scheduleName).toBe("sync-schedule");

@@ -1,26 +1,23 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdir, rm, realpath, writeFile, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { StateFileError } from "../errors.js";
 import {
-  getJobOutputPath,
   appendJobOutput,
   appendJobOutputBatch,
+  getJobOutputPath,
+  type JobOutputLogger,
   readJobOutput,
   readJobOutputAll,
-  type JobOutputLogger,
 } from "../job-output.js";
-import {
-  type JobOutputMessage,
-  type JobOutputInput,
-} from "../schemas/job-output.js";
-import { StateFileError } from "../errors.js";
+import type { JobOutputInput, JobOutputMessage } from "../schemas/job-output.js";
 
 // Helper to create a temp directory
 async function createTempDir(): Promise<string> {
   const baseDir = join(
     tmpdir(),
-    `herdctl-output-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-output-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   await mkdir(baseDir, { recursive: true });
   // Resolve to real path to handle macOS /var -> /private/var symlink
@@ -43,11 +40,8 @@ async function readRawJsonl(filePath: string): Promise<string[]> {
 }
 
 // Helper to write raw JSONL content
-async function writeRawJsonl(
-  filePath: string,
-  lines: string[]
-): Promise<void> {
-  await writeFile(filePath, lines.join("\n") + "\n", "utf-8");
+async function writeRawJsonl(filePath: string, lines: string[]): Promise<void> {
+  await writeFile(filePath, `${lines.join("\n")}\n`, "utf-8");
 }
 
 describe("getJobOutputPath", () => {
@@ -216,16 +210,16 @@ describe("appendJobOutput", () => {
       appendJobOutput(tempDir, jobId, {
         type: "invalid" as "system",
         content: "Test",
-      })
+      }),
     ).rejects.toThrow(StateFileError);
   });
 
   it("throws StateFileError for message without type", async () => {
     const jobId = "job-2024-01-15-test09";
 
-    await expect(
-      appendJobOutput(tempDir, jobId, {} as JobOutputInput)
-    ).rejects.toThrow(StateFileError);
+    await expect(appendJobOutput(tempDir, jobId, {} as JobOutputInput)).rejects.toThrow(
+      StateFileError,
+    );
   });
 
   it("throws StateFileError when directory does not exist", async () => {
@@ -235,7 +229,7 @@ describe("appendJobOutput", () => {
       appendJobOutput(nonExistentDir, "job-2024-01-15-nodir1", {
         type: "system",
         content: "Test",
-      })
+      }),
     ).rejects.toThrow(StateFileError);
   });
 
@@ -312,7 +306,7 @@ describe("appendJobOutputBatch", () => {
         { type: "assistant", content: "Valid" },
         { type: "invalid" as "system" }, // Invalid
         { type: "assistant", content: "Also valid" },
-      ])
+      ]),
     ).rejects.toThrow(StateFileError);
 
     // File should not exist since validation failed
@@ -337,7 +331,7 @@ describe("appendJobOutputBatch", () => {
         { type: "assistant", content: "Valid" },
         { type: "assistant", content: "Also valid" },
         {} as JobOutputInput, // Invalid at index 2
-      ])
+      ]),
     ).rejects.toThrow(/index 2/);
   });
 });
@@ -612,7 +606,7 @@ describe("concurrent operations", () => {
         appendJobOutput(tempDir, jobId, {
           type: "assistant",
           content: `Message ${i}`,
-        })
+        }),
       );
     }
 
@@ -649,9 +643,7 @@ describe("concurrent operations", () => {
     const jobId = "job-2024-01-15-conc03";
 
     // Write initial messages
-    await appendJobOutputBatch(tempDir, jobId, [
-      { type: "system", content: "Init" },
-    ]);
+    await appendJobOutputBatch(tempDir, jobId, [{ type: "system", content: "Init" }]);
 
     // Concurrent read and write
     const writePromise = (async () => {
@@ -807,9 +799,7 @@ describe("edge cases", () => {
 
     const messages = await readJobOutputAll(tempDir, jobId);
     if (messages[0].type === "assistant") {
-      expect(messages[0].content).toBe(
-        'Content with "quotes", \\backslashes\\, and\nnewlines'
-      );
+      expect(messages[0].content).toBe('Content with "quotes", \\backslashes\\, and\nnewlines');
     }
   });
 

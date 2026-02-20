@@ -4,9 +4,14 @@
  * Tests the WebSocket message type guards and handler behavior.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { isClientMessage, isChatSendMessage, isAgentStartedPayload, isAgentStoppedPayload } from "../ws/types.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WebSocketHandler } from "../ws/handler.js";
+import {
+  isAgentStartedPayload,
+  isAgentStoppedPayload,
+  isChatSendMessage,
+  isClientMessage,
+} from "../ws/types.js";
 
 // =============================================================================
 // Type Guard Tests
@@ -14,15 +19,11 @@ import { WebSocketHandler } from "../ws/handler.js";
 
 describe("isClientMessage", () => {
   it("accepts a valid subscribe message", () => {
-    expect(
-      isClientMessage({ type: "subscribe", payload: { agentName: "coder" } })
-    ).toBe(true);
+    expect(isClientMessage({ type: "subscribe", payload: { agentName: "coder" } })).toBe(true);
   });
 
   it("accepts a valid unsubscribe message", () => {
-    expect(
-      isClientMessage({ type: "unsubscribe", payload: { agentName: "coder" } })
-    ).toBe(true);
+    expect(isClientMessage({ type: "unsubscribe", payload: { agentName: "coder" } })).toBe(true);
   });
 
   it("accepts a valid ping message", () => {
@@ -38,7 +39,7 @@ describe("isClientMessage", () => {
           sessionId: "session-1",
           message: "Hello",
         },
-      })
+      }),
     ).toBe(true);
   });
 
@@ -81,7 +82,7 @@ describe("isChatSendMessage", () => {
           sessionId: "session-1",
           message: "Hello",
         },
-      })
+      }),
     ).toBe(true);
   });
 
@@ -90,7 +91,7 @@ describe("isChatSendMessage", () => {
       isChatSendMessage({
         type: "chat:send",
         payload: { agentName: "coder", sessionId: "session-1" },
-      })
+      }),
     ).toBe(false);
   });
 
@@ -103,7 +104,7 @@ describe("isChatSendMessage", () => {
           sessionId: "session-1",
           message: "Hello",
         },
-      })
+      }),
     ).toBe(false);
   });
 
@@ -122,7 +123,7 @@ describe("isAgentStartedPayload", () => {
     expect(
       isAgentStartedPayload({
         agent: { name: "coder", status: "running" },
-      } as any)
+      } as any),
     ).toBe(true);
   });
 
@@ -131,7 +132,7 @@ describe("isAgentStartedPayload", () => {
       isAgentStartedPayload({
         agentName: "coder",
         reason: "completed",
-      } as any)
+      } as any),
     ).toBe(false);
   });
 });
@@ -142,7 +143,7 @@ describe("isAgentStoppedPayload", () => {
       isAgentStoppedPayload({
         agentName: "coder",
         reason: "completed",
-      } as any)
+      } as any),
     ).toBe(true);
   });
 
@@ -150,7 +151,7 @@ describe("isAgentStoppedPayload", () => {
     expect(
       isAgentStoppedPayload({
         agent: { name: "coder", status: "running" },
-      } as any)
+      } as any),
     ).toBe(false);
   });
 });
@@ -238,7 +239,7 @@ describe("WebSocketHandler", () => {
 
       expect(mockFleetManager.getFleetStatus).toHaveBeenCalled();
       expect(mockSocket.send).toHaveBeenCalledWith(
-        expect.stringContaining('"type":"fleet:status"')
+        expect.stringContaining('"type":"fleet:status"'),
       );
     });
 
@@ -319,9 +320,7 @@ describe("WebSocketHandler", () => {
       const pingMsg = JSON.stringify({ type: "ping" });
       messageHandler!(Buffer.from(pingMsg));
 
-      expect(mockSocket.send).toHaveBeenCalledWith(
-        JSON.stringify({ type: "pong" })
-      );
+      expect(mockSocket.send).toHaveBeenCalledWith(JSON.stringify({ type: "pong" }));
     });
 
     it("ignores invalid JSON messages", async () => {
@@ -431,7 +430,7 @@ describe("WebSocketHandler", () => {
 
       // Subscribe socket1 to "coder"
       messageHandler1!(
-        Buffer.from(JSON.stringify({ type: "subscribe", payload: { agentName: "coder" } }))
+        Buffer.from(JSON.stringify({ type: "subscribe", payload: { agentName: "coder" } })),
       );
 
       socket1.send.mockClear();

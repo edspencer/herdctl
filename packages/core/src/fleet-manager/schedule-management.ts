@@ -7,10 +7,10 @@
  * @module schedule-management
  */
 
-import type { ScheduleInfo } from "./types.js";
 import type { FleetManagerContext } from "./context.js";
 import { AgentNotFoundError, ScheduleNotFoundError } from "./errors.js";
 import { buildScheduleInfoList, type FleetStateSnapshot } from "./status-queries.js";
+import type { ScheduleInfo } from "./types.js";
 
 // =============================================================================
 // ScheduleManagement Class
@@ -25,7 +25,7 @@ import { buildScheduleInfoList, type FleetStateSnapshot } from "./status-queries
 export class ScheduleManagement {
   constructor(
     private ctx: FleetManagerContext,
-    private readFleetStateSnapshotFn: () => Promise<FleetStateSnapshot>
+    private readFleetStateSnapshotFn: () => Promise<FleetStateSnapshot>,
   ) {}
 
   /**
@@ -65,8 +65,8 @@ export class ScheduleManagement {
     const config = this.ctx.getConfig();
     const agents = config?.agents ?? [];
     // Try qualified name first, fall back to local name
-    const agent = agents.find((a) => a.qualifiedName === agentName)
-      ?? agents.find((a) => a.name === agentName);
+    const agent =
+      agents.find((a) => a.qualifiedName === agentName) ?? agents.find((a) => a.name === agentName);
 
     if (!agent) {
       throw new AgentNotFoundError(agentName, {
@@ -75,9 +75,7 @@ export class ScheduleManagement {
     }
 
     if (!agent.schedules || !(scheduleName in agent.schedules)) {
-      const availableSchedules = agent.schedules
-        ? Object.keys(agent.schedules)
-        : [];
+      const availableSchedules = agent.schedules ? Object.keys(agent.schedules) : [];
       throw new ScheduleNotFoundError(agentName, scheduleName, {
         availableSchedules,
       });
@@ -122,8 +120,8 @@ export class ScheduleManagement {
     // Validate the agent and schedule exist
     const agents = config?.agents ?? [];
     // Try qualified name first, fall back to local name
-    const agent = agents.find((a) => a.qualifiedName === agentName)
-      ?? agents.find((a) => a.name === agentName);
+    const agent =
+      agents.find((a) => a.qualifiedName === agentName) ?? agents.find((a) => a.name === agentName);
 
     if (!agent) {
       throw new AgentNotFoundError(agentName, {
@@ -132,9 +130,7 @@ export class ScheduleManagement {
     }
 
     if (!agent.schedules || !(scheduleName in agent.schedules)) {
-      const availableSchedules = agent.schedules
-        ? Object.keys(agent.schedules)
-        : [];
+      const availableSchedules = agent.schedules ? Object.keys(agent.schedules) : [];
       throw new ScheduleNotFoundError(agentName, scheduleName, {
         availableSchedules,
       });
@@ -147,7 +143,7 @@ export class ScheduleManagement {
       agent.qualifiedName,
       scheduleName,
       { status: "idle" },
-      { logger: { warn: logger.warn } }
+      { logger: { warn: logger.warn } },
     );
 
     logger.info(`Enabled schedule ${agent.qualifiedName}/${scheduleName}`);
@@ -178,8 +174,8 @@ export class ScheduleManagement {
     // Validate the agent and schedule exist
     const agents = config?.agents ?? [];
     // Try qualified name first, fall back to local name
-    const agent = agents.find((a) => a.qualifiedName === agentName)
-      ?? agents.find((a) => a.name === agentName);
+    const agent =
+      agents.find((a) => a.qualifiedName === agentName) ?? agents.find((a) => a.name === agentName);
 
     if (!agent) {
       throw new AgentNotFoundError(agentName, {
@@ -188,9 +184,7 @@ export class ScheduleManagement {
     }
 
     if (!agent.schedules || !(scheduleName in agent.schedules)) {
-      const availableSchedules = agent.schedules
-        ? Object.keys(agent.schedules)
-        : [];
+      const availableSchedules = agent.schedules ? Object.keys(agent.schedules) : [];
       throw new ScheduleNotFoundError(agentName, scheduleName, {
         availableSchedules,
       });
@@ -203,7 +197,7 @@ export class ScheduleManagement {
       agent.qualifiedName,
       scheduleName,
       { status: "disabled" },
-      { logger: { warn: logger.warn } }
+      { logger: { warn: logger.warn } },
     );
 
     logger.info(`Disabled schedule ${agent.qualifiedName}/${scheduleName}`);

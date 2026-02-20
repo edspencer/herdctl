@@ -6,16 +6,16 @@
  */
 
 import { ZodError } from "zod";
+import { createLogger } from "../utils/logger.js";
+import { StateFileError } from "./errors.js";
 import {
-  FleetStateSchema,
+  type AgentState,
   createInitialFleetState,
   type FleetState,
-  type AgentState,
+  FleetStateSchema,
 } from "./schemas/fleet-state.js";
-import { safeReadYaml } from "./utils/reads.js";
 import { atomicWriteYaml } from "./utils/atomic.js";
-import { StateFileError } from "./errors.js";
-import { createLogger } from "../utils/logger.js";
+import { safeReadYaml } from "./utils/reads.js";
 
 /**
  * Logger interface for warning messages
@@ -72,7 +72,7 @@ export interface WriteFleetStateOptions {
  */
 export async function readFleetState(
   stateFilePath: string,
-  options: ReadFleetStateOptions = {}
+  options: ReadFleetStateOptions = {},
 ): Promise<FleetState> {
   const logger = options.logger ?? defaultLogger;
 
@@ -86,7 +86,7 @@ export async function readFleetState(
     }
     // For other read errors, log and return default
     logger.warn(
-      `Failed to read state file '${stateFilePath}': ${readResult.error.message}. Using default state.`
+      `Failed to read state file '${stateFilePath}': ${readResult.error.message}. Using default state.`,
     );
     return createInitialFleetState();
   }
@@ -104,14 +104,12 @@ export async function readFleetState(
       const issues = error.issues
         .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
         .join(", ");
-      logger.warn(
-        `Corrupted state file '${stateFilePath}': ${issues}. Using default state.`
-      );
+      logger.warn(`Corrupted state file '${stateFilePath}': ${issues}. Using default state.`);
       return createInitialFleetState();
     }
     // Unexpected error - log and return default
     logger.warn(
-      `Unexpected error parsing state file '${stateFilePath}': ${(error as Error).message}. Using default state.`
+      `Unexpected error parsing state file '${stateFilePath}': ${(error as Error).message}. Using default state.`,
     );
     return createInitialFleetState();
   }
@@ -137,7 +135,7 @@ export async function readFleetState(
 export async function writeFleetState(
   stateFilePath: string,
   state: FleetState,
-  options: WriteFleetStateOptions = {}
+  options: WriteFleetStateOptions = {},
 ): Promise<void> {
   // Validate before writing
   const validatedState = FleetStateSchema.parse(state);
@@ -151,7 +149,7 @@ export async function writeFleetState(
       `Failed to write state file '${stateFilePath}': ${(error as Error).message}`,
       stateFilePath,
       "write",
-      error as Error
+      error as Error,
     );
   }
 }
@@ -197,7 +195,7 @@ export async function updateAgentState(
   stateFilePath: string,
   agentName: string,
   updates: AgentStateUpdates,
-  options: ReadFleetStateOptions & WriteFleetStateOptions = {}
+  options: ReadFleetStateOptions & WriteFleetStateOptions = {},
 ): Promise<FleetState> {
   // Read current state
   const currentState = await readFleetState(stateFilePath, options);
@@ -235,7 +233,7 @@ export async function updateAgentState(
  */
 export async function initializeFleetState(
   stateFilePath: string,
-  options: ReadFleetStateOptions & WriteFleetStateOptions = {}
+  options: ReadFleetStateOptions & WriteFleetStateOptions = {},
 ): Promise<FleetState> {
   const currentState = await readFleetState(stateFilePath, options);
 
@@ -266,7 +264,7 @@ export async function initializeFleetState(
 export async function removeAgentState(
   stateFilePath: string,
   agentName: string,
-  options: ReadFleetStateOptions & WriteFleetStateOptions = {}
+  options: ReadFleetStateOptions & WriteFleetStateOptions = {},
 ): Promise<FleetState> {
   const currentState = await readFleetState(stateFilePath, options);
 

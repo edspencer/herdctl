@@ -242,5 +242,4 @@ export interface ChatConnectorEventMap {
 }
 
 export type ChatConnectorEventName = keyof ChatConnectorEventMap;
-export type ChatConnectorEventPayload<E extends ChatConnectorEventName> =
-  ChatConnectorEventMap[E];
+export type ChatConnectorEventPayload<E extends ChatConnectorEventName> = ChatConnectorEventMap[E];

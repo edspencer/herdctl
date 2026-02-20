@@ -53,12 +53,7 @@ export class ChatConnectorError extends Error {
   public readonly code: string;
   public readonly agentName: string;
 
-  constructor(
-    message: string,
-    code: string,
-    agentName: string,
-    options?: { cause?: Error }
-  ) {
+  constructor(message: string, code: string, agentName: string, options?: { cause?: Error }) {
     super(message, options);
     this.name = "ChatConnectorError";
     this.code = code;
@@ -79,7 +74,7 @@ export class ChatConnectionError extends ChatConnectorError {
       `Chat connection failed for agent '${agentName}': ${message}`,
       ChatErrorCode.CONNECTION_FAILED,
       agentName,
-      options
+      options,
     );
     this.name = "ChatConnectionError";
   }
@@ -93,7 +88,7 @@ export class AlreadyConnectedError extends ChatConnectorError {
     super(
       `Chat connector for agent '${agentName}' is already connected`,
       ChatErrorCode.ALREADY_CONNECTED,
-      agentName
+      agentName,
     );
     this.name = "AlreadyConnectedError";
   }
@@ -107,7 +102,7 @@ export class InvalidTokenError extends ChatConnectorError {
     super(
       `Invalid chat token for agent '${agentName}': ${reason}`,
       ChatErrorCode.INVALID_TOKEN,
-      agentName
+      agentName,
     );
     this.name = "InvalidTokenError";
   }
@@ -125,7 +120,7 @@ export class MissingTokenError extends ChatConnectorError {
     super(
       `Missing chat ${tokenDesc} for agent '${agentName}': environment variable '${envVar}' is not set`,
       ChatErrorCode.MISSING_TOKEN,
-      agentName
+      agentName,
     );
     this.name = "MissingTokenError";
     this.envVar = envVar;
@@ -161,44 +156,34 @@ export class MissingTokenError extends ChatConnectorError {
  * }
  * ```
  */
-export function isChatConnectorError(
-  error: unknown
-): error is ChatConnectorError {
+export function isChatConnectorError(error: unknown): error is ChatConnectorError {
   return error instanceof ChatConnectorError;
 }
 
 /**
  * Type guard to check if an error is a ChatConnectionError
  */
-export function isChatConnectionError(
-  error: unknown
-): error is ChatConnectionError {
+export function isChatConnectionError(error: unknown): error is ChatConnectionError {
   return error instanceof ChatConnectionError;
 }
 
 /**
  * Type guard to check if an error is an AlreadyConnectedError
  */
-export function isAlreadyConnectedError(
-  error: unknown
-): error is AlreadyConnectedError {
+export function isAlreadyConnectedError(error: unknown): error is AlreadyConnectedError {
   return error instanceof AlreadyConnectedError;
 }
 
 /**
  * Type guard to check if an error is an InvalidTokenError
  */
-export function isInvalidTokenError(
-  error: unknown
-): error is InvalidTokenError {
+export function isInvalidTokenError(error: unknown): error is InvalidTokenError {
   return error instanceof InvalidTokenError;
 }
 
 /**
  * Type guard to check if an error is a MissingTokenError
  */
-export function isMissingTokenError(
-  error: unknown
-): error is MissingTokenError {
+export function isMissingTokenError(error: unknown): error is MissingTokenError {
   return error instanceof MissingTokenError;
 }

@@ -17,8 +17,8 @@
  * @module mcp-http-bridge
  */
 
-import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http";
-import type { InjectedMcpServerDef, InjectedMcpToolDef, McpToolCallResult } from "../types.js";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import type { InjectedMcpServerDef, McpToolCallResult } from "../types.js";
 
 // =============================================================================
 // Types

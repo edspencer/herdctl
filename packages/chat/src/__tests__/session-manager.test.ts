@@ -1,19 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdir, writeFile, readFile, rm } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { randomBytes } from "node:crypto";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
+import { SessionStateReadError } from "../session-manager/errors.js";
 import { ChatSessionManager } from "../session-manager/session-manager.js";
-import {
-  type ChatSessionState,
-  createInitialSessionState,
-} from "../session-manager/types.js";
-import {
-  SessionStateReadError,
-  SessionStateWriteError,
-  SessionDirectoryCreateError,
-} from "../session-manager/errors.js";
+import { type ChatSessionState, createInitialSessionState } from "../session-manager/types.js";
 
 // =============================================================================
 // Test Fixtures
@@ -86,11 +79,7 @@ describe("ChatSessionManager (platform: discord)", () => {
       await manager.getOrCreateSession("channel-1");
 
       // Read the state file to verify it was created
-      const stateFilePath = join(
-        testDir,
-        "discord-sessions",
-        "test-agent.yaml"
-      );
+      const stateFilePath = join(testDir, "discord-sessions", "test-agent.yaml");
       const content = await readFile(stateFilePath, "utf-8");
       const state = parseYaml(content) as ChatSessionState;
 
@@ -129,7 +118,7 @@ describe("ChatSessionManager (platform: discord)", () => {
       expect(result.sessionId).toMatch(/^discord-test-agent-/);
       expect(mockLogger.info).toHaveBeenCalledWith(
         "Created new session",
-        expect.objectContaining({ channelId: "channel-123" })
+        expect.objectContaining({ channelId: "channel-123" }),
       );
     });
 
@@ -154,7 +143,7 @@ describe("ChatSessionManager (platform: discord)", () => {
         expect.objectContaining({
           channelId: "channel-123",
           sessionId: first.sessionId,
-        })
+        }),
       );
     });
 
@@ -187,11 +176,7 @@ describe("ChatSessionManager (platform: discord)", () => {
       const first = await manager.getOrCreateSession("channel-123");
 
       // Manually update state to have old timestamp
-      const stateFilePath = join(
-        testDir,
-        "discord-sessions",
-        "test-agent.yaml"
-      );
+      const stateFilePath = join(testDir, "discord-sessions", "test-agent.yaml");
       const content = await readFile(stateFilePath, "utf-8");
       const state = parseYaml(content) as ChatSessionState;
 
@@ -227,11 +212,7 @@ describe("ChatSessionManager (platform: discord)", () => {
       await manager.getOrCreateSession("channel-123");
 
       // Verify directory was created
-      const stateFilePath = join(
-        testDir,
-        "discord-sessions",
-        "test-agent.yaml"
-      );
+      const stateFilePath = join(testDir, "discord-sessions", "test-agent.yaml");
       const content = await readFile(stateFilePath, "utf-8");
       expect(content).toBeTruthy();
     });
@@ -247,11 +228,7 @@ describe("ChatSessionManager (platform: discord)", () => {
       const result = await manager.getOrCreateSession("channel-123");
 
       // Read and verify the state file
-      const stateFilePath = join(
-        testDir,
-        "discord-sessions",
-        "test-agent.yaml"
-      );
+      const stateFilePath = join(testDir, "discord-sessions", "test-agent.yaml");
       const content = await readFile(stateFilePath, "utf-8");
       const state = parseYaml(content) as ChatSessionState;
 
@@ -285,17 +262,11 @@ describe("ChatSessionManager (platform: discord)", () => {
       await manager.touchSession("channel-123");
 
       // Read state and verify timestamp was updated
-      const stateFilePath = join(
-        testDir,
-        "discord-sessions",
-        "test-agent.yaml"
-      );
+      const stateFilePath = join(testDir, "discord-sessions", "test-agent.yaml");
       const content = await readFile(stateFilePath, "utf-8");
       const state = parseYaml(content) as ChatSessionState;
 
-      const lastMessageAt = new Date(
-        state.channels["channel-123"].lastMessageAt
-      );
+      const lastMessageAt = new Date(state.channels["channel-123"].lastMessageAt);
       const now = new Date();
 
       // Should be within last second
@@ -312,10 +283,9 @@ describe("ChatSessionManager (platform: discord)", () => {
 
       await manager.touchSession("non-existent-channel");
 
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        "Attempted to touch non-existent session",
-        { channelId: "non-existent-channel" }
-      );
+      expect(mockLogger.warn).toHaveBeenCalledWith("Attempted to touch non-existent session", {
+        channelId: "non-existent-channel",
+      });
     });
   });
 
@@ -368,11 +338,7 @@ describe("ChatSessionManager (platform: discord)", () => {
       await manager.getOrCreateSession("channel-123");
 
       // Manually update state to have old timestamp
-      const stateFilePath = join(
-        testDir,
-        "discord-sessions",
-        "test-agent.yaml"
-      );
+      const stateFilePath = join(testDir, "discord-sessions", "test-agent.yaml");
       const content = await readFile(stateFilePath, "utf-8");
       const state = parseYaml(content) as ChatSessionState;
 
@@ -396,7 +362,7 @@ describe("ChatSessionManager (platform: discord)", () => {
       expect(session).toBeNull();
       expect(mockLogger.info).toHaveBeenCalledWith(
         "Session expired",
-        expect.objectContaining({ channelId: "channel-123" })
+        expect.objectContaining({ channelId: "channel-123" }),
       );
     });
   });
@@ -426,7 +392,7 @@ describe("ChatSessionManager (platform: discord)", () => {
         expect.objectContaining({
           channelId: "channel-123",
           sessionId: "sdk-session-456",
-        })
+        }),
       );
     });
 
@@ -455,7 +421,7 @@ describe("ChatSessionManager (platform: discord)", () => {
           channelId: "channel-123",
           oldSessionId: "old-session-id",
           newSessionId: "new-session-id",
-        })
+        }),
       );
     });
 
@@ -515,7 +481,7 @@ describe("ChatSessionManager (platform: discord)", () => {
       expect(result).toBe(true);
       expect(mockLogger.info).toHaveBeenCalledWith(
         "Cleared session",
-        expect.objectContaining({ channelId: "channel-123" })
+        expect.objectContaining({ channelId: "channel-123" }),
       );
 
       // Verify it's gone
@@ -595,11 +561,7 @@ describe("ChatSessionManager (platform: discord)", () => {
       await manager.getOrCreateSession("channel-3");
 
       // Manually expire some sessions
-      const stateFilePath = join(
-        testDir,
-        "discord-sessions",
-        "test-agent.yaml"
-      );
+      const stateFilePath = join(testDir, "discord-sessions", "test-agent.yaml");
       const content = await readFile(stateFilePath, "utf-8");
       const state = parseYaml(content) as ChatSessionState;
 
@@ -622,10 +584,7 @@ describe("ChatSessionManager (platform: discord)", () => {
       const count = await manager2.cleanupExpiredSessions();
 
       expect(count).toBe(2);
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        "Cleaned up expired sessions",
-        { count: 2 }
-      );
+      expect(mockLogger.info).toHaveBeenCalledWith("Cleaned up expired sessions", { count: 2 });
 
       // Verify channel-2 still exists
       const session2 = await manager2.getSession("channel-2");
@@ -648,10 +607,7 @@ describe("ChatSessionManager (platform: discord)", () => {
       // Write corrupted YAML
       const stateDir = join(testDir, "discord-sessions");
       await mkdir(stateDir, { recursive: true });
-      await writeFile(
-        join(stateDir, "test-agent.yaml"),
-        "invalid: yaml: content: {{"
-      );
+      await writeFile(join(stateDir, "test-agent.yaml"), "invalid: yaml: content: {{");
 
       const manager = new ChatSessionManager({
         platform,
@@ -666,7 +622,7 @@ describe("ChatSessionManager (platform: discord)", () => {
       expect(result.isNew).toBe(true);
       expect(mockLogger.warn).toHaveBeenCalledWith(
         "Corrupted session state file, creating fresh state",
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
@@ -676,7 +632,7 @@ describe("ChatSessionManager (platform: discord)", () => {
       await mkdir(stateDir, { recursive: true });
       await writeFile(
         join(stateDir, "test-agent.yaml"),
-        stringifyYaml({ version: 999, invalid: true })
+        stringifyYaml({ version: 999, invalid: true }),
       );
 
       const manager = new ChatSessionManager({
@@ -692,7 +648,7 @@ describe("ChatSessionManager (platform: discord)", () => {
       expect(result.isNew).toBe(true);
       expect(mockLogger.warn).toHaveBeenCalledWith(
         "Corrupted session state file, creating fresh state",
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
@@ -749,11 +705,7 @@ describe("ChatSessionManager (platform: discord)", () => {
       expect(result.sessionId).toMatch(new RegExp(`^${platform}-${qualifiedName}-`));
 
       // Verify state file is written with qualified name
-      const stateFilePath = join(
-        testDir,
-        `${platform}-sessions`,
-        `${qualifiedName}.yaml`
-      );
+      const stateFilePath = join(testDir, `${platform}-sessions`, `${qualifiedName}.yaml`);
       const content = await readFile(stateFilePath, "utf-8");
       const state = parseYaml(content) as ChatSessionState;
       expect(state.agentName).toBe(qualifiedName);
@@ -777,7 +729,7 @@ describe("ChatSessionManager (platform: discord)", () => {
 
       // Should match pattern: discord-<agent-name>-<uuid>
       expect(result.sessionId).toMatch(
-        /^discord-my-agent-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+        /^discord-my-agent-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
       );
     });
   });
@@ -852,11 +804,7 @@ describe("ChatSessionManager (platform: slack)", () => {
       await manager.getOrCreateSession("channel-123");
 
       // Verify directory was created with slack prefix
-      const stateFilePath = join(
-        testDir,
-        "slack-sessions",
-        "test-agent.yaml"
-      );
+      const stateFilePath = join(testDir, "slack-sessions", "test-agent.yaml");
       const content = await readFile(stateFilePath, "utf-8");
       expect(content).toBeTruthy();
     });
@@ -873,7 +821,7 @@ describe("ChatSessionManager (platform: slack)", () => {
 
       // Should match pattern: slack-<agent-name>-<uuid>
       expect(result.sessionId).toMatch(
-        /^slack-my-agent-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+        /^slack-my-agent-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
       );
     });
 
@@ -969,11 +917,7 @@ describe("ChatSessionManager (platform-agnostic)", () => {
       expect(result.sessionId).toMatch(/^teams-test-agent-/);
 
       // Verify custom platform directory
-      const stateFilePath = join(
-        testDir,
-        "teams-sessions",
-        "test-agent.yaml"
-      );
+      const stateFilePath = join(testDir, "teams-sessions", "test-agent.yaml");
       const content = await readFile(stateFilePath, "utf-8");
       expect(content).toBeTruthy();
 
@@ -1048,7 +992,7 @@ describe("ChatSessionManager errors", () => {
       });
 
       await expect(manager.getOrCreateSession("channel-123")).rejects.toThrow(
-        SessionStateReadError
+        SessionStateReadError,
       );
 
       // Cleanup

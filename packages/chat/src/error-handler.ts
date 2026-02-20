@@ -74,38 +74,27 @@ export interface ClassifiedError {
  */
 export const USER_ERROR_MESSAGES = {
   /** Generic processing error */
-  PROCESSING_ERROR:
-    "Sorry, I encountered an error processing your request. Please try again.",
+  PROCESSING_ERROR: "Sorry, I encountered an error processing your request. Please try again.",
   /** Connection/network error */
-  CONNECTION_ERROR:
-    "I'm having trouble connecting right now. Please try again in a moment.",
+  CONNECTION_ERROR: "I'm having trouble connecting right now. Please try again in a moment.",
   /** Rate limit error */
-  RATE_LIMITED:
-    "I'm receiving too many requests right now. Please wait a moment and try again.",
+  RATE_LIMITED: "I'm receiving too many requests right now. Please wait a moment and try again.",
   /** Command execution error */
-  COMMAND_ERROR:
-    "Sorry, I couldn't complete that command. Please try again.",
+  COMMAND_ERROR: "Sorry, I couldn't complete that command. Please try again.",
   /** Session error */
-  SESSION_ERROR:
-    "I'm having trouble with your conversation session. Please try again.",
+  SESSION_ERROR: "I'm having trouble with your conversation session. Please try again.",
   /** Timeout error */
-  TIMEOUT_ERROR:
-    "The request took too long to complete. Please try again.",
+  TIMEOUT_ERROR: "The request took too long to complete. Please try again.",
   /** Permission error */
-  PERMISSION_ERROR:
-    "I don't have permission to do that in this channel.",
+  PERMISSION_ERROR: "I don't have permission to do that in this channel.",
   /** Authentication error */
-  AUTH_ERROR:
-    "I'm having trouble authenticating. Please contact an administrator.",
+  AUTH_ERROR: "I'm having trouble authenticating. Please contact an administrator.",
   /** API error */
-  API_ERROR:
-    "Something went wrong with the chat API. Please try again.",
+  API_ERROR: "Something went wrong with the chat API. Please try again.",
   /** Internal error */
-  INTERNAL_ERROR:
-    "An internal error occurred. Please try again or start a new session.",
+  INTERNAL_ERROR: "An internal error occurred. Please try again or start a new session.",
   /** Unknown error */
-  UNKNOWN_ERROR:
-    "An unexpected error occurred. Please try again.",
+  UNKNOWN_ERROR: "An unexpected error occurred. Please try again.",
 } as const;
 
 export type UserErrorMessageKey = keyof typeof USER_ERROR_MESSAGES;
@@ -194,21 +183,13 @@ export interface RetryResult<T> {
  */
 export async function withRetry<T>(
   operation: () => Promise<T>,
-  options: RetryOptions = {}
+  options: RetryOptions = {},
 ): Promise<RetryResult<T>> {
   const opts = { ...DEFAULT_RETRY_OPTIONS, ...options };
-  const {
-    maxAttempts,
-    baseDelayMs,
-    maxDelayMs,
-    backoffMultiplier,
-    operationName,
-    logger,
-  } = opts;
+  const { maxAttempts, baseDelayMs, maxDelayMs, backoffMultiplier, operationName, logger } = opts;
 
   // Default shouldRetry: retry transient errors
-  const shouldRetryFn =
-    options.shouldRetry ?? ((error: unknown) => isTransientError(error));
+  const shouldRetryFn = options.shouldRetry ?? ((error: unknown) => isTransientError(error));
 
   let lastError: Error | undefined;
   let attempt = 0;
@@ -234,10 +215,7 @@ export async function withRetry<T>(
       }
 
       // Calculate delay with exponential backoff
-      const delay = Math.min(
-        baseDelayMs * Math.pow(backoffMultiplier, attempt - 1),
-        maxDelayMs
-      );
+      const delay = Math.min(baseDelayMs * backoffMultiplier ** (attempt - 1), maxDelayMs);
 
       logger?.info(`${operationName} failed, retrying in ${delay}ms...`, {
         attempt,
@@ -293,9 +271,7 @@ export function isTransientError(error: unknown): boolean {
 
   if (
     networkPatterns.some(
-      (pattern) =>
-        message.includes(pattern.toLowerCase()) ||
-        name.includes(pattern.toLowerCase())
+      (pattern) => message.includes(pattern.toLowerCase()) || name.includes(pattern.toLowerCase()),
     )
   ) {
     return true;
@@ -306,9 +282,7 @@ export function isTransientError(error: unknown): boolean {
 
   if (
     timeoutPatterns.some(
-      (pattern) =>
-        message.includes(pattern.toLowerCase()) ||
-        name.includes(pattern.toLowerCase())
+      (pattern) => message.includes(pattern.toLowerCase()) || name.includes(pattern.toLowerCase()),
     )
   ) {
     return true;
@@ -384,7 +358,7 @@ export function isAuthError(error: unknown): boolean {
 export async function safeExecute<T>(
   operation: () => Promise<T>,
   logger: ChatConnectorLogger,
-  context: string
+  context: string,
 ): Promise<T | undefined> {
   try {
     return await operation();
@@ -421,7 +395,7 @@ export async function safeExecuteWithReply(
   reply: (content: string) => Promise<void>,
   logger: ChatConnectorLogger,
   context: string,
-  userMessage?: string
+  userMessage?: string,
 ): Promise<void> {
   try {
     await operation();
@@ -433,9 +407,7 @@ export async function safeExecuteWithReply(
       const message = userMessage ?? USER_ERROR_MESSAGES.PROCESSING_ERROR;
       await reply(message);
     } catch (replyError) {
-      logger.error(
-        `Failed to send error reply: ${(replyError as Error).message}`
-      );
+      logger.error(`Failed to send error reply: ${(replyError as Error).message}`);
     }
   }
 }

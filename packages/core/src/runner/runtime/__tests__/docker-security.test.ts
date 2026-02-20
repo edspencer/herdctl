@@ -1,16 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { execSync } from "node:child_process";
-import { mkdir, rm, realpath } from "node:fs/promises";
-import { join } from "node:path";
+import { exec, execSync } from "node:child_process";
+import { mkdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { promisify } from "node:util";
-import { exec } from "node:child_process";
-import {
-  buildContainerMounts,
-  buildContainerEnv,
-} from "../container-manager.js";
-import { resolveDockerConfig } from "../docker-config.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ResolvedAgent } from "../../../config/index.js";
+import { buildContainerEnv, buildContainerMounts } from "../container-manager.js";
+import { resolveDockerConfig } from "../docker-config.js";
 
 const execAsync = promisify(exec);
 
@@ -39,7 +35,7 @@ const describeDocker = DOCKER_AVAILABLE ? describe : describe.skip;
 async function createTempDir(): Promise<string> {
   const baseDir = join(
     tmpdir(),
-    `herdctl-docker-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-docker-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   await mkdir(baseDir, { recursive: true });
   return await realpath(baseDir);
@@ -100,9 +96,7 @@ describeDocker("Docker Security Hardening", () => {
 
       const mounts = buildContainerMounts(agent, dockerConfig, tempDir);
 
-      const workspaceMount = mounts.find((m) =>
-        m.containerPath === "/workspace"
-      );
+      const workspaceMount = mounts.find((m) => m.containerPath === "/workspace");
       expect(workspaceMount).toBeDefined();
       expect(workspaceMount?.mode).toBe("rw");
     });
@@ -116,9 +110,7 @@ describeDocker("Docker Security Hardening", () => {
 
       const mounts = buildContainerMounts(agent, dockerConfig, tempDir);
 
-      const workspaceMount = mounts.find((m) =>
-        m.containerPath === "/workspace"
-      );
+      const workspaceMount = mounts.find((m) => m.containerPath === "/workspace");
       expect(workspaceMount?.mode).toBe("ro");
     });
 
@@ -129,8 +121,8 @@ describeDocker("Docker Security Hardening", () => {
       const mounts = buildContainerMounts(agent, dockerConfig, tempDir);
 
       // Auth should NOT be mounted - we use ANTHROPIC_API_KEY env var instead
-      const authMount = mounts.find((m) =>
-        m.containerPath?.includes(".claude") && m.hostPath?.includes(".claude")
+      const authMount = mounts.find(
+        (m) => m.containerPath?.includes(".claude") && m.hostPath?.includes(".claude"),
       );
       expect(authMount).toBeUndefined();
     });
@@ -142,8 +134,8 @@ describeDocker("Docker Security Hardening", () => {
       const mounts = buildContainerMounts(agent, dockerConfig, tempDir);
 
       // Session mount at Claude CLI session location (encoded path: /workspace → -workspace)
-      const sessionMount = mounts.find((m) =>
-        m.containerPath === "/home/claude/.claude/projects/-workspace"
+      const sessionMount = mounts.find(
+        (m) => m.containerPath === "/home/claude/.claude/projects/-workspace",
       );
       expect(sessionMount).toBeDefined();
       expect(sessionMount?.mode).toBe("rw");
@@ -171,9 +163,7 @@ describeDocker("Docker Security Hardening", () => {
 
       const mounts = buildContainerMounts(agent, dockerConfig, tempDir);
 
-      const workspaceMount = mounts.find((m) =>
-        m.containerPath === "/workspace"
-      );
+      const workspaceMount = mounts.find((m) => m.containerPath === "/workspace");
       expect(workspaceMount).toBeDefined();
       expect(workspaceMount?.hostPath).toBe("/path/to/workspace");
     });
@@ -191,9 +181,7 @@ describeDocker("Docker Security Hardening", () => {
 
       const mounts = buildContainerMounts(agent, dockerConfig, tempDir);
 
-      const workspaceMount = mounts.find((m) =>
-        m.containerPath === "/workspace"
-      );
+      const workspaceMount = mounts.find((m) => m.containerPath === "/workspace");
       expect(workspaceMount).toBeDefined();
       expect(workspaceMount?.hostPath).toBe("/path/to/workspace");
     });
@@ -278,7 +266,7 @@ describeDocker("Docker Security Hardening", () => {
     it("applies no-new-privileges security option", async () => {
       // Create a container to inspect (don't start it)
       const { stdout } = await execAsync(
-        `docker create --security-opt=no-new-privileges alpine:latest sleep 1`
+        `docker create --security-opt=no-new-privileges alpine:latest sleep 1`,
       );
       const containerId = stdout.trim();
       containers.push(containerId);
@@ -290,9 +278,7 @@ describeDocker("Docker Security Hardening", () => {
     });
 
     it("drops all capabilities", async () => {
-      const { stdout } = await execAsync(
-        `docker create --cap-drop=ALL alpine:latest sleep 1`
-      );
+      const { stdout } = await execAsync(`docker create --cap-drop=ALL alpine:latest sleep 1`);
       const containerId = stdout.trim();
       containers.push(containerId);
 
@@ -304,7 +290,7 @@ describeDocker("Docker Security Hardening", () => {
     it("sets memory limits", async () => {
       const memoryLimit = 512 * 1024 * 1024; // 512MB
       const { stdout } = await execAsync(
-        `docker create --memory=${memoryLimit} alpine:latest sleep 1`
+        `docker create --memory=${memoryLimit} alpine:latest sleep 1`,
       );
       const containerId = stdout.trim();
       containers.push(containerId);
@@ -315,9 +301,7 @@ describeDocker("Docker Security Hardening", () => {
     });
 
     it("sets user to non-root", async () => {
-      const { stdout } = await execAsync(
-        `docker create --user=1000:1000 alpine:latest sleep 1`
-      );
+      const { stdout } = await execAsync(`docker create --user=1000:1000 alpine:latest sleep 1`);
       const containerId = stdout.trim();
       containers.push(containerId);
 
@@ -327,9 +311,7 @@ describeDocker("Docker Security Hardening", () => {
     });
 
     it("applies network mode", async () => {
-      const { stdout } = await execAsync(
-        `docker create --network=bridge alpine:latest sleep 1`
-      );
+      const { stdout } = await execAsync(`docker create --network=bridge alpine:latest sleep 1`);
       const containerId = stdout.trim();
       containers.push(containerId);
 
@@ -342,23 +324,19 @@ describeDocker("Docker Security Hardening", () => {
       await mkdir(join(tempDir, "data"), { recursive: true });
 
       const { stdout } = await execAsync(
-        `docker create -v ${tempDir}/data:/data:ro alpine:latest sleep 1`
+        `docker create -v ${tempDir}/data:/data:ro alpine:latest sleep 1`,
       );
       const containerId = stdout.trim();
       containers.push(containerId);
 
       const inspection = await inspectContainer(containerId);
 
-      const dataMount = inspection.Mounts.find(
-        (m: any) => m.Destination === "/data"
-      );
+      const dataMount = inspection.Mounts.find((m: any) => m.Destination === "/data");
       expect(dataMount?.RW).toBe(false);
     });
 
     it("sets AutoRemove when ephemeral is true", async () => {
-      const { stdout } = await execAsync(
-        `docker create --rm alpine:latest sleep 1`
-      );
+      const { stdout } = await execAsync(`docker create --rm alpine:latest sleep 1`);
       const containerId = stdout.trim();
       containers.push(containerId);
 
@@ -368,9 +346,7 @@ describeDocker("Docker Security Hardening", () => {
     });
 
     it("does not set AutoRemove when ephemeral is false", async () => {
-      const { stdout } = await execAsync(
-        `docker create alpine:latest sleep 1`
-      );
+      const { stdout } = await execAsync(`docker create alpine:latest sleep 1`);
       const containerId = stdout.trim();
       containers.push(containerId);
 
@@ -382,7 +358,7 @@ describeDocker("Docker Security Hardening", () => {
     it("sets memory and swap limit to same value (no swap)", async () => {
       const memoryLimit = 1024 * 1024 * 1024; // 1GB
       const { stdout } = await execAsync(
-        `docker create --memory=${memoryLimit} --memory-swap=${memoryLimit} alpine:latest sleep 1`
+        `docker create --memory=${memoryLimit} --memory-swap=${memoryLimit} alpine:latest sleep 1`,
       );
       const containerId = stdout.trim();
       containers.push(containerId);
@@ -396,7 +372,7 @@ describeDocker("Docker Security Hardening", () => {
     it("sets CPU shares for resource limits", async () => {
       const cpuShares = 512;
       const { stdout } = await execAsync(
-        `docker create --cpu-shares=${cpuShares} alpine:latest sleep 1`
+        `docker create --cpu-shares=${cpuShares} alpine:latest sleep 1`,
       );
       const containerId = stdout.trim();
       containers.push(containerId);

@@ -5,7 +5,7 @@
  * when constructing file paths from user-controlled identifiers.
  */
 
-import { resolve, join } from "node:path";
+import { join, resolve } from "node:path";
 
 /**
  * Error thrown when a path traversal attempt is detected
@@ -17,7 +17,7 @@ export class PathTraversalError extends Error {
 
   constructor(baseDir: string, identifier: string, resultPath: string) {
     super(
-      `Path traversal detected: identifier "${identifier}" would resolve to "${resultPath}" which is outside base directory "${baseDir}"`
+      `Path traversal detected: identifier "${identifier}" would resolve to "${resultPath}" which is outside base directory "${baseDir}"`,
     );
     this.name = "PathTraversalError";
     this.baseDir = baseDir;
@@ -66,17 +66,13 @@ export function isValidIdentifier(identifier: string): boolean {
  * buildSafeFilePath("/home/user/.herdctl/sessions", "../../../etc/passwd", ".json");
  * ```
  */
-export function buildSafeFilePath(
-  baseDir: string,
-  identifier: string,
-  extension: string
-): string {
+export function buildSafeFilePath(baseDir: string, identifier: string, extension: string): string {
   // First line of defense: validate identifier format
   if (!isValidIdentifier(identifier)) {
     throw new PathTraversalError(
       baseDir,
       identifier,
-      `(invalid identifier: must match ${SAFE_IDENTIFIER_PATTERN})`
+      `(invalid identifier: must match ${SAFE_IDENTIFIER_PATTERN})`,
     );
   }
 
@@ -88,7 +84,7 @@ export function buildSafeFilePath(
   const resolvedBase = resolve(baseDir);
   const resolvedPath = resolve(filePath);
 
-  if (!resolvedPath.startsWith(resolvedBase + "/") && resolvedPath !== resolvedBase) {
+  if (!resolvedPath.startsWith(`${resolvedBase}/`) && resolvedPath !== resolvedBase) {
     throw new PathTraversalError(baseDir, identifier, resolvedPath);
   }
 

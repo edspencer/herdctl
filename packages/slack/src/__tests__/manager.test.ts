@@ -5,11 +5,14 @@
  * with chat.slack configured (one connector per agent).
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { EventEmitter } from "node:events";
-import type { FleetManagerContext, ResolvedAgent } from "@herdctl/core";
-import type { AgentChatSlack } from "@herdctl/core";
-import type { ResolvedConfig } from "@herdctl/core";
+import type {
+  AgentChatSlack,
+  FleetManagerContext,
+  ResolvedAgent,
+  ResolvedConfig,
+} from "@herdctl/core";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SlackManager } from "../manager.js";
 
 // ---------------------------------------------------------------------------
@@ -31,7 +34,7 @@ function createMockEmitter() {
 
 function createMockContext(
   config: ResolvedConfig | null = null,
-  emitter: EventEmitter = createMockEmitter()
+  emitter: EventEmitter = createMockEmitter(),
 ): FleetManagerContext {
   return {
     getConfig: () => config,
@@ -47,14 +50,17 @@ function createMockContext(
     getCheckInterval: () => 1000,
     emit: (event: string, ...args: unknown[]) => emitter.emit(event, ...args),
     getEmitter: () => emitter,
-    trigger: vi.fn().mockResolvedValue({ jobId: "test-job", agentName: "test", scheduleName: null, startedAt: new Date().toISOString(), success: true }),
+    trigger: vi.fn().mockResolvedValue({
+      jobId: "test-job",
+      agentName: "test",
+      scheduleName: null,
+      startedAt: new Date().toISOString(),
+      success: true,
+    }),
   };
 }
 
-function createSlackAgent(
-  name: string,
-  slackConfig: AgentChatSlack
-): ResolvedAgent {
+function createSlackAgent(name: string, slackConfig: AgentChatSlack): ResolvedAgent {
   return {
     name,
     model: "sonnet",
@@ -86,9 +92,7 @@ const defaultSlackConfig: AgentChatSlack = {
   channels: [{ id: "C0123456789", mode: "mention", context_messages: 10 }],
 };
 
-function createConfigWithAgents(
-  ...agents: ResolvedAgent[]
-): ResolvedConfig {
+function createConfigWithAgents(...agents: ResolvedAgent[]): ResolvedConfig {
   return {
     fleet: { name: "test-fleet" } as unknown as ResolvedConfig["fleet"],
     agents,
@@ -101,7 +105,10 @@ function createConfigWithAgents(
 // Mock SlackConnector and SessionManager
 // ---------------------------------------------------------------------------
 
-function createMockConnector(agentName: string, sessionManager: ReturnType<typeof createMockSessionManager>) {
+function createMockConnector(
+  agentName: string,
+  sessionManager: ReturnType<typeof createMockSessionManager>,
+) {
   const connector = new EventEmitter() as EventEmitter & {
     agentName: string;
     sessionManager: ReturnType<typeof createMockSessionManager>;
@@ -171,23 +178,21 @@ describe("SlackManager basic tests", () => {
       await manager.initialize();
 
       expect(mockLogger.debug).toHaveBeenCalledWith(
-        "No config available, skipping Slack initialization"
+        "No config available, skipping Slack initialization",
       );
     });
 
     it("skips when no agents have Slack configured", async () => {
       const config = createConfigWithAgents(
         createNonSlackAgent("agent1"),
-        createNonSlackAgent("agent2")
+        createNonSlackAgent("agent2"),
       );
       const ctx = createMockContext(config);
       const manager = new SlackManager(ctx);
 
       await manager.initialize();
 
-      expect(mockLogger.debug).toHaveBeenCalledWith(
-        "No agents with Slack configured"
-      );
+      expect(mockLogger.debug).toHaveBeenCalledWith("No agents with Slack configured");
     });
 
     it("allows retry when no config (initialized not set)", async () => {
@@ -198,8 +203,7 @@ describe("SlackManager basic tests", () => {
       await manager.initialize();
 
       const calls = mockLogger.debug.mock.calls.filter(
-        (c: string[]) =>
-          c[0] === "No config available, skipping Slack initialization"
+        (c: string[]) => c[0] === "No config available, skipping Slack initialization",
       );
       expect(calls.length).toBe(2);
     });
@@ -213,9 +217,7 @@ describe("SlackManager basic tests", () => {
       await manager.initialize();
       await manager.start();
 
-      expect(mockLogger.debug).toHaveBeenCalledWith(
-        "No Slack connectors to start"
-      );
+      expect(mockLogger.debug).toHaveBeenCalledWith("No Slack connectors to start");
     });
   });
 
@@ -227,9 +229,7 @@ describe("SlackManager basic tests", () => {
       await manager.initialize();
       await manager.stop();
 
-      expect(mockLogger.debug).toHaveBeenCalledWith(
-        "No Slack connectors to stop"
-      );
+      expect(mockLogger.debug).toHaveBeenCalledWith("No Slack connectors to stop");
     });
   });
 
@@ -322,8 +322,8 @@ describe("SlackManager basic tests", () => {
 // ---------------------------------------------------------------------------
 
 describe("SlackManager with mocked connector", () => {
-  let mockConnectors: Map<string, ReturnType<typeof createMockConnector>>;
-  let mockSessionManagers: Map<string, ReturnType<typeof createMockSessionManager>>;
+  let _mockConnectors: Map<string, ReturnType<typeof createMockConnector>>;
+  let _mockSessionManagers: Map<string, ReturnType<typeof createMockSessionManager>>;
   let originalEnv: NodeJS.ProcessEnv;
 
   beforeEach(() => {
@@ -336,8 +336,8 @@ describe("SlackManager with mocked connector", () => {
     process.env.SLACK_APP_TOKEN = "xapp-test-app-token";
 
     // Create mock implementations - per-agent connectors
-    mockConnectors = new Map();
-    mockSessionManagers = new Map();
+    _mockConnectors = new Map();
+    _mockSessionManagers = new Map();
   });
 
   afterEach(() => {
@@ -353,32 +353,28 @@ describe("SlackManager with mocked connector", () => {
     it("warns and skips agent when bot token env var is missing", async () => {
       delete process.env.SLACK_BOT_TOKEN;
 
-      const config = createConfigWithAgents(
-        createSlackAgent("agent1", defaultSlackConfig)
-      );
+      const config = createConfigWithAgents(createSlackAgent("agent1", defaultSlackConfig));
       const ctx = createMockContext(config);
       const manager = new SlackManager(ctx);
 
       await manager.initialize();
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("Slack bot token not found")
+        expect.stringContaining("Slack bot token not found"),
       );
     });
 
     it("warns and skips agent when app token env var is missing", async () => {
       delete process.env.SLACK_APP_TOKEN;
 
-      const config = createConfigWithAgents(
-        createSlackAgent("agent1", defaultSlackConfig)
-      );
+      const config = createConfigWithAgents(createSlackAgent("agent1", defaultSlackConfig));
       const ctx = createMockContext(config);
       const manager = new SlackManager(ctx);
 
       await manager.initialize();
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("Slack app token not found")
+        expect.stringContaining("Slack app token not found"),
       );
     });
   });

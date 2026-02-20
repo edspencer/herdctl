@@ -2,9 +2,9 @@
  * Tests for JobQueue (US-10: Concurrency Control)
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ScheduleSkipResult } from "../job-queue.js";
 import { JobQueue } from "../job-queue.js";
-import type { QueuedJob, ScheduleSkipResult } from "../job-queue.js";
 
 describe("JobQueue", () => {
   let queue: JobQueue;
@@ -50,7 +50,7 @@ describe("JobQueue", () => {
 
     it("should throw if limit is less than 1", () => {
       expect(() => queue.setAgentConcurrency("agent-a", 0)).toThrow(
-        "Concurrency limit must be >= 1"
+        "Concurrency limit must be >= 1",
       );
     });
 

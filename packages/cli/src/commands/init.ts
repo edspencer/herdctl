@@ -9,7 +9,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { input, confirm, select } from "@inquirer/prompts";
+import { confirm, input, select } from "@inquirer/prompts";
 
 export interface InitOptions {
   name?: string;
@@ -188,9 +188,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
 
   // Check if config already exists
   if (fs.existsSync(configPath) && !options.force) {
-    console.error(
-      "Error: herdctl.yaml already exists. Use --force to overwrite."
-    );
+    console.error("Error: herdctl.yaml already exists. Use --force to overwrite.");
     process.exit(1);
   }
 
@@ -198,9 +196,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
   let templateName = options.example || DEFAULT_TEMPLATE;
   if (options.example && !TEMPLATES[options.example]) {
     console.error(`Error: Unknown example template '${options.example}'.`);
-    console.error(
-      `Available templates: ${Object.keys(TEMPLATES).join(", ")}`
-    );
+    console.error(`Available templates: ${Object.keys(TEMPLATES).join(", ")}`);
     process.exit(1);
   }
 
@@ -279,10 +275,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
   // Generate fleet config from template
   const fleetConfig = template.fleetConfig
     .replace(/\{\{FLEET_NAME\}\}/g, fleetName)
-    .replace(
-      /\{\{FLEET_DESCRIPTION\}\}/g,
-      fleetDescription || `A herdctl fleet`
-    );
+    .replace(/\{\{FLEET_DESCRIPTION\}\}/g, fleetDescription || `A herdctl fleet`);
 
   // Write fleet config
   fs.writeFileSync(configPath, fleetConfig, "utf-8");

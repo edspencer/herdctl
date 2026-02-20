@@ -44,7 +44,7 @@ export interface WebhookHookRunnerOptions {
  * @returns String with environment variables substituted
  */
 function substituteEnvVars(value: string): string {
-  return value.replace(/\$\{([^}]+)\}/g, (match, envVar) => {
+  return value.replace(/\$\{([^}]+)\}/g, (_match, envVar) => {
     const envValue = process.env[envVar];
     if (envValue === undefined) {
       // Return empty string for undefined env vars (silent failure)
@@ -145,7 +145,7 @@ export class WebhookHookRunner {
         // 2xx status codes are success
         if (response.ok) {
           this.logger.info(
-            `Webhook hook completed successfully in ${durationMs}ms: ${method} ${config.url} (${response.status})`
+            `Webhook hook completed successfully in ${durationMs}ms: ${method} ${config.url} (${response.status})`,
           );
           return {
             success: true,
@@ -155,7 +155,7 @@ export class WebhookHookRunner {
           };
         } else {
           this.logger.warn(
-            `Webhook hook failed with status ${response.status}: ${method} ${config.url}`
+            `Webhook hook failed with status ${response.status}: ${method} ${config.url}`,
           );
           return {
             success: false,

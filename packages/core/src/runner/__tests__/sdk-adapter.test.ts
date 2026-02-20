@@ -1,11 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
+import type { McpServer, ResolvedAgent } from "../../config/index.js";
 import {
-  toSDKOptions,
-  transformMcpServers,
-  transformMcpServer,
   buildSystemPrompt,
+  toSDKOptions,
+  transformMcpServer,
+  transformMcpServers,
 } from "../sdk-adapter.js";
-import type { ResolvedAgent, McpServer } from "../../config/index.js";
 
 // =============================================================================
 // Helper to create a minimal ResolvedAgent
@@ -285,11 +285,7 @@ describe("toSDKOptions", () => {
     });
 
     it("handles various model identifiers", () => {
-      const models = [
-        "claude-sonnet-4",
-        "claude-opus-4",
-        "claude-haiku-4",
-      ];
+      const models = ["claude-sonnet-4", "claude-opus-4", "claude-haiku-4"];
 
       for (const model of models) {
         const agent = createTestAgent({ model });
@@ -526,9 +522,7 @@ describe("MCP server environment variable interpolation", () => {
       },
     });
     const result = toSDKOptions(agent);
-    expect(result.mcpServers?.github.env?.GITHUB_TOKEN).toBe(
-      "ghp_already_interpolated_token"
-    );
+    expect(result.mcpServers?.github.env?.GITHUB_TOKEN).toBe("ghp_already_interpolated_token");
   });
 
   it("passes URL with pre-interpolated env vars for HTTP MCP server", () => {
@@ -542,7 +536,7 @@ describe("MCP server environment variable interpolation", () => {
     });
     const result = toSDKOptions(agent);
     expect(result.mcpServers?.analytics.url).toBe(
-      "https://mcp.example.com/api?key=resolved_api_key"
+      "https://mcp.example.com/api?key=resolved_api_key",
     );
   });
 
@@ -591,9 +585,7 @@ describe("MCP server environment variable interpolation", () => {
     expect(result.mcpServers?.github.env?.GITHUB_TOKEN).toBe("ghp_token123");
     expect(result.mcpServers?.posthog.type).toBe("http");
     expect(result.mcpServers?.posthog.url).toBe("https://mcp.posthog.com");
-    expect(result.mcpServers?.filesystem.env?.ALLOWED_PATHS).toBe(
-      "/workspace,/home/user"
-    );
+    expect(result.mcpServers?.filesystem.env?.ALLOWED_PATHS).toBe("/workspace,/home/user");
   });
 });
 

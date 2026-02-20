@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
+  interpolateConfig,
   interpolateString,
   interpolateValue,
-  interpolateConfig,
   UndefinedVariableError,
 } from "../interpolate.js";
 import { ConfigError } from "../parser.js";
@@ -23,11 +23,7 @@ describe("interpolateString", () => {
     });
 
     it("interpolates multiple variables", () => {
-      const result = interpolateString(
-        "${DB_HOST}:${DB_PORT}",
-        "test.connection",
-        mockEnv
-      );
+      const result = interpolateString("${DB_HOST}:${DB_PORT}", "test.connection", mockEnv);
       expect(result).toBe("localhost:5432");
     });
 
@@ -35,7 +31,7 @@ describe("interpolateString", () => {
       const result = interpolateString(
         "postgresql://${DB_HOST}:${DB_PORT}/mydb",
         "test.url",
-        mockEnv
+        mockEnv,
       );
       expect(result).toBe("postgresql://localhost:5432/mydb");
     });
@@ -69,83 +65,51 @@ describe("interpolateString", () => {
 
   describe("default value syntax", () => {
     it("uses default when variable is undefined", () => {
-      const result = interpolateString(
-        "${UNDEFINED_VAR:-default_value}",
-        "test.default",
-        mockEnv
-      );
+      const result = interpolateString("${UNDEFINED_VAR:-default_value}", "test.default", mockEnv);
       expect(result).toBe("default_value");
     });
 
     it("uses environment value over default when defined", () => {
-      const result = interpolateString(
-        "${DB_HOST:-fallback}",
-        "test.override",
-        mockEnv
-      );
+      const result = interpolateString("${DB_HOST:-fallback}", "test.override", mockEnv);
       expect(result).toBe("localhost");
     });
 
     it("uses default with empty string", () => {
-      const result = interpolateString(
-        "${UNDEFINED:-}",
-        "test.emptydefault",
-        mockEnv
-      );
+      const result = interpolateString("${UNDEFINED:-}", "test.emptydefault", mockEnv);
       expect(result).toBe("");
     });
 
     it("handles default with special characters", () => {
-      const result = interpolateString(
-        "${UNDEFINED:-http://localhost:8080}",
-        "test.url",
-        mockEnv
-      );
+      const result = interpolateString("${UNDEFINED:-http://localhost:8080}", "test.url", mockEnv);
       expect(result).toBe("http://localhost:8080");
     });
 
     it("handles default with spaces", () => {
-      const result = interpolateString(
-        "${UNDEFINED:-hello world}",
-        "test.spaces",
-        mockEnv
-      );
+      const result = interpolateString("${UNDEFINED:-hello world}", "test.spaces", mockEnv);
       expect(result).toBe("hello world");
     });
 
     it("handles multiple defaults in one string", () => {
-      const result = interpolateString(
-        "${HOST:-localhost}:${PORT:-3000}",
-        "test.multi",
-        mockEnv
-      );
+      const result = interpolateString("${HOST:-localhost}:${PORT:-3000}", "test.multi", mockEnv);
       expect(result).toBe("localhost:3000");
     });
 
     it("mixes defined and undefined variables with defaults", () => {
-      const result = interpolateString(
-        "${DB_HOST}:${PORT:-3000}",
-        "test.mixed",
-        mockEnv
-      );
+      const result = interpolateString("${DB_HOST}:${PORT:-3000}", "test.mixed", mockEnv);
       expect(result).toBe("localhost:3000");
     });
 
     it("prefers empty string env value over default", () => {
-      const result = interpolateString(
-        "${EMPTY_VAR:-fallback}",
-        "test.emptypreferred",
-        mockEnv
-      );
+      const result = interpolateString("${EMPTY_VAR:-fallback}", "test.emptypreferred", mockEnv);
       expect(result).toBe("");
     });
   });
 
   describe("error handling", () => {
     it("throws UndefinedVariableError for undefined variable without default", () => {
-      expect(() =>
-        interpolateString("${UNDEFINED_VAR}", "test.path", mockEnv)
-      ).toThrow(UndefinedVariableError);
+      expect(() => interpolateString("${UNDEFINED_VAR}", "test.path", mockEnv)).toThrow(
+        UndefinedVariableError,
+      );
     });
 
     it("includes variable name in error", () => {
@@ -217,11 +181,7 @@ describe("interpolateString", () => {
     });
 
     it("handles nested braces in default value", () => {
-      const result = interpolateString(
-        "${UNDEFINED:-{key: value}}",
-        "test",
-        mockEnv
-      );
+      const result = interpolateString("${UNDEFINED:-{key: value}}", "test", mockEnv);
       expect(result).toBe("{key: value}");
     });
   });
@@ -295,11 +255,7 @@ describe("interpolateValue", () => {
     });
 
     it("interpolates nested arrays", () => {
-      const result = interpolateValue(
-        [["${HOST}"], ["${PORT}"]],
-        "test.nested",
-        mockEnv
-      );
+      const result = interpolateValue([["${HOST}"], ["${PORT}"]], "test.nested", mockEnv);
       expect(result).toEqual([["example.com"], ["8080"]]);
     });
 
@@ -309,9 +265,7 @@ describe("interpolateValue", () => {
     });
 
     it("builds correct path for array elements", () => {
-      expect(() =>
-        interpolateValue(["${UNDEFINED}"], "", mockEnv)
-      ).toThrowError(/\[0\]/);
+      expect(() => interpolateValue(["${UNDEFINED}"], "", mockEnv)).toThrowError(/\[0\]/);
     });
   });
 
@@ -322,11 +276,7 @@ describe("interpolateValue", () => {
     });
 
     it("preserves non-string values in objects", () => {
-      const result = interpolateValue(
-        { str: "text", num: 42, bool: true },
-        "test",
-        mockEnv
-      );
+      const result = interpolateValue({ str: "text", num: 42, bool: true }, "test", mockEnv);
       expect(result).toEqual({ str: "text", num: 42, bool: true });
     });
 
@@ -450,7 +400,7 @@ describe("interpolateValue", () => {
   describe("path building", () => {
     it("starts with empty path at root", () => {
       expect(() => interpolateValue({ key: "${UNDEFINED}" }, "", mockEnv)).toThrow(
-        /^Undefined environment variable 'UNDEFINED' at 'key'/
+        /^Undefined environment variable 'UNDEFINED' at 'key'/,
       );
     });
 

@@ -1,23 +1,23 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdir, readFile, rm, realpath, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { appendJsonl, atomicWriteYaml } from "../atomic.js";
 import {
-  safeReadYaml,
-  safeReadJsonl,
-  readYaml,
-  readJsonl,
-  safeReadJson,
   readJson,
+  readJsonl,
+  readYaml,
   SafeReadError,
+  safeReadJson,
+  safeReadJsonl,
+  safeReadYaml,
 } from "../reads.js";
-import { atomicWriteYaml, appendJsonl } from "../atomic.js";
 
 // Helper to create a temp directory
 async function createTempDir(): Promise<string> {
   const baseDir = join(
     tmpdir(),
-    `herdctl-reads-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-reads-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   await mkdir(baseDir, { recursive: true });
   // Resolve to real path to handle macOS /var -> /private/var symlink
@@ -27,11 +27,7 @@ async function createTempDir(): Promise<string> {
 describe("SafeReadError", () => {
   it("creates error with correct properties", () => {
     const cause = new Error("Original error");
-    const error = new SafeReadError(
-      "Failed to read",
-      "/path/to/file.yaml",
-      cause
-    );
+    const error = new SafeReadError("Failed to read", "/path/to/file.yaml", cause);
 
     expect(error.name).toBe("SafeReadError");
     expect(error.message).toBe("Failed to read");
@@ -294,11 +290,7 @@ describe("safeReadJsonl", () => {
 
   it("reads and parses valid JSONL file", async () => {
     const filePath = join(tempDir, "events.jsonl");
-    await writeFile(
-      filePath,
-      '{"id":1}\n{"id":2}\n{"id":3}\n',
-      "utf-8"
-    );
+    await writeFile(filePath, '{"id":1}\n{"id":2}\n{"id":3}\n', "utf-8");
 
     const result = await safeReadJsonl<{ id: number }>(filePath);
 
@@ -336,11 +328,7 @@ describe("safeReadJsonl", () => {
 
   it("handles incomplete last line by skipping it", async () => {
     const filePath = join(tempDir, "incomplete.jsonl");
-    await writeFile(
-      filePath,
-      '{"id":1}\n{"id":2}\n{"id":3,"partial',
-      "utf-8"
-    );
+    await writeFile(filePath, '{"id":1}\n{"id":2}\n{"id":3,"partial', "utf-8");
 
     const result = await safeReadJsonl<{ id: number }>(filePath);
 
@@ -353,11 +341,7 @@ describe("safeReadJsonl", () => {
 
   it("handles file ending with newline", async () => {
     const filePath = join(tempDir, "trailing.jsonl");
-    await writeFile(
-      filePath,
-      '{"id":1}\n{"id":2}\n',
-      "utf-8"
-    );
+    await writeFile(filePath, '{"id":1}\n{"id":2}\n', "utf-8");
 
     const result = await safeReadJsonl<{ id: number }>(filePath);
 
@@ -382,11 +366,7 @@ describe("safeReadJsonl", () => {
 
   it("fails on invalid middle line by default", async () => {
     const filePath = join(tempDir, "invalid-middle.jsonl");
-    await writeFile(
-      filePath,
-      '{"id":1}\ninvalid json here\n{"id":3}\n',
-      "utf-8"
-    );
+    await writeFile(filePath, '{"id":1}\ninvalid json here\n{"id":3}\n', "utf-8");
 
     const result = await safeReadJsonl(filePath);
 
@@ -395,11 +375,7 @@ describe("safeReadJsonl", () => {
 
   it("skips invalid lines when skipInvalidLines is true", async () => {
     const filePath = join(tempDir, "skip-invalid.jsonl");
-    await writeFile(
-      filePath,
-      '{"id":1}\ninvalid json here\n{"id":3}\n',
-      "utf-8"
-    );
+    await writeFile(filePath, '{"id":1}\ninvalid json here\n{"id":3}\n', "utf-8");
 
     const result = await safeReadJsonl<{ id: number }>(filePath, {
       skipInvalidLines: true,
@@ -424,11 +400,7 @@ describe("safeReadJsonl", () => {
       data: { output: "Hello\nWorld" },
       tags: [],
     };
-    await writeFile(
-      filePath,
-      `${JSON.stringify(obj1)}\n${JSON.stringify(obj2)}\n`,
-      "utf-8"
-    );
+    await writeFile(filePath, `${JSON.stringify(obj1)}\n${JSON.stringify(obj2)}\n`, "utf-8");
 
     const result = await safeReadJsonl(filePath);
 
@@ -440,11 +412,7 @@ describe("safeReadJsonl", () => {
 
   it("handles JSON with unicode characters", async () => {
     const filePath = join(tempDir, "unicode.jsonl");
-    await writeFile(
-      filePath,
-      '{"text":"你好世界"}\n{"emoji":"🚀"}\n',
-      "utf-8"
-    );
+    await writeFile(filePath, '{"text":"你好世界"}\n{"emoji":"🚀"}\n', "utf-8");
 
     const result = await safeReadJsonl<{ text?: string; emoji?: string }>(filePath);
 
@@ -456,11 +424,7 @@ describe("safeReadJsonl", () => {
 
   it("handles primitive JSON values", async () => {
     const filePath = join(tempDir, "primitives.jsonl");
-    await writeFile(
-      filePath,
-      '"string"\n42\ntrue\nnull\n',
-      "utf-8"
-    );
+    await writeFile(filePath, '"string"\n42\ntrue\nnull\n', "utf-8");
 
     const result = await safeReadJsonl(filePath);
 
@@ -472,17 +436,16 @@ describe("safeReadJsonl", () => {
 
   it("handles arrays as JSON lines", async () => {
     const filePath = join(tempDir, "arrays.jsonl");
-    await writeFile(
-      filePath,
-      '[1,2,3]\n["a","b"]\n',
-      "utf-8"
-    );
+    await writeFile(filePath, '[1,2,3]\n["a","b"]\n', "utf-8");
 
     const result = await safeReadJsonl(filePath);
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data).toEqual([[1, 2, 3], ["a", "b"]]);
+      expect(result.data).toEqual([
+        [1, 2, 3],
+        ["a", "b"],
+      ]);
     }
   });
 
@@ -532,7 +495,7 @@ describe("safeReadJsonl", () => {
     for (let i = 0; i < 1000; i++) {
       lines.push(JSON.stringify({ id: i, data: "x".repeat(100) }));
     }
-    await writeFile(filePath, lines.join("\n") + "\n", "utf-8");
+    await writeFile(filePath, `${lines.join("\n")}\n`, "utf-8");
 
     const result = await safeReadJsonl<{ id: number; data: string }>(filePath);
 
@@ -1001,11 +964,7 @@ describe("edge cases", () => {
 
   it("YAML: returns error for multi-document YAML", async () => {
     const filePath = join(tempDir, "multi.yaml");
-    await writeFile(
-      filePath,
-      "name: first\n---\nname: second\n",
-      "utf-8"
-    );
+    await writeFile(filePath, "name: first\n---\nname: second\n", "utf-8");
 
     const result = await safeReadYaml<{ name: string }>(filePath);
 
@@ -1055,11 +1014,7 @@ describe("edge cases", () => {
   it("JSONL: handles very long JSON lines", async () => {
     const filePath = join(tempDir, "long-line.jsonl");
     const longString = "x".repeat(100000);
-    await writeFile(
-      filePath,
-      `${JSON.stringify({ data: longString })}\n`,
-      "utf-8"
-    );
+    await writeFile(filePath, `${JSON.stringify({ data: longString })}\n`, "utf-8");
 
     const result = await safeReadJsonl<{ data: string }>(filePath);
 

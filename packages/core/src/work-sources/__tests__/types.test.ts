@@ -1,15 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import type {
-  WorkItem,
-  WorkItemPriority,
+  ClaimFailureReason,
+  ClaimResult,
   FetchOptions,
   FetchResult,
-  ClaimResult,
-  ClaimFailureReason,
-  WorkResult,
-  WorkOutcome,
   ReleaseOptions,
   ReleaseResult,
+  WorkItem,
+  WorkItemPriority,
+  WorkOutcome,
+  WorkResult,
   WorkSourceAdapter,
 } from "../index.js";
 
@@ -393,26 +393,23 @@ describe("WorkSourceAdapter interface", () => {
     const mockWorkSource: WorkSourceAdapter = {
       type: "mock",
 
-      async fetchAvailableWork(options?: FetchOptions): Promise<FetchResult> {
+      async fetchAvailableWork(_options?: FetchOptions): Promise<FetchResult> {
         return { items: [] };
       },
 
-      async claimWork(workItemId: string): Promise<ClaimResult> {
+      async claimWork(_workItemId: string): Promise<ClaimResult> {
         return { success: true };
       },
 
-      async completeWork(workItemId: string, result: WorkResult): Promise<void> {
+      async completeWork(_workItemId: string, _result: WorkResult): Promise<void> {
         // Implementation would update external system
       },
 
-      async releaseWork(
-        workItemId: string,
-        options?: ReleaseOptions
-      ): Promise<ReleaseResult> {
+      async releaseWork(_workItemId: string, _options?: ReleaseOptions): Promise<ReleaseResult> {
         return { success: true };
       },
 
-      async getWork(workItemId: string): Promise<WorkItem | undefined> {
+      async getWork(_workItemId: string): Promise<WorkItem | undefined> {
         return undefined;
       },
     };
@@ -446,7 +443,7 @@ describe("WorkSourceAdapter interface", () => {
       async fetchAvailableWork() {
         return { items: [mockItem] };
       },
-      async claimWork(id: string) {
+      async claimWork(_id: string) {
         return { success: true, workItem: mockItem };
       },
       async completeWork() {},

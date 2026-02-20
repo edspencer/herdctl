@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from "vitest";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import { tmpdir } from "node:os";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { triggerCommand } from "../trigger.js";
 
 // Store mock FleetManager for access in tests
@@ -88,7 +88,7 @@ vi.mock("@herdctl/core", async () => {
 function createTempDir(): string {
   const baseDir = path.join(
     tmpdir(),
-    `herdctl-cli-trigger-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-cli-trigger-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   fs.mkdirSync(baseDir, { recursive: true });
   return fs.realpathSync(baseDir);
@@ -148,7 +148,7 @@ describe("triggerCommand", () => {
       expect(mockFleetManagerInstance.trigger).toHaveBeenCalledWith(
         "code-reviewer",
         undefined,
-        expect.objectContaining({ prompt: undefined })
+        expect.objectContaining({ prompt: undefined }),
       );
     });
 
@@ -181,7 +181,7 @@ describe("triggerCommand", () => {
       expect(mockFleetManagerInstance.trigger).toHaveBeenCalledWith(
         "code-reviewer",
         "hourly",
-        expect.objectContaining({ prompt: undefined })
+        expect.objectContaining({ prompt: undefined }),
       );
     });
 
@@ -201,7 +201,7 @@ describe("triggerCommand", () => {
       expect(mockFleetManagerInstance.trigger).toHaveBeenCalledWith(
         "code-reviewer",
         undefined,
-        expect.objectContaining({ prompt: customPrompt })
+        expect.objectContaining({ prompt: customPrompt }),
       );
     });
 
@@ -225,7 +225,9 @@ describe("triggerCommand", () => {
         // Expected to throw due to process.exit mock
       }
 
-      expect(mockFleetManagerInstance.streamJobOutput).toHaveBeenCalledWith("job-2024-01-15-abc123");
+      expect(mockFleetManagerInstance.streamJobOutput).toHaveBeenCalledWith(
+        "job-2024-01-15-abc123",
+      );
     });
 
     it("displays streaming message", async () => {
@@ -306,13 +308,17 @@ describe("triggerCommand", () => {
       expect(triggerOutput.success).toBe(true);
 
       // Subsequent logs should be log entries
-      const logEntries = consoleLogs.slice(1).filter((log) => log.trim()).map((log) => {
-        try {
-          return JSON.parse(log);
-        } catch {
-          return null;
-        }
-      }).filter(Boolean);
+      const logEntries = consoleLogs
+        .slice(1)
+        .filter((log) => log.trim())
+        .map((log) => {
+          try {
+            return JSON.parse(log);
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
 
       expect(logEntries.some((entry) => entry?.message?.includes("Starting job"))).toBe(true);
     });

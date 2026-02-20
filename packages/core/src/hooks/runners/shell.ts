@@ -144,7 +144,7 @@ export class ShellHookRunner {
   private runCommand(
     command: string,
     context: HookContext,
-    timeout: number
+    timeout: number,
   ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
     return new Promise((resolve, reject) => {
       const contextJson = JSON.stringify(context);

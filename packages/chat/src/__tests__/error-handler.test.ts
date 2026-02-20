@@ -2,16 +2,16 @@
  * Tests for error handler utilities
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ErrorCategory,
-  withRetry,
-  isTransientError,
-  isRateLimitError,
   isAuthError,
+  isRateLimitError,
+  isTransientError,
   safeExecute,
   safeExecuteWithReply,
   USER_ERROR_MESSAGES,
+  withRetry,
 } from "../error-handler.js";
 import type { ChatConnectorLogger } from "../types.js";
 
@@ -208,7 +208,7 @@ describe("error-handler", () => {
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining("testOp failed, retrying"),
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
@@ -237,7 +237,7 @@ describe("error-handler", () => {
       const result = await safeExecute(
         () => Promise.resolve("success"),
         mockLogger,
-        "test operation"
+        "test operation",
       );
 
       expect(result).toBe("success");
@@ -248,25 +248,21 @@ describe("error-handler", () => {
       const result = await safeExecute(
         () => Promise.reject(new Error("Failed")),
         mockLogger,
-        "test operation"
+        "test operation",
       );
 
       expect(result).toBeUndefined();
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining("test operation")
-      );
+      expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining("test operation"));
     });
 
     it("logs error message", async () => {
       await safeExecute(
         () => Promise.reject(new Error("Specific error")),
         mockLogger,
-        "my operation"
+        "my operation",
       );
 
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining("Specific error")
-      );
+      expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining("Specific error"));
     });
   });
 
@@ -297,13 +293,7 @@ describe("error-handler", () => {
     it("uses custom error message", async () => {
       const operation = vi.fn().mockRejectedValue(new Error("Failed"));
 
-      await safeExecuteWithReply(
-        operation,
-        mockReply,
-        mockLogger,
-        "test",
-        "Custom error message"
-      );
+      await safeExecuteWithReply(operation, mockReply, mockLogger, "test", "Custom error message");
 
       expect(mockReply).toHaveBeenCalledWith("Custom error message");
     });
@@ -313,9 +303,7 @@ describe("error-handler", () => {
 
       await safeExecuteWithReply(operation, mockReply, mockLogger, "test op");
 
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining("test op")
-      );
+      expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining("test op"));
     });
 
     it("logs when reply fails", async () => {
@@ -324,9 +312,7 @@ describe("error-handler", () => {
 
       await safeExecuteWithReply(operation, mockReply, mockLogger, "test");
 
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining("Reply failed")
-      );
+      expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining("Reply failed"));
     });
   });
 });

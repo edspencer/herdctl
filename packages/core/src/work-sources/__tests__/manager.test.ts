@@ -1,18 +1,17 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
+import type { ResolvedAgent } from "../../config/loader.js";
 import type {
-  WorkSourceManager,
-  WorkSourceManagerFactory,
   GetNextWorkItemOptions,
   GetNextWorkItemResult,
+  ReleaseResult,
   ReleaseWorkItemOptions,
   ReportOutcomeOptions,
   WorkItem,
   WorkResult,
-  ClaimResult,
-  ReleaseResult,
   WorkSourceAdapter,
+  WorkSourceManager,
+  WorkSourceManagerFactory,
 } from "../index.js";
-import type { ResolvedAgent } from "../../config/loader.js";
 
 // =============================================================================
 // Test fixtures
@@ -259,28 +258,28 @@ describe("WorkSourceManager interface", () => {
     // by creating a mock implementation that satisfies all methods
     const mockManager: WorkSourceManager = {
       async getNextWorkItem(
-        agent: ResolvedAgent,
-        options?: GetNextWorkItemOptions
+        _agent: ResolvedAgent,
+        _options?: GetNextWorkItemOptions,
       ): Promise<GetNextWorkItemResult> {
         return { item: null, claimed: false };
       },
 
       async reportOutcome(
-        taskId: string,
-        result: WorkResult,
-        options: ReportOutcomeOptions
+        _taskId: string,
+        _result: WorkResult,
+        _options: ReportOutcomeOptions,
       ): Promise<void> {
         // Implementation would update external system
       },
 
       async releaseWorkItem(
-        taskId: string,
-        options: ReleaseWorkItemOptions
+        _taskId: string,
+        _options: ReleaseWorkItemOptions,
       ): Promise<ReleaseResult> {
         return { success: true };
       },
 
-      async getAdapter(agent: ResolvedAgent): Promise<WorkSourceAdapter | null> {
+      async getAdapter(_agent: ResolvedAgent): Promise<WorkSourceAdapter | null> {
         return null;
       },
 
@@ -307,7 +306,7 @@ describe("WorkSourceManager interface", () => {
       async fetchAvailableWork() {
         return { items: [mockWorkItem] };
       },
-      async claimWork(id) {
+      async claimWork(_id) {
         return { success: true, workItem: mockWorkItem };
       },
       async completeWork() {},
@@ -345,7 +344,7 @@ describe("WorkSourceManager interface", () => {
         return { item, claimed: false };
       },
 
-      async reportOutcome(taskId, result, options) {
+      async reportOutcome(taskId, result, _options) {
         completedTasks.push(taskId);
         await mockAdapter.completeWork(taskId, result);
       },
@@ -366,8 +365,7 @@ describe("WorkSourceManager interface", () => {
     };
 
     // Step 1: Get next work item (auto-claimed)
-    const { item, claimed, claimResult } =
-      await mockManager.getNextWorkItem(agent);
+    const { item, claimed, claimResult } = await mockManager.getNextWorkItem(agent);
 
     expect(item).not.toBeNull();
     expect(item?.id).toBe("github:123");
@@ -382,7 +380,7 @@ describe("WorkSourceManager interface", () => {
         summary: "Fixed the issue",
         details: "Updated validation logic",
       },
-      { agent }
+      { agent },
     );
 
     expect(completedTasks).toContain(item!.id);
@@ -431,7 +429,7 @@ describe("WorkSourceManager interface", () => {
 
     // Simulate another agent claiming first
     const mockManager: WorkSourceManager = {
-      async getNextWorkItem(agentArg, options) {
+      async getNextWorkItem(_agentArg, _options) {
         // Item found but claim fails
         return {
           item: mockWorkItem,

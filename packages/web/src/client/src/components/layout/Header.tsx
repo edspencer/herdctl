@@ -6,11 +6,10 @@
  * - Connection status indicator
  */
 
-import { useLocation, useParams } from "react-router";
-import { Menu, Sun, Moon, Monitor, ArrowLeft } from "lucide-react";
-import { Link } from "react-router";
-import { useFleet, useUI, useUIActions } from "../../store";
+import { ArrowLeft, Menu, Monitor, Moon, Sun } from "lucide-react";
+import { Link, useLocation, useParams } from "react-router";
 import type { ConnectionStatus, Theme } from "../../lib/types";
+import { useFleet, useUI, useUIActions } from "../../store";
 
 // =============================================================================
 // Helper Functions
@@ -109,6 +108,7 @@ export function Header() {
       <div className="flex items-center gap-2">
         {/* Hamburger menu — visible only on mobile */}
         <button
+          type="button"
           onClick={toggleSidebarMobile}
           className="md:hidden hover:bg-herd-hover text-herd-muted hover:text-herd-fg rounded-lg p-1.5 transition-colors"
           aria-label="Toggle sidebar"
@@ -156,12 +156,8 @@ export function Header() {
 
         {/* Connection status */}
         <div className="flex items-center gap-1.5">
-          <span
-            className={`w-2 h-2 rounded-full ${getConnectionDotClass(connectionStatus)}`}
-          />
-          <span className="text-xs text-herd-muted">
-            {getConnectionLabel(connectionStatus)}
-          </span>
+          <span className={`w-2 h-2 rounded-full ${getConnectionDotClass(connectionStatus)}`} />
+          <span className="text-xs text-herd-muted">{getConnectionLabel(connectionStatus)}</span>
         </div>
       </div>
     </header>

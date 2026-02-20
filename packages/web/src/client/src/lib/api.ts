@@ -5,7 +5,17 @@
  * All functions throw on non-OK responses.
  */
 
-import type { FleetStatus, AgentInfo, ScheduleInfo, TriggerResult, JobSummary, ChatSession, ChatMessage, CancelJobResult, ForkJobResult } from "./types";
+import type {
+  AgentInfo,
+  CancelJobResult,
+  ChatMessage,
+  ChatSession,
+  FleetStatus,
+  ForkJobResult,
+  JobSummary,
+  ScheduleInfo,
+  TriggerResult,
+} from "./types";
 
 // =============================================================================
 // Configuration
@@ -43,7 +53,7 @@ export class ApiError extends Error {
     message: string,
     public readonly status: number,
     public readonly statusText: string,
-    public readonly url: string
+    public readonly url: string,
   ) {
     super(message);
     this.name = "ApiError";
@@ -79,7 +89,10 @@ async function handleResponse<T>(response: Response): Promise<T> {
 /**
  * Helper to make typed GET requests
  */
-async function get<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
+async function get<T>(
+  path: string,
+  params?: Record<string, string | number | undefined>,
+): Promise<T> {
   const url = new URL(`${baseUrl}${path}`);
 
   if (params) {
@@ -193,7 +206,10 @@ export interface PaginatedJobsResponse {
  * GET /api/jobs
  */
 export async function fetchJobs(params?: FetchJobsParams): Promise<PaginatedJobsResponse> {
-  return get<PaginatedJobsResponse>("/api/jobs", params);
+  return get<PaginatedJobsResponse>(
+    "/api/jobs",
+    params as Record<string, string | number | undefined>,
+  );
 }
 
 /**
@@ -211,10 +227,7 @@ export async function fetchJobById(jobId: string): Promise<JobSummary> {
  * POST /api/jobs/:id/cancel
  */
 export async function cancelJob(jobId: string): Promise<CancelJobResult> {
-  return post<CancelJobResult>(
-    `/api/jobs/${encodeURIComponent(jobId)}/cancel`,
-    {}
-  );
+  return post<CancelJobResult>(`/api/jobs/${encodeURIComponent(jobId)}/cancel`, {});
 }
 
 /**
@@ -224,12 +237,9 @@ export async function cancelJob(jobId: string): Promise<CancelJobResult> {
  */
 export async function forkJob(
   jobId: string,
-  options?: { prompt?: string }
+  options?: { prompt?: string },
 ): Promise<ForkJobResult> {
-  return post<ForkJobResult>(
-    `/api/jobs/${encodeURIComponent(jobId)}/fork`,
-    options ?? {}
-  );
+  return post<ForkJobResult>(`/api/jobs/${encodeURIComponent(jobId)}/fork`, options ?? {});
 }
 
 /**
@@ -248,12 +258,9 @@ export async function fetchSchedules(): Promise<ScheduleInfo[]> {
  */
 export async function triggerAgent(
   agentName: string,
-  options?: { scheduleName?: string; prompt?: string }
+  options?: { scheduleName?: string; prompt?: string },
 ): Promise<TriggerResult> {
-  return post<TriggerResult>(
-    `/api/agents/${encodeURIComponent(agentName)}/trigger`,
-    options ?? {}
-  );
+  return post<TriggerResult>(`/api/agents/${encodeURIComponent(agentName)}/trigger`, options ?? {});
 }
 
 /**
@@ -263,11 +270,11 @@ export async function triggerAgent(
  */
 export async function enableSchedule(
   agentName: string,
-  scheduleName: string
+  scheduleName: string,
 ): Promise<ScheduleInfo> {
   return post<ScheduleInfo>(
     `/api/schedules/${encodeURIComponent(agentName)}/${encodeURIComponent(scheduleName)}/enable`,
-    {}
+    {},
   );
 }
 
@@ -278,11 +285,11 @@ export async function enableSchedule(
  */
 export async function disableSchedule(
   agentName: string,
-  scheduleName: string
+  scheduleName: string,
 ): Promise<ScheduleInfo> {
   return post<ScheduleInfo>(
     `/api/schedules/${encodeURIComponent(agentName)}/${encodeURIComponent(scheduleName)}/disable`,
-    {}
+    {},
   );
 }
 
@@ -333,10 +340,10 @@ export async function fetchChatSessions(agentName: string): Promise<{ sessions: 
  */
 export async function fetchChatSession(
   agentName: string,
-  sessionId: string
+  sessionId: string,
 ): Promise<ChatSessionDetailResponse> {
   return get<ChatSessionDetailResponse>(
-    `/api/chat/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`
+    `/api/chat/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`,
   );
 }
 
@@ -347,6 +354,6 @@ export async function fetchChatSession(
  */
 export async function deleteChatSession(agentName: string, sessionId: string): Promise<void> {
   await del<{ deleted: boolean }>(
-    `/api/chat/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`
+    `/api/chat/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`,
   );
 }

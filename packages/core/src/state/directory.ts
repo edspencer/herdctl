@@ -4,23 +4,23 @@
  * Provides functions to initialize and access the .herdctl/ state directory
  */
 
-import { mkdir, stat, access, constants } from "node:fs/promises";
+import { access, constants, mkdir, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import {
-  type StateDirectory,
-  type InitStateDirectoryOptions,
-  type StateDirectoryValidation,
-  STATE_SUBDIRECTORIES,
-  DEFAULT_STATE_DIR_NAME,
-  STATE_FILE_NAME,
-} from "./types.js";
-import {
+  getPermissionErrorMessage,
   StateDirectoryCreateError,
   StateDirectoryValidationError,
   StateFileError,
-  getPermissionErrorMessage,
 } from "./errors.js";
 import { createInitialFleetState, FleetStateSchema } from "./schemas/index.js";
+import {
+  DEFAULT_STATE_DIR_NAME,
+  type InitStateDirectoryOptions,
+  STATE_FILE_NAME,
+  STATE_SUBDIRECTORIES,
+  type StateDirectory,
+  type StateDirectoryValidation,
+} from "./types.js";
 import { atomicWriteYaml } from "./utils/index.js";
 import { safeReadYaml } from "./utils/reads.js";
 
@@ -31,9 +31,7 @@ import { safeReadYaml } from "./utils/reads.js";
  * @returns StateDirectory object with paths to all subdirectories and files
  */
 export function getStateDirectory(rootPath?: string): StateDirectory {
-  const root = rootPath
-    ? resolve(rootPath)
-    : resolve(process.cwd(), DEFAULT_STATE_DIR_NAME);
+  const root = rootPath ? resolve(rootPath) : resolve(process.cwd(), DEFAULT_STATE_DIR_NAME);
 
   return {
     root,
@@ -75,7 +73,7 @@ async function pathExists(path: string): Promise<boolean> {
  * @returns Validation result with any missing paths or errors
  */
 export async function validateStateDirectory(
-  stateDir: StateDirectory
+  stateDir: StateDirectory,
 ): Promise<StateDirectoryValidation> {
   const missing: string[] = [];
   const errors: string[] = [];
@@ -126,7 +124,7 @@ async function createDirectory(path: string): Promise<void> {
     throw new StateDirectoryCreateError(
       getPermissionErrorMessage(code, path),
       path,
-      error as Error
+      error as Error,
     );
   }
 }
@@ -152,7 +150,7 @@ async function createDirectory(path: string): Promise<void> {
  * ```
  */
 export async function initStateDirectory(
-  options: InitStateDirectoryOptions = {}
+  options: InitStateDirectoryOptions = {},
 ): Promise<StateDirectory> {
   const stateDir = getStateDirectory(options.path);
 
@@ -174,7 +172,7 @@ export async function initStateDirectory(
         `Failed to create initial state file: ${(error as Error).message}`,
         stateDir.stateFile,
         "write",
-        error as Error
+        error as Error,
       );
     }
   } else {
@@ -185,7 +183,7 @@ export async function initStateDirectory(
         `Existing state file is corrupted or unreadable: ${result.error.message}`,
         stateDir.stateFile,
         "read",
-        result.error
+        result.error,
       );
     }
 
@@ -198,7 +196,7 @@ export async function initStateDirectory(
       throw new StateFileError(
         `Existing state file has invalid schema: ${issues}`,
         stateDir.stateFile,
-        "read"
+        "read",
       );
     }
   }
@@ -209,7 +207,7 @@ export async function initStateDirectory(
     const allIssues = [...validation.missing, ...validation.errors];
     throw new StateDirectoryValidationError(
       `State directory validation failed: ${allIssues.join(", ")}`,
-      validation.missing
+      validation.missing,
     );
   }
 

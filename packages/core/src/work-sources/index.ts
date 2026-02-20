@@ -14,45 +14,43 @@
  * and the scheduler/runner, allowing clean integration without coupling.
  */
 
-// Re-export all types
-export * from "./types.js";
+// Re-export built-in adapters (also triggers auto-registration)
+export * from "./adapters/index.js";
 
 // Re-export errors
 export * from "./errors.js";
 
 // Re-export manager interface and types
 export type {
-  WorkSourceManager,
-  WorkSourceManagerFactory,
   GetNextWorkItemOptions,
   GetNextWorkItemResult,
   ReleaseWorkItemOptions,
   ReportOutcomeOptions,
+  WorkSourceManager,
+  WorkSourceManagerFactory,
 } from "./manager.js";
-
+export type { WorkSourceConfig, WorkSourceFactory } from "./registry.js";
 // Re-export registry functions and types
 export {
-  registerWorkSource,
-  getWorkSource,
-  getRegisteredTypes,
-  isWorkSourceRegistered,
-  unregisterWorkSource,
   clearWorkSourceRegistry,
+  getRegisteredTypes,
+  getWorkSource,
+  isWorkSourceRegistered,
+  registerWorkSource,
+  unregisterWorkSource,
 } from "./registry.js";
-export type { WorkSourceConfig, WorkSourceFactory } from "./registry.js";
-
-// Re-export built-in adapters (also triggers auto-registration)
-export * from "./adapters/index.js";
+// Re-export all types
+export * from "./types.js";
 
 // Import types for interface definition
 import type {
-  WorkItem,
+  ClaimResult,
   FetchOptions,
   FetchResult,
-  ClaimResult,
-  WorkResult,
   ReleaseOptions,
   ReleaseResult,
+  WorkItem,
+  WorkResult,
 } from "./types.js";
 
 // =============================================================================

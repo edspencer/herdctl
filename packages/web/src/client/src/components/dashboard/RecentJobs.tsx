@@ -4,11 +4,11 @@
  * Displays a paginated table of recent jobs with agent, prompt, status, and time.
  */
 
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { StatusBadge } from "../ui";
 import type { JobSummary } from "../../lib/types";
+import { StatusBadge } from "../ui";
 
 // =============================================================================
 // Types
@@ -32,7 +32,7 @@ function truncate(text: string, maxLength: number): string {
   if (text.length <= maxLength) {
     return text;
   }
-  return text.slice(0, maxLength - 1) + "\u2026";
+  return `${text.slice(0, maxLength - 1)}\u2026`;
 }
 
 /**
@@ -88,9 +88,7 @@ export function RecentJobs({ jobs, pageSize = 10 }: RecentJobsProps) {
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold text-herd-fg">
           Recent Jobs
-          <span className="text-herd-muted font-normal ml-1.5">
-            ({jobs.length})
-          </span>
+          <span className="text-herd-muted font-normal ml-1.5">({jobs.length})</span>
         </h2>
       </div>
 
@@ -110,10 +108,7 @@ export function RecentJobs({ jobs, pageSize = 10 }: RecentJobsProps) {
               </thead>
               <tbody className="divide-y divide-herd-border">
                 {displayedJobs.map((job) => (
-                  <tr
-                    key={job.jobId}
-                    className="hover:bg-herd-hover transition-colors"
-                  >
+                  <tr key={job.jobId} className="hover:bg-herd-hover transition-colors">
                     <td className="py-2 px-3 text-herd-fg">
                       <Link
                         to={`/agents/${encodeURIComponent(job.agentName)}`}
@@ -123,9 +118,7 @@ export function RecentJobs({ jobs, pageSize = 10 }: RecentJobsProps) {
                       </Link>
                     </td>
                     <td className="py-2 px-3 text-herd-muted font-mono text-xs max-w-[200px]">
-                      <span className="block truncate">
-                        {truncate(job.prompt, 50)}
-                      </span>
+                      <span className="block truncate">{truncate(job.prompt, 50)}</span>
                     </td>
                     <td className="py-2 px-3">
                       <StatusBadge status={job.status} size="sm" />
@@ -147,6 +140,7 @@ export function RecentJobs({ jobs, pageSize = 10 }: RecentJobsProps) {
               </span>
               <div className="flex items-center gap-1">
                 <button
+                  type="button"
                   onClick={() => setPage((p) => Math.max(0, p - 1))}
                   disabled={page === 0}
                   className="p-1 rounded hover:bg-herd-hover text-herd-muted hover:text-herd-fg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
@@ -158,6 +152,7 @@ export function RecentJobs({ jobs, pageSize = 10 }: RecentJobsProps) {
                   {page + 1} / {totalPages}
                 </span>
                 <button
+                  type="button"
                   onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
                   disabled={page >= totalPages - 1}
                   className="p-1 rounded hover:bg-herd-hover text-herd-muted hover:text-herd-fg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"

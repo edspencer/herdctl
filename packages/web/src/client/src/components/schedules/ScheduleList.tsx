@@ -5,12 +5,12 @@
  * Supports triggering, enabling/disabling, and displays schedule metadata.
  */
 
+import { Calendar, Play, Power, PowerOff } from "lucide-react";
 import { useEffect } from "react";
 import { Link } from "react-router";
-import { Calendar, Play, Power, PowerOff } from "lucide-react";
-import { useSchedules, useScheduleActions } from "../../store";
-import { Card, StatusBadge, Spinner } from "../ui";
 import type { ScheduleInfo, ScheduleType } from "../../lib/types";
+import { useScheduleActions, useSchedules } from "../../store";
+import { Card, Spinner, StatusBadge } from "../ui";
 
 // =============================================================================
 // Helper Functions
@@ -96,21 +96,16 @@ function ScheduleRow({ schedule, onTrigger, onEnable, onDisable }: ScheduleRowPr
           {getTypeLabel(schedule.type)}
         </span>
       </td>
-      <td className="py-2 px-3 text-herd-muted text-xs font-mono">
-        {getExpression(schedule)}
-      </td>
+      <td className="py-2 px-3 text-herd-muted text-xs font-mono">{getExpression(schedule)}</td>
       <td className="py-2 px-3">
         <StatusBadge status={schedule.status} />
       </td>
-      <td className="py-2 px-3 text-herd-muted text-xs">
-        {formatTimestamp(schedule.lastRunAt)}
-      </td>
-      <td className="py-2 px-3 text-herd-muted text-xs">
-        {formatTimestamp(schedule.nextRunAt)}
-      </td>
+      <td className="py-2 px-3 text-herd-muted text-xs">{formatTimestamp(schedule.lastRunAt)}</td>
+      <td className="py-2 px-3 text-herd-muted text-xs">{formatTimestamp(schedule.nextRunAt)}</td>
       <td className="py-2 px-3">
         <div className="flex items-center gap-1.5">
           <button
+            type="button"
             onClick={() => onTrigger(schedule.agentName, schedule.name)}
             className="bg-herd-primary hover:bg-herd-primary-hover text-white rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors inline-flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Trigger Now"
@@ -120,6 +115,7 @@ function ScheduleRow({ schedule, onTrigger, onEnable, onDisable }: ScheduleRowPr
           </button>
           {isDisabled ? (
             <button
+              type="button"
               onClick={() => onEnable(schedule.agentName, schedule.name)}
               className="hover:bg-herd-hover text-herd-muted hover:text-herd-status-running rounded-lg p-1.5 transition-colors"
               title="Enable schedule"
@@ -128,6 +124,7 @@ function ScheduleRow({ schedule, onTrigger, onEnable, onDisable }: ScheduleRowPr
             </button>
           ) : (
             <button
+              type="button"
               onClick={() => onDisable(schedule.agentName, schedule.name)}
               className="hover:bg-herd-hover text-herd-muted hover:text-herd-status-error rounded-lg p-1.5 transition-colors"
               title="Disable schedule"
@@ -155,20 +152,11 @@ function EmptyState() {
   );
 }
 
-function ErrorBanner({
-  message,
-  onRetry,
-}: {
-  message: string;
-  onRetry: () => void;
-}) {
+function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <div className="bg-herd-status-error/10 border border-herd-status-error/20 text-herd-status-error rounded-lg px-3 py-2 text-xs mb-4 flex items-center justify-between">
       <span>{message}</span>
-      <button
-        onClick={onRetry}
-        className="hover:underline font-medium ml-4"
-      >
+      <button type="button" onClick={onRetry} className="hover:underline font-medium ml-4">
         Retry
       </button>
     </div>
@@ -181,8 +169,7 @@ function ErrorBanner({
 
 export function ScheduleList() {
   const { schedules, schedulesLoading, schedulesError } = useSchedules();
-  const { fetchSchedules, triggerSchedule, enableSchedule, disableSchedule } =
-    useScheduleActions();
+  const { fetchSchedules, triggerSchedule, enableSchedule, disableSchedule } = useScheduleActions();
 
   // Fetch schedules on mount
   useEffect(() => {
@@ -227,15 +214,11 @@ export function ScheduleList() {
       {/* Header with title and loading indicator */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold text-herd-fg">All Schedules</h2>
-        {schedulesLoading && schedules.length > 0 && (
-          <Spinner size="sm" />
-        )}
+        {schedulesLoading && schedules.length > 0 && <Spinner size="sm" />}
       </div>
 
       {/* Error banner */}
-      {schedulesError && (
-        <ErrorBanner message={schedulesError} onRetry={fetchSchedules} />
-      )}
+      {schedulesError && <ErrorBanner message={schedulesError} onRetry={fetchSchedules} />}
 
       {/* Table or empty state */}
       {schedules.length === 0 && !schedulesLoading ? (

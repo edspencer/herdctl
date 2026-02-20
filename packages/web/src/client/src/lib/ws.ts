@@ -5,7 +5,7 @@
  * Dispatches incoming server messages to callback handlers.
  */
 
-import type { ClientMessage, ServerMessage, ConnectionStatus } from "./types";
+import type { ClientMessage, ConnectionStatus, ServerMessage } from "./types";
 
 // =============================================================================
 // Types
@@ -109,7 +109,7 @@ export function createWebSocketClient(options: WebSocketClientOptions = {}): Web
    * Calculate reconnect delay with exponential backoff
    */
   function getReconnectDelay(): number {
-    const delay = initialReconnectDelay * Math.pow(2, reconnectAttempts);
+    const delay = initialReconnectDelay * 2 ** reconnectAttempts;
     return Math.min(delay, maxReconnectDelay);
   }
 

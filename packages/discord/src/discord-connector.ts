@@ -6,55 +6,43 @@
  * handles connection lifecycle events.
  */
 
-import { EventEmitter } from "events";
+import { EventEmitter } from "node:events";
+import { type RateLimitData, RESTEvents } from "@discordjs/rest";
+import type { IChatSessionManager } from "@herdctl/chat";
+import type { AgentChatDiscord, AgentConfig } from "@herdctl/core";
 import {
   Client,
-  GatewayIntentBits,
-  Events,
-  Partials,
   type ClientOptions,
-  type Message,
-  type TextChannel,
   type DMChannel,
-  type NewsChannel,
-  type ThreadChannel,
+  Events,
+  GatewayIntentBits,
   type Interaction,
+  type Message,
+  type NewsChannel,
+  Partials,
+  type TextChannel,
+  type ThreadChannel,
 } from "discord.js";
-import { RESTEvents, type RateLimitData } from "@discordjs/rest";
-import type { AgentConfig, AgentChatDiscord, FleetManager } from "@herdctl/core";
-import type {
-  DiscordConnectorOptions,
-  DiscordConnectorState,
-  DiscordConnectionStatus,
-  DiscordConnectorLogger,
-  IDiscordConnector,
-  DiscordConnectorEventMap,
-  DiscordConnectorEventName,
-  DiscordReplyPayload,
-} from "./types.js";
+import { checkDMUserFilter, resolveChannelConfig } from "./auto-mode-handler.js";
+import { CommandManager, type ICommandManager } from "./commands/index.js";
+import { ErrorHandler } from "./error-handler.js";
+import { AlreadyConnectedError, DiscordConnectionError, InvalidTokenError } from "./errors.js";
+import { createLoggerFromConfig } from "./logger.js";
 import {
-  DiscordConnectionError,
-  AlreadyConnectedError,
-  InvalidTokenError,
-} from "./errors.js";
-import {
-  ErrorHandler,
-  USER_ERROR_MESSAGES,
-  withRetry,
-} from "./error-handler.js";
-import {
-  shouldProcessMessage,
   buildConversationContext,
+  shouldProcessMessage,
   type TextBasedChannel,
 } from "./mention-handler.js";
-import {
-  checkDMUserFilter,
-  resolveChannelConfig,
-  DEFAULT_DM_CONTEXT_MESSAGES,
-} from "./auto-mode-handler.js";
-import { CommandManager, type ICommandManager } from "./commands/index.js";
-import type { IChatSessionManager } from "@herdctl/chat";
-import { DiscordLogger, createLoggerFromConfig } from "./logger.js";
+import type {
+  DiscordConnectionStatus,
+  DiscordConnectorEventMap,
+  DiscordConnectorEventName,
+  DiscordConnectorLogger,
+  DiscordConnectorOptions,
+  DiscordConnectorState,
+  DiscordReplyPayload,
+  IDiscordConnector,
+} from "./types.js";
 
 /**
  * DiscordConnector class - Connects a single agent to Discord
@@ -81,14 +69,10 @@ import { DiscordLogger, createLoggerFromConfig } from "./logger.js";
  * await connector.disconnect();
  * ```
  */
-export class DiscordConnector
-  extends EventEmitter
-  implements IDiscordConnector
-{
+export class DiscordConnector extends EventEmitter implements IDiscordConnector {
   private readonly _agentConfig: AgentConfig;
   private readonly _discordConfig: AgentChatDiscord;
   private readonly _botToken: string;
-  private readonly _fleetManager: FleetManager;
   private readonly _logger: DiscordConnectorLogger;
   private readonly _sessionManager: IChatSessionManager;
   private readonly _errorHandler: ErrorHandler;
@@ -118,7 +102,6 @@ export class DiscordConnector
     this._agentConfig = options.agentConfig;
     this._discordConfig = options.discordConfig;
     this._botToken = options.botToken;
-    this._fleetManager = options.fleetManager;
     this._sessionManager = options.sessionManager;
 
     // Create logger from config if not provided
@@ -133,10 +116,7 @@ export class DiscordConnector
 
     // Validate token is provided
     if (!this._botToken || this._botToken.trim() === "") {
-      throw new InvalidTokenError(
-        this.agentName,
-        "Bot token cannot be empty"
-      );
+      throw new InvalidTokenError(this.agentName, "Bot token cannot be empty");
     }
   }
 
@@ -179,10 +159,7 @@ export class DiscordConnector
    */
   async connect(): Promise<void> {
     // Check if already connected or connecting
-    if (
-      this._status === "connected" ||
-      this._status === "connecting"
-    ) {
+    if (this._status === "connected" || this._status === "connecting") {
       throw new AlreadyConnectedError(this.agentName);
     }
 
@@ -218,8 +195,7 @@ export class DiscordConnector
       // Note: The 'ready' event handler will update status to 'connected'
     } catch (error) {
       this._status = "error";
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       this._lastError = errorMessage;
       this._logger.error("Connection failed", { error: errorMessage });
 
@@ -277,8 +253,7 @@ export class DiscordConnector
       });
     } catch (error) {
       // Log but don't throw - we want graceful shutdown
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       this._logger.error("Error during disconnect", { error: errorMessage });
       this._status = "disconnected";
       this._disconnectedAt = new Date().toISOString();
@@ -459,10 +434,7 @@ export class DiscordConnector
     this._client.on(Events.MessageCreate, (message) => {
       this._handleMessage(message).catch(async (error) => {
         // Use error handler for detailed logging and user-friendly messages
-        const userMessage = this._errorHandler.handleError(
-          error,
-          "handling message"
-        );
+        const userMessage = this._errorHandler.handleError(error, "handling message");
 
         // Attempt to reply with user-friendly error if we can
         try {
@@ -510,8 +482,7 @@ export class DiscordConnector
       await this._commandManager.registerCommands();
       this._logger.debug("Slash commands registered successfully");
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       this._logger.error("Failed to register slash commands", {
         error: errorMessage,
       });
@@ -607,7 +578,7 @@ export class DiscordConnector
       message.channel.id,
       message.guildId,
       this._discordConfig.guilds,
-      this._discordConfig.dm
+      this._discordConfig.dm,
     );
 
     if (!resolvedConfig) {
@@ -640,16 +611,11 @@ export class DiscordConnector
 
     // Build conversation context
     const channel = message.channel as TextBasedChannel;
-    const context = await buildConversationContext(
-      message,
-      channel,
-      botUserId,
-      {
-        maxMessages: contextMessages,
-        includeBotMessages: true,
-        prioritizeUserMessages: true,
-      }
-    );
+    const context = await buildConversationContext(message, channel, botUserId, {
+      maxMessages: contextMessages,
+      includeBotMessages: true,
+      prioritizeUserMessages: true,
+    });
 
     // Track message received
     this._messagesReceived++;
@@ -816,28 +782,28 @@ export class DiscordConnector
    */
   override emit<K extends DiscordConnectorEventName>(
     event: K,
-    payload: DiscordConnectorEventMap[K]
+    payload: DiscordConnectorEventMap[K],
   ): boolean {
     return super.emit(event, payload);
   }
 
   override on<K extends DiscordConnectorEventName>(
     event: K,
-    listener: (payload: DiscordConnectorEventMap[K]) => void
+    listener: (payload: DiscordConnectorEventMap[K]) => void,
   ): this {
     return super.on(event, listener);
   }
 
   override once<K extends DiscordConnectorEventName>(
     event: K,
-    listener: (payload: DiscordConnectorEventMap[K]) => void
+    listener: (payload: DiscordConnectorEventMap[K]) => void,
   ): this {
     return super.once(event, listener);
   }
 
   override off<K extends DiscordConnectorEventName>(
     event: K,
-    listener: (payload: DiscordConnectorEventMap[K]) => void
+    listener: (payload: DiscordConnectorEventMap[K]) => void,
   ): this {
     return super.off(event, listener);
   }

@@ -43,7 +43,7 @@ export function parseInterval(interval: string): number {
   if (!interval || interval.trim() === "") {
     throw new IntervalParseError(
       'Interval cannot be empty. Expected format: "{number}{unit}" where unit is s/m/h/d (e.g., "5m", "1h")',
-      interval
+      interval,
     );
   }
 
@@ -57,27 +57,27 @@ export function parseInterval(interval: string): number {
     if (/^\d+$/.test(trimmed)) {
       throw new IntervalParseError(
         `Missing time unit in interval "${interval}". Expected format: "{number}{unit}" where unit is s/m/h/d (e.g., "5m", "1h")`,
-        interval
+        interval,
       );
     }
 
     if (/^[a-zA-Z]+$/.test(trimmed)) {
       throw new IntervalParseError(
         `Missing numeric value in interval "${interval}". Expected format: "{number}{unit}" where unit is s/m/h/d (e.g., "5m", "1h")`,
-        interval
+        interval,
       );
     }
 
     if (/\d+\.\d+/.test(trimmed)) {
       throw new IntervalParseError(
         `Decimal values are not supported in interval "${interval}". Use integers only (e.g., "5m" instead of "5.5m")`,
-        interval
+        interval,
       );
     }
 
     throw new IntervalParseError(
       `Invalid interval format "${interval}". Expected format: "{number}{unit}" where unit is s/m/h/d (e.g., "5m", "1h")`,
-      interval
+      interval,
     );
   }
 
@@ -89,7 +89,7 @@ export function parseInterval(interval: string): number {
   if (value < 0) {
     throw new IntervalParseError(
       `Negative intervals are not allowed: "${interval}". Use a positive integer value`,
-      interval
+      interval,
     );
   }
 
@@ -97,7 +97,7 @@ export function parseInterval(interval: string): number {
   if (value === 0) {
     throw new IntervalParseError(
       `Zero interval is not allowed: "${interval}". Use a positive integer value`,
-      interval
+      interval,
     );
   }
 
@@ -105,7 +105,7 @@ export function parseInterval(interval: string): number {
   if (!VALID_UNITS.includes(normalizedUnit)) {
     throw new IntervalParseError(
       `Invalid time unit "${unit}" in interval "${interval}". Valid units are: s (seconds), m (minutes), h (hours), d (days)`,
-      interval
+      interval,
     );
   }
 
@@ -134,7 +134,7 @@ export function parseInterval(interval: string): number {
 export function calculateNextTrigger(
   lastCompletedAt: Date | null,
   interval: string,
-  jitterPercent?: number
+  jitterPercent?: number,
 ): Date {
   const now = new Date();
 
@@ -151,7 +151,7 @@ export function calculateNextTrigger(
     // Clamp jitter to 0-10%
     const clampedJitter = Math.min(Math.max(jitterPercent, 0), 10);
     // Random jitter between 0 and clampedJitter% of interval
-    jitterMs = Math.floor(Math.random() * (intervalMs * clampedJitter) / 100);
+    jitterMs = Math.floor((Math.random() * (intervalMs * clampedJitter)) / 100);
   }
 
   const nextTrigger = new Date(lastCompletedAt.getTime() + intervalMs + jitterMs);

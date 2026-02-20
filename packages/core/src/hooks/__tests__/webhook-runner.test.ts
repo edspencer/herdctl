@@ -2,7 +2,7 @@
  * Tests for WebhookHookRunner
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WebhookHookRunner } from "../runners/webhook.js";
 import type { HookContext, WebhookHookConfigInput } from "../types.js";
 
@@ -150,7 +150,7 @@ describe("WebhookHookRunner", () => {
 
       const [, options] = mockFetch.mock.calls[0];
       expect(options.headers["X-Custom-Header"]).toBe("custom-value");
-      expect(options.headers["Authorization"]).toBe("Bearer static-token");
+      expect(options.headers.Authorization).toBe("Bearer static-token");
       expect(options.headers["Content-Type"]).toBe("application/json");
     });
 
@@ -184,7 +184,7 @@ describe("WebhookHookRunner", () => {
       expect(result.success).toBe(true);
 
       const [, options] = mockFetch.mock.calls[0];
-      expect(options.headers["Authorization"]).toBe("Bearer secret-token-123");
+      expect(options.headers.Authorization).toBe("Bearer secret-token-123");
       expect(options.headers["X-Custom"]).toBe("env-custom-value");
     });
 
@@ -217,7 +217,7 @@ describe("WebhookHookRunner", () => {
       expect(result.success).toBe(true);
 
       const [, options] = mockFetch.mock.calls[0];
-      expect(options.headers["Authorization"]).toBe("Bearer ");
+      expect(options.headers.Authorization).toBe("Bearer ");
     });
 
     it("should handle multiple env var substitutions in one header", async () => {

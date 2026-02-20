@@ -7,11 +7,7 @@
  * - herdctl job <id> --json   JSON output
  */
 
-import {
-  JobManager,
-  isJobNotFoundError,
-  type Job,
-} from "@herdctl/core";
+import { isJobNotFoundError, type Job, JobManager } from "@herdctl/core";
 
 export interface JobOptions {
   logs?: boolean;
@@ -190,7 +186,7 @@ function formatJobDetails(job: Job): string {
     // Truncate long prompts
     const maxPromptLength = 500;
     if (job.prompt.length > maxPromptLength) {
-      lines.push(job.prompt.substring(0, maxPromptLength) + "...");
+      lines.push(`${job.prompt.substring(0, maxPromptLength)}...`);
     } else {
       lines.push(job.prompt);
     }
@@ -275,12 +271,9 @@ function formatOutputMessage(entry: JobOutputMessage): void {
       break;
     case "tool_result":
       if (entry.result !== undefined) {
-        const resultStr = typeof entry.result === "string"
-          ? entry.result
-          : JSON.stringify(entry.result);
-        const truncated = resultStr.length > 100
-          ? resultStr.substring(0, 100) + "..."
-          : resultStr;
+        const resultStr =
+          typeof entry.result === "string" ? entry.result : JSON.stringify(entry.result);
+        const truncated = resultStr.length > 100 ? `${resultStr.substring(0, 100)}...` : resultStr;
         console.log(colorize(`[Result: ${truncated}]`, "dim"));
       }
       if (entry.error) {
@@ -300,14 +293,10 @@ function formatOutputMessage(entry: JobOutputMessage): void {
   }
 }
 
-
 /**
  * Show job details (herdctl job)
  */
-export async function jobCommand(
-  jobId: string,
-  options: JobOptions
-): Promise<void> {
+export async function jobCommand(jobId: string, options: JobOptions): Promise<void> {
   const stateDir = options.state || DEFAULT_STATE_DIR;
   const isJsonOutput = options.json === true;
   const showLogs = options.logs === true;
@@ -382,7 +371,9 @@ export async function jobCommand(
         // Show job header
         console.log("");
         console.log(colorize(`Job: ${job.id}`, "bold"));
-        console.log(`Agent: ${job.agent} | Status: ${formatStatus(job.status)} | Duration: ${formatDuration(job.duration_seconds)}`);
+        console.log(
+          `Agent: ${job.agent} | Status: ${formatStatus(job.status)} | Duration: ${formatDuration(job.duration_seconds)}`,
+        );
         console.log("═".repeat(80));
         console.log("");
 
@@ -426,7 +417,12 @@ export async function jobCommand(
           } catch (streamError) {
             if (!isShuttingDown) {
               console.log("");
-              console.log(colorize(`Stream error: ${streamError instanceof Error ? streamError.message : String(streamError)}`, "red"));
+              console.log(
+                colorize(
+                  `Stream error: ${streamError instanceof Error ? streamError.message : String(streamError)}`,
+                  "red",
+                ),
+              );
             }
           }
         }
@@ -470,7 +466,7 @@ export async function jobCommand(
               message: error.message,
               jobId: jobId,
             },
-          })
+          }),
         );
         process.exit(1);
       }
@@ -494,7 +490,7 @@ export async function jobCommand(
             code: "UNKNOWN_ERROR",
             message: error instanceof Error ? error.message : String(error),
           },
-        })
+        }),
       );
       process.exit(1);
     }

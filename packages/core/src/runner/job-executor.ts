@@ -7,47 +7,43 @@
  * - Updating job status and metadata on completion
  */
 
+import { appendFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { mkdir, appendFile } from "node:fs/promises";
-import type {
-  RunnerOptions,
-  RunnerOptionsWithCallbacks,
-  RunnerResult,
-  RunnerErrorDetails,
-  SDKMessage,
-} from "./types.js";
+import { resolveWorkingDirectory } from "../fleet-manager/working-directory-helper.js";
 import {
-  RunnerError,
-  SDKInitializationError,
-  SDKStreamingError,
-  MalformedResponseError,
-  wrapError,
-  classifyError,
-  buildErrorMessage,
-} from "./errors.js";
-import type { RuntimeInterface, RuntimeExecuteOptions } from "./runtime/index.js";
-import {
-  processSDKMessage,
-  isTerminalMessage,
-  extractSummary,
-} from "./message-processor.js";
-import {
-  createJob,
-  updateJob,
   appendJobOutput,
-  getJobOutputPath,
-  updateSessionInfo,
-  getSessionInfo,
   clearSession,
+  createJob,
+  getJobOutputPath,
+  getSessionInfo,
   isSessionExpiredError,
   isTokenExpiredError,
-  validateWorkingDirectory,
-  validateRuntimeContext,
   type JobMetadata,
   type TriggerType,
+  updateJob,
+  updateSessionInfo,
+  validateRuntimeContext,
+  validateWorkingDirectory,
 } from "../state/index.js";
-import { resolveWorkingDirectory } from "../fleet-manager/working-directory-helper.js";
 import { createLogger } from "../utils/logger.js";
+import {
+  buildErrorMessage,
+  classifyError,
+  MalformedResponseError,
+  type RunnerError,
+  SDKInitializationError,
+  SDKStreamingError,
+  wrapError,
+} from "./errors.js";
+import { extractSummary, isTerminalMessage, processSDKMessage } from "./message-processor.js";
+import type { RuntimeInterface } from "./runtime/index.js";
+import type {
+  ProcessedMessage,
+  RunnerErrorDetails,
+  RunnerOptionsWithCallbacks,
+  RunnerResult,
+  SDKMessage,
+} from "./types.js";
 
 // =============================================================================
 // Types
@@ -137,8 +133,16 @@ export class JobExecutor {
    * @returns Result of the execution including job ID and status
    */
   async execute(options: RunnerOptionsWithCallbacks): Promise<RunnerResult> {
-    const { agent, prompt, stateDir, triggerType, schedule, onMessage, onJobCreated, outputToFile } =
-      options;
+    const {
+      agent,
+      prompt,
+      stateDir,
+      triggerType,
+      schedule,
+      onMessage,
+      onJobCreated,
+      outputToFile,
+    } = options;
 
     const jobsDir = join(stateDir, "jobs");
     let job: JobMetadata;
@@ -184,9 +188,7 @@ export class JobExecutor {
         outputLogPath = join(jobOutputDir, "output.log");
         this.logger.info?.(`Output logging enabled for job ${job.id} at ${outputLogPath}`);
       } catch (error) {
-        this.logger.warn(
-          `Failed to create job output directory: ${(error as Error).message}`
-        );
+        this.logger.warn(`Failed to create job output directory: ${(error as Error).message}`);
         // Continue execution - output logging is optional
       }
     }
@@ -197,9 +199,7 @@ export class JobExecutor {
         status: "running",
       });
     } catch (error) {
-      this.logger.warn(
-        `Failed to update job status to running: ${(error as Error).message}`
-      );
+      this.logger.warn(`Failed to update job status to running: ${(error as Error).message}`);
       // Continue execution - job was created
     }
 
@@ -224,7 +224,7 @@ export class JobExecutor {
         // Trust the caller's session ID directly; the agent-level session is irrelevant.
         effectiveResume = options.resume;
         this.logger.debug?.(
-          `Using caller-provided session for ${agent.name}: ${effectiveResume} (differs from agent-level session ${existingSession.session_id})`
+          `Using caller-provided session for ${agent.name}: ${effectiveResume} (differs from agent-level session ${existingSession.session_id})`,
         );
       } else if (existingSession?.session_id) {
         // Caller's session matches the agent-level session — validate working dir and runtime
@@ -233,14 +233,12 @@ export class JobExecutor {
 
         if (!wdValidation.valid) {
           this.logger.warn(
-            `${wdValidation.message} - clearing stale session ${existingSession.session_id}`
+            `${wdValidation.message} - clearing stale session ${existingSession.session_id}`,
           );
           try {
             await clearSession(sessionsDir, agent.name);
           } catch (clearError) {
-            this.logger.warn(
-              `Failed to clear stale session: ${(clearError as Error).message}`
-            );
+            this.logger.warn(`Failed to clear stale session: ${(clearError as Error).message}`);
           }
           // Continue without resume - working directory changed
           effectiveResume = undefined;
@@ -252,19 +250,17 @@ export class JobExecutor {
           const runtimeValidation = validateRuntimeContext(
             existingSession,
             currentRuntimeType,
-            currentDockerEnabled
+            currentDockerEnabled,
           );
 
           if (!runtimeValidation.valid) {
             this.logger.warn(
-              `${runtimeValidation.message} - clearing stale session ${existingSession.session_id}`
+              `${runtimeValidation.message} - clearing stale session ${existingSession.session_id}`,
             );
             try {
               await clearSession(sessionsDir, agent.name);
             } catch (clearError) {
-              this.logger.warn(
-                `Failed to clear stale session: ${(clearError as Error).message}`
-              );
+              this.logger.warn(`Failed to clear stale session: ${(clearError as Error).message}`);
             }
             // Continue without resume - runtime context changed
             effectiveResume = undefined;
@@ -273,7 +269,7 @@ export class JobExecutor {
             // This ensures we always use the correct session ID stored on disk
             effectiveResume = existingSession.session_id;
             this.logger.info?.(
-              `Found valid session for ${agent.name}: ${effectiveResume}, will attempt to resume`
+              `Found valid session for ${agent.name}: ${effectiveResume}, will attempt to resume`,
             );
 
             // Update last_used_at NOW to prevent session from expiring during long-running jobs
@@ -287,12 +283,10 @@ export class JobExecutor {
                 runtime_type: (agent.runtime as "sdk" | "cli") ?? "sdk",
                 docker_enabled: agent.docker?.enabled ?? false,
               });
-              this.logger.info?.(
-                `Refreshed session timestamp for ${agent.name} before execution`
-              );
+              this.logger.info?.(`Refreshed session timestamp for ${agent.name} before execution`);
             } catch (updateError) {
               this.logger.warn(
-                `Failed to refresh session timestamp: ${(updateError as Error).message}`
+                `Failed to refresh session timestamp: ${(updateError as Error).message}`,
               );
               // Continue anyway - the session is still valid for now
             }
@@ -300,7 +294,7 @@ export class JobExecutor {
         }
       } else {
         this.logger.info?.(
-          `No valid session for ${agent.name} (expired or not found), starting fresh`
+          `No valid session for ${agent.name} (expired or not found), starting fresh`,
         );
 
         // Write info to job output
@@ -347,7 +341,7 @@ export class JobExecutor {
               jobId: job.id,
               agentName: agent.name,
               cause: initError as Error,
-            }
+            },
           );
         }
 
@@ -355,14 +349,12 @@ export class JobExecutor {
           messagesReceived++;
 
           // Process the message safely (handles malformed responses)
-          let processed;
+          let processed: ProcessedMessage | undefined;
           try {
             processed = processSDKMessage(sdkMessage);
           } catch (processError) {
             // Log but don't crash on malformed messages
-            this.logger.warn(
-              `Malformed SDK message received: ${(processError as Error).message}`
-            );
+            this.logger.warn(`Malformed SDK message received: ${(processError as Error).message}`);
 
             // Write a warning to job output
             try {
@@ -383,9 +375,7 @@ export class JobExecutor {
           try {
             await appendJobOutput(jobsDir, job.id, processed.output);
           } catch (outputError) {
-            this.logger.warn(
-              `Failed to write job output: ${(outputError as Error).message}`
-            );
+            this.logger.warn(`Failed to write job output: ${(outputError as Error).message}`);
             // Continue processing - don't fail execution due to logging issues
           }
 
@@ -394,11 +384,11 @@ export class JobExecutor {
             try {
               const logLine = this.formatOutputLogLine(processed.output);
               if (logLine) {
-                await appendFile(outputLogPath, logLine + "\n", "utf-8");
+                await appendFile(outputLogPath, `${logLine}\n`, "utf-8");
               }
             } catch (fileError) {
               this.logger.warn(
-                `Failed to write to output log file: ${(fileError as Error).message}`
+                `Failed to write to output log file: ${(fileError as Error).message}`,
               );
               // Continue processing - file logging is optional
             }
@@ -406,9 +396,7 @@ export class JobExecutor {
 
           // Log error messages to console immediately
           if (processed.output.type === "error") {
-            this.logger.error(
-              `Job ${job.id} error: ${processed.output.message}`
-            );
+            this.logger.error(`Job ${job.id} error: ${processed.output.message}`);
           }
 
           // Extract session ID if present
@@ -418,7 +406,11 @@ export class JobExecutor {
 
           // Track last non-partial assistant message content for fallback summary
           // This ensures we capture the final response even if it's long
-          if (processed.output.type === "assistant" && !processed.output.partial && processed.output.content) {
+          if (
+            processed.output.type === "assistant" &&
+            !processed.output.partial &&
+            processed.output.content
+          ) {
             lastAssistantContent = processed.output.content;
           }
 
@@ -437,17 +429,14 @@ export class JobExecutor {
             try {
               await onMessage(sdkMessage);
             } catch (callbackError) {
-              this.logger.warn(
-                `onMessage callback error: ${(callbackError as Error).message}`
-              );
+              this.logger.warn(`onMessage callback error: ${(callbackError as Error).message}`);
             }
           }
 
           // Check for terminal messages
           if (isTerminalMessage(sdkMessage)) {
             if (sdkMessage.type === "error") {
-              const errorMessage =
-                (sdkMessage.message as string) ?? "Agent execution failed";
+              const errorMessage = (sdkMessage.message as string) ?? "Agent execution failed";
               lastError = new SDKStreamingError(
                 buildErrorMessage(errorMessage, {
                   jobId: job.id,
@@ -458,7 +447,7 @@ export class JobExecutor {
                   agentName: agent.name,
                   code: sdkMessage.code as string | undefined,
                   messagesReceived,
-                }
+                },
               );
             }
             break;
@@ -467,9 +456,13 @@ export class JobExecutor {
       } catch (error) {
         // Check if this is a session expiration error from the SDK
         // This can happen if the server-side session expired even though local validation passed
-        if (isSessionExpiredError(error as Error) && resumeSessionId && !retriedAfterSessionExpiry) {
+        if (
+          isSessionExpiredError(error as Error) &&
+          resumeSessionId &&
+          !retriedAfterSessionExpiry
+        ) {
           this.logger.warn(
-            `Session expired on server for ${agent.name}. Clearing session and retrying with fresh session.`
+            `Session expired on server for ${agent.name}. Clearing session and retrying with fresh session.`,
           );
 
           // Clear the expired session
@@ -478,9 +471,7 @@ export class JobExecutor {
             await clearSession(sessionsDir, agent.name);
             this.logger.info?.(`Cleared expired session for ${agent.name}`);
           } catch (clearError) {
-            this.logger.warn(
-              `Failed to clear expired session: ${(clearError as Error).message}`
-            );
+            this.logger.warn(`Failed to clear expired session: ${(clearError as Error).message}`);
           }
 
           // Write info to job output about the retry
@@ -504,9 +495,7 @@ export class JobExecutor {
         // When the access token expires mid-session, retry triggers buildContainerEnv()
         // which reads the credentials file and refreshes the token automatically.
         if (isTokenExpiredError(error as Error) && !retriedAfterTokenExpiry) {
-          this.logger.warn(
-            `OAuth token expired for ${agent.name}. Retrying with fresh token.`
-          );
+          this.logger.warn(`OAuth token expired for ${agent.name}. Retrying with fresh token.`);
 
           // Write info to job output about the retry
           try {
@@ -534,25 +523,26 @@ export class JobExecutor {
 
         // Add messages received count for streaming errors
         if (lastError instanceof SDKStreamingError && messagesReceived > 0) {
-          (lastError as SDKStreamingError & { messagesReceived?: number }).messagesReceived = messagesReceived;
+          (lastError as SDKStreamingError & { messagesReceived?: number }).messagesReceived =
+            messagesReceived;
         }
 
         // Log the error with context
-        this.logger.error(
-          `${lastError.name}: ${lastError.message}`
-        );
+        this.logger.error(`${lastError.name}: ${lastError.message}`);
 
         // Write error to job output with full context
         try {
           await appendJobOutput(jobsDir, job.id, {
             type: "error",
             message: lastError.message,
-            code: (lastError as SDKStreamingError).code ?? (lastError.cause as NodeJS.ErrnoException)?.code,
+            code:
+              (lastError as SDKStreamingError).code ??
+              (lastError.cause as NodeJS.ErrnoException)?.code,
             stack: lastError.stack,
           });
         } catch (outputError) {
           this.logger.warn(
-            `Failed to write error to job output: ${(outputError as Error).message}`
+            `Failed to write error to job output: ${(outputError as Error).message}`,
           );
         }
       }
@@ -565,8 +555,7 @@ export class JobExecutor {
       errorDetails = {
         message: lastError.message,
         code:
-          (lastError as SDKStreamingError).code ??
-          (lastError.cause as NodeJS.ErrnoException)?.code,
+          (lastError as SDKStreamingError).code ?? (lastError.cause as NodeJS.ErrnoException)?.code,
         stack: lastError.stack,
       };
 
@@ -613,9 +602,7 @@ export class JobExecutor {
         output_file: getJobOutputPath(jobsDir, job.id),
       });
     } catch (error) {
-      this.logger.warn(
-        `Failed to update job final status: ${(error as Error).message}`
-      );
+      this.logger.warn(`Failed to update job final status: ${(error as Error).message}`);
     }
 
     // Step 6: Persist session info for resume capability
@@ -640,13 +627,9 @@ export class JobExecutor {
           docker_enabled: agent.docker?.enabled ?? false,
         });
 
-        this.logger.debug?.(
-          `Persisted session ${sessionId} for agent ${agent.name}`
-        );
+        this.logger.debug?.(`Persisted session ${sessionId} for agent ${agent.name}`);
       } catch (sessionError) {
-        this.logger.warn(
-          `Failed to persist session info: ${(sessionError as Error).message}`
-        );
+        this.logger.warn(`Failed to persist session info: ${(sessionError as Error).message}`);
         // Continue - session persistence is non-fatal
       }
     }
@@ -696,9 +679,7 @@ export class JobExecutor {
 
       case "tool_use":
         if (output.tool_name) {
-          const inputStr = output.input
-            ? ` ${JSON.stringify(output.input)}`
-            : "";
+          const inputStr = output.input ? ` ${JSON.stringify(output.input)}` : "";
           return `[${timestamp}] [TOOL] ${output.tool_name}${inputStr}`;
         }
         break;
@@ -706,9 +687,7 @@ export class JobExecutor {
       case "tool_result":
         if (output.result !== undefined) {
           const resultStr =
-            typeof output.result === "string"
-              ? output.result
-              : JSON.stringify(output.result);
+            typeof output.result === "string" ? output.result : JSON.stringify(output.result);
           const status = output.success === false ? "FAILED" : "OK";
           return `[${timestamp}] [TOOL_RESULT] (${status}) ${resultStr}`;
         }
@@ -762,7 +741,7 @@ export class JobExecutor {
 export async function executeJob(
   runtime: RuntimeInterface,
   options: RunnerOptionsWithCallbacks,
-  executorOptions: JobExecutorOptions = {}
+  executorOptions: JobExecutorOptions = {},
 ): Promise<RunnerResult> {
   const executor = new JobExecutor(runtime, executorOptions);
   return executor.execute(options);

@@ -9,12 +9,7 @@
  * - herdctl jobs --json              JSON output
  */
 
-import {
-  JobManager,
-  isJobNotFoundError,
-  type Job,
-  type JobFilter,
-} from "@herdctl/core";
+import { isJobNotFoundError, type Job, type JobFilter, JobManager } from "@herdctl/core";
 
 /**
  * Valid job statuses type
@@ -137,7 +132,7 @@ function formatDuration(seconds: number | null): string {
 /**
  * Format timestamp to local timezone
  */
-function formatTimestamp(isoTimestamp: string): string {
+function _formatTimestamp(isoTimestamp: string): string {
   const date = new Date(isoTimestamp);
   return date.toLocaleString(undefined, {
     month: "short",
@@ -179,7 +174,7 @@ function formatRelativeTime(isoTimestamp: string): string {
 /**
  * Format jobs table for console output
  */
-function formatJobsTable(jobs: Job[], total: number, limit: number): string {
+function formatJobsTable(jobs: Job[], total: number, _limit: number): string {
   const lines: string[] = [];
 
   if (jobs.length === 0) {
@@ -195,17 +190,19 @@ function formatJobsTable(jobs: Job[], total: number, limit: number): string {
   lines.push("═".repeat(90));
 
   // Calculate column widths
-  const idWidth = Math.max(10, ...jobs.map(j => j.id.length)) + 2;
-  const agentWidth = Math.max(6, ...jobs.map(j => j.agent.length)) + 2;
+  const idWidth = Math.max(10, ...jobs.map((j) => j.id.length)) + 2;
+  const agentWidth = Math.max(6, ...jobs.map((j) => j.agent.length)) + 2;
   const statusWidth = 12;
   const durationWidth = 10;
   const startedWidth = 16;
 
   // Table header
   lines.push(
-    `${"JOB ID".padEnd(idWidth)}${"AGENT".padEnd(agentWidth)}${"STATUS".padEnd(statusWidth)}${"DURATION".padEnd(durationWidth)}${"STARTED".padEnd(startedWidth)}`
+    `${"JOB ID".padEnd(idWidth)}${"AGENT".padEnd(agentWidth)}${"STATUS".padEnd(statusWidth)}${"DURATION".padEnd(durationWidth)}${"STARTED".padEnd(startedWidth)}`,
   );
-  lines.push(colorize("─".repeat(idWidth + agentWidth + statusWidth + durationWidth + startedWidth), "dim"));
+  lines.push(
+    colorize("─".repeat(idWidth + agentWidth + statusWidth + durationWidth + startedWidth), "dim"),
+  );
 
   // Table rows
   for (const job of jobs) {
@@ -215,13 +212,15 @@ function formatJobsTable(jobs: Job[], total: number, limit: number): string {
       : statusWidth;
 
     lines.push(
-      `${colorize(job.id, "cyan").padEnd(idWidth + (shouldUseColor() ? colors.cyan.length + colors.reset.length : 0))}${job.agent.padEnd(agentWidth)}${statusStr.padEnd(statusPad)}${formatDuration(job.duration_seconds ?? null).padEnd(durationWidth)}${formatRelativeTime(job.started_at).padEnd(startedWidth)}`
+      `${colorize(job.id, "cyan").padEnd(idWidth + (shouldUseColor() ? colors.cyan.length + colors.reset.length : 0))}${job.agent.padEnd(agentWidth)}${statusStr.padEnd(statusPad)}${formatDuration(job.duration_seconds ?? null).padEnd(durationWidth)}${formatRelativeTime(job.started_at).padEnd(startedWidth)}`,
     );
   }
 
   if (total > jobs.length) {
     lines.push("");
-    lines.push(colorize(`Showing ${jobs.length} of ${total} jobs. Use --limit to see more.`, "dim"));
+    lines.push(
+      colorize(`Showing ${jobs.length} of ${total} jobs. Use --limit to see more.`, "dim"),
+    );
   }
 
   lines.push("");
@@ -265,7 +264,7 @@ export async function jobsCommand(options: JobsOptions): Promise<void> {
             code: "INVALID_STATUS",
             message: `Invalid status '${options.status}'. Valid statuses: ${VALID_STATUSES.join(", ")}`,
           },
-        })
+        }),
       );
       process.exit(1);
     }
@@ -331,7 +330,7 @@ export async function jobsCommand(options: JobsOptions): Promise<void> {
               code: "JOB_NOT_FOUND",
               message: error.message,
             },
-          })
+          }),
         );
         process.exit(1);
       }
@@ -348,7 +347,7 @@ export async function jobsCommand(options: JobsOptions): Promise<void> {
             code: "UNKNOWN_ERROR",
             message: error instanceof Error ? error.message : String(error),
           },
-        })
+        }),
       );
       process.exit(1);
     }

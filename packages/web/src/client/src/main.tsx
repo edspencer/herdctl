@@ -18,5 +18,5 @@ createRoot(rootElement).render(
     <BrowserRouter>
       <App />
     </BrowserRouter>
-  </StrictMode>
+  </StrictMode>,
 );

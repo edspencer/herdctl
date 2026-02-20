@@ -5,29 +5,28 @@
  * REST API endpoints and WebSocket connections for fleet management.
  */
 
-import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import fastifyCors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
-import { existsSync, readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 import {
+  type ChatManagerConnectorState,
   createLogger,
-  listJobs,
   type FleetManager,
   type FleetManagerContext,
   type IChatManager,
-  type ChatManagerConnectorState,
+  listJobs,
 } from "@herdctl/core";
-
-import { registerFleetRoutes } from "./routes/fleet.js";
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
+import { WebChatManager } from "./chat/index.js";
 import { registerAgentRoutes } from "./routes/agents.js";
+import { registerChatRoutes } from "./routes/chat.js";
+import { registerFleetRoutes } from "./routes/fleet.js";
 import { registerJobRoutes } from "./routes/jobs.js";
 import { registerScheduleRoutes } from "./routes/schedules.js";
-import { registerChatRoutes } from "./routes/chat.js";
-import { WebSocketHandler, FleetBridge } from "./ws/index.js";
-import { WebChatManager } from "./chat/index.js";
+import { FleetBridge, WebSocketHandler } from "./ws/index.js";
 
 const logger = createLogger("web");
 
@@ -84,7 +83,7 @@ export interface WebServerConfigExtended extends WebServerConfig {
  */
 export async function createWebServer(
   fleetManager: FleetManager,
-  config: WebServerConfigExtended
+  config: WebServerConfigExtended,
 ): Promise<WebServerResult> {
   const server = Fastify({
     logger: false, // We use our own logger
@@ -170,11 +169,7 @@ export async function createWebServer(
     const url = request.url;
 
     // Don't serve SPA for API routes, WebSocket, or static assets
-    if (
-      url.startsWith("/api/") ||
-      url === "/ws" ||
-      url.startsWith("/assets/")
-    ) {
+    if (url.startsWith("/api/") || url === "/ws" || url.startsWith("/assets/")) {
       return reply.status(404).send({ error: "Not found" });
     }
 
@@ -452,41 +447,40 @@ export class WebManager implements IChatManager {
   }
 }
 
-// Re-export WebSocket types for consumers
-export {
-  WebSocketHandler,
-  FleetBridge,
-  type WebSocketClient,
-  type ClientMessage,
-  type ServerMessage,
-  type SubscribeMessage,
-  type UnsubscribeMessage,
-  type PingMessage,
-  type FleetStatusMessage,
-  type AgentUpdatedMessage,
-  type JobCreatedMessage,
-  type JobOutputMessage,
-  type JobCompletedMessage,
-  type JobFailedMessage,
-  type JobCancelledMessage,
-  type ScheduleTriggeredMessage,
-  type PongMessage,
-  type ChatSendMessage,
-  type ChatResponseMessage,
-  type ChatCompleteMessage,
-  type ChatErrorMessage,
-  isClientMessage,
-  isChatSendMessage,
-  isAgentStartedPayload,
-  isAgentStoppedPayload,
-} from "./ws/index.js";
-
 // Re-export chat types for consumers
 export {
+  type ChatMessage,
+  type OnChunkCallback,
+  type SendMessageResult,
   WebChatManager,
   type WebChatSession,
   type WebChatSessionDetails,
-  type ChatMessage,
-  type SendMessageResult,
-  type OnChunkCallback,
 } from "./chat/index.js";
+// Re-export WebSocket types for consumers
+export {
+  type AgentUpdatedMessage,
+  type ChatCompleteMessage,
+  type ChatErrorMessage,
+  type ChatResponseMessage,
+  type ChatSendMessage,
+  type ClientMessage,
+  FleetBridge,
+  type FleetStatusMessage,
+  isAgentStartedPayload,
+  isAgentStoppedPayload,
+  isChatSendMessage,
+  isClientMessage,
+  type JobCancelledMessage,
+  type JobCompletedMessage,
+  type JobCreatedMessage,
+  type JobFailedMessage,
+  type JobOutputMessage,
+  type PingMessage,
+  type PongMessage,
+  type ScheduleTriggeredMessage,
+  type ServerMessage,
+  type SubscribeMessage,
+  type UnsubscribeMessage,
+  type WebSocketClient,
+  WebSocketHandler,
+} from "./ws/index.js";

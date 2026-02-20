@@ -3,7 +3,9 @@
   "tasks": {
     "build": { "dependsOn": ["^build"], "outputs": ["dist/**"] },
     "dev": { "cache": false, "persistent": true },
-    "lint": {},
+    "lint": {
+      "inputs": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.css", "../../biome.json"]
+    },
     "test": {},
     "typecheck": { "dependsOn": ["^build"] }
   }

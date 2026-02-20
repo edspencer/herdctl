@@ -12,21 +12,17 @@
  */
 
 import {
-  FleetManager,
-  ConfigNotFoundError,
   AgentNotFoundError,
-  JobNotFoundError,
+  ConfigNotFoundError,
+  FleetManager,
   isFleetManagerError,
   JobManager,
-  type LogEntry,
+  JobNotFoundError,
   type JobOutputMessage,
+  type LogEntry,
 } from "@herdctl/core";
 
-import {
-  colorize,
-  getLevelColor,
-  getSourceColor,
-} from "../utils/colors.js";
+import { colorize, getLevelColor, getSourceColor } from "../utils/colors.js";
 
 export interface LogsOptions {
   follow?: boolean;
@@ -76,9 +72,7 @@ function formatLogEntry(entry: LogEntry): string {
   }
 
   // Add job ID if present
-  const jobInfo = entry.jobId
-    ? colorize(` (${entry.jobId.substring(0, 12)})`, "dim")
-    : "";
+  const jobInfo = entry.jobId ? colorize(` (${entry.jobId.substring(0, 12)})`, "dim") : "";
 
   // Format the message with output type coloring if available
   let message = entry.message;
@@ -112,7 +106,8 @@ function formatJobOutputMessage(msg: JobOutputMessage): string {
       }
       const result = msg.result;
       const resultStr = typeof result === "string" ? result : JSON.stringify(result);
-      const truncated = resultStr && resultStr.length > 100 ? `${resultStr.substring(0, 100)}...` : resultStr;
+      const truncated =
+        resultStr && resultStr.length > 100 ? `${resultStr.substring(0, 100)}...` : resultStr;
       return `[Result: ${truncated ?? ""}]`;
     }
     case "error":
@@ -129,7 +124,7 @@ function formatJobOutputMessage(msg: JobOutputMessage): string {
  */
 export async function logsCommand(
   agentName: string | undefined,
-  options: LogsOptions
+  options: LogsOptions,
 ): Promise<void> {
   const stateDir = options.state || DEFAULT_STATE_DIR;
   const lines = Number.parseInt(options.lines || String(DEFAULT_LINES), 10);
@@ -329,7 +324,7 @@ export async function logsCommand(
               message: "No configuration file found",
               startDirectory: error.startDirectory,
             },
-          })
+          }),
         );
         process.exit(1);
       }
@@ -350,7 +345,7 @@ export async function logsCommand(
               message: error.message,
               agentName: agentName,
             },
-          })
+          }),
         );
         process.exit(1);
       }
@@ -370,7 +365,7 @@ export async function logsCommand(
               message: error.message,
               jobId: jobId,
             },
-          })
+          }),
         );
         process.exit(1);
       }
@@ -389,7 +384,7 @@ export async function logsCommand(
               code: error.code,
               message: error.message,
             },
-          })
+          }),
         );
         process.exit(1);
       }
@@ -414,7 +409,7 @@ export async function logsCommand(
             code: "UNKNOWN_ERROR",
             message: error instanceof Error ? error.message : String(error),
           },
-        })
+        }),
       );
       process.exit(1);
     }

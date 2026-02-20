@@ -2,11 +2,11 @@
  * Tests for tool parsing utilities
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  extractToolUseBlocks,
-  extractToolResults,
   extractToolResultContent,
+  extractToolResults,
+  extractToolUseBlocks,
   getToolInputSummary,
   TOOL_EMOJIS,
 } from "../tool-parsing.js";
@@ -23,7 +23,7 @@ describe("tool-parsing", () => {
         extractToolUseBlocks({
           type: "assistant",
           message: { content: "just text" },
-        })
+        }),
       ).toEqual([]);
     });
 
@@ -84,9 +84,7 @@ describe("tool-parsing", () => {
       const message = {
         type: "assistant",
         message: {
-          content: [
-            { type: "tool_use", name: "Bash", input: { command: "ls" } },
-          ],
+          content: [{ type: "tool_use", name: "Bash", input: { command: "ls" } }],
         },
       };
 
@@ -124,49 +122,37 @@ describe("tool-parsing", () => {
     it("truncates long Bash commands", () => {
       const longCommand = "a".repeat(250);
       const result = getToolInputSummary("Bash", { command: longCommand });
-      expect(result).toBe("a".repeat(200) + "...");
+      expect(result).toBe(`${"a".repeat(200)}...`);
     });
 
     it("returns file_path for Read", () => {
-      expect(
-        getToolInputSummary("Read", { file_path: "/foo/bar.ts" })
-      ).toBe("/foo/bar.ts");
+      expect(getToolInputSummary("Read", { file_path: "/foo/bar.ts" })).toBe("/foo/bar.ts");
     });
 
     it("returns file_path for Write", () => {
-      expect(
-        getToolInputSummary("Write", { file_path: "/foo/bar.ts" })
-      ).toBe("/foo/bar.ts");
+      expect(getToolInputSummary("Write", { file_path: "/foo/bar.ts" })).toBe("/foo/bar.ts");
     });
 
     it("returns file_path for Edit", () => {
-      expect(
-        getToolInputSummary("Edit", { file_path: "/foo/bar.ts" })
-      ).toBe("/foo/bar.ts");
+      expect(getToolInputSummary("Edit", { file_path: "/foo/bar.ts" })).toBe("/foo/bar.ts");
     });
 
     it("returns pattern for Glob", () => {
-      expect(
-        getToolInputSummary("Glob", { pattern: "**/*.ts" })
-      ).toBe("**/*.ts");
+      expect(getToolInputSummary("Glob", { pattern: "**/*.ts" })).toBe("**/*.ts");
     });
 
     it("returns pattern for Grep", () => {
-      expect(
-        getToolInputSummary("Grep", { pattern: "function foo" })
-      ).toBe("function foo");
+      expect(getToolInputSummary("Grep", { pattern: "function foo" })).toBe("function foo");
     });
 
     it("returns url for WebFetch", () => {
-      expect(
-        getToolInputSummary("WebFetch", { url: "https://example.com" })
-      ).toBe("https://example.com");
+      expect(getToolInputSummary("WebFetch", { url: "https://example.com" })).toBe(
+        "https://example.com",
+      );
     });
 
     it("returns query for WebSearch", () => {
-      expect(
-        getToolInputSummary("WebSearch", { query: "how to test" })
-      ).toBe("how to test");
+      expect(getToolInputSummary("WebSearch", { query: "how to test" })).toBe("how to test");
     });
 
     it("returns undefined for unknown tools", () => {
@@ -303,9 +289,7 @@ describe("tool-parsing", () => {
       const message = {
         type: "user",
         message: {
-          content: [
-            { type: "tool_result", content: "" },
-          ],
+          content: [{ type: "tool_result", content: "" }],
         },
       };
 
@@ -373,17 +357,17 @@ describe("tool-parsing", () => {
 
   describe("TOOL_EMOJIS", () => {
     it("has emoji for common tools", () => {
-      expect(TOOL_EMOJIS["Bash"]).toBeDefined();
-      expect(TOOL_EMOJIS["Read"]).toBeDefined();
-      expect(TOOL_EMOJIS["Write"]).toBeDefined();
-      expect(TOOL_EMOJIS["Glob"]).toBeDefined();
-      expect(TOOL_EMOJIS["Grep"]).toBeDefined();
-      expect(TOOL_EMOJIS["WebFetch"]).toBeDefined();
-      expect(TOOL_EMOJIS["WebSearch"]).toBeDefined();
+      expect(TOOL_EMOJIS.Bash).toBeDefined();
+      expect(TOOL_EMOJIS.Read).toBeDefined();
+      expect(TOOL_EMOJIS.Write).toBeDefined();
+      expect(TOOL_EMOJIS.Glob).toBeDefined();
+      expect(TOOL_EMOJIS.Grep).toBeDefined();
+      expect(TOOL_EMOJIS.WebFetch).toBeDefined();
+      expect(TOOL_EMOJIS.WebSearch).toBeDefined();
     });
 
     it("has lowercase bash variant", () => {
-      expect(TOOL_EMOJIS["bash"]).toBe(TOOL_EMOJIS["Bash"]);
+      expect(TOOL_EMOJIS.bash).toBe(TOOL_EMOJIS.Bash);
     });
   });
 });

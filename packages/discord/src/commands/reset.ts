@@ -5,7 +5,7 @@
  * Responds ephemerally with confirmation.
  */
 
-import type { SlashCommand, CommandContext } from "./types.js";
+import type { CommandContext, SlashCommand } from "./types.js";
 
 export const resetCommand: SlashCommand = {
   name: "reset",

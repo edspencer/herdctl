@@ -6,17 +6,17 @@
  * - Renders routing with layout shell
  */
 
-import { Routes, Route } from "react-router";
-import { useWebSocket } from "./hooks/useWebSocket";
-import { useFleetStatus } from "./hooks/useFleetStatus";
-import { AppLayout } from "./components/layout/AppLayout";
-import { FleetDashboard } from "./components/dashboard/FleetDashboard";
+import { Route, Routes } from "react-router";
 import { AgentDetail } from "./components/agent";
-import { JobHistory } from "./components/jobs";
-import { ScheduleList } from "./components/schedules";
 import { ChatView } from "./components/chat";
+import { FleetDashboard } from "./components/dashboard/FleetDashboard";
+import { JobHistory } from "./components/jobs";
+import { AppLayout } from "./components/layout/AppLayout";
+import { ScheduleList } from "./components/schedules";
 import { ErrorBoundary } from "./components/ui";
 import { ToastContainer } from "./components/ui/Toast";
+import { useFleetStatus } from "./hooks/useFleetStatus";
+import { useWebSocket } from "./hooks/useWebSocket";
 
 // =============================================================================
 // Placeholder Page Components
@@ -56,13 +56,62 @@ export default function App() {
     <ErrorBoundary>
       <AppLayout>
         <Routes>
-          <Route path="/" element={<ErrorBoundary><FleetDashboard /></ErrorBoundary>} />
-          <Route path="/agents/:name" element={<ErrorBoundary><AgentDetail /></ErrorBoundary>} />
-          <Route path="/agents/:name/:tab" element={<ErrorBoundary><AgentDetail /></ErrorBoundary>} />
-          <Route path="/agents/:name/chat" element={<ErrorBoundary><ChatView /></ErrorBoundary>} />
-          <Route path="/agents/:name/chat/:sessionId" element={<ErrorBoundary><ChatView /></ErrorBoundary>} />
-          <Route path="/jobs" element={<ErrorBoundary><JobsPage /></ErrorBoundary>} />
-          <Route path="/schedules" element={<ErrorBoundary><SchedulesPage /></ErrorBoundary>} />
+          <Route
+            path="/"
+            element={
+              <ErrorBoundary>
+                <FleetDashboard />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/agents/:name"
+            element={
+              <ErrorBoundary>
+                <AgentDetail />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/agents/:name/:tab"
+            element={
+              <ErrorBoundary>
+                <AgentDetail />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/agents/:name/chat"
+            element={
+              <ErrorBoundary>
+                <ChatView />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/agents/:name/chat/:sessionId"
+            element={
+              <ErrorBoundary>
+                <ChatView />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/jobs"
+            element={
+              <ErrorBoundary>
+                <JobsPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/schedules"
+            element={
+              <ErrorBoundary>
+                <SchedulesPage />
+              </ErrorBoundary>
+            }
+          />
         </Routes>
       </AppLayout>
       <ToastContainer />

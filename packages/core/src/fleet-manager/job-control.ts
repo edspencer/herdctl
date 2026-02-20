@@ -7,32 +7,31 @@
  * @module job-control
  */
 
-import { join } from "node:path";
 import { readFile } from "node:fs/promises";
-
-import { createJob, getJob, updateJob, readJobOutputAll, getSessionInfo } from "../state/index.js";
+import { join } from "node:path";
+import type { HookEvent, ResolvedAgent } from "../config/index.js";
+import { type HookContext, HookExecutor } from "../hooks/index.js";
 import { JobExecutor, RuntimeFactory } from "../runner/index.js";
-import { HookExecutor, type HookContext } from "../hooks/index.js";
-import type { ResolvedAgent, HookEvent } from "../config/index.js";
+import { createJob, getJob, getSessionInfo, readJobOutputAll, updateJob } from "../state/index.js";
 import type { JobMetadata } from "../state/schemas/job-metadata.js";
-import type {
-  TriggerOptions,
-  TriggerResult,
-  JobModifications,
-  CancelJobResult,
-  ForkJobResult,
-  AgentInfo,
-} from "./types.js";
 import type { FleetManagerContext } from "./context.js";
 import {
   AgentNotFoundError,
-  ScheduleNotFoundError,
   ConcurrencyLimitError,
   InvalidStateError,
-  JobNotFoundError,
   JobCancelError,
   JobForkError,
+  JobNotFoundError,
+  ScheduleNotFoundError,
 } from "./errors.js";
+import type {
+  AgentInfo,
+  CancelJobResult,
+  ForkJobResult,
+  JobModifications,
+  TriggerOptions,
+  TriggerResult,
+} from "./types.js";
 
 // =============================================================================
 // JobControl Class
@@ -47,7 +46,7 @@ import {
 export class JobControl {
   constructor(
     private ctx: FleetManagerContext,
-    private getAgentInfoFn: () => Promise<AgentInfo[]>
+    private getAgentInfoFn: () => Promise<AgentInfo[]>,
   ) {}
 
   /**
@@ -68,7 +67,7 @@ export class JobControl {
   async trigger(
     agentName: string,
     scheduleName?: string,
-    options?: TriggerOptions
+    options?: TriggerOptions,
   ): Promise<TriggerResult> {
     const status = this.ctx.getStatus();
     const config = this.ctx.getConfig();
@@ -79,11 +78,7 @@ export class JobControl {
 
     // Validate state
     if (status === "uninitialized") {
-      throw new InvalidStateError(
-        "trigger",
-        status,
-        ["initialized", "running", "stopped"]
-      );
+      throw new InvalidStateError("trigger", status, ["initialized", "running", "stopped"]);
     }
 
     // Find the agent by qualified name
@@ -100,9 +95,7 @@ export class JobControl {
     let schedule: { type: string; prompt?: string; outputToFile?: boolean } | undefined;
     if (scheduleName) {
       if (!agent.schedules || !(scheduleName in agent.schedules)) {
-        const availableSchedules = agent.schedules
-          ? Object.keys(agent.schedules)
-          : [];
+        const availableSchedules = agent.schedules ? Object.keys(agent.schedules) : [];
         throw new ScheduleNotFoundError(agentName, scheduleName, {
           availableSchedules,
         });
@@ -121,13 +114,12 @@ export class JobControl {
     }
 
     // Determine the prompt to use (priority: options > schedule > agent default > fallback)
-    const prompt = options?.prompt ?? schedule?.prompt ?? agent.default_prompt ?? "Execute your configured task";
+    const prompt =
+      options?.prompt ?? schedule?.prompt ?? agent.default_prompt ?? "Execute your configured task";
 
     const timestamp = new Date().toISOString();
 
-    logger.debug(
-      `Manually triggered ${agentName}${scheduleName ? `/${scheduleName}` : ""}`
-    );
+    logger.debug(`Manually triggered ${agentName}${scheduleName ? `/${scheduleName}` : ""}`);
 
     // Get existing session for conversation continuity (unless explicitly provided)
     // This prevents unexpected logouts by automatically resuming the agent's session
@@ -149,7 +141,7 @@ export class JobControl {
         }
       } catch (error) {
         logger.warn(
-          `Failed to get session info for ${agent.qualifiedName}: ${(error as Error).message}`
+          `Failed to get session info for ${agent.qualifiedName}: ${(error as Error).message}`,
         );
         // Continue without resume - session failure shouldn't block execution
       }
@@ -166,7 +158,8 @@ export class JobControl {
       agent,
       prompt,
       stateDir,
-      triggerType: (options?.triggerType ?? "manual") as import("../state/schemas/job-metadata.js").TriggerType,
+      triggerType: (options?.triggerType ??
+        "manual") as import("../state/schemas/job-metadata.js").TriggerType,
       schedule: scheduleName,
       outputToFile: schedule?.outputToFile ?? false,
       onMessage: options?.onMessage,
@@ -216,7 +209,7 @@ export class JobControl {
 
     logger.info(
       `Job ${result.jobId} ${result.success ? "completed" : "failed"} ` +
-        `(${result.durationSeconds ?? 0}s)`
+        `(${result.durationSeconds ?? 0}s)`,
     );
 
     // Build and return the result
@@ -242,10 +235,7 @@ export class JobControl {
    * @throws {InvalidStateError} If the fleet manager is not initialized
    * @throws {JobNotFoundError} If the job doesn't exist
    */
-  async cancelJob(
-    jobId: string,
-    options?: { timeout?: number }
-  ): Promise<CancelJobResult> {
+  async cancelJob(jobId: string, options?: { timeout?: number }): Promise<CancelJobResult> {
     const status = this.ctx.getStatus();
     const stateDir = this.ctx.getStateDir();
     const logger = this.ctx.getLogger();
@@ -253,15 +243,11 @@ export class JobControl {
 
     // Validate state
     if (status === "uninitialized") {
-      throw new InvalidStateError(
-        "cancelJob",
-        status,
-        ["initialized", "running", "stopped"]
-      );
+      throw new InvalidStateError("cancelJob", status, ["initialized", "running", "stopped"]);
     }
 
     const jobsDir = join(stateDir, "jobs");
-    const timeout = options?.timeout ?? 10000;
+    const _timeout = options?.timeout ?? 10000;
 
     // Get the job to verify it exists and check its status
     const job = await getJob(jobsDir, jobId, { logger });
@@ -271,16 +257,14 @@ export class JobControl {
     }
 
     const timestamp = new Date().toISOString();
-    let terminationType: 'graceful' | 'forced' | 'already_stopped';
+    let terminationType: "graceful" | "forced" | "already_stopped";
     let durationSeconds: number | undefined;
 
     // If job is already not running, return early
     if (job.status !== "running" && job.status !== "pending") {
-      logger.info(
-        `Job ${jobId} is already ${job.status}, no cancellation needed`
-      );
+      logger.info(`Job ${jobId} is already ${job.status}, no cancellation needed`);
 
-      terminationType = 'already_stopped';
+      terminationType = "already_stopped";
 
       // Calculate duration if we have finished_at
       if (job.finished_at) {
@@ -312,13 +296,10 @@ export class JobControl {
         finished_at: timestamp,
       });
 
-      terminationType = 'graceful';
-
+      terminationType = "graceful";
     } catch (error) {
-      logger.error(
-        `Failed to update job status: ${(error as Error).message}`
-      );
-      throw new JobCancelError(jobId, 'process_error', {
+      logger.error(`Failed to update job status: ${(error as Error).message}`);
+      throw new JobCancelError(jobId, "process_error", {
         cause: error as Error,
       });
     }
@@ -335,9 +316,7 @@ export class JobControl {
       });
     }
 
-    logger.info(
-      `Job ${jobId} cancelled (${terminationType}) after ${durationSeconds}s`
-    );
+    logger.info(`Job ${jobId} cancelled (${terminationType}) after ${durationSeconds}s`);
 
     return {
       jobId,
@@ -357,10 +336,7 @@ export class JobControl {
    * @throws {JobNotFoundError} If the original job doesn't exist
    * @throws {JobForkError} If the job cannot be forked
    */
-  async forkJob(
-    jobId: string,
-    modifications?: JobModifications
-  ): Promise<ForkJobResult> {
+  async forkJob(jobId: string, modifications?: JobModifications): Promise<ForkJobResult> {
     const status = this.ctx.getStatus();
     const config = this.ctx.getConfig();
     const stateDir = this.ctx.getStateDir();
@@ -369,11 +345,7 @@ export class JobControl {
 
     // Validate state
     if (status === "uninitialized") {
-      throw new InvalidStateError(
-        "forkJob",
-        status,
-        ["initialized", "running", "stopped"]
-      );
+      throw new InvalidStateError("forkJob", status, ["initialized", "running", "stopped"]);
     }
 
     const jobsDir = join(stateDir, "jobs");
@@ -382,7 +354,7 @@ export class JobControl {
     const originalJob = await getJob(jobsDir, jobId, { logger });
 
     if (!originalJob) {
-      throw new JobForkError(jobId, 'job_not_found');
+      throw new JobForkError(jobId, "job_not_found");
     }
 
     // Verify the agent exists in config
@@ -390,7 +362,7 @@ export class JobControl {
     const agent = agents.find((a) => a.qualifiedName === originalJob.agent);
 
     if (!agent) {
-      throw new JobForkError(jobId, 'agent_not_found', {
+      throw new JobForkError(jobId, "agent_not_found", {
         message: `Agent "${originalJob.agent}" for job "${jobId}" not found in current configuration`,
       });
     }
@@ -411,9 +383,7 @@ export class JobControl {
       forked_from: jobId,
     });
 
-    logger.info(
-      `Forked job ${jobId} to new job ${newJob.id} for agent ${originalJob.agent}`
-    );
+    logger.info(`Forked job ${jobId} to new job ${newJob.id} for agent ${originalJob.agent}`);
 
     // Emit job:created event
     emitter.emit("job:created", {
@@ -484,13 +454,9 @@ export class JobControl {
     const cancelPromises = runningJobIds.map(async (jobId) => {
       try {
         const result = await this.cancelJob(jobId, { timeout: cancelTimeout });
-        logger.debug(
-          `Cancelled job ${jobId}: ${result.terminationType}`
-        );
+        logger.debug(`Cancelled job ${jobId}: ${result.terminationType}`);
       } catch (error) {
-        logger.warn(
-          `Failed to cancel job ${jobId}: ${(error as Error).message}`
-        );
+        logger.warn(`Failed to cancel job ${jobId}: ${(error as Error).message}`);
       }
     });
 
@@ -510,7 +476,7 @@ export class JobControl {
     jobMetadata: JobMetadata,
     event: HookEvent,
     scheduleName?: string,
-    errorMessage?: string
+    errorMessage?: string,
   ): Promise<void> {
     const logger = this.ctx.getLogger();
 
@@ -522,7 +488,14 @@ export class JobControl {
     // Build hook context from job metadata (reads actual output from JSONL)
     const stateDir = this.ctx.getStateDir();
     const jobsDir = join(stateDir, "jobs");
-    const context = await this.buildHookContext(agent, jobMetadata, jobsDir, event, scheduleName, errorMessage);
+    const context = await this.buildHookContext(
+      agent,
+      jobMetadata,
+      jobsDir,
+      event,
+      scheduleName,
+      errorMessage,
+    );
 
     // Resolve agent workspace for hook execution
     const agentWorkspace = this.resolveAgentWorkspace(agent);
@@ -539,9 +512,7 @@ export class JobControl {
       const afterRunResult = await hookExecutor.executeHooks(agent.hooks, context, "after_run");
 
       if (afterRunResult.shouldFailJob) {
-        logger.warn(
-          `Hook failure with continue_on_error=false detected for job ${jobMetadata.id}`
-        );
+        logger.warn(`Hook failure with continue_on_error=false detected for job ${jobMetadata.id}`);
       }
     }
 
@@ -552,7 +523,7 @@ export class JobControl {
 
       if (onErrorResult.shouldFailJob) {
         logger.warn(
-          `on_error hook failure with continue_on_error=false detected for job ${jobMetadata.id}`
+          `on_error hook failure with continue_on_error=false detected for job ${jobMetadata.id}`,
         );
       }
     }
@@ -568,7 +539,7 @@ export class JobControl {
     jobsDir: string,
     event: HookEvent,
     scheduleName?: string,
-    errorMessage?: string
+    errorMessage?: string,
   ): Promise<HookContext> {
     const completedAt = jobMetadata.finished_at ?? new Date().toISOString();
     const startedAt = new Date(jobMetadata.started_at);
@@ -611,7 +582,9 @@ export class JobControl {
    * arbitrary structured data that gets included in the HookContext.
    * This allows conditional hook execution via the `when` field.
    */
-  private async readAgentMetadata(agent: ResolvedAgent): Promise<Record<string, unknown> | undefined> {
+  private async readAgentMetadata(
+    agent: ResolvedAgent,
+  ): Promise<Record<string, unknown> | undefined> {
     const logger = this.ctx.getLogger();
     const config = this.ctx.getConfig();
 
@@ -643,7 +616,9 @@ export class JobControl {
       }
 
       // Log other errors but don't fail hook execution
-      logger.warn(`Failed to read agent metadata from ${metadataPath}: ${(error as Error).message}`);
+      logger.warn(
+        `Failed to read agent metadata from ${metadataPath}: ${(error as Error).message}`,
+      );
       return undefined;
     }
   }

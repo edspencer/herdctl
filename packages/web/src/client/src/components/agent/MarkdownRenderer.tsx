@@ -5,10 +5,10 @@
  * Uses react-markdown with remark-gfm for GitHub Flavored Markdown support.
  */
 
-import { useState, useCallback, type ReactNode, type ComponentPropsWithoutRef } from "react";
+import { Check, Copy } from "lucide-react";
+import { type ComponentPropsWithoutRef, type ReactNode, useCallback, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Copy, Check } from "lucide-react";
 
 // =============================================================================
 // Types
@@ -61,13 +61,7 @@ function CopyButton({ text }: CopyButtonProps) {
 /**
  * Code block renderer with copy button
  */
-function CodeBlock({
-  children,
-  className,
-}: {
-  children?: ReactNode;
-  className?: string;
-}) {
+function CodeBlock({ children, className }: { children?: ReactNode; className?: string }) {
   const codeText = String(children).replace(/\n$/, "");
 
   return (
@@ -134,24 +128,16 @@ export function MarkdownRenderer({ content, useSerif = false }: MarkdownRenderer
 
     // Headers (capped at text-lg per design system)
     h1({ children }: ComponentPropsWithoutRef<"h1">) {
-      return (
-        <h1 className="text-lg font-semibold text-herd-fg mt-4 mb-2">{children}</h1>
-      );
+      return <h1 className="text-lg font-semibold text-herd-fg mt-4 mb-2">{children}</h1>;
     },
     h2({ children }: ComponentPropsWithoutRef<"h2">) {
-      return (
-        <h2 className="text-sm font-semibold text-herd-fg mt-3 mb-2">{children}</h2>
-      );
+      return <h2 className="text-sm font-semibold text-herd-fg mt-3 mb-2">{children}</h2>;
     },
     h3({ children }: ComponentPropsWithoutRef<"h3">) {
-      return (
-        <h3 className="text-sm font-medium text-herd-fg mt-3 mb-1">{children}</h3>
-      );
+      return <h3 className="text-sm font-medium text-herd-fg mt-3 mb-1">{children}</h3>;
     },
     h4({ children }: ComponentPropsWithoutRef<"h4">) {
-      return (
-        <h4 className="text-sm font-medium text-herd-muted mt-2 mb-1">{children}</h4>
-      );
+      return <h4 className="text-sm font-medium text-herd-muted mt-2 mb-1">{children}</h4>;
     },
 
     // Paragraphs
@@ -164,7 +150,9 @@ export function MarkdownRenderer({ content, useSerif = false }: MarkdownRenderer
       return <ul className="list-disc list-inside text-sm text-herd-fg mb-2 ml-2">{children}</ul>;
     },
     ol({ children }: ComponentPropsWithoutRef<"ol">) {
-      return <ol className="list-decimal list-inside text-sm text-herd-fg mb-2 ml-2">{children}</ol>;
+      return (
+        <ol className="list-decimal list-inside text-sm text-herd-fg mb-2 ml-2">{children}</ol>
+      );
     },
     li({ children }: ComponentPropsWithoutRef<"li">) {
       return <li className="mb-0.5">{children}</li>;

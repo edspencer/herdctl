@@ -8,37 +8,32 @@
  * Sessions are stored at .herdctl/<platform>-sessions/<agent-name>.yaml
  */
 
-import { mkdir } from "node:fs/promises";
-import { join, dirname } from "node:path";
-import { randomUUID } from "node:crypto";
-import { stringify as stringifyYaml, parse as parseYaml } from "yaml";
-import { readFile, writeFile, rename, unlink } from "node:fs/promises";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { createLogger } from "@herdctl/core";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import {
-  type ChatSessionManagerOptions,
-  type SessionManagerLogger,
-  type IChatSessionManager,
-  type SessionResult,
+  SessionDirectoryCreateError,
+  SessionStateReadError,
+  SessionStateWriteError,
+} from "./errors.js";
+import {
   type ChannelSession,
+  type ChatSessionManagerOptions,
   type ChatSessionState,
   ChatSessionStateSchema,
   createInitialSessionState,
+  type IChatSessionManager,
+  type SessionManagerLogger,
+  type SessionResult,
 } from "./types.js";
-import {
-  SessionStateReadError,
-  SessionStateWriteError,
-  SessionDirectoryCreateError,
-} from "./errors.js";
 
 // =============================================================================
 // Default Logger
 // =============================================================================
 
-function createDefaultLogger(
-  platform: string,
-  agentName: string
-): SessionManagerLogger {
+function createDefaultLogger(platform: string, agentName: string): SessionManagerLogger {
   return createLogger(`${platform}-session:${agentName}`);
 }
 
@@ -94,15 +89,10 @@ export class ChatSessionManager implements IChatSessionManager {
     this.agentName = options.agentName;
     this.stateDir = options.stateDir;
     this.sessionExpiryHours = options.sessionExpiryHours ?? 24;
-    this.logger =
-      options.logger ?? createDefaultLogger(options.platform, options.agentName);
+    this.logger = options.logger ?? createDefaultLogger(options.platform, options.agentName);
 
     // Compute state file path: .herdctl/<platform>-sessions/<agent>.yaml
-    this.stateFilePath = join(
-      this.stateDir,
-      `${this.platform}-sessions`,
-      `${this.agentName}.yaml`
-    );
+    this.stateFilePath = join(this.stateDir, `${this.platform}-sessions`, `${this.agentName}.yaml`);
   }
 
   // ===========================================================================
@@ -444,7 +434,7 @@ export class ChatSessionManager implements IChatSessionManager {
     oldPath: string,
     newPath: string,
     maxRetries = 3,
-    baseDelayMs = 50
+    baseDelayMs = 50,
   ): Promise<void> {
     let lastError: Error | undefined;
 
@@ -463,7 +453,7 @@ export class ChatSessionManager implements IChatSessionManager {
 
         // Don't delay on the last attempt
         if (attempt < maxRetries) {
-          const delay = baseDelayMs * Math.pow(2, attempt);
+          const delay = baseDelayMs * 2 ** attempt;
           await new Promise((resolve) => setTimeout(resolve, delay));
         }
       }

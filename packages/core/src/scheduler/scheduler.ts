@@ -5,27 +5,31 @@
  * due agents according to their configured schedules.
  */
 
-import { createLogger } from "../utils/logger.js";
 import type { ResolvedAgent } from "../config/index.js";
+import { createLogger } from "../utils/logger.js";
+import {
+  calculateNextCronTrigger,
+  calculatePreviousCronTrigger,
+  isValidCronExpression,
+} from "./cron.js";
+import { SchedulerShutdownError } from "./errors.js";
 import { calculateNextTrigger, isScheduleDue } from "./interval.js";
-import { calculateNextCronTrigger, calculatePreviousCronTrigger, isValidCronExpression } from "./cron.js";
 import {
   getScheduleState,
-  updateScheduleState,
   type ScheduleStateLogger,
+  updateScheduleState,
 } from "./schedule-state.js";
 import type {
-  SchedulerOptions,
-  SchedulerStatus,
-  SchedulerState,
-  SchedulerLogger,
   ScheduleCheckResult,
-  ScheduleSkipReason,
-  TriggerInfo,
+  SchedulerLogger,
+  SchedulerOptions,
+  SchedulerState,
+  SchedulerStatus,
   SchedulerTriggerCallback,
+  ScheduleSkipReason,
   StopOptions,
+  TriggerInfo,
 } from "./types.js";
-import { SchedulerShutdownError } from "./errors.js";
 
 // =============================================================================
 // Constants
@@ -160,7 +164,7 @@ export class Scheduler {
     this.runningJobs.clear();
 
     this.logger.debug(
-      `Scheduler started with ${agents.length} agents, check interval: ${this.checkInterval}ms`
+      `Scheduler started with ${agents.length} agents, check interval: ${this.checkInterval}ms`,
     );
 
     // Run the polling loop
@@ -196,9 +200,7 @@ export class Scheduler {
 
     // Optionally wait for running jobs to complete
     if (waitForJobs && this.runningJobs.size > 0) {
-      this.logger.info(
-        `Waiting for ${this.runningJobs.size} running job(s) to complete...`
-      );
+      this.logger.info(`Waiting for ${this.runningJobs.size} running job(s) to complete...`);
 
       const runningJobPromises = Array.from(this.runningJobs.values());
 
@@ -217,12 +219,10 @@ export class Scheduler {
         const runningJobCount = this.runningJobs.size;
         this.status = "stopped";
         this.abortController = null;
-        this.logger.error(
-          `Shutdown timed out with ${runningJobCount} job(s) still running`
-        );
+        this.logger.error(`Shutdown timed out with ${runningJobCount} job(s) still running`);
         throw new SchedulerShutdownError(
           `Scheduler shutdown timed out after ${timeout}ms with ${runningJobCount} job(s) still running`,
-          { timedOut: true, runningJobCount }
+          { timedOut: true, runningJobCount },
         );
       }
 
@@ -255,7 +255,7 @@ export class Scheduler {
         await this.checkAllSchedules();
       } catch (error) {
         this.logger.error(
-          `Error during schedule check: ${error instanceof Error ? error.message : String(error)}`
+          `Error during schedule check: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
 
@@ -279,7 +279,7 @@ export class Scheduler {
           clearTimeout(timeout);
           resolve();
         },
-        { once: true }
+        { once: true },
       );
     });
   }
@@ -312,7 +312,7 @@ export class Scheduler {
   private async checkSchedule(
     agent: ResolvedAgent,
     scheduleName: string,
-    schedule: { type: string; interval?: string; expression?: string; enabled?: boolean }
+    schedule: { type: string; interval?: string; expression?: string; enabled?: boolean },
   ): Promise<ScheduleCheckResult> {
     const baseResult = {
       agentName: agent.qualifiedName,
@@ -322,7 +322,7 @@ export class Scheduler {
     // Skip disabled schedules (config-level check)
     if (schedule.enabled === false) {
       this.logger.debug(
-        `Skipping ${agent.qualifiedName}/${scheduleName}: schedule is disabled in config`
+        `Skipping ${agent.qualifiedName}/${scheduleName}: schedule is disabled in config`,
       );
       return {
         ...baseResult,
@@ -342,18 +342,13 @@ export class Scheduler {
 
     // Get current schedule state
     const stateLogger: ScheduleStateLogger = { warn: this.logger.warn };
-    const scheduleState = await getScheduleState(
-      this.stateDir,
-      agent.qualifiedName,
-      scheduleName,
-      { logger: stateLogger }
-    );
+    const scheduleState = await getScheduleState(this.stateDir, agent.qualifiedName, scheduleName, {
+      logger: stateLogger,
+    });
 
     // Skip disabled schedules
     if (scheduleState.status === "disabled") {
-      this.logger.debug(
-        `Skipping ${agent.qualifiedName}/${scheduleName}: schedule is disabled`
-      );
+      this.logger.debug(`Skipping ${agent.qualifiedName}/${scheduleName}: schedule is disabled`);
       return {
         ...baseResult,
         shouldTrigger: false,
@@ -364,9 +359,7 @@ export class Scheduler {
     // Skip if already running (tracked locally)
     const agentRunning = this.runningSchedules.get(agent.qualifiedName);
     if (agentRunning?.has(scheduleName)) {
-      this.logger.debug(
-        `Skipping ${agent.qualifiedName}/${scheduleName}: already running`
-      );
+      this.logger.debug(`Skipping ${agent.qualifiedName}/${scheduleName}: already running`);
       return {
         ...baseResult,
         shouldTrigger: false,
@@ -375,14 +368,12 @@ export class Scheduler {
     }
 
     // Check max_concurrent capacity
-    const maxConcurrent = agent.session?.max_turns
-      ? 1
-      : this.getMaxConcurrent(agent);
+    const maxConcurrent = agent.session?.max_turns ? 1 : this.getMaxConcurrent(agent);
     const runningCount = agentRunning?.size ?? 0;
 
     if (runningCount >= maxConcurrent) {
       this.logger.debug(
-        `Skipping ${agent.qualifiedName}/${scheduleName}: at max capacity (${runningCount}/${maxConcurrent})`
+        `Skipping ${agent.qualifiedName}/${scheduleName}: at max capacity (${runningCount}/${maxConcurrent})`,
       );
       return {
         ...baseResult,
@@ -394,16 +385,14 @@ export class Scheduler {
     // Calculate next trigger time based on schedule type
     // Use Date.now() so tests can mock the clock via Date.now override
     const now = new Date(Date.now());
-    const lastRunAt = scheduleState.last_run_at
-      ? new Date(scheduleState.last_run_at)
-      : null;
+    const lastRunAt = scheduleState.last_run_at ? new Date(scheduleState.last_run_at) : null;
 
     let nextTrigger: Date;
 
     if (schedule.type === "interval") {
       if (!schedule.interval) {
         this.logger.warn(
-          `Skipping ${agent.qualifiedName}/${scheduleName}: interval schedule missing interval value`
+          `Skipping ${agent.qualifiedName}/${scheduleName}: interval schedule missing interval value`,
         );
         return {
           ...baseResult,
@@ -416,7 +405,7 @@ export class Scheduler {
       // schedule.type === "cron"
       if (!schedule.expression) {
         this.logger.warn(
-          `Skipping ${agent.qualifiedName}/${scheduleName}: cron schedule missing expression value`
+          `Skipping ${agent.qualifiedName}/${scheduleName}: cron schedule missing expression value`,
         );
         return {
           ...baseResult,
@@ -428,7 +417,7 @@ export class Scheduler {
       // Validate cron expression (defense in depth - should be validated at config load time)
       if (!isValidCronExpression(schedule.expression)) {
         this.logger.warn(
-          `Skipping ${agent.qualifiedName}/${scheduleName}: invalid cron expression "${schedule.expression}"`
+          `Skipping ${agent.qualifiedName}/${scheduleName}: invalid cron expression "${schedule.expression}"`,
         );
         return {
           ...baseResult,
@@ -457,9 +446,10 @@ export class Scheduler {
         // Allow triggering if we're within the first portion of the interval after a cron time
         // For very fast crons (<= 1 minute), use half the interval
         // For slower crons, use 1/60th of the interval (capped at 5 minutes)
-        const triggerWindowMs = intervalMs <= 60000
-          ? Math.floor(intervalMs / 2) // Half interval for fast crons (up to 30s for 1-minute cron)
-          : Math.min(Math.floor(intervalMs / 60), 5 * 60 * 1000); // Max 5 minutes
+        const triggerWindowMs =
+          intervalMs <= 60000
+            ? Math.floor(intervalMs / 2) // Half interval for fast crons (up to 30s for 1-minute cron)
+            : Math.min(Math.floor(intervalMs / 60), 5 * 60 * 1000); // Max 5 minutes
 
         const timeSincePrevious = now.getTime() - previousTrigger.getTime();
 
@@ -529,7 +519,7 @@ export class Scheduler {
   private async triggerSchedule(
     agent: ResolvedAgent,
     scheduleName: string,
-    schedule: { type: string; interval?: string; expression?: string; prompt?: string }
+    schedule: { type: string; interval?: string; expression?: string; prompt?: string },
   ): Promise<void> {
     this.logger.info(`Triggering ${agent.qualifiedName}/${scheduleName}`);
     this.triggerCount++;
@@ -554,7 +544,7 @@ export class Scheduler {
         status: "running",
         last_run_at: new Date(Date.now()).toISOString(),
       },
-      { logger: stateLogger }
+      { logger: stateLogger },
     );
 
     // Create and track the job promise
@@ -575,7 +565,7 @@ export class Scheduler {
   private async executeJob(
     agent: ResolvedAgent,
     scheduleName: string,
-    schedule: { type: string; interval?: string; expression?: string; prompt?: string }
+    schedule: { type: string; interval?: string; expression?: string; prompt?: string },
   ): Promise<void> {
     const stateLogger: ScheduleStateLogger = { warn: this.logger.warn };
 
@@ -585,7 +575,7 @@ export class Scheduler {
         this.stateDir,
         agent.qualifiedName,
         scheduleName,
-        { logger: stateLogger }
+        { logger: stateLogger },
       );
 
       // Invoke the trigger callback if provided
@@ -618,13 +608,12 @@ export class Scheduler {
           next_run_at: nextTrigger?.toISOString() ?? null,
           last_error: null,
         },
-        { logger: stateLogger }
+        { logger: stateLogger },
       );
 
       this.logger.info(`Completed ${agent.qualifiedName}/${scheduleName}`);
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
 
       // Update schedule state with error
       await updateScheduleState(
@@ -635,7 +624,7 @@ export class Scheduler {
           status: "idle",
           last_error: errorMessage,
         },
-        { logger: stateLogger }
+        { logger: stateLogger },
       );
 
       this.logger.error(`Error in ${agent.qualifiedName}/${scheduleName}: ${errorMessage}`);

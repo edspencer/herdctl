@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { initCommand, InitOptions } from "../init.js";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { initCommand } from "../init.js";
 
 // Mock @inquirer/prompts
 vi.mock("@inquirer/prompts", () => ({
@@ -11,7 +11,7 @@ vi.mock("@inquirer/prompts", () => ({
   select: vi.fn(),
 }));
 
-import { input, confirm, select } from "@inquirer/prompts";
+import { confirm, input, select } from "@inquirer/prompts";
 
 const mockedInput = vi.mocked(input);
 const mockedConfirm = vi.mocked(confirm);
@@ -21,7 +21,7 @@ const mockedSelect = vi.mocked(select);
 function createTempDir(): string {
   const baseDir = path.join(
     tmpdir(),
-    `herdctl-cli-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-cli-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   fs.mkdirSync(baseDir, { recursive: true });
   return fs.realpathSync(baseDir);
@@ -117,23 +117,16 @@ describe("initCommand", () => {
     it("uses provided --name option", async () => {
       await initCommand({ yes: true, name: "my-fleet" });
 
-      const content = fs.readFileSync(
-        path.join(tempDir, "herdctl.yaml"),
-        "utf-8"
-      );
+      const content = fs.readFileSync(path.join(tempDir, "herdctl.yaml"), "utf-8");
       expect(content).toContain("name: my-fleet");
     });
 
     it("shows success message and next steps", async () => {
       await initCommand({ yes: true });
 
-      expect(consoleLogs.some((log) => log.includes("Initialized herdctl project"))).toBe(
-        true
-      );
+      expect(consoleLogs.some((log) => log.includes("Initialized herdctl project"))).toBe(true);
       expect(consoleLogs.some((log) => log.includes("Next steps"))).toBe(true);
-      expect(consoleLogs.some((log) => log.includes("herdctl start"))).toBe(
-        true
-      );
+      expect(consoleLogs.some((log) => log.includes("herdctl start"))).toBe(true);
     });
   });
 
@@ -141,10 +134,7 @@ describe("initCommand", () => {
     it("uses simple template by default", async () => {
       await initCommand({ yes: true });
 
-      const content = fs.readFileSync(
-        path.join(tempDir, "herdctl.yaml"),
-        "utf-8"
-      );
+      const content = fs.readFileSync(path.join(tempDir, "herdctl.yaml"), "utf-8");
       expect(content).toContain("defaults:");
       expect(content).toContain("max_turns: 50");
       expect(content).not.toContain("model:"); // model should not be set - SDK uses its own default
@@ -156,10 +146,7 @@ describe("initCommand", () => {
     it("uses quickstart template with --example quickstart", async () => {
       await initCommand({ yes: true, example: "quickstart" });
 
-      const content = fs.readFileSync(
-        path.join(tempDir, "herdctl.yaml"),
-        "utf-8"
-      );
+      const content = fs.readFileSync(path.join(tempDir, "herdctl.yaml"), "utf-8");
       expect(content).not.toContain("defaults:");
 
       const agentPath = path.join(tempDir, "agents", "hello-agent.yaml");
@@ -182,13 +169,11 @@ describe("initCommand", () => {
     });
 
     it("exits with error for unknown template", async () => {
-      await expect(
-        initCommand({ yes: true, example: "nonexistent" })
-      ).rejects.toThrow("process.exit");
-      expect(exitCode).toBe(1);
-      expect(consoleErrors.some((e) => e.includes("Unknown example template"))).toBe(
-        true
+      await expect(initCommand({ yes: true, example: "nonexistent" })).rejects.toThrow(
+        "process.exit",
       );
+      expect(exitCode).toBe(1);
+      expect(consoleErrors.some((e) => e.includes("Unknown example template"))).toBe(true);
     });
   });
 
@@ -198,23 +183,15 @@ describe("initCommand", () => {
 
       await expect(initCommand({ yes: true })).rejects.toThrow("process.exit");
       expect(exitCode).toBe(1);
-      expect(
-        consoleErrors.some((e) => e.includes("herdctl.yaml already exists"))
-      ).toBe(true);
+      expect(consoleErrors.some((e) => e.includes("herdctl.yaml already exists"))).toBe(true);
     });
 
     it("overwrites existing config with --force", async () => {
-      fs.writeFileSync(
-        path.join(tempDir, "herdctl.yaml"),
-        "version: 1\nfleet:\n  name: old-fleet"
-      );
+      fs.writeFileSync(path.join(tempDir, "herdctl.yaml"), "version: 1\nfleet:\n  name: old-fleet");
 
       await initCommand({ yes: true, force: true, name: "new-fleet" });
 
-      const content = fs.readFileSync(
-        path.join(tempDir, "herdctl.yaml"),
-        "utf-8"
-      );
+      const content = fs.readFileSync(path.join(tempDir, "herdctl.yaml"), "utf-8");
       expect(content).toContain("name: new-fleet");
       expect(content).not.toContain("old-fleet");
     });
@@ -226,26 +203,17 @@ describe("initCommand", () => {
 
       await initCommand({ yes: true });
 
-      const gitignore = fs.readFileSync(
-        path.join(tempDir, ".gitignore"),
-        "utf-8"
-      );
+      const gitignore = fs.readFileSync(path.join(tempDir, ".gitignore"), "utf-8");
       expect(gitignore).toContain(".herdctl/");
       expect(gitignore).toContain("node_modules/");
     });
 
     it("does not duplicate .herdctl/ in .gitignore", async () => {
-      fs.writeFileSync(
-        path.join(tempDir, ".gitignore"),
-        "node_modules/\n.herdctl/\n"
-      );
+      fs.writeFileSync(path.join(tempDir, ".gitignore"), "node_modules/\n.herdctl/\n");
 
       await initCommand({ yes: true });
 
-      const gitignore = fs.readFileSync(
-        path.join(tempDir, ".gitignore"),
-        "utf-8"
-      );
+      const gitignore = fs.readFileSync(path.join(tempDir, ".gitignore"), "utf-8");
       const count = (gitignore.match(/\.herdctl\//g) || []).length;
       expect(count).toBe(1);
     });
@@ -270,13 +238,10 @@ describe("initCommand", () => {
       expect(mockedInput).toHaveBeenCalledWith(
         expect.objectContaining({
           message: "Fleet name:",
-        })
+        }),
       );
 
-      const content = fs.readFileSync(
-        path.join(tempDir, "herdctl.yaml"),
-        "utf-8"
-      );
+      const content = fs.readFileSync(path.join(tempDir, "herdctl.yaml"), "utf-8");
       expect(content).toContain("name: prompted-fleet");
     });
 
@@ -291,13 +256,10 @@ describe("initCommand", () => {
       expect(mockedInput).not.toHaveBeenCalledWith(
         expect.objectContaining({
           message: "Fleet name:",
-        })
+        }),
       );
 
-      const content = fs.readFileSync(
-        path.join(tempDir, "herdctl.yaml"),
-        "utf-8"
-      );
+      const content = fs.readFileSync(path.join(tempDir, "herdctl.yaml"), "utf-8");
       expect(content).toContain("name: my-preset-fleet");
     });
 
@@ -330,27 +292,18 @@ describe("initCommand", () => {
   describe("agents directory behavior", () => {
     it("does not overwrite existing agent file without --force", async () => {
       fs.mkdirSync(path.join(tempDir, "agents"), { recursive: true });
-      fs.writeFileSync(
-        path.join(tempDir, "agents", "example-agent.yaml"),
-        "name: existing-agent"
-      );
+      fs.writeFileSync(path.join(tempDir, "agents", "example-agent.yaml"), "name: existing-agent");
 
       await initCommand({ yes: true, force: true });
 
-      const content = fs.readFileSync(
-        path.join(tempDir, "agents", "example-agent.yaml"),
-        "utf-8"
-      );
+      const content = fs.readFileSync(path.join(tempDir, "agents", "example-agent.yaml"), "utf-8");
       // With force, it should be overwritten
       expect(content).toContain("name: example-agent");
     });
 
     it("preserves existing agent file without --force", async () => {
       fs.mkdirSync(path.join(tempDir, "agents"), { recursive: true });
-      fs.writeFileSync(
-        path.join(tempDir, "agents", "example-agent.yaml"),
-        "name: existing-agent"
-      );
+      fs.writeFileSync(path.join(tempDir, "agents", "example-agent.yaml"), "name: existing-agent");
 
       // Need force to overwrite herdctl.yaml, but agent file should be preserved
       // Actually this is a new init, so let's test differently
@@ -360,10 +313,7 @@ describe("initCommand", () => {
       await initCommand({ yes: true, force: true });
 
       // Agent file should be overwritten with --force
-      const content = fs.readFileSync(
-        path.join(tempDir, "agents", "example-agent.yaml"),
-        "utf-8"
-      );
+      const content = fs.readFileSync(path.join(tempDir, "agents", "example-agent.yaml"), "utf-8");
       expect(content).toContain("name: example-agent");
     });
   });
@@ -372,9 +322,7 @@ describe("initCommand", () => {
     it("shows github-specific instructions", async () => {
       await initCommand({ yes: true, example: "github" });
 
-      expect(
-        consoleLogs.some((log) => log.includes("GITHUB_TOKEN"))
-      ).toBe(true);
+      expect(consoleLogs.some((log) => log.includes("GITHUB_TOKEN"))).toBe(true);
     });
   });
 });

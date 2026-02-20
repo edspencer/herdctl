@@ -5,14 +5,14 @@
  * Uses dockerode for Docker API communication.
  */
 
-import type { Container, ContainerCreateOptions, Exec, HostConfig } from "dockerode";
-import Dockerode from "dockerode";
-import * as path from "node:path";
 import * as fs from "node:fs";
 import * as os from "node:os";
-import type { DockerConfig, PathMapping } from "./docker-config.js";
+import * as path from "node:path";
+import type { Container, ContainerCreateOptions, Exec, HostConfig } from "dockerode";
+import Dockerode from "dockerode";
 import type { ResolvedAgent } from "../../config/index.js";
 import { createLogger } from "../../utils/logger.js";
+import type { DockerConfig, PathMapping } from "./docker-config.js";
 
 const logger = createLogger("ContainerManager");
 
@@ -43,7 +43,7 @@ export class ContainerManager {
     agentName: string,
     config: DockerConfig,
     mounts: PathMapping[],
-    env: string[]
+    env: string[],
   ): Promise<Container> {
     // For persistent containers, check if already running
     if (!config.ephemeral) {
@@ -82,7 +82,7 @@ export class ContainerManager {
     agentName: string,
     config: DockerConfig,
     mounts: PathMapping[],
-    env: string[]
+    env: string[],
   ): Promise<Container> {
     const containerName = `herdctl-${agentName}-${Date.now()}`;
 
@@ -118,9 +118,7 @@ export class ContainerManager {
       PortBindings: Object.keys(portBindings).length > 0 ? portBindings : undefined,
 
       // Volume mounts
-      Binds: mounts.map(
-        (m) => `${m.hostPath}:${m.containerPath}:${m.mode}`
-      ),
+      Binds: mounts.map((m) => `${m.hostPath}:${m.containerPath}:${m.mode}`),
 
       // Tmpfs mounts
       Tmpfs: Object.keys(tmpfsMounts).length > 0 ? tmpfsMounts : undefined,
@@ -187,7 +185,7 @@ export class ContainerManager {
   async execInContainer(
     container: Container,
     command: string[],
-    workDir: string = "/workspace"
+    workDir: string = "/workspace",
   ): Promise<Exec> {
     return container.exec({
       Cmd: command,
@@ -207,10 +205,7 @@ export class ContainerManager {
    * @param agentName - Name of the agent
    * @param maxContainers - Maximum containers to keep
    */
-  async cleanupOldContainers(
-    agentName: string,
-    maxContainers: number
-  ): Promise<void> {
+  async cleanupOldContainers(agentName: string, maxContainers: number): Promise<void> {
     const containers = await this.docker.listContainers({
       all: true,
       filters: {
@@ -268,7 +263,7 @@ export class ContainerManager {
 export function buildContainerMounts(
   agent: ResolvedAgent,
   dockerConfig: DockerConfig,
-  stateDir: string
+  stateDir: string,
 ): PathMapping[] {
   const mounts: PathMapping[] = [];
 
@@ -276,9 +271,7 @@ export function buildContainerMounts(
   const working_directory = agent.working_directory;
   if (working_directory) {
     const working_directoryRoot =
-      typeof working_directory === "string"
-        ? working_directory
-        : working_directory.root;
+      typeof working_directory === "string" ? working_directory : working_directory.root;
     mounts.push({
       hostPath: working_directoryRoot,
       containerPath: "/workspace",
@@ -312,7 +305,12 @@ const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
  * Read Claude OAuth credentials from the mounted credentials file.
  * Returns the parsed claudeAiOauth object or null if unavailable.
  */
-function readCredentialsFile(): { accessToken: string; refreshToken: string; expiresAt: number; [key: string]: unknown } | null {
+function readCredentialsFile(): {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number;
+  [key: string]: unknown;
+} | null {
   const credsPath = path.join(os.homedir(), ".claude", ".credentials.json");
   try {
     const creds = JSON.parse(fs.readFileSync(credsPath, "utf-8"));
@@ -347,7 +345,7 @@ function writeCredentialsFile(oauth: Record<string, unknown>): void {
  * Returns the updated oauth object, or null on failure.
  */
 async function refreshClaudeOAuthToken(
-  refreshToken: string
+  refreshToken: string,
 ): Promise<{ accessToken: string; refreshToken: string; expiresAt: number } | null> {
   try {
     logger.info("Refreshing Claude OAuth token...");
@@ -366,7 +364,7 @@ async function refreshClaudeOAuthToken(
       return null;
     }
 
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       access_token: string;
       refresh_token: string;
       expires_in: number;
@@ -399,8 +397,8 @@ async function refreshClaudeOAuthToken(
  * @returns Array of "KEY=value" strings
  */
 export async function buildContainerEnv(
-  agent: ResolvedAgent,
-  config?: DockerConfig
+  _agent: ResolvedAgent,
+  config?: DockerConfig,
 ): Promise<string[]> {
   const env: string[] = [];
 

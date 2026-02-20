@@ -6,19 +6,25 @@
 
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
+import { type ChatSlice, createChatSlice } from "./chat-slice";
 import { createFleetSlice, type FleetSlice } from "./fleet-slice";
-import { createUISlice, type UISlice } from "./ui-slice";
-import { createOutputSlice, type OutputSlice } from "./output-slice";
 import { createJobsSlice, type JobsSlice } from "./jobs-slice";
-import { createChatSlice, type ChatSlice } from "./chat-slice";
+import { createOutputSlice, type OutputSlice } from "./output-slice";
 import { createScheduleSlice, type ScheduleSlice } from "./schedule-slice";
 import { createToastSlice, type ToastSlice } from "./toast-slice";
+import { createUISlice, type UISlice } from "./ui-slice";
 
 // =============================================================================
 // Combined Store Type
 // =============================================================================
 
-export type AppStore = FleetSlice & UISlice & OutputSlice & JobsSlice & ChatSlice & ScheduleSlice & ToastSlice;
+export type AppStore = FleetSlice &
+  UISlice &
+  OutputSlice &
+  JobsSlice &
+  ChatSlice &
+  ScheduleSlice &
+  ToastSlice;
 
 // =============================================================================
 // Store
@@ -38,37 +44,37 @@ export const useStore = create<AppStore>()((...args) => ({
 // Re-exports
 // =============================================================================
 
-export type { FleetSlice, FleetState, FleetActions } from "./fleet-slice";
-export type { UISlice, UIState, UIActions } from "./ui-slice";
 export type {
-  OutputSlice,
-  OutputState,
-  OutputActions,
-  OutputMessage,
-} from "./output-slice";
-export type {
-  JobsSlice,
-  JobsState,
-  JobsActions,
-  JobsFilter,
-} from "./jobs-slice";
-export type {
+  ChatActions,
   ChatSlice,
   ChatState,
-  ChatActions,
 } from "./chat-slice";
+export type { FleetActions, FleetSlice, FleetState } from "./fleet-slice";
 export type {
+  JobsActions,
+  JobsFilter,
+  JobsSlice,
+  JobsState,
+} from "./jobs-slice";
+export type {
+  OutputActions,
+  OutputMessage,
+  OutputSlice,
+  OutputState,
+} from "./output-slice";
+export type {
+  ScheduleActions,
   ScheduleSlice,
   ScheduleState,
-  ScheduleActions,
 } from "./schedule-slice";
 export type {
+  Toast,
+  ToastActions,
   ToastSlice,
   ToastState,
-  ToastActions,
-  Toast,
   ToastType,
 } from "./toast-slice";
+export type { UIActions, UISlice, UIState } from "./ui-slice";
 
 // =============================================================================
 // Selector Hooks
@@ -85,7 +91,7 @@ export function useFleet() {
       recentJobs: state.recentJobs,
       connectionStatus: state.connectionStatus,
       lastUpdated: state.lastUpdated,
-    }))
+    })),
   );
 }
 
@@ -94,7 +100,7 @@ export function useFleet() {
  */
 export function useAgent(qualifiedName: string | null) {
   return useStore((state) =>
-    qualifiedName ? state.agents.find((a) => a.qualifiedName === qualifiedName) ?? null : null
+    qualifiedName ? (state.agents.find((a) => a.qualifiedName === qualifiedName) ?? null) : null,
   );
 }
 
@@ -110,7 +116,7 @@ export function useUI() {
       activeView: state.activeView,
       theme: state.theme,
       rightPanelOpen: state.rightPanelOpen,
-    }))
+    })),
   );
 }
 
@@ -129,7 +135,7 @@ export function useUIActions() {
       setTheme: state.setTheme,
       toggleRightPanel: state.toggleRightPanel,
       setRightPanelOpen: state.setRightPanelOpen,
-    }))
+    })),
   );
 }
 
@@ -148,7 +154,7 @@ export function useFleetActions() {
       failJob: state.failJob,
       cancelJob: state.cancelJob,
       setConnectionStatus: state.setConnectionStatus,
-    }))
+    })),
   );
 }
 
@@ -159,9 +165,7 @@ const EMPTY_ARRAY: any[] = [];
  * Select output messages for a specific job
  */
 export function useJobOutput(jobId: string | null) {
-  return useStore((state) =>
-    jobId ? state.outputsByJob[jobId] ?? EMPTY_ARRAY : EMPTY_ARRAY
-  );
+  return useStore((state) => (jobId ? (state.outputsByJob[jobId] ?? EMPTY_ARRAY) : EMPTY_ARRAY));
 }
 
 /**
@@ -174,7 +178,7 @@ export function useOutputActions() {
       clearJobOutput: state.clearJobOutput,
       setActiveJobView: state.setActiveJobView,
       clearAllOutput: state.clearAllOutput,
-    }))
+    })),
   );
 }
 
@@ -195,7 +199,7 @@ export function useJobs() {
       jobsFilter: state.jobsFilter,
       jobsOffset: state.jobsOffset,
       jobsLimit: state.jobsLimit,
-    }))
+    })),
   );
 }
 
@@ -211,7 +215,7 @@ export function useJobsActions() {
       setJobsOffset: state.setJobsOffset,
       selectJob: state.selectJob,
       clearJobsState: state.clearJobsState,
-    }))
+    })),
   );
 }
 
@@ -224,7 +228,7 @@ export function useSelectedJob() {
       selectedJobId: state.selectedJobId,
       selectedJob: state.selectedJob,
       selectedJobLoading: state.selectedJobLoading,
-    }))
+    })),
   );
 }
 
@@ -241,7 +245,7 @@ export function useChatSessions() {
       chatSessions: state.chatSessions,
       chatSessionsLoading: state.chatSessionsLoading,
       chatError: state.chatError,
-    }))
+    })),
   );
 }
 
@@ -257,7 +261,7 @@ export function useChatMessages() {
       chatStreaming: state.chatStreaming,
       chatStreamingContent: state.chatStreamingContent,
       chatError: state.chatError,
-    }))
+    })),
   );
 }
 
@@ -279,7 +283,7 @@ export function useChatActions() {
       fetchSidebarSessions: state.fetchSidebarSessions,
       clearActiveChatState: state.clearActiveChatState,
       clearChatState: state.clearChatState,
-    }))
+    })),
   );
 }
 
@@ -291,7 +295,7 @@ export function useSidebarSessions() {
     useShallow((state) => ({
       sidebarSessions: state.sidebarSessions,
       sidebarSessionsLoading: state.sidebarSessionsLoading,
-    }))
+    })),
   );
 }
 
@@ -308,7 +312,7 @@ export function useSchedules() {
       schedules: state.schedules,
       schedulesLoading: state.schedulesLoading,
       schedulesError: state.schedulesError,
-    }))
+    })),
   );
 }
 
@@ -324,7 +328,7 @@ export function useScheduleActions() {
       disableSchedule: state.disableSchedule,
       updateScheduleFromWS: state.updateScheduleFromWS,
       clearSchedulesState: state.clearSchedulesState,
-    }))
+    })),
   );
 }
 
@@ -347,6 +351,6 @@ export function useToastActions() {
     useShallow((state) => ({
       addToast: state.addToast,
       removeToast: state.removeToast,
-    }))
+    })),
   );
 }

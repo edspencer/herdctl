@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { resolve, join } from "node:path";
+import { join, resolve } from "node:path";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock node:fs/promises
 vi.mock("node:fs/promises", () => ({
@@ -7,16 +7,14 @@ vi.mock("node:fs/promises", () => ({
   realpath: vi.fn(),
 }));
 
-import { createFileSenderDef, type FileSenderContext } from "../file-sender-mcp.js";
 import { readFile, realpath } from "node:fs/promises";
+import { createFileSenderDef, type FileSenderContext } from "../file-sender-mcp.js";
 
 // =============================================================================
 // Helpers
 // =============================================================================
 
-function createTestContext(
-  overrides: Partial<FileSenderContext> = {}
-): FileSenderContext {
+function createTestContext(overrides: Partial<FileSenderContext> = {}): FileSenderContext {
   return {
     workingDirectory: "/workspace",
     uploadFile: vi.fn().mockResolvedValue({ fileId: "F12345" }),
@@ -61,7 +59,7 @@ describe("createFileSenderDef", () => {
     const schema = def.tools[0].inputSchema;
 
     expect(schema.required).toContain("file_path");
-    expect((schema.properties as Record<string, unknown>)).toHaveProperty("file_path");
+    expect(schema.properties as Record<string, unknown>).toHaveProperty("file_path");
   });
 });
 
@@ -104,7 +102,7 @@ describe("herdctl_send_file tool handler", () => {
     expect(context.uploadFile).toHaveBeenCalledWith(
       expect.objectContaining({
         message: "Here is the CSV export",
-      })
+      }),
     );
   });
 
@@ -121,7 +119,7 @@ describe("herdctl_send_file tool handler", () => {
     expect(context.uploadFile).toHaveBeenCalledWith(
       expect.objectContaining({
         filename: "quarterly-report.pdf",
-      })
+      }),
     );
   });
 
@@ -194,17 +192,13 @@ describe("herdctl_send_file tool handler", () => {
     });
 
     expect(result.isError).toBeUndefined();
-    expect(readFile).toHaveBeenCalledWith(
-      join("/workspace", "subdir/deep/file.txt")
-    );
+    expect(readFile).toHaveBeenCalledWith(join("/workspace", "subdir/deep/file.txt"));
   });
 
   it("returns error when file does not exist (realpath ENOENT)", async () => {
     const context = createTestContext();
     const handler = getToolHandler(context);
-    vi.mocked(realpath).mockRejectedValue(
-      new Error("ENOENT: no such file or directory")
-    );
+    vi.mocked(realpath).mockRejectedValue(new Error("ENOENT: no such file or directory"));
 
     const result = await handler({ file_path: "nonexistent.pdf" });
 
@@ -214,9 +208,7 @@ describe("herdctl_send_file tool handler", () => {
   });
 
   it("returns error when upload fails", async () => {
-    const uploadFile = vi
-      .fn()
-      .mockRejectedValue(new Error("Slack API error: file_too_large"));
+    const uploadFile = vi.fn().mockRejectedValue(new Error("Slack API error: file_too_large"));
     const context = createTestContext({ uploadFile });
     const handler = getToolHandler(context);
     vi.mocked(readFile).mockResolvedValue(Buffer.from("data"));

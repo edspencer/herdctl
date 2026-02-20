@@ -2,16 +2,16 @@
  * Tests for status formatting utilities
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  formatTimestamp,
+  formatCharCount,
+  formatCompactNumber,
+  formatCost,
   formatDuration,
   formatDurationMs,
-  getStatusEmoji,
   formatNumber,
-  formatCompactNumber,
-  formatCharCount,
-  formatCost,
+  formatTimestamp,
+  getStatusEmoji,
 } from "../status-formatting.js";
 
 describe("status-formatting", () => {
@@ -68,7 +68,9 @@ describe("status-formatting", () => {
     });
 
     it("formats days and hours", () => {
-      const timestamp = new Date(now - (3 * 24 * 60 * 60 * 1000 + 12 * 60 * 60 * 1000)).toISOString();
+      const timestamp = new Date(
+        now - (3 * 24 * 60 * 60 * 1000 + 12 * 60 * 60 * 1000),
+      ).toISOString();
       expect(formatDuration(timestamp)).toBe("3d 12h");
     });
 

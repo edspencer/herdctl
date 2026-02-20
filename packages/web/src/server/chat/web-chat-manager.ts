@@ -6,22 +6,17 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import {
-  createLogger,
-  type FleetManager,
-  type WebConfig,
-  type ResolvedConfig,
-} from "@herdctl/core";
-import {
+  type ChatConnectorLogger,
   ChatSessionManager,
   extractMessageContent,
-  extractToolUseBlocks,
   extractToolResults,
+  extractToolUseBlocks,
   getToolInputSummary,
-  type ChatConnectorLogger,
 } from "@herdctl/chat";
+import { createLogger, type FleetManager, type WebConfig } from "@herdctl/core";
 
 const logger = createLogger("web:chat");
 
@@ -143,11 +138,7 @@ export class WebChatManager {
    * @param stateDir - State directory (e.g., ".herdctl")
    * @param config - Web configuration from fleet config
    */
-  async initialize(
-    fleetManager: FleetManager,
-    stateDir: string,
-    config: WebConfig
-  ): Promise<void> {
+  async initialize(fleetManager: FleetManager, stateDir: string, config: WebConfig): Promise<void> {
     if (this.initialized) {
       return;
     }
@@ -244,8 +235,8 @@ export class WebChatManager {
 
     // Return sessions sorted by lastMessageAt (most recent first)
     const sessions = Array.from(agentSessions.values());
-    sessions.sort((a, b) =>
-      new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
+    sessions.sort(
+      (a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime(),
     );
 
     return sessions;
@@ -258,10 +249,7 @@ export class WebChatManager {
    * @param sessionId - Session ID
    * @returns Session details with messages, or null if not found
    */
-  async getSession(
-    agentName: string,
-    sessionId: string
-  ): Promise<WebChatSessionDetails | null> {
+  async getSession(agentName: string, sessionId: string): Promise<WebChatSessionDetails | null> {
     this.ensureInitialized();
 
     // Load sessions from disk if not in cache
@@ -365,7 +353,11 @@ export class WebChatManager {
       if (existingSession && existingSession.sessionId !== sessionId) {
         // The session manager stores the SDK session ID, not our web session ID
         existingSdkSessionId = existingSession.sessionId;
-        logger.debug(`Resuming SDK session`, { agentName, sessionId, sdkSessionId: existingSdkSessionId });
+        logger.debug(`Resuming SDK session`, {
+          agentName,
+          sessionId,
+          sdkSessionId: existingSdkSessionId,
+        });
       }
     }
 
@@ -389,7 +381,10 @@ export class WebChatManager {
 
     try {
       // Track pending tool_use blocks so we can pair them with results
-      const pendingToolUses = new Map<string, { name: string; input?: unknown; startTime: number }>();
+      const pendingToolUses = new Map<
+        string,
+        { name: string; input?: unknown; startTime: number }
+      >();
 
       // Trigger job via FleetManager
       const result = await this.fleetManager.trigger(agentName, undefined, {
@@ -422,7 +417,11 @@ export class WebChatManager {
 
           // Send tool results to client
           if (sdkMessage.type === "user" && this.toolResults && onToolCall) {
-            const userMessage = sdkMessage as { type: string; message?: { content?: unknown }; tool_use_result?: unknown };
+            const userMessage = sdkMessage as {
+              type: string;
+              message?: { content?: unknown };
+              tool_use_result?: unknown;
+            };
             const toolResultsList = extractToolResults(userMessage);
 
             // Flush accumulated assistant text as its own message before tool calls
@@ -447,7 +446,9 @@ export class WebChatManager {
 
               const toolName = toolUse?.name ?? "Tool";
               const durationMs = toolUse ? Date.now() - toolUse.startTime : undefined;
-              const inputSummary = toolUse ? getToolInputSummary(toolUse.name, toolUse.input) : undefined;
+              const inputSummary = toolUse
+                ? getToolInputSummary(toolUse.name, toolUse.input)
+                : undefined;
 
               const toolCallData: ToolCallData = {
                 toolName,
@@ -492,7 +493,11 @@ export class WebChatManager {
       // Store SDK session ID for future conversation continuity
       if (sessionManager && result.sessionId && result.success) {
         await sessionManager.setSession(sessionId, result.sessionId);
-        logger.debug(`Stored SDK session`, { agentName, sessionId, sdkSessionId: result.sessionId });
+        logger.debug(`Stored SDK session`, {
+          agentName,
+          sessionId,
+          sdkSessionId: result.sessionId,
+        });
       }
 
       return {
@@ -579,10 +584,7 @@ export class WebChatManager {
   /**
    * Load message history from disk
    */
-  private async loadMessageHistory(
-    agentName: string,
-    sessionId: string
-  ): Promise<ChatMessage[]> {
+  private async loadMessageHistory(agentName: string, sessionId: string): Promise<ChatMessage[]> {
     const filePath = this.getMessageHistoryPath(agentName, sessionId);
 
     try {
@@ -609,7 +611,7 @@ export class WebChatManager {
   private async saveMessageHistory(
     agentName: string,
     sessionId: string,
-    messages: ChatMessage[]
+    messages: ChatMessage[],
   ): Promise<void> {
     const filePath = this.getMessageHistoryPath(agentName, sessionId);
     const dir = dirname(filePath);
@@ -629,10 +631,7 @@ export class WebChatManager {
   /**
    * Delete message history file
    */
-  private async deleteMessageHistory(
-    agentName: string,
-    sessionId: string
-  ): Promise<void> {
+  private async deleteMessageHistory(agentName: string, sessionId: string): Promise<void> {
     const filePath = this.getMessageHistoryPath(agentName, sessionId);
 
     try {

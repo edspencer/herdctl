@@ -5,17 +5,16 @@
  * the shared error handling infrastructure from @herdctl/chat.
  */
 
-import type { SlackConnectorLogger } from "./types.js";
 import {
-  ErrorCategory,
-  type ClassifiedError,
-  USER_ERROR_MESSAGES,
   safeExecute as baseSafeExecute,
-  safeExecuteWithReply as baseSafeExecuteWithReply,
+  type ClassifiedError,
+  ErrorCategory,
+  USER_ERROR_MESSAGES,
 } from "@herdctl/chat";
+import type { SlackConnectorLogger } from "./types.js";
 
 // Re-export shared types and utilities
-export { ErrorCategory, type ClassifiedError, USER_ERROR_MESSAGES } from "@herdctl/chat";
+export { type ClassifiedError, ErrorCategory, USER_ERROR_MESSAGES } from "@herdctl/chat";
 
 // =============================================================================
 // Slack-specific Error Classification
@@ -95,7 +94,7 @@ export function classifyError(error: Error): ClassifiedError {
 export async function safeExecute<T>(
   fn: () => Promise<T>,
   logger: SlackConnectorLogger,
-  context: string
+  context: string,
 ): Promise<T | undefined> {
   return baseSafeExecute(fn, logger, context);
 }
@@ -110,7 +109,7 @@ export async function safeExecuteWithReply(
   fn: () => Promise<void>,
   reply: (content: string) => Promise<void>,
   logger: SlackConnectorLogger,
-  context: string
+  context: string,
 ): Promise<void> {
   try {
     await fn();
@@ -122,9 +121,7 @@ export async function safeExecuteWithReply(
     try {
       await reply(classified.userMessage);
     } catch (replyError) {
-      logger.error(
-        `Failed to send error reply: ${(replyError as Error).message}`
-      );
+      logger.error(`Failed to send error reply: ${(replyError as Error).message}`);
     }
   }
 }

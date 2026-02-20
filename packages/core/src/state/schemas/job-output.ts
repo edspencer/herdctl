@@ -155,9 +155,7 @@ export type JobOutputInput =
 /**
  * Validate a job output message
  */
-export function validateJobOutputMessage(
-  message: unknown
-): JobOutputMessage | null {
+export function validateJobOutputMessage(message: unknown): JobOutputMessage | null {
   const result = JobOutputMessageSchema.safeParse(message);
   return result.success ? result.data : null;
 }
@@ -170,8 +168,5 @@ export function isValidJobOutputInput(input: unknown): input is JobOutputInput {
     return false;
   }
   const obj = input as Record<string, unknown>;
-  return (
-    typeof obj.type === "string" &&
-    JobOutputTypeSchema.safeParse(obj.type).success
-  );
+  return typeof obj.type === "string" && JobOutputTypeSchema.safeParse(obj.type).success;
 }

@@ -12,26 +12,26 @@
  * @module schedule-executor
  */
 
-import { join, dirname } from "node:path";
-import type { TriggerInfo } from "../scheduler/index.js";
-import type { ResolvedAgent, HookEvent } from "../config/index.js";
+import { join } from "node:path";
+import type { HookEvent, ResolvedAgent } from "../config/index.js";
+import { type HookContext, HookExecutor } from "../hooks/index.js";
 import { JobExecutor, RuntimeFactory, type SDKMessage } from "../runner/index.js";
+import type { TriggerInfo } from "../scheduler/index.js";
 import { getJob } from "../state/index.js";
 import type { JobMetadata } from "../state/schemas/job-metadata.js";
-import { HookExecutor, type HookContext } from "../hooks/index.js";
 import type { FleetManagerContext } from "./context.js";
-import type {
-  JobCreatedPayload,
-  JobOutputPayload,
-  JobCompletedPayload,
-  JobFailedPayload,
-} from "./types.js";
 import {
-  emitJobCreated as emitJobCreatedFn,
-  emitJobOutput as emitJobOutputFn,
   emitJobCompleted as emitJobCompletedFn,
+  emitJobCreated as emitJobCreatedFn,
   emitJobFailed as emitJobFailedFn,
+  emitJobOutput as emitJobOutputFn,
 } from "./event-emitters.js";
+import type {
+  JobCompletedPayload,
+  JobCreatedPayload,
+  JobFailedPayload,
+  JobOutputPayload,
+} from "./types.js";
 
 /**
  * ScheduleExecutor handles the execution of scheduled jobs
@@ -85,7 +85,7 @@ export class ScheduleExecutor {
 
       logger.debug(
         `Schedule ${scheduleName} triggered for agent ${agent.qualifiedName} ` +
-          `(type: ${schedule.type}, prompt: ${prompt.slice(0, 50)}...)`
+          `(type: ${schedule.type}, prompt: ${prompt.slice(0, 50)}...)`,
       );
 
       // Create the JobExecutor with the runtime
@@ -153,7 +153,7 @@ export class ScheduleExecutor {
 
           logger.info(
             `Job ${result.jobId} completed successfully for ${agent.qualifiedName}/${scheduleName} ` +
-              `(${result.durationSeconds}s)`
+              `(${result.durationSeconds}s)`,
           );
 
           // Execute after_run hooks for completed jobs
@@ -170,7 +170,7 @@ export class ScheduleExecutor {
           });
 
           logger.warn(
-            `Job ${result.jobId} failed for ${agent.qualifiedName}/${scheduleName}: ${error.message}`
+            `Job ${result.jobId} failed for ${agent.qualifiedName}/${scheduleName}: ${error.message}`,
           );
 
           // Execute hooks for failed jobs (both after_run and on_error)
@@ -188,7 +188,7 @@ export class ScheduleExecutor {
    * Map SDK message type to job output type
    */
   private mapMessageTypeToOutputType(
-    messageType: string
+    messageType: string,
   ): "stdout" | "stderr" | "assistant" | "tool" | "system" {
     switch (messageType) {
       case "assistant":
@@ -251,7 +251,7 @@ export class ScheduleExecutor {
     jobMetadata: JobMetadata,
     event: HookEvent,
     scheduleName?: string,
-    errorMessage?: string
+    errorMessage?: string,
   ): Promise<void> {
     const logger = this.ctx.getLogger();
 
@@ -279,7 +279,7 @@ export class ScheduleExecutor {
 
         if (afterRunResult.shouldFailJob) {
           logger.warn(
-            `Hook failure with continue_on_error=false detected for job ${jobMetadata.id}`
+            `Hook failure with continue_on_error=false detected for job ${jobMetadata.id}`,
           );
         }
       }
@@ -291,7 +291,7 @@ export class ScheduleExecutor {
 
         if (onErrorResult.shouldFailJob) {
           logger.warn(
-            `on_error hook failure with continue_on_error=false detected for job ${jobMetadata.id}`
+            `on_error hook failure with continue_on_error=false detected for job ${jobMetadata.id}`,
           );
         }
       }
@@ -317,7 +317,7 @@ export class ScheduleExecutor {
     jobMetadata: JobMetadata,
     event: HookEvent,
     scheduleName?: string,
-    errorMessage?: string
+    errorMessage?: string,
   ): HookContext {
     const completedAt = jobMetadata.finished_at ?? new Date().toISOString();
     const startedAt = new Date(jobMetadata.started_at);

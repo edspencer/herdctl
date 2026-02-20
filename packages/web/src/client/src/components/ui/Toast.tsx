@@ -5,9 +5,9 @@
  * Toasts auto-dismiss and support success, error, and info types.
  */
 
-import { CheckCircle, XCircle, Info, X } from "lucide-react";
-import { useToasts, useToastActions } from "../../store";
-import type { ToastType, Toast } from "../../store";
+import { CheckCircle, Info, X, XCircle } from "lucide-react";
+import type { Toast, ToastType } from "../../store";
+import { useToastActions, useToasts } from "../../store";
 
 // =============================================================================
 // Helper Functions
@@ -56,6 +56,7 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
       {getToastIcon(toast.type)}
       <span className="flex-1 text-xs">{toast.message}</span>
       <button
+        type="button"
         onClick={() => onDismiss(toast.id)}
         className="hover:bg-herd-hover rounded p-0.5 transition-colors flex-shrink-0"
         aria-label="Dismiss"

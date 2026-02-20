@@ -137,7 +137,15 @@ export type JobStatus = "pending" | "running" | "completed" | "failed" | "cancel
 
 export type StreamType = "stdout" | "stderr";
 
-export type TriggerType = "manual" | "schedule" | "webhook" | "chat" | "discord" | "slack" | "web" | "fork";
+export type TriggerType =
+  | "manual"
+  | "schedule"
+  | "webhook"
+  | "chat"
+  | "discord"
+  | "slack"
+  | "web"
+  | "fork";
 
 export interface JobSummary {
   jobId: string;
@@ -309,7 +317,7 @@ export type ServerMessage =
  * Check if a payload is AgentStartedPayload (has `agent` property)
  */
 export function isAgentStartedPayload(
-  payload: AgentStartedPayload | AgentStoppedPayload
+  payload: AgentStartedPayload | AgentStoppedPayload,
 ): payload is AgentStartedPayload {
   return "agent" in payload;
 }
@@ -318,7 +326,7 @@ export function isAgentStartedPayload(
  * Check if a payload is AgentStoppedPayload (has `agentName` but no `agent`)
  */
 export function isAgentStoppedPayload(
-  payload: AgentStartedPayload | AgentStoppedPayload
+  payload: AgentStartedPayload | AgentStoppedPayload,
 ): payload is AgentStoppedPayload {
   return "agentName" in payload && !("agent" in payload);
 }

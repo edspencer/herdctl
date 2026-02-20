@@ -1,12 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
+  createJobMetadata,
+  ExitReasonSchema,
+  generateJobId,
+  type JobMetadata,
   JobMetadataSchema,
   JobStatusSchema,
   TriggerTypeSchema,
-  ExitReasonSchema,
-  generateJobId,
-  createJobMetadata,
-  type JobMetadata,
 } from "../schemas/job-metadata.js";
 
 describe("JobStatusSchema", () => {
@@ -80,18 +80,10 @@ describe("JobMetadataSchema", () => {
     });
 
     it("rejects invalid job ID formats", () => {
-      expect(() =>
-        JobMetadataSchema.parse({ ...validJob, id: "invalid-id" })
-      ).toThrow();
-      expect(() =>
-        JobMetadataSchema.parse({ ...validJob, id: "job-2024-1-15-abc123" })
-      ).toThrow(); // single digit month
-      expect(() =>
-        JobMetadataSchema.parse({ ...validJob, id: "job-2024-01-15-abc12" })
-      ).toThrow(); // 5 char random
-      expect(() =>
-        JobMetadataSchema.parse({ ...validJob, id: "job-2024-01-15-ABC123" })
-      ).toThrow(); // uppercase
+      expect(() => JobMetadataSchema.parse({ ...validJob, id: "invalid-id" })).toThrow();
+      expect(() => JobMetadataSchema.parse({ ...validJob, id: "job-2024-1-15-abc123" })).toThrow(); // single digit month
+      expect(() => JobMetadataSchema.parse({ ...validJob, id: "job-2024-01-15-abc12" })).toThrow(); // 5 char random
+      expect(() => JobMetadataSchema.parse({ ...validJob, id: "job-2024-01-15-ABC123" })).toThrow(); // uppercase
     });
   });
 
@@ -103,9 +95,7 @@ describe("JobMetadataSchema", () => {
     });
 
     it("rejects empty agent name", () => {
-      expect(() =>
-        JobMetadataSchema.parse({ ...validJob, agent: "" })
-      ).toThrow();
+      expect(() => JobMetadataSchema.parse({ ...validJob, agent: "" })).toThrow();
     });
   });
 
@@ -137,9 +127,7 @@ describe("JobMetadataSchema", () => {
     });
 
     it("rejects invalid forked_from job ID", () => {
-      expect(() =>
-        JobMetadataSchema.parse({ ...validJob, forked_from: "invalid" })
-      ).toThrow();
+      expect(() => JobMetadataSchema.parse({ ...validJob, forked_from: "invalid" })).toThrow();
     });
 
     it("accepts null forked_from", () => {
@@ -163,9 +151,7 @@ describe("JobMetadataSchema", () => {
     });
 
     it("rejects negative duration", () => {
-      expect(() =>
-        JobMetadataSchema.parse({ ...validJob, duration_seconds: -1 })
-      ).toThrow();
+      expect(() => JobMetadataSchema.parse({ ...validJob, duration_seconds: -1 })).toThrow();
     });
 
     it("accepts null duration", () => {
@@ -307,7 +293,7 @@ describe("generateJobId", () => {
           trigger_type: "manual",
           status: "pending",
           started_at: new Date().toISOString(),
-        })
+        }),
       ).not.toThrow();
     }
   });
@@ -320,7 +306,7 @@ describe("createJobMetadata", () => {
         agent: "my-agent",
         trigger_type: "manual",
       },
-      () => "job-2024-01-15-abc123"
+      () => "job-2024-01-15-abc123",
     );
 
     expect(job.id).toBe("job-2024-01-15-abc123");
@@ -338,7 +324,7 @@ describe("createJobMetadata", () => {
         schedule: "hourly",
         prompt: "Run the build",
       },
-      () => "job-2024-01-15-def456"
+      () => "job-2024-01-15-def456",
     );
 
     expect(job.schedule).toBe("hourly");
@@ -352,7 +338,7 @@ describe("createJobMetadata", () => {
         trigger_type: "fork",
         forked_from: "job-2024-01-14-parent",
       },
-      () => "job-2024-01-15-child1"
+      () => "job-2024-01-15-child1",
     );
 
     expect(job.trigger_type).toBe("fork");
@@ -365,7 +351,7 @@ describe("createJobMetadata", () => {
         agent: "my-agent",
         trigger_type: "manual",
       },
-      () => "job-2024-01-15-xyz789"
+      () => "job-2024-01-15-xyz789",
     );
 
     expect(job.schedule).toBeNull();
@@ -385,7 +371,7 @@ describe("createJobMetadata", () => {
         agent: "my-agent",
         trigger_type: "manual",
       },
-      () => "job-2024-01-15-abc123"
+      () => "job-2024-01-15-abc123",
     );
 
     const timestamp = new Date(job.started_at);

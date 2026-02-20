@@ -35,7 +35,7 @@ async function readPidFile(stateDir: string): Promise<number | null> {
   try {
     const content = await fs.promises.readFile(pidFile, "utf-8");
     const pid = parseInt(content.trim(), 10);
-    if (isNaN(pid)) {
+    if (Number.isNaN(pid)) {
       return null;
     }
     return pid;
@@ -91,10 +91,7 @@ function sendSignal(pid: number, signal: NodeJS.Signals): boolean {
 /**
  * Wait for a process to exit with timeout
  */
-async function waitForProcessExit(
-  pid: number,
-  timeoutSeconds: number
-): Promise<boolean> {
+async function waitForProcessExit(pid: number, timeoutSeconds: number): Promise<boolean> {
   const startTime = Date.now();
   const timeoutMs = timeoutSeconds * 1000;
 

@@ -1,23 +1,23 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdir, readFile, rm, realpath, writeFile, stat } from "node:fs/promises";
-import { join, dirname, basename } from "node:path";
+import { mkdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { basename, dirname, join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { parse as parseYaml } from "yaml";
 import {
-  atomicWriteFile,
-  atomicWriteYaml,
-  atomicWriteJson,
-  appendJsonl,
-  generateTempPath,
   AtomicWriteError,
+  appendJsonl,
+  atomicWriteFile,
+  atomicWriteJson,
+  atomicWriteYaml,
+  generateTempPath,
   renameWithRetry,
 } from "../atomic.js";
-import { parse as parseYaml } from "yaml";
 
 // Helper to create a temp directory
 async function createTempDir(): Promise<string> {
   const baseDir = join(
     tmpdir(),
-    `herdctl-atomic-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-atomic-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   await mkdir(baseDir, { recursive: true });
   // Resolve to real path to handle macOS /var -> /private/var symlink
@@ -72,7 +72,7 @@ describe("AtomicWriteError", () => {
       "Failed to write",
       "/path/to/file.yaml",
       "/path/to/.file.yaml.tmp.abc123",
-      cause
+      cause,
     );
 
     expect(error.name).toBe("AtomicWriteError");
@@ -146,9 +146,7 @@ describe("atomicWriteFile", () => {
   it("throws AtomicWriteError when directory does not exist", async () => {
     const filePath = join(tempDir, "nonexistent", "test.txt");
 
-    await expect(atomicWriteFile(filePath, "content")).rejects.toThrow(
-      AtomicWriteError
-    );
+    await expect(atomicWriteFile(filePath, "content")).rejects.toThrow(AtomicWriteError);
   });
 
   it("preserves original file on write failure", async () => {
@@ -170,9 +168,7 @@ describe("atomicWriteFile", () => {
     // This will fail at the writeFile stage, and we verify no temp files are left
     const badPath = join(tempDir, "nonexistent", "subdir", "test.txt");
 
-    await expect(atomicWriteFile(badPath, "content")).rejects.toThrow(
-      AtomicWriteError
-    );
+    await expect(atomicWriteFile(badPath, "content")).rejects.toThrow(AtomicWriteError);
 
     // The temp file would be in the nonexistent directory, so there's nothing to clean up
     // This tests that the error is properly thrown and the function handles the case
@@ -312,9 +308,7 @@ describe("atomicWriteYaml", () => {
   it("throws AtomicWriteError on failure", async () => {
     const filePath = join(tempDir, "nonexistent", "config.yaml");
 
-    await expect(atomicWriteYaml(filePath, { key: "value" })).rejects.toThrow(
-      AtomicWriteError
-    );
+    await expect(atomicWriteYaml(filePath, { key: "value" })).rejects.toThrow(AtomicWriteError);
   });
 });
 
@@ -377,9 +371,7 @@ describe("atomicWriteJson", () => {
   it("throws AtomicWriteError on failure", async () => {
     const filePath = join(tempDir, "nonexistent", "data.json");
 
-    await expect(atomicWriteJson(filePath, { key: "value" })).rejects.toThrow(
-      AtomicWriteError
-    );
+    await expect(atomicWriteJson(filePath, { key: "value" })).rejects.toThrow(AtomicWriteError);
   });
 });
 
@@ -461,9 +453,7 @@ describe("appendJsonl", () => {
   it("throws AtomicWriteError when directory does not exist", async () => {
     const filePath = join(tempDir, "nonexistent", "log.jsonl");
 
-    await expect(appendJsonl(filePath, { event: "test" })).rejects.toThrow(
-      AtomicWriteError
-    );
+    await expect(appendJsonl(filePath, { event: "test" })).rejects.toThrow(AtomicWriteError);
   });
 
   it("handles arrays as JSON lines", async () => {
@@ -574,9 +564,9 @@ describe("renameWithRetry", () => {
       throw err;
     };
 
-    await expect(
-      renameWithRetry(oldPath, newPath, { renameFn: mockRename })
-    ).rejects.toThrow("No such file");
+    await expect(renameWithRetry(oldPath, newPath, { renameFn: mockRename })).rejects.toThrow(
+      "No such file",
+    );
 
     expect(attempts).toBe(1);
   });
@@ -598,7 +588,7 @@ describe("renameWithRetry", () => {
         renameFn: mockRename,
         maxRetries: 2,
         baseDelayMs: 1,
-      })
+      }),
     ).rejects.toThrow("Access denied");
 
     // Initial attempt + 2 retries = 3 total attempts
@@ -658,7 +648,7 @@ describe("renameWithRetry", () => {
         renameFn: mockRename,
         maxRetries: 5,
         baseDelayMs: 1,
-      })
+      }),
     ).rejects.toThrow();
 
     // Initial attempt + 5 retries = 6 total attempts

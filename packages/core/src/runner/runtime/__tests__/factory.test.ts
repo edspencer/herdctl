@@ -1,7 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { RuntimeFactory } from "../factory.js";
+import { describe, expect, it } from "vitest";
 import type { ResolvedAgent } from "../../../config/index.js";
-import type { DockerInput } from "../../../config/schema.js";
+import { RuntimeFactory } from "../factory.js";
 
 // =============================================================================
 // Test Helpers
@@ -46,12 +45,8 @@ describe("RuntimeFactory", () => {
     it("throws for unknown runtime type", () => {
       const agent = createTestAgent({ runtime: "unknown" as any });
 
-      expect(() => RuntimeFactory.create(agent)).toThrow(
-        "Unknown runtime type: unknown"
-      );
-      expect(() => RuntimeFactory.create(agent)).toThrow(
-        "Supported types: 'sdk' (default), 'cli'"
-      );
+      expect(() => RuntimeFactory.create(agent)).toThrow("Unknown runtime type: unknown");
+      expect(() => RuntimeFactory.create(agent)).toThrow("Supported types: 'sdk' (default), 'cli'");
     });
   });
 
@@ -114,7 +109,7 @@ describe("RuntimeFactory", () => {
 
       expect(runtime.constructor.name).toBe("ContainerRunner");
       // Default should be {cwd}/.herdctl
-      const expectedDefault = process.cwd() + "/.herdctl";
+      const expectedDefault = `${process.cwd()}/.herdctl`;
       expect((runtime as any).stateDir).toBe(expectedDefault);
     });
   });

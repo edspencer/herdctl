@@ -4,10 +4,7 @@
  * Provides typed errors with descriptive messages for scheduler operations.
  */
 
-import {
-  FleetManagerError,
-  FleetManagerErrorCode,
-} from "../fleet-manager/errors.js";
+import { FleetManagerError, FleetManagerErrorCode } from "../fleet-manager/errors.js";
 
 // =============================================================================
 // Error Codes
@@ -25,8 +22,7 @@ export const SchedulerErrorCode = {
   SCHEDULER_SHUTDOWN_ERROR: "SCHEDULER_SHUTDOWN_ERROR",
 } as const;
 
-export type SchedulerErrorCode =
-  (typeof SchedulerErrorCode)[keyof typeof SchedulerErrorCode];
+export type SchedulerErrorCode = (typeof SchedulerErrorCode)[keyof typeof SchedulerErrorCode];
 
 // =============================================================================
 // Base Error Class
@@ -38,10 +34,7 @@ export type SchedulerErrorCode =
  * Extends FleetManagerError to integrate with the broader error hierarchy.
  */
 export class SchedulerError extends FleetManagerError {
-  constructor(
-    message: string,
-    options?: { cause?: Error; code?: SchedulerErrorCode }
-  ) {
+  constructor(message: string, options?: { cause?: Error; code?: SchedulerErrorCode }) {
     super(message, {
       cause: options?.cause,
       // Use type assertion since SchedulerErrorCode is a superset of FleetManagerErrorCode
@@ -131,7 +124,7 @@ export class CronParseError extends SchedulerError {
   constructor(
     message: string,
     expression: string,
-    options?: { cause?: Error; field?: string; example?: string }
+    options?: { cause?: Error; field?: string; example?: string },
   ) {
     super(message, { cause: options?.cause, code: SchedulerErrorCode.CRON_PARSE_ERROR });
     this.name = "CronParseError";
@@ -146,7 +139,7 @@ export class CronParseError extends SchedulerError {
   static buildMessage(
     expression: string,
     reason: string,
-    example?: { expression: string; description: string }
+    example?: { expression: string; description: string },
   ): string {
     let message = `Invalid cron expression "${expression}" - ${reason}`;
     if (example) {
@@ -179,7 +172,7 @@ export class ScheduleTriggerError extends SchedulerError {
     message: string,
     agentName: string,
     scheduleName: string,
-    options?: { cause?: Error }
+    options?: { cause?: Error },
   ) {
     super(message, { cause: options?.cause, code: SchedulerErrorCode.SCHEDULE_TRIGGER_ERROR });
     this.name = "ScheduleTriggerError";
@@ -207,7 +200,7 @@ export class SchedulerShutdownError extends SchedulerError {
 
   constructor(
     message: string,
-    options: { timedOut: boolean; runningJobCount: number; cause?: Error }
+    options: { timedOut: boolean; runningJobCount: number; cause?: Error },
   ) {
     super(message, { cause: options.cause, code: SchedulerErrorCode.SCHEDULER_SHUTDOWN_ERROR });
     this.name = "SchedulerShutdownError";

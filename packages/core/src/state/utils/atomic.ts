@@ -5,9 +5,9 @@
  * Uses the standard pattern of writing to a temp file then renaming.
  */
 
-import { writeFile, rename, unlink, appendFile } from "node:fs/promises";
-import { dirname, basename, join } from "node:path";
 import { randomBytes } from "node:crypto";
+import { appendFile, rename, unlink, writeFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import { stringify as stringifyYaml } from "yaml";
 
 /**
@@ -62,13 +62,9 @@ export interface RenameRetryOptions {
 export async function renameWithRetry(
   oldPath: string,
   newPath: string,
-  options: RenameRetryOptions = {}
+  options: RenameRetryOptions = {},
 ): Promise<void> {
-  const {
-    maxRetries = 3,
-    baseDelayMs = 50,
-    renameFn = rename,
-  } = options;
+  const { maxRetries = 3, baseDelayMs = 50, renameFn = rename } = options;
 
   let lastError: Error | undefined;
 
@@ -87,7 +83,7 @@ export async function renameWithRetry(
 
       // Don't delay on the last attempt
       if (attempt < maxRetries) {
-        const delay = baseDelayMs * Math.pow(2, attempt);
+        const delay = baseDelayMs * 2 ** attempt;
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
@@ -129,7 +125,7 @@ async function cleanupTempFile(tempPath: string): Promise<void> {
 export async function atomicWriteFile(
   filePath: string,
   content: string,
-  encoding: BufferEncoding = "utf-8"
+  encoding: BufferEncoding = "utf-8",
 ): Promise<void> {
   const tempPath = generateTempPath(filePath);
 
@@ -147,7 +143,7 @@ export async function atomicWriteFile(
       `Failed to atomically write to ${filePath}: ${(error as Error).message}`,
       filePath,
       tempPath,
-      error as Error
+      error as Error,
     );
   }
 }
@@ -165,7 +161,7 @@ export async function atomicWriteYaml(
   options?: {
     indent?: number;
     lineWidth?: number;
-  }
+  },
 ): Promise<void> {
   const yamlContent = stringifyYaml(data, {
     indent: options?.indent ?? 2,
@@ -187,9 +183,9 @@ export async function atomicWriteJson(
   data: unknown,
   options?: {
     indent?: number;
-  }
+  },
 ): Promise<void> {
-  const jsonContent = JSON.stringify(data, null, options?.indent ?? 2) + "\n";
+  const jsonContent = `${JSON.stringify(data, null, options?.indent ?? 2)}\n`;
   await atomicWriteFile(filePath, jsonContent);
 }
 
@@ -202,11 +198,8 @@ export async function atomicWriteJson(
  * @param filePath - Target JSONL file path
  * @param data - Data to serialize as a single JSON line
  */
-export async function appendJsonl(
-  filePath: string,
-  data: unknown
-): Promise<void> {
-  const line = JSON.stringify(data) + "\n";
+export async function appendJsonl(filePath: string, data: unknown): Promise<void> {
+  const line = `${JSON.stringify(data)}\n`;
 
   try {
     await appendFile(filePath, line, "utf-8");
@@ -215,7 +208,7 @@ export async function appendJsonl(
       `Failed to append to JSONL file ${filePath}: ${(error as Error).message}`,
       filePath,
       undefined,
-      error as Error
+      error as Error,
     );
   }
 }

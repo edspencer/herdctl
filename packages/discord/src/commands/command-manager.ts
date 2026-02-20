@@ -5,32 +5,27 @@
  * command interactions by routing them to the appropriate handler.
  */
 
+import type { IChatSessionManager } from "@herdctl/chat";
+import { createLogger } from "@herdctl/core";
 import {
+  type ChatInputCommandInteraction,
+  type Client,
   REST,
   Routes,
   SlashCommandBuilder,
-  type ChatInputCommandInteraction,
-  type Client,
 } from "discord.js";
-import type {
-  SlashCommand,
-  CommandManagerOptions,
-  CommandManagerLogger,
-  ICommandManager,
-  CommandContext,
-} from "./types.js";
-import { createLogger } from "@herdctl/core";
-import type { IChatSessionManager } from "@herdctl/chat";
+import { ErrorHandler, withRetry } from "../error-handler.js";
 import type { DiscordConnectorState } from "../types.js";
 import { helpCommand } from "./help.js";
 import { resetCommand } from "./reset.js";
 import { statusCommand } from "./status.js";
-import {
-  USER_ERROR_MESSAGES,
-  ErrorHandler,
-  withRetry,
-  type ErrorHandlerOptions,
-} from "../error-handler.js";
+import type {
+  CommandContext,
+  CommandManagerLogger,
+  CommandManagerOptions,
+  ICommandManager,
+  SlashCommand,
+} from "./types.js";
 
 // =============================================================================
 // Default Logger
@@ -125,10 +120,7 @@ export class CommandManager implements ICommandManager {
 
     // Build command data for Discord API
     const commandData = Array.from(this.commands.values()).map((cmd) =>
-      new SlashCommandBuilder()
-        .setName(cmd.name)
-        .setDescription(cmd.description)
-        .toJSON()
+      new SlashCommandBuilder().setName(cmd.name).setDescription(cmd.description).toJSON(),
     );
 
     const clientId = this.client.user?.id;
@@ -154,7 +146,7 @@ export class CommandManager implements ICommandManager {
         baseDelayMs: 2000,
         operationName: "registerCommands",
         logger: this.logger,
-      }
+      },
     );
 
     if (!result.success) {
@@ -175,9 +167,7 @@ export class CommandManager implements ICommandManager {
    * Routes the interaction to the appropriate command handler.
    * Provides user-friendly error messages on failure.
    */
-  async handleInteraction(
-    interaction: ChatInputCommandInteraction
-  ): Promise<void> {
+  async handleInteraction(interaction: ChatInputCommandInteraction): Promise<void> {
     const commandName = interaction.commandName;
     const command = this.commands.get(commandName);
 
@@ -210,7 +200,7 @@ export class CommandManager implements ICommandManager {
       // Use error handler for detailed logging
       const userMessage = this.errorHandler.handleError(
         error,
-        `executing command '${commandName}'`
+        `executing command '${commandName}'`,
       );
 
       // Try to respond with user-friendly error if we haven't already replied

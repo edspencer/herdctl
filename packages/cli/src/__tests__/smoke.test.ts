@@ -6,10 +6,10 @@
  * that unit tests might miss due to mocking.
  */
 
-import { describe, it, expect } from "vitest";
 import { execSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

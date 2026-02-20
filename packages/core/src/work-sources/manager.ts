@@ -59,15 +59,15 @@
  */
 
 import type { ResolvedAgent } from "../config/loader.js";
+import type { WorkSourceAdapter } from "./index.js";
 import type {
+  ClaimResult,
+  FetchOptions,
+  ReleaseOptions,
+  ReleaseResult,
   WorkItem,
   WorkResult,
-  ClaimResult,
-  ReleaseResult,
-  ReleaseOptions,
-  FetchOptions,
 } from "./types.js";
-import type { WorkSourceAdapter } from "./index.js";
 
 // =============================================================================
 // Manager Types
@@ -245,7 +245,7 @@ export interface WorkSourceManager {
    */
   getNextWorkItem(
     agent: ResolvedAgent,
-    options?: GetNextWorkItemOptions
+    options?: GetNextWorkItemOptions,
   ): Promise<GetNextWorkItemResult>;
 
   /**
@@ -293,11 +293,7 @@ export interface WorkSourceManager {
    * );
    * ```
    */
-  reportOutcome(
-    taskId: string,
-    result: WorkResult,
-    options: ReportOutcomeOptions
-  ): Promise<void>;
+  reportOutcome(taskId: string, result: WorkResult, options: ReportOutcomeOptions): Promise<void>;
 
   /**
    * Release a claimed work item without completing it
@@ -335,10 +331,7 @@ export interface WorkSourceManager {
    * });
    * ```
    */
-  releaseWorkItem(
-    taskId: string,
-    options: ReleaseWorkItemOptions
-  ): Promise<ReleaseResult>;
+  releaseWorkItem(taskId: string, options: ReleaseWorkItemOptions): Promise<ReleaseResult>;
 
   /**
    * Get the work source adapter for an agent

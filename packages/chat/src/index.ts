@@ -16,51 +16,51 @@
 // =============================================================================
 
 export {
-  // Class
-  ChatSessionManager,
-  // Schemas
-  ChannelSessionSchema,
-  ChatSessionStateSchema,
   // Types
   type ChannelSession,
-  type ChatSessionState,
-  type SessionManagerLogger,
+  // Schemas
+  ChannelSessionSchema,
+  // Class
+  ChatSessionManager,
   type ChatSessionManagerOptions,
-  type SessionResult,
-  type IChatSessionManager,
+  type ChatSessionState,
+  ChatSessionStateSchema,
+  createChannelSession,
   // Factory functions
   createInitialSessionState,
-  createChannelSession,
+  type IChatSessionManager,
+  isSessionManagerError,
+  SessionDirectoryCreateError,
   // Errors
   SessionErrorCode,
   SessionManagerError,
+  type SessionManagerLogger,
+  type SessionResult,
   SessionStateReadError,
   SessionStateWriteError,
-  SessionDirectoryCreateError,
-  isSessionManagerError,
 } from "./session-manager/index.js";
 
 // =============================================================================
 // Shared Types
 // =============================================================================
 
-export {
+export type {
   // Connection status
-  type ChatConnectionStatus,
+  ChatConnectionStatus,
+  ChatConnectorEventMap,
+  ChatConnectorEventName,
+  ChatConnectorEventPayload,
+  ChatConnectorLogger,
   // Connector state
-  type ChatConnectorState,
-  // Interfaces
-  type IChatConnector,
-  type IChatSessionManager as IChatConnectorSessionManager,
-  type ChatConnectorLogger,
+  ChatConnectorState,
+  ChatMessageEvent,
   // Message types
-  type ChatMessageMetadata,
-  type ChatMessageEvent,
+  ChatMessageMetadata,
+  // Interfaces
+  IChatConnector,
+  IChatSessionManager as IChatConnectorSessionManager,
   // Event types
-  type SessionLifecycleEvent,
-  type ChatConnectorEventMap,
-  type ChatConnectorEventName,
-  type ChatConnectorEventPayload,
+  SessionLifecycleEvent,
 } from "./types.js";
 
 // =============================================================================
@@ -68,19 +68,19 @@ export {
 // =============================================================================
 
 export {
+  // Constants
+  DEFAULT_MESSAGE_DELAY_MS,
+  DEFAULT_SPLIT_POINTS,
   // Functions
   findSplitPoint,
-  splitMessage,
-  needsSplit,
-  truncateMessage,
   formatCodeBlock,
   // Types
   type MessageSplitOptions,
-  type SplitResult,
-  // Constants
-  DEFAULT_MESSAGE_DELAY_MS,
   MIN_CHUNK_SIZE,
-  DEFAULT_SPLIT_POINTS,
+  needsSplit,
+  type SplitResult,
+  splitMessage,
+  truncateMessage,
 } from "./message-splitting.js";
 
 // =============================================================================
@@ -97,12 +97,12 @@ export {
 // =============================================================================
 
 export {
-  extractMessageContent,
-  isTextContentBlock,
-  hasTextContent,
-  type TextContentBlock,
   type ContentBlock,
+  extractMessageContent,
+  hasTextContent,
+  isTextContentBlock,
   type SDKMessage,
+  type TextContentBlock,
 } from "./message-extraction.js";
 
 // =============================================================================
@@ -110,16 +110,16 @@ export {
 // =============================================================================
 
 export {
+  extractToolResultContent,
+  extractToolResults,
   // Functions
   extractToolUseBlocks,
-  extractToolResults,
-  extractToolResultContent,
   getToolInputSummary,
-  // Types
-  type ToolUseBlock,
-  type ToolResult,
   // Constants
   TOOL_EMOJIS,
+  type ToolResult,
+  // Types
+  type ToolUseBlock,
 } from "./tool-parsing.js";
 
 // =============================================================================
@@ -127,12 +127,12 @@ export {
 // =============================================================================
 
 export {
-  isDMEnabled,
-  getDMMode,
   checkDMUserFilter,
-  shouldProcessInMode,
-  type DMFilterResult,
   type DMConfig,
+  type DMFilterResult,
+  getDMMode,
+  isDMEnabled,
+  shouldProcessInMode,
 } from "./dm-filter.js";
 
 // =============================================================================
@@ -140,20 +140,20 @@ export {
 // =============================================================================
 
 export {
-  // Error codes
-  ChatErrorCode,
+  AlreadyConnectedError,
+  ChatConnectionError,
   // Error classes
   ChatConnectorError,
-  ChatConnectionError,
-  AlreadyConnectedError,
+  // Error codes
+  ChatErrorCode,
   InvalidTokenError,
-  MissingTokenError,
+  isAlreadyConnectedError,
+  isChatConnectionError,
   // Type guards
   isChatConnectorError,
-  isChatConnectionError,
-  isAlreadyConnectedError,
   isInvalidTokenError,
   isMissingTokenError,
+  MissingTokenError,
 } from "./errors.js";
 
 // =============================================================================
@@ -161,22 +161,22 @@ export {
 // =============================================================================
 
 export {
-  // Categories
-  ErrorCategory,
   // Types
   type ClassifiedError,
+  // Categories
+  ErrorCategory,
+  isAuthError,
+  isRateLimitError,
+  isTransientError,
   type RetryOptions,
   type RetryResult,
-  type UserErrorMessageKey,
-  // Constants
-  USER_ERROR_MESSAGES,
-  // Functions
-  withRetry,
-  isTransientError,
-  isRateLimitError,
-  isAuthError,
   safeExecute,
   safeExecuteWithReply,
+  // Constants
+  USER_ERROR_MESSAGES,
+  type UserErrorMessageKey,
+  // Functions
+  withRetry,
 } from "./error-handler.js";
 
 // =============================================================================
@@ -184,12 +184,12 @@ export {
 // =============================================================================
 
 export {
-  formatTimestamp,
+  formatCharCount,
+  formatCompactNumber,
+  formatCost,
   formatDuration,
   formatDurationMs,
-  getStatusEmoji,
   formatNumber,
-  formatCompactNumber,
-  formatCharCount,
-  formatCost,
+  formatTimestamp,
+  getStatusEmoji,
 } from "./status-formatting.js";

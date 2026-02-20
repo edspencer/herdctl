@@ -2,11 +2,11 @@
  * Tests for message extraction utilities
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   extractMessageContent,
-  isTextContentBlock,
   hasTextContent,
+  isTextContentBlock,
   type SDKMessage,
 } from "../message-extraction.js";
 
@@ -86,9 +86,7 @@ describe("message-extraction", () => {
       const message: SDKMessage = {
         type: "assistant",
         message: {
-          content: [
-            { type: "tool_use", id: "123", name: "tool" },
-          ],
+          content: [{ type: "tool_use", id: "123", name: "tool" }],
         },
       };
       expect(extractMessageContent(message)).toBeUndefined();

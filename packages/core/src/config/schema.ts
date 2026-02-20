@@ -4,8 +4,8 @@
  * Validates herdctl.yaml fleet configuration
  */
 
-import { z } from "zod";
 import type { HostConfig } from "dockerode";
+import { z } from "zod";
 
 // =============================================================================
 // Permission Schemas
@@ -74,7 +74,7 @@ export const GitHubWorkSourceSchema = z.object({
     .string()
     .regex(
       GITHUB_REPO_PATTERN,
-      "Repository must be in 'owner/repo' format (e.g., 'octocat/hello-world')"
+      "Repository must be in 'owner/repo' format (e.g., 'octocat/hello-world')",
     ),
   /** Labels for tracking work item state */
   labels: z
@@ -116,10 +116,7 @@ export const BaseWorkSourceSchema = z.object({
  * The schema will validate against GitHub-specific rules when type is "github"
  * and all required fields are present, otherwise falls back to base schema.
  */
-export const WorkSourceSchema = z.union([
-  GitHubWorkSourceSchema,
-  BaseWorkSourceSchema,
-]);
+export const WorkSourceSchema = z.union([GitHubWorkSourceSchema, BaseWorkSourceSchema]);
 
 // =============================================================================
 // Instance Schemas
@@ -206,10 +203,9 @@ export const AgentDockerSchema = z
       return /^\d+(?:\.\d+)?\s*[kmgtb]?$/i.test(data.memory);
     },
     {
-      message:
-        'Invalid memory format. Use format like "2g", "512m", "1024k", or "2048" (bytes).',
+      message: 'Invalid memory format. Use format like "2g", "512m", "1024k", or "2048" (bytes).',
       path: ["memory"],
-    }
+    },
   )
   .refine(
     (data) => {
@@ -222,9 +218,10 @@ export const AgentDockerSchema = z
       });
     },
     {
-      message: 'Invalid tmpfs format. Use "/path" or "/path:options" (e.g., "/tmp", "/tmp:size=100m").',
+      message:
+        'Invalid tmpfs format. Use "/path" or "/path:options" (e.g., "/tmp", "/tmp:size=100m").',
       path: ["tmpfs"],
-    }
+    },
   );
 
 /**
@@ -321,10 +318,9 @@ export const FleetDockerSchema = z
       return /^\d+(?:\.\d+)?\s*[kmgtb]?$/i.test(data.memory);
     },
     {
-      message:
-        'Invalid memory format. Use format like "2g", "512m", "1024k", or "2048" (bytes).',
+      message: 'Invalid memory format. Use format like "2g", "512m", "1024k", or "2048" (bytes).',
       path: ["memory"],
-    }
+    },
   )
   .refine(
     (data) => {
@@ -340,10 +336,9 @@ export const FleetDockerSchema = z
       });
     },
     {
-      message:
-        'Invalid volume format. Use "host:container" or "host:container:ro|rw".',
+      message: 'Invalid volume format. Use "host:container" or "host:container:ro|rw".',
       path: ["volumes"],
-    }
+    },
   )
   .refine(
     (data) => {
@@ -354,7 +349,7 @@ export const FleetDockerSchema = z
     {
       message: 'Invalid user format. Use "UID" or "UID:GID" (e.g., "1000" or "1000:1000").',
       path: ["user"],
-    }
+    },
   )
   .refine(
     (data) => {
@@ -366,9 +361,10 @@ export const FleetDockerSchema = z
       });
     },
     {
-      message: 'Invalid port format. Use "hostPort:containerPort" or "containerPort" (e.g., "8080:80", "3000").',
+      message:
+        'Invalid port format. Use "hostPort:containerPort" or "containerPort" (e.g., "8080:80", "3000").',
       path: ["ports"],
-    }
+    },
   )
   .refine(
     (data) => {
@@ -381,9 +377,10 @@ export const FleetDockerSchema = z
       });
     },
     {
-      message: 'Invalid tmpfs format. Use "/path" or "/path:options" (e.g., "/tmp", "/tmp:size=100m").',
+      message:
+        'Invalid tmpfs format. Use "/path" or "/path:options" (e.g., "/tmp", "/tmp:size=100m").',
       path: ["tmpfs"],
-    }
+    },
   );
 
 /** @deprecated Use AgentDockerSchema or FleetDockerSchema instead */
@@ -501,9 +498,7 @@ export const McpServerSchema = z.object({
  * ```
  */
 export const DiscordPresenceSchema = z.object({
-  activity_type: z
-    .enum(["playing", "watching", "listening", "competing"])
-    .optional(),
+  activity_type: z.enum(["playing", "watching", "listening", "competing"]).optional(),
   activity_message: z.string().optional(),
 });
 
@@ -827,10 +822,7 @@ export const AgentHooksSchema = z.object({
 // Agent Working Directory Schema (can be string path or full working directory object)
 // =============================================================================
 
-export const AgentWorkingDirectorySchema = z.union([
-  z.string(),
-  WorkingDirectorySchema,
-]);
+export const AgentWorkingDirectorySchema = z.union([z.string(), WorkingDirectorySchema]);
 
 // =============================================================================
 // Agent Configuration Schema
@@ -926,10 +918,13 @@ export const FleetReferenceSchema = z.object({
   /** Path to a sub-fleet YAML file (relative to parent fleet config) */
   path: z.string(),
   /** Optional name override for the sub-fleet (must match agent name pattern — no dots) */
-  name: z.string().regex(AGENT_NAME_PATTERN, {
-    message:
-      "Fleet name must start with a letter or number and contain only letters, numbers, underscores, and hyphens (no dots)",
-  }).optional(),
+  name: z
+    .string()
+    .regex(AGENT_NAME_PATTERN, {
+      message:
+        "Fleet name must start with a letter or number and contain only letters, numbers, underscores, and hyphens (no dots)",
+    })
+    .optional(),
   /** Optional top-level config overrides applied to the sub-fleet */
   overrides: z.record(z.string(), z.unknown()).optional(),
 });
@@ -1065,9 +1060,7 @@ export type AgentChat = z.infer<typeof AgentChatSchema>;
 // Agent Chat Slack types
 export type SlackChannel = z.infer<typeof SlackChannelSchema>;
 export type AgentChatSlack = z.infer<typeof AgentChatSlackSchema>;
-export type AgentWorkingDirectory = z.infer<
-  typeof AgentWorkingDirectorySchema
->;
+export type AgentWorkingDirectory = z.infer<typeof AgentWorkingDirectorySchema>;
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
 // Hook types - Output types (after parsing with defaults applied)
 export type HookEvent = z.infer<typeof HookEventSchema>;

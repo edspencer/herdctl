@@ -1,14 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { WorkSourceAdapter, WorkSourceConfig, WorkSourceFactory } from "../index.js";
 import {
-  registerWorkSource,
-  getWorkSource,
-  getRegisteredTypes,
-  isWorkSourceRegistered,
-  unregisterWorkSource,
   clearWorkSourceRegistry,
-  UnknownWorkSourceError,
   DuplicateWorkSourceError,
+  getRegisteredTypes,
+  getWorkSource,
+  isWorkSourceRegistered,
+  registerWorkSource,
+  UnknownWorkSourceError,
+  unregisterWorkSource,
 } from "../index.js";
 
 // =============================================================================
@@ -191,7 +191,7 @@ describe("Work Source Registry", () => {
 
     it("returns different instances for different configs", () => {
       let callCount = 0;
-      const factory: WorkSourceFactory = (config) => {
+      const factory: WorkSourceFactory = (_config) => {
         callCount++;
         return createMockAdapter("instance");
       };

@@ -34,9 +34,7 @@ export interface SlackLoggerOptions {
 /**
  * Create a logger with the specified configuration
  */
-export function createSlackLogger(
-  options: SlackLoggerOptions
-): SlackConnectorLogger {
+export function createSlackLogger(options: SlackLoggerOptions): SlackConnectorLogger {
   const { prefix, logLevel = "standard" } = options;
 
   return {
@@ -62,9 +60,7 @@ export function createSlackLogger(
 /**
  * Create a default logger for Slack operations
  */
-export function createDefaultSlackLogger(
-  agentName?: string
-): SlackConnectorLogger {
+export function createDefaultSlackLogger(agentName?: string): SlackConnectorLogger {
   const prefix = agentName ? `slack:${agentName}` : "slack";
   return createLogger(prefix);
 }

@@ -6,8 +6,8 @@
  * Shows yellow for connecting, red for disconnected, green for reconnected.
  */
 
-import { useState, useEffect, useRef } from "react";
-import { RefreshCw, WifiOff, Wifi } from "lucide-react";
+import { RefreshCw, Wifi, WifiOff } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import type { ConnectionStatus as ConnectionStatusType } from "../../lib/types";
 
 // =============================================================================

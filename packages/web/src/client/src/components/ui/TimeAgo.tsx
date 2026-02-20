@@ -5,7 +5,7 @@
  * that auto-refreshes periodically.
  */
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 
 // =============================================================================
 // Types

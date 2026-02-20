@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { ChatInputCommandInteraction, Client, REST } from "discord.js";
 import type { IChatSessionManager } from "@herdctl/chat";
+import type { ChatInputCommandInteraction, Client } from "discord.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DiscordConnectorState } from "../../types.js";
 
 // =============================================================================
@@ -87,7 +87,7 @@ function createMockConnectorState(): DiscordConnectorState {
 
 function createMockInteraction(
   commandName: string,
-  channelId = "channel-123"
+  channelId = "channel-123",
 ): ChatInputCommandInteraction {
   return {
     commandName,
@@ -178,7 +178,7 @@ describe("CommandManager", () => {
         expect.stringContaining("bot-123"),
         expect.objectContaining({
           body: expect.any(Array),
-        })
+        }),
       );
     });
 
@@ -196,11 +196,9 @@ describe("CommandManager", () => {
 
       expect(logger.debug).toHaveBeenCalledWith(
         expect.stringContaining("Registering"),
-        expect.any(Object)
+        expect.any(Object),
       );
-      expect(logger.debug).toHaveBeenCalledWith(
-        expect.stringContaining("Successfully")
-      );
+      expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining("Successfully"));
     });
 
     it("throws when client user ID not available", async () => {
@@ -217,9 +215,7 @@ describe("CommandManager", () => {
         logger,
       });
 
-      await expect(manager.registerCommands()).rejects.toThrow(
-        "Client user ID not available"
-      );
+      await expect(manager.registerCommands()).rejects.toThrow("Client user ID not available");
     });
 
     it("logs error on registration failure", async () => {
@@ -237,7 +233,7 @@ describe("CommandManager", () => {
       await expect(manager.registerCommands()).rejects.toThrow("API Error");
       expect(logger.error).toHaveBeenCalledWith(
         expect.stringContaining("Failed"),
-        expect.any(Object)
+        expect.any(Object),
       );
     });
   });
@@ -295,7 +291,7 @@ describe("CommandManager", () => {
 
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining("Unknown command"),
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
@@ -316,7 +312,7 @@ describe("CommandManager", () => {
         expect.stringContaining("Executing"),
         expect.objectContaining({
           commandName: "help",
-        })
+        }),
       );
     });
 
@@ -333,7 +329,7 @@ describe("CommandManager", () => {
       // Create an interaction that will fail when executing
       const interaction = createMockInteraction("reset");
       (sessionManager.clearSession as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-        new Error("Session error")
+        new Error("Session error"),
       );
 
       await manager.handleInteraction(interaction);
@@ -341,7 +337,7 @@ describe("CommandManager", () => {
       // ErrorHandler logs with different format
       expect(logger.error).toHaveBeenCalledWith(
         expect.stringContaining("Error during"),
-        expect.any(Object)
+        expect.any(Object),
       );
 
       const reply = interaction.reply as ReturnType<typeof vi.fn>;
@@ -370,7 +366,7 @@ describe("CommandManager", () => {
       expect(reply).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining("my-agent"),
-        })
+        }),
       );
     });
   });

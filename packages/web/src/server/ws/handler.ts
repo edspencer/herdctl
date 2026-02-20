@@ -5,16 +5,15 @@
  * and provides broadcast functions for the fleet bridge.
  */
 
-import type { WebSocket, RawData } from "ws";
 import { createLogger, type FleetManager } from "@herdctl/core";
-import {
-  isClientMessage,
-  isChatSendMessage,
-  type ClientMessage,
-  type ServerMessage,
-  type ChatSendMessage,
-} from "./types.js";
+import type { RawData, WebSocket } from "ws";
 import type { WebChatManager } from "../chat/index.js";
+import {
+  type ChatSendMessage,
+  type ClientMessage,
+  isClientMessage,
+  type ServerMessage,
+} from "./types.js";
 
 const logger = createLogger("web:ws");
 
@@ -77,7 +76,9 @@ export class WebSocketHandler {
       const status = await this.fleetManager.getFleetStatus();
       this.sendToClient(client, { type: "fleet:status", payload: status });
     } catch (error) {
-      logger.warn(`Failed to send initial fleet status to ${clientId}: ${(error as Error).message}`);
+      logger.warn(
+        `Failed to send initial fleet status to ${clientId}: ${(error as Error).message}`,
+      );
     }
 
     // Handle incoming messages
@@ -258,7 +259,9 @@ export class WebSocketHandler {
    */
   private handleDisconnect(client: WebSocketClient): void {
     this.clients.delete(client);
-    logger.info(`WebSocket client disconnected: ${client.clientId} (remaining: ${this.clients.size})`);
+    logger.info(
+      `WebSocket client disconnected: ${client.clientId} (remaining: ${this.clients.size})`,
+    );
   }
 
   /**

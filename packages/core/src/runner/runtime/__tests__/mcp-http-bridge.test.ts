@@ -1,6 +1,6 @@
-import { describe, it, expect, afterEach } from "vitest";
-import { startMcpHttpBridge, type McpHttpBridge } from "../mcp-http-bridge.js";
+import { afterEach, describe, expect, it } from "vitest";
 import type { InjectedMcpServerDef } from "../../types.js";
+import { type McpHttpBridge, startMcpHttpBridge } from "../mcp-http-bridge.js";
 
 // =============================================================================
 // Helpers
@@ -9,7 +9,7 @@ import type { InjectedMcpServerDef } from "../../types.js";
 function createTestDef(
   handler = async (args: Record<string, unknown>) => ({
     content: [{ type: "text" as const, text: `Received: ${JSON.stringify(args)}` }],
-  })
+  }),
 ): InjectedMcpServerDef {
   return {
     name: "test-server",
@@ -33,7 +33,12 @@ function createTestDef(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function jsonRpcPost(port: number, method: string, params?: Record<string, unknown>, id: number = 1): Promise<any> {
+async function jsonRpcPost(
+  port: number,
+  method: string,
+  params?: Record<string, unknown>,
+  id: number = 1,
+): Promise<any> {
   const body = JSON.stringify({
     jsonrpc: "2.0",
     id,

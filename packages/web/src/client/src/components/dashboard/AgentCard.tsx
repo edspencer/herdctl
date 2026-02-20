@@ -5,10 +5,10 @@
  * Shows status, description, current job info, and connector badges.
  */
 
+import { Eye, MessageSquare } from "lucide-react";
 import { Link } from "react-router";
-import { MessageSquare, Eye } from "lucide-react";
-import { Card, StatusBadge } from "../ui";
 import type { AgentInfo } from "../../lib/types";
+import { Card, StatusBadge } from "../ui";
 
 // =============================================================================
 // Connector Icons (inline SVGs from brand assets)
@@ -50,7 +50,7 @@ function truncate(text: string, maxLength: number): string {
   if (text.length <= maxLength) {
     return text;
   }
-  return text.slice(0, maxLength - 1) + "\u2026";
+  return `${text.slice(0, maxLength - 1)}\u2026`;
 }
 
 /**
@@ -155,9 +155,7 @@ export function AgentCard({ agent }: AgentCardProps) {
               {agent.fleetPath.join(" / ")}
             </p>
           )}
-          <h3 className="text-sm font-medium text-herd-fg truncate">
-            {agent.name}
-          </h3>
+          <h3 className="text-sm font-medium text-herd-fg truncate">{agent.name}</h3>
           {agent.description && (
             <p className="text-xs text-herd-muted mt-0.5 line-clamp-2">
               {truncate(agent.description, 80)}
@@ -171,9 +169,7 @@ export function AgentCard({ agent }: AgentCardProps) {
       <div className="min-h-[32px]">
         {agent.status === "running" && agent.currentJobId && (
           <div className="bg-herd-hover rounded-lg px-2 py-1.5">
-            <p className="text-xs text-herd-muted font-mono truncate">
-              Job active
-            </p>
+            <p className="text-xs text-herd-muted font-mono truncate">Job active</p>
           </div>
         )}
         {agent.status === "idle" && (

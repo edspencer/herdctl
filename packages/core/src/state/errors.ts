@@ -55,12 +55,7 @@ export class StateFileError extends StateError {
   /** The operation that failed */
   public readonly operation: "read" | "write";
 
-  constructor(
-    message: string,
-    path: string,
-    operation: "read" | "write",
-    cause?: Error
-  ) {
+  constructor(message: string, path: string, operation: "read" | "write", cause?: Error) {
     super(message);
     this.name = "StateFileError";
     this.path = path;
@@ -72,10 +67,7 @@ export class StateFileError extends StateError {
 /**
  * Get a descriptive error message for common permission errors
  */
-export function getPermissionErrorMessage(
-  code: string | undefined,
-  path: string
-): string {
+export function getPermissionErrorMessage(code: string | undefined, path: string): string {
   switch (code) {
     case "EACCES":
       return `Permission denied: Cannot access '${path}'. Check file permissions.`;

@@ -5,8 +5,8 @@
  * and command handler definitions.
  */
 
-import type { ChatInputCommandInteraction, Client, REST } from "discord.js";
 import type { IChatSessionManager } from "@herdctl/chat";
+import type { ChatInputCommandInteraction, Client } from "discord.js";
 import type { DiscordConnectorState } from "../types.js";
 
 // =============================================================================

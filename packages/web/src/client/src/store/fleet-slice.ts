@@ -6,16 +6,16 @@
 
 import type { StateCreator } from "zustand";
 import type {
-  FleetStatus,
   AgentInfo,
-  JobSummary,
-  ConnectionStatus,
   AgentStartedPayload,
   AgentStoppedPayload,
-  JobCreatedPayload,
-  JobCompletedPayload,
-  JobFailedPayload,
+  ConnectionStatus,
+  FleetStatus,
   JobCancelledPayload,
+  JobCompletedPayload,
+  JobCreatedPayload,
+  JobFailedPayload,
+  JobSummary,
 } from "../lib/types";
 import { isAgentStartedPayload } from "../lib/types";
 
@@ -122,7 +122,7 @@ export const createFleetSlice: StateCreator<FleetSlice, [], [], FleetSlice> = (s
       if (isAgentStartedPayload(payload)) {
         // Agent started: add or update in list (match by qualifiedName)
         const existingIndex = state.agents.findIndex(
-          (a) => a.qualifiedName === payload.agent.qualifiedName
+          (a) => a.qualifiedName === payload.agent.qualifiedName,
         );
 
         if (existingIndex >= 0) {
@@ -142,9 +142,7 @@ export const createFleetSlice: StateCreator<FleetSlice, [], [], FleetSlice> = (s
         }
       } else {
         // Agent stopped: update status or remove (agentName is now qualifiedName)
-        const existingIndex = state.agents.findIndex(
-          (a) => a.qualifiedName === payload.agentName
-        );
+        const existingIndex = state.agents.findIndex((a) => a.qualifiedName === payload.agentName);
 
         if (existingIndex >= 0) {
           const newAgents = [...state.agents];
@@ -186,9 +184,7 @@ export const createFleetSlice: StateCreator<FleetSlice, [], [], FleetSlice> = (s
 
   completeJob: (payload) =>
     set((state) => {
-      const jobIndex = state.recentJobs.findIndex(
-        (j) => j.jobId === payload.jobId
-      );
+      const jobIndex = state.recentJobs.findIndex((j) => j.jobId === payload.jobId);
 
       if (jobIndex >= 0) {
         const newJobs = [...state.recentJobs];
@@ -209,9 +205,7 @@ export const createFleetSlice: StateCreator<FleetSlice, [], [], FleetSlice> = (s
 
   failJob: (payload) =>
     set((state) => {
-      const jobIndex = state.recentJobs.findIndex(
-        (j) => j.jobId === payload.jobId
-      );
+      const jobIndex = state.recentJobs.findIndex((j) => j.jobId === payload.jobId);
 
       if (jobIndex >= 0) {
         const newJobs = [...state.recentJobs];
@@ -232,9 +226,7 @@ export const createFleetSlice: StateCreator<FleetSlice, [], [], FleetSlice> = (s
 
   cancelJob: (payload) =>
     set((state) => {
-      const jobIndex = state.recentJobs.findIndex(
-        (j) => j.jobId === payload.jobId
-      );
+      const jobIndex = state.recentJobs.findIndex((j) => j.jobId === payload.jobId);
 
       if (jobIndex >= 0) {
         const newJobs = [...state.recentJobs];

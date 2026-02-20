@@ -10,17 +10,17 @@
 
 import * as path from "node:path";
 import {
-  safeLoadConfig,
-  ConfigNotFoundError,
-  SchemaValidationError,
   AgentLoadError,
-  FileReadError,
-  YamlSyntaxError,
-  AgentYamlSyntaxError,
   AgentValidationError,
-  UndefinedVariableError,
+  AgentYamlSyntaxError,
+  ConfigNotFoundError,
+  FileReadError,
   type ResolvedConfig,
   type SchemaIssue,
+  SchemaValidationError,
+  safeLoadConfig,
+  UndefinedVariableError,
+  YamlSyntaxError,
 } from "@herdctl/core";
 
 export interface ConfigValidateOptions {
@@ -79,10 +79,7 @@ function suggestFix(issue: SchemaIssue): string | null {
 /**
  * Format validation errors for display
  */
-function formatValidationErrors(
-  issues: SchemaIssue[],
-  showFixes: boolean
-): string {
+function formatValidationErrors(issues: SchemaIssue[], showFixes: boolean): string {
   const lines: string[] = [];
 
   for (const issue of issues) {
@@ -109,9 +106,7 @@ function suggestEnvVarFix(varName: string): string {
 /**
  * Validate the herdctl configuration
  */
-export async function configValidateCommand(
-  options: ConfigValidateOptions
-): Promise<void> {
+export async function configValidateCommand(options: ConfigValidateOptions): Promise<void> {
   const result = await safeLoadConfig(options.config);
 
   if (result.success) {
@@ -181,9 +176,7 @@ export async function configValidateCommand(
     if (error.cause instanceof SchemaValidationError) {
       console.error("");
       console.error("Agent schema validation errors:");
-      console.error(
-        formatValidationErrors(error.cause.issues, options.fix ?? false)
-      );
+      console.error(formatValidationErrors(error.cause.issues, options.fix ?? false));
     }
 
     if (options.fix) {
@@ -246,8 +239,7 @@ function formatConfigForDisplay(config: ResolvedConfig): string {
     const defaults = config.fleet.defaults;
     if (defaults.model) lines.push(`Model: ${defaults.model}`);
     if (defaults.max_turns) lines.push(`Max Turns: ${defaults.max_turns}`);
-    if (defaults.permission_mode)
-      lines.push(`Permission Mode: ${defaults.permission_mode}`);
+    if (defaults.permission_mode) lines.push(`Permission Mode: ${defaults.permission_mode}`);
     if (defaults.allowed_tools?.length) {
       lines.push(`Allowed Tools: ${defaults.allowed_tools.join(", ")}`);
     }
@@ -272,8 +264,7 @@ function formatConfigForDisplay(config: ResolvedConfig): string {
 
     if (agent.model) lines.push(`  Model: ${agent.model}`);
     if (agent.max_turns) lines.push(`  Max Turns: ${agent.max_turns}`);
-    if (agent.permission_mode)
-      lines.push(`  Permission Mode: ${agent.permission_mode}`);
+    if (agent.permission_mode) lines.push(`  Permission Mode: ${agent.permission_mode}`);
 
     // Workspace
     if (agent.working_directory) {
@@ -291,8 +282,7 @@ function formatConfigForDisplay(config: ResolvedConfig): string {
         const scheduleInfo = [];
         scheduleInfo.push(`type=${schedule.type}`);
         if (schedule.interval) scheduleInfo.push(`interval=${schedule.interval}`);
-        if (schedule.expression)
-          scheduleInfo.push(`cron=${schedule.expression}`);
+        if (schedule.expression) scheduleInfo.push(`cron=${schedule.expression}`);
         lines.push(`    - ${name}: ${scheduleInfo.join(", ")}`);
       }
     }
@@ -312,9 +302,7 @@ function formatConfigForDisplay(config: ResolvedConfig): string {
 /**
  * Show the merged/resolved configuration
  */
-export async function configShowCommand(
-  options: ConfigShowOptions
-): Promise<void> {
+export async function configShowCommand(options: ConfigShowOptions): Promise<void> {
   const result = await safeLoadConfig(options.config);
 
   if (!result.success) {

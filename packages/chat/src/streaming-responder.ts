@@ -7,8 +7,8 @@
  * - Automatic message splitting for platform limits
  */
 
-import type { ChatConnectorLogger } from "./types.js";
 import { splitMessage } from "./message-splitting.js";
+import type { ChatConnectorLogger } from "./types.js";
 
 // =============================================================================
 // Types

@@ -1,21 +1,16 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdir, rm, realpath, writeFile, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import {
-  getSessionInfo,
-  updateSessionInfo,
-  clearSession,
-  type SessionLogger,
-} from "../session.js";
-import { type SessionInfo } from "../schemas/session-info.js";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { StateFileError } from "../errors.js";
+import type { SessionInfo } from "../schemas/session-info.js";
+import { clearSession, getSessionInfo, type SessionLogger, updateSessionInfo } from "../session.js";
 
 // Helper to create a temp directory
 async function createTempDir(): Promise<string> {
   const baseDir = join(
     tmpdir(),
-    `herdctl-session-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-session-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   await mkdir(baseDir, { recursive: true });
   // Resolve to real path to handle macOS /var -> /private/var symlink
@@ -35,7 +30,7 @@ function createMockLogger(): SessionLogger & { warnings: string[] } {
 async function writeSessionFile(
   dir: string,
   agentName: string,
-  session: SessionInfo
+  session: SessionInfo,
 ): Promise<string> {
   const filePath = join(dir, `${agentName}.json`);
   await writeFile(filePath, JSON.stringify(session, null, 2), "utf-8");
@@ -267,7 +262,9 @@ describe("getSessionInfo", () => {
       expiredSession.last_used_at = twentyFiveHoursAgo;
       await writeSessionFile(tempDir, "definitely-expired-agent", expiredSession);
 
-      const expiredResult = await getSessionInfo(tempDir, "definitely-expired-agent", { timeout: "24h" });
+      const expiredResult = await getSessionInfo(tempDir, "definitely-expired-agent", {
+        timeout: "24h",
+      });
       expect(expiredResult).toBeNull();
     });
   });
@@ -305,7 +302,7 @@ describe("updateSessionInfo", () => {
     await expect(
       updateSessionInfo(tempDir, "new-agent", {
         mode: "autonomous",
-      })
+      }),
     ).rejects.toThrow(StateFileError);
   });
 
@@ -339,7 +336,7 @@ describe("updateSessionInfo", () => {
 
     expect(updated.last_used_at).not.toBe(originalLastUsed);
     expect(new Date(updated.last_used_at).getTime()).toBeGreaterThan(
-      new Date(originalLastUsed).getTime()
+      new Date(originalLastUsed).getTime(),
     );
   });
 
@@ -396,7 +393,7 @@ describe("updateSessionInfo", () => {
     await expect(
       updateSessionInfo(nonExistentDir, "test-agent", {
         session_id: "test-session",
-      })
+      }),
     ).rejects.toThrow(StateFileError);
   });
 
@@ -639,7 +636,7 @@ describe("concurrent operations", () => {
       updates.push(
         updateSessionInfo(tempDir, `agent-${i}`, {
           session_id: `session-${i}`,
-        })
+        }),
       );
     }
 

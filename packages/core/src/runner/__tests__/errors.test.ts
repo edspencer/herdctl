@@ -1,11 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
+  buildErrorMessage,
+  classifyError,
+  MalformedResponseError,
   RunnerError,
   SDKInitializationError,
   SDKStreamingError,
-  MalformedResponseError,
-  buildErrorMessage,
-  classifyError,
   wrapError,
 } from "../errors.js";
 
@@ -81,18 +81,10 @@ describe("SDKInitializationError", () => {
 
   describe("isMissingApiKey", () => {
     it("returns true for API key errors", () => {
-      expect(
-        new SDKInitializationError("Missing API key").isMissingApiKey()
-      ).toBe(true);
-      expect(
-        new SDKInitializationError("ANTHROPIC_API_KEY not set").isMissingApiKey()
-      ).toBe(true);
-      expect(
-        new SDKInitializationError("Authentication failed").isMissingApiKey()
-      ).toBe(true);
-      expect(
-        new SDKInitializationError("Unauthorized request").isMissingApiKey()
-      ).toBe(true);
+      expect(new SDKInitializationError("Missing API key").isMissingApiKey()).toBe(true);
+      expect(new SDKInitializationError("ANTHROPIC_API_KEY not set").isMissingApiKey()).toBe(true);
+      expect(new SDKInitializationError("Authentication failed").isMissingApiKey()).toBe(true);
+      expect(new SDKInitializationError("Unauthorized request").isMissingApiKey()).toBe(true);
     });
 
     it("returns true for ENOKEY code", () => {
@@ -101,32 +93,28 @@ describe("SDKInitializationError", () => {
     });
 
     it("returns false for other errors", () => {
-      expect(
-        new SDKInitializationError("Network timeout").isMissingApiKey()
-      ).toBe(false);
+      expect(new SDKInitializationError("Network timeout").isMissingApiKey()).toBe(false);
     });
   });
 
   describe("isNetworkError", () => {
     it("returns true for network error codes", () => {
-      expect(
-        new SDKInitializationError("Failed", { code: "ECONNREFUSED" }).isNetworkError()
-      ).toBe(true);
-      expect(
-        new SDKInitializationError("Failed", { code: "ENOTFOUND" }).isNetworkError()
-      ).toBe(true);
-      expect(
-        new SDKInitializationError("Failed", { code: "ETIMEDOUT" }).isNetworkError()
-      ).toBe(true);
-      expect(
-        new SDKInitializationError("Failed", { code: "ECONNRESET" }).isNetworkError()
-      ).toBe(true);
+      expect(new SDKInitializationError("Failed", { code: "ECONNREFUSED" }).isNetworkError()).toBe(
+        true,
+      );
+      expect(new SDKInitializationError("Failed", { code: "ENOTFOUND" }).isNetworkError()).toBe(
+        true,
+      );
+      expect(new SDKInitializationError("Failed", { code: "ETIMEDOUT" }).isNetworkError()).toBe(
+        true,
+      );
+      expect(new SDKInitializationError("Failed", { code: "ECONNRESET" }).isNetworkError()).toBe(
+        true,
+      );
     });
 
     it("returns false for other codes", () => {
-      expect(
-        new SDKInitializationError("Failed", { code: "ENOENT" }).isNetworkError()
-      ).toBe(false);
+      expect(new SDKInitializationError("Failed", { code: "ENOENT" }).isNetworkError()).toBe(false);
     });
   });
 });
@@ -149,58 +137,38 @@ describe("SDKStreamingError", () => {
 
   describe("isRateLimited", () => {
     it("returns true for rate limit errors", () => {
-      expect(
-        new SDKStreamingError("Rate limit exceeded").isRateLimited()
-      ).toBe(true);
-      expect(
-        new SDKStreamingError("Too many requests").isRateLimited()
-      ).toBe(true);
-      expect(
-        new SDKStreamingError("Error", { code: "ERATELIMIT" }).isRateLimited()
-      ).toBe(true);
-      expect(
-        new SDKStreamingError("Error", { code: "429" }).isRateLimited()
-      ).toBe(true);
+      expect(new SDKStreamingError("Rate limit exceeded").isRateLimited()).toBe(true);
+      expect(new SDKStreamingError("Too many requests").isRateLimited()).toBe(true);
+      expect(new SDKStreamingError("Error", { code: "ERATELIMIT" }).isRateLimited()).toBe(true);
+      expect(new SDKStreamingError("Error", { code: "429" }).isRateLimited()).toBe(true);
     });
 
     it("returns false for other errors", () => {
-      expect(
-        new SDKStreamingError("Connection failed").isRateLimited()
-      ).toBe(false);
+      expect(new SDKStreamingError("Connection failed").isRateLimited()).toBe(false);
     });
   });
 
   describe("isConnectionError", () => {
     it("returns true for connection error codes", () => {
-      expect(
-        new SDKStreamingError("Error", { code: "ECONNREFUSED" }).isConnectionError()
-      ).toBe(true);
-      expect(
-        new SDKStreamingError("Error", { code: "ECONNRESET" }).isConnectionError()
-      ).toBe(true);
-      expect(
-        new SDKStreamingError("Error", { code: "EPIPE" }).isConnectionError()
-      ).toBe(true);
-      expect(
-        new SDKStreamingError("Error", { code: "ETIMEDOUT" }).isConnectionError()
-      ).toBe(true);
+      expect(new SDKStreamingError("Error", { code: "ECONNREFUSED" }).isConnectionError()).toBe(
+        true,
+      );
+      expect(new SDKStreamingError("Error", { code: "ECONNRESET" }).isConnectionError()).toBe(true);
+      expect(new SDKStreamingError("Error", { code: "EPIPE" }).isConnectionError()).toBe(true);
+      expect(new SDKStreamingError("Error", { code: "ETIMEDOUT" }).isConnectionError()).toBe(true);
     });
   });
 
   describe("isRecoverable", () => {
     it("returns true for recoverable errors", () => {
+      expect(new SDKStreamingError("Rate limited", { code: "429" }).isRecoverable()).toBe(true);
       expect(
-        new SDKStreamingError("Rate limited", { code: "429" }).isRecoverable()
-      ).toBe(true);
-      expect(
-        new SDKStreamingError("Connection reset", { code: "ECONNRESET" }).isRecoverable()
+        new SDKStreamingError("Connection reset", { code: "ECONNRESET" }).isRecoverable(),
       ).toBe(true);
     });
 
     it("returns false for non-recoverable errors", () => {
-      expect(
-        new SDKStreamingError("Invalid request").isRecoverable()
-      ).toBe(false);
+      expect(new SDKStreamingError("Invalid request").isRecoverable()).toBe(false);
     });
   });
 });
@@ -233,15 +201,15 @@ describe("buildErrorMessage", () => {
   });
 
   it("includes agent name in message", () => {
-    expect(
-      buildErrorMessage("Error occurred", { agentName: "my-agent" })
-    ).toBe("Error occurred | Agent: my-agent");
+    expect(buildErrorMessage("Error occurred", { agentName: "my-agent" })).toBe(
+      "Error occurred | Agent: my-agent",
+    );
   });
 
   it("includes job ID in message", () => {
-    expect(
-      buildErrorMessage("Error occurred", { jobId: "job-123" })
-    ).toBe("Error occurred | Job: job-123");
+    expect(buildErrorMessage("Error occurred", { jobId: "job-123" })).toBe(
+      "Error occurred | Job: job-123",
+    );
   });
 
   it("includes both agent name and job ID", () => {
@@ -249,7 +217,7 @@ describe("buildErrorMessage", () => {
       buildErrorMessage("Error occurred", {
         agentName: "my-agent",
         jobId: "job-123",
-      })
+      }),
     ).toBe("Error occurred | Agent: my-agent | Job: job-123");
   });
 });

@@ -7,17 +7,15 @@
 
 // Command Manager
 export { CommandManager } from "./command-manager.js";
-
-// Types
-export type {
-  CommandContext,
-  SlashCommand,
-  CommandManagerLogger,
-  CommandManagerOptions,
-  ICommandManager,
-} from "./types.js";
-
 // Built-in Commands
 export { helpCommand } from "./help.js";
 export { resetCommand } from "./reset.js";
 export { statusCommand } from "./status.js";
+// Types
+export type {
+  CommandContext,
+  CommandManagerLogger,
+  CommandManagerOptions,
+  ICommandManager,
+  SlashCommand,
+} from "./types.js";

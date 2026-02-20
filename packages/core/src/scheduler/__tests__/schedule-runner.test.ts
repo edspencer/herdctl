@@ -1,38 +1,25 @@
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi,
-} from "vitest";
-import { mkdir, rm, realpath, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import {
-  runSchedule,
-  buildSchedulePrompt,
-  type RunScheduleOptions,
-  type ScheduleRunnerLogger,
-} from "../schedule-runner.js";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResolvedAgent, Schedule } from "../../config/index.js";
-import type { ScheduleState } from "../../state/schemas/fleet-state.js";
 import type { SDKMessage } from "../../runner/index.js";
 import { RuntimeFactory } from "../../runner/index.js";
-import type {
-  WorkSourceManager,
-  WorkItem,
-  GetNextWorkItemResult,
-  WorkResult,
-} from "../../work-sources/index.js";
 import { readFleetState } from "../../state/fleet-state.js";
-import { getSessionInfo } from "../../state/index.js";
+import type { ScheduleState } from "../../state/schemas/fleet-state.js";
+import type {
+  GetNextWorkItemResult,
+  WorkItem,
+  WorkResult,
+  WorkSourceManager,
+} from "../../work-sources/index.js";
+import { buildSchedulePrompt, runSchedule, type ScheduleRunnerLogger } from "../schedule-runner.js";
 
 // Helper to create a temp directory
 async function createTempDir(): Promise<string> {
   const baseDir = join(
     tmpdir(),
-    `herdctl-schedule-runner-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-schedule-runner-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   await mkdir(baseDir, { recursive: true });
   return await realpath(baseDir);
@@ -62,10 +49,7 @@ function createMockLogger(): ScheduleRunnerLogger & {
 }
 
 // Helper to create a test agent
-function createTestAgent(
-  name: string,
-  overrides?: Partial<ResolvedAgent>
-): ResolvedAgent {
+function createTestAgent(name: string, overrides?: Partial<ResolvedAgent>): ResolvedAgent {
   return {
     name,
     qualifiedName: name,
@@ -115,19 +99,15 @@ function createTestWorkItem(overrides?: Partial<WorkItem>): WorkItem {
 }
 
 // Helper to create a mock runtime
-function createMockRuntime(
-  handler: (options: any) => AsyncIterableIterator<SDKMessage>
-): any {
+function createMockRuntime(handler: (options: any) => AsyncIterableIterator<SDKMessage>): any {
   return {
     execute: handler,
   };
 }
 
 // Helper to setup RuntimeFactory mock with messages
-function setupRuntimeFactoryMock(
-  messages: SDKMessage[] = []
-): void {
-  const mockRuntime = createMockRuntime(async function* (options) {
+function setupRuntimeFactoryMock(messages: SDKMessage[] = []): void {
+  const mockRuntime = createMockRuntime(async function* (_options) {
     // Emit init message with session_id
     yield {
       type: "system" as const,
@@ -147,21 +127,19 @@ function setupRuntimeFactoryMock(
     };
   });
 
-  vi.spyOn(RuntimeFactory, 'create').mockReturnValue(mockRuntime);
+  vi.spyOn(RuntimeFactory, "create").mockReturnValue(mockRuntime);
 }
 
 // Helper to setup RuntimeFactory mock with custom handler
 function setupRuntimeFactoryMockWithHandler(
-  handler: (options: any) => AsyncIterableIterator<SDKMessage>
+  handler: (options: any) => AsyncIterableIterator<SDKMessage>,
 ): void {
   const mockRuntime = createMockRuntime(handler);
-  vi.spyOn(RuntimeFactory, 'create').mockReturnValue(mockRuntime);
+  vi.spyOn(RuntimeFactory, "create").mockReturnValue(mockRuntime);
 }
 
 // Helper to create a mock work source manager
-function createMockWorkSourceManager(
-  nextWorkResult?: GetNextWorkItemResult
-): WorkSourceManager & {
+function createMockWorkSourceManager(nextWorkResult?: GetNextWorkItemResult): WorkSourceManager & {
   getNextWorkItemCalls: Array<{ agent: ResolvedAgent }>;
   reportOutcomeCalls: Array<{ taskId: string; result: WorkResult }>;
   releaseWorkItemCalls: Array<{ taskId: string; reason?: string }>;
@@ -305,7 +283,7 @@ describe("runSchedule", () => {
       let stateWhileRunning: ScheduleState | undefined;
 
       // Setup RuntimeFactory mock with custom handler
-      setupRuntimeFactoryMockWithHandler(async function* (options) {
+      setupRuntimeFactoryMockWithHandler(async function* (_options) {
         // Read state during execution
         const fleetState = await readFleetState(join(tempDir, "state.yaml"));
         stateWhileRunning = fleetState.agents["test-agent"]?.schedules?.hourly;
@@ -349,7 +327,7 @@ describe("runSchedule", () => {
       expect(scheduleState?.status).toBe("idle");
       expect(scheduleState?.last_run_at).toBeDefined();
       expect(new Date(scheduleState!.last_run_at!).getTime()).toBeGreaterThanOrEqual(
-        beforeRun.getTime()
+        beforeRun.getTime(),
       );
     });
 
@@ -480,7 +458,7 @@ describe("runSchedule", () => {
       });
 
       // Setup RuntimeFactory mock with error handler
-      setupRuntimeFactoryMockWithHandler(async function* (options) {
+      setupRuntimeFactoryMockWithHandler(async function* (_options) {
         yield { type: "system" as const, subtype: "init", session_id: "test" };
         yield { type: "error" as const, message: "API error", code: "API_ERROR" };
       });
@@ -596,7 +574,7 @@ describe("runSchedule", () => {
       });
 
       // Setup RuntimeFactory mock that throws - JobExecutor catches this and returns failed result
-      setupRuntimeFactoryMockWithHandler(async function* (options) {
+      setupRuntimeFactoryMockWithHandler(async function* (_options) {
         throw new Error("Unexpected SDK failure");
       });
 
@@ -624,7 +602,7 @@ describe("runSchedule", () => {
       const schedule = createTestSchedule();
 
       // Setup RuntimeFactory mock that throws - JobExecutor catches this
-      setupRuntimeFactoryMockWithHandler(async function* (options) {
+      setupRuntimeFactoryMockWithHandler(async function* (_options) {
         throw new Error("Execution failed");
       });
 
@@ -652,7 +630,7 @@ describe("runSchedule", () => {
       const schedule = createTestSchedule({ interval: "30m" });
 
       // Setup RuntimeFactory mock that throws
-      setupRuntimeFactoryMockWithHandler(async function* (options) {
+      setupRuntimeFactoryMockWithHandler(async function* (_options) {
         throw new Error("Execution failed");
       });
 
@@ -688,7 +666,7 @@ describe("runSchedule", () => {
 
       // Make reportOutcome throw
       (workSourceManager.reportOutcome as ReturnType<typeof vi.fn>).mockRejectedValue(
-        new Error("Report failed")
+        new Error("Report failed"),
       );
 
       // Setup RuntimeFactory mock
@@ -727,9 +705,7 @@ describe("runSchedule", () => {
       });
 
       expect(
-        mockLogger.infos.some(
-          (m) => m.includes("Running") && m.includes("my-agent/my-schedule")
-        )
+        mockLogger.infos.some((m) => m.includes("Running") && m.includes("my-agent/my-schedule")),
       ).toBe(true);
     });
 
@@ -749,9 +725,7 @@ describe("runSchedule", () => {
       });
 
       expect(
-        mockLogger.infos.some(
-          (m) => m.includes("Completed") && m.includes("my-agent/my-schedule")
-        )
+        mockLogger.infos.some((m) => m.includes("Completed") && m.includes("my-agent/my-schedule")),
       ).toBe(true);
     });
 
@@ -780,9 +754,7 @@ describe("runSchedule", () => {
       });
 
       expect(
-        mockLogger.infos.some(
-          (m) => m.includes("Claimed") && m.includes("Important task")
-        )
+        mockLogger.infos.some((m) => m.includes("Claimed") && m.includes("Important task")),
       ).toBe(true);
     });
 
@@ -811,9 +783,7 @@ describe("runSchedule", () => {
       });
 
       expect(
-        mockLogger.infos.some(
-          (m) => m.includes("Reported outcome") && m.includes(workItem.id)
-        )
+        mockLogger.infos.some((m) => m.includes("Reported outcome") && m.includes(workItem.id)),
       ).toBe(true);
     });
   });

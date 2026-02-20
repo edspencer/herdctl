@@ -2,7 +2,7 @@
  * Tests for ShellHookRunner
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ShellHookRunner } from "../runners/shell.js";
 import type { HookContext, ShellHookConfigInput } from "../types.js";
 
@@ -134,7 +134,7 @@ describe("ShellHookRunner", () => {
 
       const config: ShellHookConfig = {
         type: "shell",
-        command: "node -e \"setTimeout(() => {}, 100000)\"",
+        command: 'node -e "setTimeout(() => {}, 100000)"',
         timeout: 100, // 100ms timeout
       };
 

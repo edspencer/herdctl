@@ -7,14 +7,14 @@
  */
 
 import type {
-  FleetStatus,
   AgentStartedPayload,
   AgentStoppedPayload,
-  JobCreatedPayload,
-  JobOutputPayload,
-  JobCompletedPayload,
-  JobFailedPayload,
+  FleetStatus,
   JobCancelledPayload,
+  JobCompletedPayload,
+  JobCreatedPayload,
+  JobFailedPayload,
+  JobOutputPayload,
   ScheduleTriggeredPayload,
 } from "@herdctl/core";
 
@@ -340,7 +340,7 @@ export function isChatSendMessage(data: unknown): data is ChatSendMessage {
  * Type guard to check if a payload is AgentStartedPayload
  */
 export function isAgentStartedPayload(
-  payload: AgentStartedPayload | AgentStoppedPayload
+  payload: AgentStartedPayload | AgentStoppedPayload,
 ): payload is AgentStartedPayload {
   return "agent" in payload;
 }
@@ -349,7 +349,7 @@ export function isAgentStartedPayload(
  * Type guard to check if a payload is AgentStoppedPayload
  */
 export function isAgentStoppedPayload(
-  payload: AgentStartedPayload | AgentStoppedPayload
+  payload: AgentStartedPayload | AgentStoppedPayload,
 ): payload is AgentStoppedPayload {
   return "agentName" in payload && !("agent" in payload);
 }

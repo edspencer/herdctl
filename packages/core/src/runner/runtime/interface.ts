@@ -9,8 +9,8 @@
  * any backend (Claude Agent SDK, Claude CLI, etc.) through a unified interface.
  */
 
-import type { SDKMessage } from "../types.js";
 import type { ResolvedAgent } from "../../config/index.js";
+import type { SDKMessage } from "../types.js";
 
 /**
  * Options for executing a runtime

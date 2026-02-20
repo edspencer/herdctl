@@ -7,18 +7,17 @@
  * @module event-emitters
  */
 
-import type { EventEmitter } from "node:events";
 import type {
-  ConfigReloadedPayload,
   AgentStartedPayload,
   AgentStoppedPayload,
-  ScheduleSkippedPayload,
-  JobCreatedPayload,
-  JobOutputPayload,
-  JobCompletedPayload,
-  JobFailedPayload,
+  ConfigReloadedPayload,
   JobCancelledPayload,
+  JobCompletedPayload,
+  JobCreatedPayload,
+  JobFailedPayload,
   JobForkedPayload,
+  JobOutputPayload,
+  ScheduleSkippedPayload,
 } from "./event-types.js";
 
 // =============================================================================
@@ -50,7 +49,7 @@ export interface FleetManagerEventEmitter {
  */
 export function emitConfigReloaded(
   emitter: FleetManagerEventEmitter,
-  payload: ConfigReloadedPayload
+  payload: ConfigReloadedPayload,
 ): void {
   emitter.emit("config:reloaded", payload);
 }
@@ -66,7 +65,7 @@ export function emitConfigReloaded(
  */
 export function emitAgentStarted(
   emitter: FleetManagerEventEmitter,
-  payload: AgentStartedPayload
+  payload: AgentStartedPayload,
 ): void {
   emitter.emit("agent:started", payload);
 }
@@ -82,7 +81,7 @@ export function emitAgentStarted(
  */
 export function emitAgentStopped(
   emitter: FleetManagerEventEmitter,
-  payload: AgentStoppedPayload
+  payload: AgentStoppedPayload,
 ): void {
   emitter.emit("agent:stopped", payload);
 }
@@ -101,7 +100,7 @@ export function emitAgentStopped(
  */
 export function emitScheduleSkipped(
   emitter: FleetManagerEventEmitter,
-  payload: ScheduleSkippedPayload
+  payload: ScheduleSkippedPayload,
 ): void {
   emitter.emit("schedule:skipped", payload);
 }
@@ -117,7 +116,7 @@ export function emitScheduleSkipped(
  */
 export function emitJobCreated(
   emitter: FleetManagerEventEmitter,
-  payload: JobCreatedPayload
+  payload: JobCreatedPayload,
 ): void {
   emitter.emit("job:created", payload);
 }
@@ -131,10 +130,7 @@ export function emitJobCreated(
  * @param emitter - The event emitter instance
  * @param payload - Job output details including the output chunk
  */
-export function emitJobOutput(
-  emitter: FleetManagerEventEmitter,
-  payload: JobOutputPayload
-): void {
+export function emitJobOutput(emitter: FleetManagerEventEmitter, payload: JobOutputPayload): void {
   emitter.emit("job:output", payload);
 }
 
@@ -149,7 +145,7 @@ export function emitJobOutput(
  */
 export function emitJobCompleted(
   emitter: FleetManagerEventEmitter,
-  payload: JobCompletedPayload
+  payload: JobCompletedPayload,
 ): void {
   emitter.emit("job:completed", payload);
 }
@@ -163,10 +159,7 @@ export function emitJobCompleted(
  * @param emitter - The event emitter instance
  * @param payload - Job failure details including error
  */
-export function emitJobFailed(
-  emitter: FleetManagerEventEmitter,
-  payload: JobFailedPayload
-): void {
+export function emitJobFailed(emitter: FleetManagerEventEmitter, payload: JobFailedPayload): void {
   emitter.emit("job:failed", payload);
 }
 
@@ -181,7 +174,7 @@ export function emitJobFailed(
  */
 export function emitJobCancelled(
   emitter: FleetManagerEventEmitter,
-  payload: JobCancelledPayload
+  payload: JobCancelledPayload,
 ): void {
   emitter.emit("job:cancelled", payload);
 }
@@ -196,9 +189,6 @@ export function emitJobCancelled(
  * @param emitter - The event emitter instance
  * @param payload - Job fork details including both jobs
  */
-export function emitJobForked(
-  emitter: FleetManagerEventEmitter,
-  payload: JobForkedPayload
-): void {
+export function emitJobForked(emitter: FleetManagerEventEmitter, payload: JobForkedPayload): void {
   emitter.emit("job:forked", payload);
 }

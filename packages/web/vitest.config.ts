@@ -1,6 +1,6 @@
-import { defineConfig, type Plugin } from "vitest/config";
+import { resolve } from "node:path";
 import react from "@vitejs/plugin-react";
-import { resolve } from "path";
+import { defineConfig, type Plugin } from "vitest/config";
 
 // @herdctl/core dynamically imports @herdctl/discord, @herdctl/slack, and
 // @herdctl/web. Vite's import-analysis plugin fails when resolving these from
@@ -28,19 +28,11 @@ export default defineConfig({
     include: ["src/**/*.test.{ts,tsx}"],
     // Server tests are pure Node.js (Fastify, WebSocket handler) — use node
     // environment instead of jsdom.
-    environmentMatchGlobs: [
-      ["src/server/**/*.test.ts", "node"],
-    ],
+    environmentMatchGlobs: [["src/server/**/*.test.ts", "node"]],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
-      exclude: [
-        "node_modules/",
-        "dist/",
-        "**/*.d.ts",
-        "**/*.config.*",
-        "**/test-setup.ts",
-      ],
+      exclude: ["node_modules/", "dist/", "**/*.d.ts", "**/*.config.*", "**/test-setup.ts"],
     },
   },
   resolve: {

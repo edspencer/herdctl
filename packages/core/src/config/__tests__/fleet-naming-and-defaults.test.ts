@@ -1,12 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdir, writeFile, rm, realpath } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import {
-  loadConfig,
-  FleetNameCollisionError,
-  FleetLoadError,
-} from "../loader.js";
+import { join, resolve } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { FleetNameCollisionError, loadConfig } from "../loader.js";
 import { ConfigError } from "../parser.js";
 
 // =============================================================================
@@ -16,7 +12,7 @@ import { ConfigError } from "../parser.js";
 async function createTempDir(): Promise<string> {
   const baseDir = join(
     tmpdir(),
-    `herdctl-fleet-naming-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-fleet-naming-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   await mkdir(baseDir, { recursive: true });
   return await realpath(baseDir);
@@ -27,11 +23,7 @@ async function createFile(filePath: string, content: string): Promise<void> {
   await writeFile(filePath, content, "utf-8");
 }
 
-const fixturesDir = resolve(
-  __dirname,
-  "fixtures",
-  "fleet-composition"
-);
+const fixturesDir = resolve(__dirname, "fixtures", "fleet-composition");
 
 // =============================================================================
 // Fleet Name Resolution Tests
@@ -57,7 +49,7 @@ version: 1
 fleets:
   - path: ./sub/herdctl.yaml
     name: parent-chosen
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -67,12 +59,9 @@ fleet:
   name: sub-fleet-own-name
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "sub", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "sub", "agents", "worker.yaml"), "name: worker");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -87,7 +76,7 @@ agents:
 version: 1
 fleets:
   - path: ./sub/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -97,12 +86,9 @@ fleet:
   name: self-declared
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "sub", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "sub", "agents", "worker.yaml"), "name: worker");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -117,7 +103,7 @@ agents:
 version: 1
 fleets:
   - path: ./my-cool-project/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "my-cool-project", "herdctl.yaml"),
@@ -125,12 +111,9 @@ fleets:
 version: 1
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "my-cool-project", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "my-cool-project", "agents", "worker.yaml"), "name: worker");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -147,7 +130,7 @@ version: 1
 fleets:
   - path: ./subdir/herdctl.yaml
     name: parent-override
-`
+`,
       );
       await createFile(
         join(tempDir, "subdir", "herdctl.yaml"),
@@ -158,16 +141,10 @@ fleet:
 agents:
   - path: ./agents/a.yaml
   - path: ./agents/b.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "subdir", "agents", "a.yaml"),
-        "name: agent-a"
-      );
-      await createFile(
-        join(tempDir, "subdir", "agents", "b.yaml"),
-        "name: agent-b"
-      );
+      await createFile(join(tempDir, "subdir", "agents", "a.yaml"), "name: agent-a");
+      await createFile(join(tempDir, "subdir", "agents", "b.yaml"), "name: agent-b");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -177,10 +154,10 @@ agents:
         expect(agent.qualifiedName).toMatch(/^parent-override\./);
       }
       expect(result.agents.find((a) => a.name === "agent-a")!.qualifiedName).toBe(
-        "parent-override.agent-a"
+        "parent-override.agent-a",
       );
       expect(result.agents.find((a) => a.name === "agent-b")!.qualifiedName).toBe(
-        "parent-override.agent-b"
+        "parent-override.agent-b",
       );
     });
 
@@ -192,7 +169,7 @@ agents:
 version: 1
 fleets:
   - path: ./deeply/nested/path/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "deeply", "nested", "path", "herdctl.yaml"),
@@ -200,11 +177,11 @@ fleets:
 version: 1
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "deeply", "nested", "path", "agents", "worker.yaml"),
-        "name: worker"
+        "name: worker",
       );
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
@@ -224,7 +201,7 @@ version: 1
 fleets:
   - path: ./sub/herdctl.yaml
     name: my-cool-project
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -232,12 +209,9 @@ fleets:
 version: 1
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "sub", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "sub", "agents", "worker.yaml"), "name: worker");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -252,7 +226,7 @@ version: 1
 fleets:
   - path: ./sub/herdctl.yaml
     name: my_cool_project
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -260,12 +234,9 @@ fleets:
 version: 1
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "sub", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "sub", "agents", "worker.yaml"), "name: worker");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -280,7 +251,7 @@ version: 1
 fleets:
   - path: ./sub/herdctl.yaml
     name: my-cool_project
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -288,12 +259,9 @@ fleets:
 version: 1
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "sub", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "sub", "agents", "worker.yaml"), "name: worker");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -308,7 +276,7 @@ version: 1
 fleets:
   - path: ./sub/herdctl.yaml
     name: 42project
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -316,12 +284,9 @@ fleets:
 version: 1
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "sub", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "sub", "agents", "worker.yaml"), "name: worker");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -336,7 +301,7 @@ version: 1
 fleets:
   - path: ./sub/herdctl.yaml
     name: x
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -344,12 +309,9 @@ fleets:
 version: 1
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "sub", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "sub", "agents", "worker.yaml"), "name: worker");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -363,7 +325,7 @@ agents:
 version: 1
 fleets:
   - path: ./sub/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -373,12 +335,9 @@ fleet:
   name: hyphen-name
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "sub", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "sub", "agents", "worker.yaml"), "name: worker");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -392,7 +351,7 @@ agents:
 version: 1
 fleets:
   - path: ./my_project_dir/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "my_project_dir", "herdctl.yaml"),
@@ -400,12 +359,9 @@ fleets:
 version: 1
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "my_project_dir", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "my_project_dir", "agents", "worker.yaml"), "name: worker");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -421,7 +377,7 @@ agents:
 version: 1
 fleets:
   - path: ./sub/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -431,16 +387,11 @@ fleet:
   name: my.project
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "sub", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "sub", "agents", "worker.yaml"), "name: worker");
 
-      await expect(
-        loadConfig(tempDir, { env: {}, envFile: false })
-      ).rejects.toThrow(/invalid/i);
+      await expect(loadConfig(tempDir, { env: {}, envFile: false })).rejects.toThrow(/invalid/i);
     });
 
     it("rejects fleet name starting with a hyphen via fleet.name", async () => {
@@ -450,7 +401,7 @@ agents:
 version: 1
 fleets:
   - path: ./sub/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -460,16 +411,11 @@ fleet:
   name: -starts-with-hyphen
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "sub", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "sub", "agents", "worker.yaml"), "name: worker");
 
-      await expect(
-        loadConfig(tempDir, { env: {}, envFile: false })
-      ).rejects.toThrow(/invalid/i);
+      await expect(loadConfig(tempDir, { env: {}, envFile: false })).rejects.toThrow(/invalid/i);
     });
 
     it("rejects fleet name starting with underscore via fleet.name", async () => {
@@ -479,7 +425,7 @@ agents:
 version: 1
 fleets:
   - path: ./sub/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -489,16 +435,11 @@ fleet:
   name: _underscore_start
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "sub", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "sub", "agents", "worker.yaml"), "name: worker");
 
-      await expect(
-        loadConfig(tempDir, { env: {}, envFile: false })
-      ).rejects.toThrow(/invalid/i);
+      await expect(loadConfig(tempDir, { env: {}, envFile: false })).rejects.toThrow(/invalid/i);
     });
 
     it("rejects fleet name with dots when derived from directory name", async () => {
@@ -509,7 +450,7 @@ agents:
 version: 1
 fleets:
   - path: ./my.project/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "my.project", "herdctl.yaml"),
@@ -517,16 +458,11 @@ fleets:
 version: 1
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "my.project", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "my.project", "agents", "worker.yaml"), "name: worker");
 
-      await expect(
-        loadConfig(tempDir, { env: {}, envFile: false })
-      ).rejects.toThrow(/invalid/i);
+      await expect(loadConfig(tempDir, { env: {}, envFile: false })).rejects.toThrow(/invalid/i);
     });
 
     it("rejects fleet name with dots via parent name override (schema validation)", async () => {
@@ -538,7 +474,7 @@ version: 1
 fleets:
   - path: ./sub/herdctl.yaml
     name: "my.bad.name"
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -546,17 +482,12 @@ fleets:
 version: 1
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "sub", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "sub", "agents", "worker.yaml"), "name: worker");
 
       // Should fail during config parsing (Zod regex on FleetReferenceSchema.name)
-      await expect(
-        loadConfig(tempDir, { env: {}, envFile: false })
-      ).rejects.toThrow();
+      await expect(loadConfig(tempDir, { env: {}, envFile: false })).rejects.toThrow();
     });
 
     it("provides clear error message for invalid fleet names", async () => {
@@ -566,7 +497,7 @@ agents:
 version: 1
 fleets:
   - path: ./sub/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -576,12 +507,9 @@ fleet:
   name: has.dots.in.name
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "sub", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "sub", "agents", "worker.yaml"), "name: worker");
 
       try {
         await loadConfig(tempDir, { env: {}, envFile: false });
@@ -601,7 +529,7 @@ agents:
 version: 1
 fleets:
   - path: ./sub/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -611,16 +539,11 @@ fleet:
   name: "has spaces"
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "sub", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "sub", "agents", "worker.yaml"), "name: worker");
 
-      await expect(
-        loadConfig(tempDir, { env: {}, envFile: false })
-      ).rejects.toThrow(/invalid/i);
+      await expect(loadConfig(tempDir, { env: {}, envFile: false })).rejects.toThrow(/invalid/i);
     });
   });
 
@@ -632,12 +555,9 @@ agents:
 version: 1
 agents:
   - path: ./agents/monitor.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "agents", "monitor.yaml"),
-        "name: monitor"
-      );
+      await createFile(join(tempDir, "agents", "monitor.yaml"), "name: monitor");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -653,7 +573,7 @@ version: 1
 fleets:
   - path: ./sub/herdctl.yaml
     name: myfleet
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -661,12 +581,9 @@ fleets:
 version: 1
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "sub", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "sub", "agents", "worker.yaml"), "name: worker");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -674,10 +591,10 @@ agents:
     });
 
     it("deeply nested agents include all intermediate fleet names", async () => {
-      const result = await loadConfig(
-        join(fixturesDir, "deep-nesting", "root.yaml"),
-        { env: {}, envFile: false }
-      );
+      const result = await loadConfig(join(fixturesDir, "deep-nesting", "root.yaml"), {
+        env: {},
+        envFile: false,
+      });
 
       // Should have agents at 4 levels: root, level1, level2, level3
       expect(result.agents).toHaveLength(4);
@@ -711,7 +628,7 @@ version: 1
 fleets:
   - path: ./fleet-a/herdctl.yaml
   - path: ./fleet-b/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "fleet-a", "herdctl.yaml"),
@@ -721,7 +638,7 @@ fleet:
   name: fleet-a
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "fleet-b", "herdctl.yaml"),
@@ -731,27 +648,17 @@ fleet:
   name: fleet-b
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "fleet-a", "agents", "worker.yaml"),
-        "name: worker"
-      );
-      await createFile(
-        join(tempDir, "fleet-b", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "fleet-a", "agents", "worker.yaml"), "name: worker");
+      await createFile(join(tempDir, "fleet-b", "agents", "worker.yaml"), "name: worker");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
       expect(result.agents).toHaveLength(2);
 
-      const fleetAWorker = result.agents.find(
-        (a) => a.qualifiedName === "fleet-a.worker"
-      );
-      const fleetBWorker = result.agents.find(
-        (a) => a.qualifiedName === "fleet-b.worker"
-      );
+      const fleetAWorker = result.agents.find((a) => a.qualifiedName === "fleet-a.worker");
+      const fleetBWorker = result.agents.find((a) => a.qualifiedName === "fleet-b.worker");
 
       expect(fleetAWorker).toBeDefined();
       expect(fleetBWorker).toBeDefined();
@@ -787,7 +694,7 @@ defaults:
   max_turns: 200
 fleets:
   - path: ./sub/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -799,12 +706,9 @@ defaults:
   model: sub-model
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "sub", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "sub", "agents", "worker.yaml"), "name: worker");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -826,7 +730,7 @@ defaults:
   permission_mode: plan
 fleets:
   - path: ./sub/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -836,12 +740,9 @@ fleet:
   name: sub
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "sub", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "sub", "agents", "worker.yaml"), "name: worker");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -861,7 +762,7 @@ defaults:
   max_turns: 200
 fleets:
   - path: ./sub/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -874,7 +775,7 @@ defaults:
   max_turns: 50
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "agents", "worker.yaml"),
@@ -882,7 +783,7 @@ agents:
 name: worker
 model: agent-model
 max_turns: 10
-`
+`,
       );
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
@@ -899,7 +800,7 @@ max_turns: 10
 version: 1
 fleets:
   - path: ./sub/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -912,7 +813,7 @@ agents:
     overrides:
       model: per-agent-override
       max_turns: 999
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "agents", "worker.yaml"),
@@ -920,7 +821,7 @@ agents:
 name: worker
 model: agent-model
 max_turns: 10
-`
+`,
       );
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
@@ -943,7 +844,7 @@ fleets:
     overrides:
       defaults:
         model: forced-override-model
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -956,12 +857,9 @@ defaults:
   max_turns: 50
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "sub", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "sub", "agents", "worker.yaml"), "name: worker");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -984,7 +882,7 @@ fleets:
     overrides:
       defaults:
         model: level5-fleet-override
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -998,14 +896,14 @@ agents:
   - path: ./agents/worker.yaml
     overrides:
       model: level4-per-agent-override
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "agents", "worker.yaml"),
         `
 name: worker
 model: level3-agent-own
-`
+`,
       );
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
@@ -1020,10 +918,10 @@ model: level3-agent-own
 
   describe("multi-level defaults inheritance (fixture-based)", () => {
     it("sub-fleet model wins over super-fleet model for inheriting agent", async () => {
-      const result = await loadConfig(
-        join(fixturesDir, "defaults-cascade", "root.yaml"),
-        { env: {}, envFile: false }
-      );
+      const result = await loadConfig(join(fixturesDir, "defaults-cascade", "root.yaml"), {
+        env: {},
+        envFile: false,
+      });
 
       const inheritor = result.agents.find((a) => a.name === "inheritor");
       expect(inheritor).toBeDefined();
@@ -1034,10 +932,10 @@ model: level3-agent-own
     });
 
     it("agent own model wins over both fleet defaults", async () => {
-      const result = await loadConfig(
-        join(fixturesDir, "defaults-cascade", "root.yaml"),
-        { env: {}, envFile: false }
-      );
+      const result = await loadConfig(join(fixturesDir, "defaults-cascade", "root.yaml"), {
+        env: {},
+        envFile: false,
+      });
 
       const ownModel = result.agents.find((a) => a.name === "own-model");
       expect(ownModel).toBeDefined();
@@ -1049,10 +947,10 @@ model: level3-agent-own
 
   describe("3-level nesting defaults (fixture-based)", () => {
     it("correct model reaches agents at each level in deep nesting", async () => {
-      const result = await loadConfig(
-        join(fixturesDir, "deep-nesting", "root.yaml"),
-        { env: {}, envFile: false }
-      );
+      const result = await loadConfig(join(fixturesDir, "deep-nesting", "root.yaml"), {
+        env: {},
+        envFile: false,
+      });
 
       // root-agent: gets root defaults (model: root-model, max_turns: 100)
       const rootAgent = result.agents.find((a) => a.name === "root-agent");
@@ -1084,7 +982,7 @@ model: level3-agent-own
 version: 1
 fleets:
   - path: ./sub/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -1094,12 +992,9 @@ fleet:
   name: sub
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "sub", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "sub", "agents", "worker.yaml"), "name: worker");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -1118,7 +1013,7 @@ defaults:
   max_turns: 999
 fleets:
   - path: ./sub/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -1128,7 +1023,7 @@ fleet:
   name: sub
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "agents", "worker.yaml"),
@@ -1136,7 +1031,7 @@ agents:
 name: worker
 model: my-model
 max_turns: 5
-`
+`,
       );
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
@@ -1159,7 +1054,7 @@ fleets:
     overrides:
       defaults:
         max_turns: 777
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -1172,12 +1067,9 @@ defaults:
   max_turns: 50
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "sub", "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "sub", "agents", "worker.yaml"), "name: worker");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -1197,7 +1089,7 @@ fleets:
     overrides:
       defaults:
         model: forced-model
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -1210,16 +1102,10 @@ defaults:
 agents:
   - path: ./agents/a.yaml
   - path: ./agents/b.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "sub", "agents", "a.yaml"),
-        "name: agent-a"
-      );
-      await createFile(
-        join(tempDir, "sub", "agents", "b.yaml"),
-        "name: agent-b"
-      );
+      await createFile(join(tempDir, "sub", "agents", "a.yaml"), "name: agent-a");
+      await createFile(join(tempDir, "sub", "agents", "b.yaml"), "name: agent-b");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -1255,12 +1141,9 @@ version: 1
 fleets: []
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "agents", "worker.yaml"),
-        "name: worker"
-      );
+      await createFile(join(tempDir, "agents", "worker.yaml"), "name: worker");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -1270,10 +1153,10 @@ agents:
     });
 
     it("fleet with fleets but no agents is valid", async () => {
-      const result = await loadConfig(
-        join(fixturesDir, "fleets-only", "root.yaml"),
-        { env: {}, envFile: false }
-      );
+      const result = await loadConfig(join(fixturesDir, "fleets-only", "root.yaml"), {
+        env: {},
+        envFile: false,
+      });
 
       expect(result.agents).toHaveLength(2);
       expect(result.agents.find((a) => a.name === "worker-a")).toBeDefined();
@@ -1288,16 +1171,10 @@ version: 1
 agents:
   - path: ./agents/a.yaml
   - path: ./agents/b.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "agents", "a.yaml"),
-        "name: agent-a"
-      );
-      await createFile(
-        join(tempDir, "agents", "b.yaml"),
-        "name: agent-b"
-      );
+      await createFile(join(tempDir, "agents", "a.yaml"), "name: agent-a");
+      await createFile(join(tempDir, "agents", "b.yaml"), "name: agent-b");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -1313,7 +1190,7 @@ agents:
         join(tempDir, "herdctl.yaml"),
         `
 version: 1
-`
+`,
       );
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
@@ -1330,7 +1207,7 @@ fleets:
   - path: ./sub/herdctl.yaml
 agents:
   - path: ./agents/root-agent.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -1339,12 +1216,9 @@ version: 1
 fleet:
   name: empty-sub
 agents: []
-`
+`,
       );
-      await createFile(
-        join(tempDir, "agents", "root-agent.yaml"),
-        "name: root-agent"
-      );
+      await createFile(join(tempDir, "agents", "root-agent.yaml"), "name: root-agent");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -1356,10 +1230,10 @@ agents: []
 
   describe("deeply nested fleets", () => {
     it("4-level nesting produces correct qualified names (fixture-based)", async () => {
-      const result = await loadConfig(
-        join(fixturesDir, "deep-nesting", "root.yaml"),
-        { env: {}, envFile: false }
-      );
+      const result = await loadConfig(join(fixturesDir, "deep-nesting", "root.yaml"), {
+        env: {},
+        envFile: false,
+      });
 
       expect(result.agents).toHaveLength(4);
 
@@ -1374,10 +1248,10 @@ agents: []
     });
 
     it("fleetPath arrays grow correctly with depth", async () => {
-      const result = await loadConfig(
-        join(fixturesDir, "deep-nesting", "root.yaml"),
-        { env: {}, envFile: false }
-      );
+      const result = await loadConfig(join(fixturesDir, "deep-nesting", "root.yaml"), {
+        env: {},
+        envFile: false,
+      });
 
       const l3Agent = result.agents.find((a) => a.name === "l3-agent");
       expect(l3Agent!.fleetPath).toEqual(["level1", "level2", "level3"]);
@@ -1387,10 +1261,10 @@ agents: []
 
   describe("fleet with only fleets (pure delegation)", () => {
     it("all agents come from sub-fleets, none from root (fixture-based)", async () => {
-      const result = await loadConfig(
-        join(fixturesDir, "fleets-only", "root.yaml"),
-        { env: {}, envFile: false }
-      );
+      const result = await loadConfig(join(fixturesDir, "fleets-only", "root.yaml"), {
+        env: {},
+        envFile: false,
+      });
 
       // All agents should have non-empty fleetPath
       for (const agent of result.agents) {
@@ -1399,10 +1273,10 @@ agents: []
     });
 
     it("qualified names include sub-fleet names for delegation fleet", async () => {
-      const result = await loadConfig(
-        join(fixturesDir, "fleets-only", "root.yaml"),
-        { env: {}, envFile: false }
-      );
+      const result = await loadConfig(join(fixturesDir, "fleets-only", "root.yaml"), {
+        env: {},
+        envFile: false,
+      });
 
       const workerA = result.agents.find((a) => a.name === "worker-a");
       const workerB = result.agents.find((a) => a.name === "worker-b");
@@ -1425,7 +1299,7 @@ fleets:
     name: fleet-a
   - path: ./fleet-b/herdctl.yaml
     name: fleet-b
-`
+`,
       );
       await createFile(
         join(tempDir, "fleet-a", "herdctl.yaml"),
@@ -1434,7 +1308,7 @@ version: 1
 fleets:
   - path: ./nested/herdctl.yaml
     name: same-name
-`
+`,
       );
       await createFile(
         join(tempDir, "fleet-a", "nested", "herdctl.yaml"),
@@ -1442,11 +1316,11 @@ fleets:
 version: 1
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "fleet-a", "nested", "agents", "worker.yaml"),
-        "name: worker-a-nested"
+        "name: worker-a-nested",
       );
       await createFile(
         join(tempDir, "fleet-b", "herdctl.yaml"),
@@ -1455,7 +1329,7 @@ version: 1
 fleets:
   - path: ./nested/herdctl.yaml
     name: same-name
-`
+`,
       );
       await createFile(
         join(tempDir, "fleet-b", "nested", "herdctl.yaml"),
@@ -1463,11 +1337,11 @@ fleets:
 version: 1
 agents:
   - path: ./agents/worker.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "fleet-b", "nested", "agents", "worker.yaml"),
-        "name: worker-b-nested"
+        "name: worker-b-nested",
       );
 
       // Should NOT throw — "same-name" is at different levels (under fleet-a vs fleet-b)
@@ -1475,10 +1349,10 @@ agents:
       expect(result.agents).toHaveLength(2);
 
       expect(
-        result.agents.find((a) => a.qualifiedName === "fleet-a.same-name.worker-a-nested")
+        result.agents.find((a) => a.qualifiedName === "fleet-a.same-name.worker-a-nested"),
       ).toBeDefined();
       expect(
-        result.agents.find((a) => a.qualifiedName === "fleet-b.same-name.worker-b-nested")
+        result.agents.find((a) => a.qualifiedName === "fleet-b.same-name.worker-b-nested"),
       ).toBeDefined();
     });
 
@@ -1491,27 +1365,27 @@ version: 1
 fleets:
   - path: ./path-a/project/herdctl.yaml
   - path: ./path-b/project/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "path-a", "project", "herdctl.yaml"),
         `
 version: 1
 agents: []
-`
+`,
       );
       await createFile(
         join(tempDir, "path-b", "project", "herdctl.yaml"),
         `
 version: 1
 agents: []
-`
+`,
       );
 
       // Both resolve to "project" directory name => collision
-      await expect(
-        loadConfig(tempDir, { env: {}, envFile: false })
-      ).rejects.toThrow(FleetNameCollisionError);
+      await expect(loadConfig(tempDir, { env: {}, envFile: false })).rejects.toThrow(
+        FleetNameCollisionError,
+      );
     });
 
     it("collision between explicit name and directory-derived name", async () => {
@@ -1524,26 +1398,26 @@ fleets:
   - path: ./first/herdctl.yaml
     name: myfleet
   - path: ./myfleet/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "first", "herdctl.yaml"),
         `
 version: 1
 agents: []
-`
+`,
       );
       await createFile(
         join(tempDir, "myfleet", "herdctl.yaml"),
         `
 version: 1
 agents: []
-`
+`,
       );
 
-      await expect(
-        loadConfig(tempDir, { env: {}, envFile: false })
-      ).rejects.toThrow(FleetNameCollisionError);
+      await expect(loadConfig(tempDir, { env: {}, envFile: false })).rejects.toThrow(
+        FleetNameCollisionError,
+      );
     });
   });
 
@@ -1557,7 +1431,7 @@ fleets:
   - path: ./sub/herdctl.yaml
 agents:
   - path: ./agents/root-worker.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -1567,16 +1441,10 @@ fleet:
   name: sub
 agents:
   - path: ./agents/sub-worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "agents", "root-worker.yaml"),
-        "name: root-worker"
-      );
-      await createFile(
-        join(tempDir, "sub", "agents", "sub-worker.yaml"),
-        "name: sub-worker"
-      );
+      await createFile(join(tempDir, "agents", "root-worker.yaml"), "name: root-worker");
+      await createFile(join(tempDir, "sub", "agents", "sub-worker.yaml"), "name: sub-worker");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 
@@ -1603,7 +1471,7 @@ fleets:
   - path: ./sub/herdctl.yaml
 agents:
   - path: ./agents/root-worker.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -1615,16 +1483,10 @@ defaults:
   model: sub-model
 agents:
   - path: ./agents/sub-worker.yaml
-`
+`,
       );
-      await createFile(
-        join(tempDir, "agents", "root-worker.yaml"),
-        "name: root-worker"
-      );
-      await createFile(
-        join(tempDir, "sub", "agents", "sub-worker.yaml"),
-        "name: sub-worker"
-      );
+      await createFile(join(tempDir, "agents", "root-worker.yaml"), "name: root-worker");
+      await createFile(join(tempDir, "sub", "agents", "sub-worker.yaml"), "name: sub-worker");
 
       const result = await loadConfig(tempDir, { env: {}, envFile: false });
 

@@ -6,8 +6,8 @@
  * stderr highlighting, and jump-to-bottom button.
  */
 
-import { useEffect, useRef, useState, useCallback } from "react";
 import { ArrowDown, Terminal } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { OutputMessage as OutputMessageType } from "../../store";
 import { OutputMessage } from "./OutputMessage";
 
@@ -47,6 +47,7 @@ interface JumpToBottomButtonProps {
 function JumpToBottomButton({ onClick }: JumpToBottomButtonProps) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className="
         absolute bottom-4 right-4
@@ -79,8 +80,7 @@ export function JobOutput({ jobId, messages, startTime }: JobOutputProps) {
     if (!container) return;
 
     const threshold = 50; // pixels from bottom to consider "at bottom"
-    const scrollBottom =
-      container.scrollHeight - container.scrollTop - container.clientHeight;
+    const scrollBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
     const atBottom = scrollBottom <= threshold;
 
     setIsAtBottom(atBottom);
@@ -95,7 +95,7 @@ export function JobOutput({ jobId, messages, startTime }: JobOutputProps) {
     if (isAtBottom) {
       container.scrollTop = container.scrollHeight;
     }
-  }, [messages, isAtBottom]);
+  }, [isAtBottom]);
 
   // Add scroll listener
   useEffect(() => {
@@ -117,9 +117,7 @@ export function JobOutput({ jobId, messages, startTime }: JobOutputProps) {
   }, []);
 
   // Format start time for display
-  const formattedStartTime = startTime
-    ? new Date(startTime).toLocaleString()
-    : null;
+  const formattedStartTime = startTime ? new Date(startTime).toLocaleString() : null;
 
   return (
     <div className="relative flex flex-col h-full">

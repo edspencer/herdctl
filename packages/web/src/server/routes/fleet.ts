@@ -4,8 +4,8 @@
  * Provides endpoints for retrieving fleet-level status information.
  */
 
-import type { FastifyInstance } from "fastify";
 import type { FleetManager } from "@herdctl/core";
+import type { FastifyInstance } from "fastify";
 
 /**
  * Register fleet-related routes
@@ -13,10 +13,7 @@ import type { FleetManager } from "@herdctl/core";
  * @param server - Fastify instance
  * @param fleetManager - FleetManager instance
  */
-export function registerFleetRoutes(
-  server: FastifyInstance,
-  fleetManager: FleetManager
-): void {
+export function registerFleetRoutes(server: FastifyInstance, fleetManager: FleetManager): void {
   /**
    * GET /api/fleet/status
    *

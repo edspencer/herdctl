@@ -5,34 +5,32 @@
  * and event definitions.
  */
 
-import type { SchedulerLogger, SchedulerState } from "../scheduler/types.js";
-import type { Schedule } from "../config/index.js";
-import type { AgentState, ScheduleState } from "../state/schemas/fleet-state.js";
+import type { SchedulerLogger } from "../scheduler/types.js";
 import type { WorkItem } from "../work-sources/types.js";
 
 // Re-export event types from dedicated event-types module
 export type {
+  AgentStartedPayload,
+  AgentStoppedPayload,
+  ConfigChange,
+  ConfigReloadedPayload,
+  FleetManagerEventListener,
   FleetManagerEventMap,
   FleetManagerEventName,
   FleetManagerEventPayload,
-  FleetManagerEventListener,
-  ConfigChange,
-  ConfigReloadedPayload,
-  AgentStartedPayload,
-  AgentStoppedPayload,
-  ScheduleTriggeredPayload,
-  ScheduleSkippedPayload,
-  JobCreatedPayload,
-  JobOutputPayload,
-  JobCompletedPayload,
-  JobFailedPayload,
   // Job control events (US-6)
   JobCancelledPayload,
+  JobCompletedPayload,
+  JobCreatedPayload,
+  JobFailedPayload,
   JobForkedPayload,
+  JobOutputPayload,
+  ScheduleSkippedPayload,
+  ScheduleTriggeredPayload,
+  SlackErrorPayload,
+  SlackMessageErrorPayload,
   // Slack manager events
   SlackMessageHandledPayload,
-  SlackMessageErrorPayload,
-  SlackErrorPayload,
   SlackSessionLifecyclePayload,
 } from "./event-types.js";
 
@@ -260,7 +258,13 @@ export interface AgentChatStatus {
   /**
    * Connection status (only present if configured)
    */
-  connectionStatus?: "disconnected" | "connecting" | "connected" | "reconnecting" | "disconnecting" | "error";
+  connectionStatus?:
+    | "disconnected"
+    | "connecting"
+    | "connected"
+    | "reconnecting"
+    | "disconnecting"
+    | "error";
 
   /**
    * Bot username (only present if connected)
@@ -912,7 +916,7 @@ export interface CancelJobResult {
    * - 'forced': Job was killed with SIGKILL after timeout
    * - 'already_stopped': Job was not running when cancel was called
    */
-  terminationType: 'graceful' | 'forced' | 'already_stopped';
+  terminationType: "graceful" | "forced" | "already_stopped";
 
   /**
    * ISO timestamp when the job was canceled

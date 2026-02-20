@@ -28,9 +28,8 @@ export function Spinner({ size = "md", className = "" }: SpinnerProps) {
   };
 
   return (
-    <span
+    <output
       className={`inline-block rounded-full border-herd-primary border-t-transparent animate-spin ${sizeClasses[size]} ${className}`}
-      role="status"
       aria-label="Loading"
     />
   );

@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { IChatSessionManager } from "@herdctl/chat";
+import type { ChatInputCommandInteraction, Client } from "discord.js";
+import { describe, expect, it, vi } from "vitest";
+import type { DiscordConnectorState } from "../../types.js";
 import { resetCommand } from "../reset.js";
 import type { CommandContext } from "../types.js";
-import type { ChatInputCommandInteraction, Client } from "discord.js";
-import type { IChatSessionManager } from "@herdctl/chat";
-import type { DiscordConnectorState } from "../../types.js";
 
 // =============================================================================
 // Test Fixtures
@@ -70,9 +70,7 @@ function createMockConnectorState(): DiscordConnectorState {
   };
 }
 
-function createMockContext(
-  overrides: Partial<CommandContext> = {}
-): CommandContext {
+function createMockContext(overrides: Partial<CommandContext> = {}): CommandContext {
   return {
     interaction: createMockInteraction(),
     client: createMockClient(),
@@ -90,9 +88,7 @@ function createMockContext(
 describe("resetCommand", () => {
   it("has correct name and description", () => {
     expect(resetCommand.name).toBe("reset");
-    expect(resetCommand.description).toBe(
-      "Clear conversation context (start fresh session)"
-    );
+    expect(resetCommand.description).toBe("Clear conversation context (start fresh session)");
   });
 
   describe("when session exists", () => {
@@ -167,7 +163,7 @@ describe("resetCommand", () => {
       expect(interaction.reply).toHaveBeenCalledWith(
         expect.objectContaining({
           ephemeral: true,
-        })
+        }),
       );
     });
   });
@@ -181,8 +177,6 @@ describe("resetCommand", () => {
 
     await resetCommand.execute(context);
 
-    expect(sessionManager.clearSession).toHaveBeenCalledWith(
-      "specific-channel-456"
-    );
+    expect(sessionManager.clearSession).toHaveBeenCalledWith("specific-channel-456");
   });
 });

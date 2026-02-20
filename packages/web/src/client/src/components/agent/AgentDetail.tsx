@@ -5,14 +5,14 @@
  * Tabs: Overview (default landing from /agents/:name), Jobs, Output
  */
 
-import { useParams, Link } from "react-router";
-import { ArrowLeft, Terminal, History, LayoutDashboard } from "lucide-react";
+import { ArrowLeft, History, LayoutDashboard, Terminal } from "lucide-react";
+import { Link, useParams } from "react-router";
 import { useAgentDetail } from "../../hooks/useAgentDetail";
 import { Card, Spinner } from "../ui";
-import { AgentHeader } from "./AgentHeader";
-import { AgentOutput } from "./AgentOutput";
-import { AgentJobs } from "./AgentJobs";
 import { AgentConfig } from "./AgentConfig";
+import { AgentHeader } from "./AgentHeader";
+import { AgentJobs } from "./AgentJobs";
+import { AgentOutput } from "./AgentOutput";
 
 // =============================================================================
 // Types
@@ -86,12 +86,8 @@ function NotFound({ name }: NotFoundProps) {
   return (
     <div className="p-4 h-full flex items-center justify-center">
       <Card className="p-6 max-w-md w-full text-center">
-        <h2 className="text-lg font-semibold text-herd-fg mb-2">
-          Agent Not Found
-        </h2>
-        <p className="text-sm text-herd-muted mb-4">
-          No agent named "{name}" exists in the fleet.
-        </p>
+        <h2 className="text-lg font-semibold text-herd-fg mb-2">Agent Not Found</h2>
+        <p className="text-sm text-herd-muted mb-4">No agent named "{name}" exists in the fleet.</p>
         <Link
           to="/"
           className="inline-flex items-center gap-1.5 text-herd-primary hover:text-herd-primary-hover text-xs font-medium transition-colors"
@@ -133,6 +129,7 @@ function ErrorState({ message, onRetry }: ErrorStateProps) {
         </div>
         <div className="flex gap-2 justify-center">
           <button
+            type="button"
             onClick={onRetry}
             className="bg-herd-primary hover:bg-herd-primary-hover text-white rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
           >
@@ -190,10 +187,11 @@ export function AgentDetail() {
         return <AgentJobs agent={agent!} />;
       case "output":
         return <AgentOutput agent={agent!} />;
-      default:
+      default: {
         // This should never happen, but TypeScript requires exhaustive checks
         const exhaustiveCheck: never = activeTab;
         return exhaustiveCheck;
+      }
     }
   }
 

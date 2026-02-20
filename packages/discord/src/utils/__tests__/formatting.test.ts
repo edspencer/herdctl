@@ -1,11 +1,11 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DISCORD_MAX_MESSAGE_LENGTH,
-  startTypingIndicator,
-  sendSplitMessage,
-  sendWithTyping,
   escapeMarkdown,
   type SendableChannel,
+  sendSplitMessage,
+  sendWithTyping,
+  startTypingIndicator,
 } from "../formatting.js";
 
 // =============================================================================
@@ -182,7 +182,7 @@ describe("sendSplitMessage", () => {
       return Promise.resolve({ id: "msg" });
     });
 
-    const content = "First part. " + "a".repeat(2000);
+    const content = `First part. ${"a".repeat(2000)}`;
     const promise = sendSplitMessage(channel, content, { delayMs: 1000 });
 
     // First message should be sent immediately
@@ -201,7 +201,7 @@ describe("sendSplitMessage", () => {
     const channel = createMockChannel();
     channel.send = vi.fn().mockResolvedValue({ id: "msg" });
 
-    const content = "First. " + "a".repeat(2000);
+    const content = `First. ${"a".repeat(2000)}`;
     const promise = sendSplitMessage(channel, content, {
       delayMs: 200,
       maxLength: 100,
@@ -291,9 +291,7 @@ describe("sendWithTyping", () => {
 
   it("stops typing indicator on error", async () => {
     const channel = createMockChannel();
-    const contentProvider = vi
-      .fn()
-      .mockRejectedValue(new Error("Processing failed"));
+    const contentProvider = vi.fn().mockRejectedValue(new Error("Processing failed"));
 
     // Start the operation (will fail) - need to catch the rejection
     let caughtError: Error | null = null;
@@ -419,11 +417,7 @@ Finally, make sure to add proper error handling. You can wrap the handler in a t
 Let me know if you have any questions about the implementation!
     `.repeat(3); // Make it long enough to split
 
-    const promise = sendWithTyping(
-      channel,
-      async () => response,
-      { delayMs: 100 }
-    );
+    const promise = sendWithTyping(channel, async () => response, { delayMs: 100 });
 
     await vi.runAllTimersAsync();
     const result = await promise;
@@ -432,9 +426,7 @@ Let me know if you have any questions about the implementation!
     expect(result.length).toBeGreaterThan(1);
 
     // All messages should be under the limit
-    const sentContents = channel.send.mock.calls.map(
-      (call) => call[0] as string
-    );
+    const sentContents = channel.send.mock.calls.map((call) => call[0] as string);
     sentContents.forEach((content) => {
       expect(content.length).toBeLessThanOrEqual(DISCORD_MAX_MESSAGE_LENGTH);
     });

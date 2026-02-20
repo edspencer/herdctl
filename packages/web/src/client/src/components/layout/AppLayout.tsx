@@ -8,11 +8,11 @@
  */
 
 import type { ReactNode } from "react";
-import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
-import { useUI, useUIActions, useStore } from "../../store";
-import { Sidebar } from "./Sidebar";
-import { Header } from "./Header";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { useStore, useUI, useUIActions } from "../../store";
 import { ConnectionStatus } from "../ui";
+import { Header } from "./Header";
+import { Sidebar } from "./Sidebar";
 
 // =============================================================================
 // Types
@@ -37,9 +37,13 @@ export function AppLayout({ children }: AppLayoutProps) {
       {sidebarMobileOpen && (
         <div className="md:hidden fixed inset-0 z-40">
           {/* Backdrop */}
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: backdrop dismissal via click */}
           <div
             className="absolute inset-0 bg-black/30"
             onClick={() => setSidebarMobileOpen(false)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setSidebarMobileOpen(false);
+            }}
           />
           {/* Sidebar drawer */}
           <div className="absolute inset-y-0 left-0 w-[260px] bg-herd-sidebar border-r border-herd-sidebar-border animate-fade-slide-in">
@@ -70,9 +74,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <Panel id="main" order={2} minSize={40} className="flex flex-col min-w-0">
           <Header />
           <ConnectionStatus status={connectionStatus} />
-          <main className="flex-1 overflow-auto">
-            {children}
-          </main>
+          <main className="flex-1 overflow-auto">{children}</main>
         </Panel>
 
         {/* Right detail panel (toggleable) */}
@@ -88,9 +90,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               className="bg-herd-card border-l border-herd-border"
             >
               <div className="p-4">
-                <p className="text-xs text-herd-muted">
-                  Detail panel — Coming in Phase 3
-                </p>
+                <p className="text-xs text-herd-muted">Detail panel — Coming in Phase 3</p>
               </div>
             </Panel>
           </>

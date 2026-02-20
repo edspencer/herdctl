@@ -1,16 +1,15 @@
-import { describe, it, expect, vi } from "vitest";
 import type { Message, Snowflake } from "discord.js";
+import { describe, expect, it, vi } from "vitest";
 import {
+  buildConversationContext,
+  type ConversationContext,
+  formatContextForPrompt,
   isBotMentioned,
+  processMessage,
   shouldProcessMessage,
   stripBotMention,
   stripMentions,
-  processMessage,
-  buildConversationContext,
-  formatContextForPrompt,
   type TextBasedChannel,
-  type ConversationContext,
-  type ContextMessage,
 } from "../mention-handler.js";
 
 // =============================================================================
@@ -92,9 +91,7 @@ function createMockMessage(overrides: Partial<MockMessage> = {}): Message {
   } as unknown as Message;
 }
 
-function createMockChannel(
-  messages: Message[] = []
-): TextBasedChannel {
+function createMockChannel(messages: Message[] = []): TextBasedChannel {
   const mockCollection = new Map<Snowflake, Message>();
   messages.forEach((msg) => mockCollection.set(msg.id, msg));
 
@@ -403,12 +400,9 @@ describe("buildConversationContext", () => {
       channel: channel as unknown as MockChannel,
     });
 
-    const context = await buildConversationContext(
-      triggerMessage,
-      channel,
-      botUserId,
-      { maxMessages: 10 }
-    );
+    const context = await buildConversationContext(triggerMessage, channel, botUserId, {
+      maxMessages: 10,
+    });
 
     expect(context.prompt).toBe("help me please");
     expect(context.wasMentioned).toBe(true);
@@ -425,7 +419,7 @@ describe("buildConversationContext", () => {
         content: `Message ${i}`,
         createdAt: new Date(`2024-01-20T09:${String(i).padStart(2, "0")}:00Z`),
         author: createMockUser({ id: `user-${i}` }),
-      })
+      }),
     );
 
     const channel = createMockChannel(historyMessages);
@@ -436,12 +430,9 @@ describe("buildConversationContext", () => {
       channel: channel as unknown as MockChannel,
     });
 
-    const context = await buildConversationContext(
-      triggerMessage,
-      channel,
-      botUserId,
-      { maxMessages: 5 }
-    );
+    const context = await buildConversationContext(triggerMessage, channel, botUserId, {
+      maxMessages: 5,
+    });
 
     expect(context.messages).toHaveLength(5);
   });
@@ -473,12 +464,9 @@ describe("buildConversationContext", () => {
       channel: channel as unknown as MockChannel,
     });
 
-    const context = await buildConversationContext(
-      triggerMessage,
-      channel,
-      botUserId,
-      { maxMessages: 10 }
-    );
+    const context = await buildConversationContext(triggerMessage, channel, botUserId, {
+      maxMessages: 10,
+    });
 
     expect(context.messages).toHaveLength(1);
     expect(context.messages[0].content).toBe("Valid message");
@@ -508,12 +496,10 @@ describe("buildConversationContext", () => {
       channel: channel as unknown as MockChannel,
     });
 
-    const context = await buildConversationContext(
-      triggerMessage,
-      channel,
-      botUserId,
-      { maxMessages: 10, includeBotMessages: false }
-    );
+    const context = await buildConversationContext(triggerMessage, channel, botUserId, {
+      maxMessages: 10,
+      includeBotMessages: false,
+    });
 
     expect(context.messages).toHaveLength(1);
     expect(context.messages[0].content).toBe("User message");
@@ -580,12 +566,10 @@ describe("buildConversationContext", () => {
       channel: channel as unknown as MockChannel,
     });
 
-    const context = await buildConversationContext(
-      triggerMessage,
-      channel,
-      botUserId,
-      { maxMessages: 5, prioritizeUserMessages: true }
-    );
+    const context = await buildConversationContext(triggerMessage, channel, botUserId, {
+      maxMessages: 5,
+      prioritizeUserMessages: true,
+    });
 
     // Should include all 3 user messages and 2 bot messages to fill up to 5
     expect(context.messages).toHaveLength(5);
@@ -607,11 +591,7 @@ describe("buildConversationContext", () => {
       channel: channel as unknown as MockChannel,
     });
 
-    const context = await buildConversationContext(
-      triggerMessage,
-      channel,
-      botUserId
-    );
+    const context = await buildConversationContext(triggerMessage, channel, botUserId);
 
     expect(context.wasMentioned).toBe(true);
   });
@@ -625,11 +605,7 @@ describe("buildConversationContext", () => {
       channel: channel as unknown as MockChannel,
     });
 
-    const context = await buildConversationContext(
-      triggerMessage,
-      channel,
-      botUserId
-    );
+    const context = await buildConversationContext(triggerMessage, channel, botUserId);
 
     expect(context.wasMentioned).toBe(false);
   });
@@ -678,7 +654,9 @@ describe("formatContextForPrompt", () => {
     const formatted = formatContextForPrompt(context);
 
     expect(formatted).toContain("[Alice at 2024-01-20T10:00:00.000Z]: How do I use this?");
-    expect(formatted).toContain("[HelperBot (bot) at 2024-01-20T10:00:30.000Z]: Here is how you can use it...");
+    expect(formatted).toContain(
+      "[HelperBot (bot) at 2024-01-20T10:00:30.000Z]: Here is how you can use it...",
+    );
     expect(formatted).toContain("[Alice at 2024-01-20T10:01:00.000Z]: Thanks, but what about...");
   });
 

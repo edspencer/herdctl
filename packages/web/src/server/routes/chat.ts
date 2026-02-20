@@ -5,8 +5,8 @@
  * Actual message streaming happens via WebSocket.
  */
 
-import type { FastifyInstance } from "fastify";
 import type { FleetManager } from "@herdctl/core";
+import type { FastifyInstance } from "fastify";
 import type { WebChatManager } from "../chat/index.js";
 
 /**
@@ -19,7 +19,7 @@ import type { WebChatManager } from "../chat/index.js";
 export function registerChatRoutes(
   server: FastifyInstance,
   fleetManager: FleetManager,
-  chatManager: WebChatManager
+  chatManager: WebChatManager,
 ): void {
   /**
    * POST /api/chat/:agentName/sessions
@@ -199,14 +199,9 @@ export function registerChatRoutes(
       // In that case, we collect all chunks and return when complete.
 
       let response = "";
-      const result = await chatManager.sendMessage(
-        agentName,
-        sessionId,
-        message,
-        (chunk) => {
-          response += chunk;
-        }
-      );
+      const result = await chatManager.sendMessage(agentName, sessionId, message, (chunk) => {
+        response += chunk;
+      });
 
       if (!result.success) {
         return reply.status(500).send({

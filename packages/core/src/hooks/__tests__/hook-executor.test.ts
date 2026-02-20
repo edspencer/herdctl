@@ -2,10 +2,10 @@
  * Tests for HookExecutor
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AgentHooksInput } from "../../config/schema.js";
 import { HookExecutor } from "../hook-executor.js";
 import type { HookContext } from "../types.js";
-import type { AgentHooksInput } from "../../config/schema.js";
 
 // Use input type for test construction (allows optional fields)
 type AgentHooksConfig = AgentHooksInput;

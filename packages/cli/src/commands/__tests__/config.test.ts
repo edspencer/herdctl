@@ -1,14 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import { tmpdir } from "node:os";
-import { configValidateCommand, configShowCommand } from "../config.js";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { configShowCommand, configValidateCommand } from "../config.js";
 
 // Helper to create a temp directory
 function createTempDir(): string {
   const baseDir = path.join(
     tmpdir(),
-    `herdctl-cli-config-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-cli-config-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   fs.mkdirSync(baseDir, { recursive: true });
   return fs.realpathSync(baseDir);
@@ -20,10 +20,7 @@ function cleanupTempDir(dir: string): void {
 }
 
 // Helper to create a valid fleet config
-function createFleetConfig(
-  dir: string,
-  overrides: Record<string, unknown> = {}
-): void {
+function createFleetConfig(dir: string, overrides: Record<string, unknown> = {}): void {
   const config = {
     version: 1,
     fleet: { name: "test-fleet", description: "A test fleet" },
@@ -110,9 +107,7 @@ describe("configValidateCommand", () => {
 
       await expect(configValidateCommand({})).rejects.toThrow("process.exit(0)");
       expect(exitCode).toBe(0);
-      expect(consoleLogs.some((log) => log.includes("Configuration is valid"))).toBe(
-        true
-      );
+      expect(consoleLogs.some((log) => log.includes("Configuration is valid"))).toBe(true);
       expect(consoleLogs.some((log) => log.includes("test-fleet"))).toBe(true);
       expect(consoleLogs.some((log) => log.includes("test-agent"))).toBe(true);
     });
@@ -132,7 +127,7 @@ describe("configValidateCommand", () => {
       createAgentConfig(subdir, "test-agent.yaml", "test-agent");
 
       await expect(
-        configValidateCommand({ config: path.join(subdir, "herdctl.yaml") })
+        configValidateCommand({ config: path.join(subdir, "herdctl.yaml") }),
       ).rejects.toThrow("process.exit(0)");
       expect(exitCode).toBe(0);
     });
@@ -142,19 +137,13 @@ describe("configValidateCommand", () => {
     it("reports error when no config file found", async () => {
       await expect(configValidateCommand({})).rejects.toThrow("process.exit(1)");
       expect(exitCode).toBe(1);
-      expect(
-        consoleErrors.some((e) => e.includes("No configuration file found"))
-      ).toBe(true);
+      expect(consoleErrors.some((e) => e.includes("No configuration file found"))).toBe(true);
     });
 
     it("suggests fix when no config file found with --fix", async () => {
-      await expect(configValidateCommand({ fix: true })).rejects.toThrow(
-        "process.exit(1)"
-      );
+      await expect(configValidateCommand({ fix: true })).rejects.toThrow("process.exit(1)");
       expect(exitCode).toBe(1);
-      expect(
-        consoleErrors.some((e) => e.includes("herdctl init"))
-      ).toBe(true);
+      expect(consoleErrors.some((e) => e.includes("herdctl init"))).toBe(true);
     });
   });
 
@@ -164,7 +153,7 @@ describe("configValidateCommand", () => {
       fs.writeFileSync(
         path.join(tempDir, "herdctl.yaml"),
         'version: 1\nagents:\n  - path: "./unclosed\n',
-        "utf-8"
+        "utf-8",
       );
 
       await expect(configValidateCommand({})).rejects.toThrow("process.exit(1)");
@@ -175,8 +164,8 @@ describe("configValidateCommand", () => {
           (e) =>
             e.includes("YAML syntax error") ||
             e.includes("Invalid YAML syntax") ||
-            e.includes("Unexpected end")
-        )
+            e.includes("Unexpected end"),
+        ),
       ).toBe(true);
     });
 
@@ -185,20 +174,15 @@ describe("configValidateCommand", () => {
       fs.writeFileSync(
         path.join(tempDir, "herdctl.yaml"),
         'version: 1\nagents:\n  - path: "./unclosed\n',
-        "utf-8"
+        "utf-8",
       );
 
-      await expect(configValidateCommand({ fix: true })).rejects.toThrow(
-        "process.exit(1)"
-      );
+      await expect(configValidateCommand({ fix: true })).rejects.toThrow("process.exit(1)");
       // Check for fix suggestions (indentation or other common issues)
       expect(
         consoleErrors.some(
-          (e) =>
-            e.includes("indentation") ||
-            e.includes("YAML syntax") ||
-            e.includes("Fix:")
-        )
+          (e) => e.includes("indentation") || e.includes("YAML syntax") || e.includes("Fix:"),
+        ),
       ).toBe(true);
     });
   });
@@ -209,38 +193,34 @@ describe("configValidateCommand", () => {
       fs.writeFileSync(
         path.join(tempDir, "herdctl.yaml"),
         "version: 1\nagents:\n  - path: ./agents/invalid.yaml\n",
-        "utf-8"
+        "utf-8",
       );
       fs.mkdirSync(path.join(tempDir, "agents"), { recursive: true });
       fs.writeFileSync(
         path.join(tempDir, "agents", "invalid.yaml"),
         "description: Missing name field",
-        "utf-8"
+        "utf-8",
       );
 
       await expect(configValidateCommand({})).rejects.toThrow("process.exit(1)");
       expect(exitCode).toBe(1);
-      expect(
-        consoleErrors.some((e) => e.includes("Failed to load agent"))
-      ).toBe(true);
+      expect(consoleErrors.some((e) => e.includes("Failed to load agent"))).toBe(true);
     });
 
     it("shows fix suggestions for schema errors with --fix", async () => {
       fs.writeFileSync(
         path.join(tempDir, "herdctl.yaml"),
         "version: 1\nagents:\n  - path: ./agents/invalid.yaml\n",
-        "utf-8"
+        "utf-8",
       );
       fs.mkdirSync(path.join(tempDir, "agents"), { recursive: true });
       fs.writeFileSync(
         path.join(tempDir, "agents", "invalid.yaml"),
         "description: Missing name field",
-        "utf-8"
+        "utf-8",
       );
 
-      await expect(configValidateCommand({ fix: true })).rejects.toThrow(
-        "process.exit(1)"
-      );
+      await expect(configValidateCommand({ fix: true })).rejects.toThrow("process.exit(1)");
       expect(exitCode).toBe(1);
     });
   });
@@ -250,29 +230,23 @@ describe("configValidateCommand", () => {
       fs.writeFileSync(
         path.join(tempDir, "herdctl.yaml"),
         "version: 1\nagents:\n  - path: ./agents/nonexistent.yaml\n",
-        "utf-8"
+        "utf-8",
       );
 
       await expect(configValidateCommand({})).rejects.toThrow("process.exit(1)");
       expect(exitCode).toBe(1);
-      expect(
-        consoleErrors.some((e) => e.includes("Failed to load agent"))
-      ).toBe(true);
+      expect(consoleErrors.some((e) => e.includes("Failed to load agent"))).toBe(true);
     });
 
     it("suggests fix for missing agent with --fix", async () => {
       fs.writeFileSync(
         path.join(tempDir, "herdctl.yaml"),
         "version: 1\nagents:\n  - path: ./agents/nonexistent.yaml\n",
-        "utf-8"
+        "utf-8",
       );
 
-      await expect(configValidateCommand({ fix: true })).rejects.toThrow(
-        "process.exit(1)"
-      );
-      expect(
-        consoleErrors.some((e) => e.includes("file exists"))
-      ).toBe(true);
+      await expect(configValidateCommand({ fix: true })).rejects.toThrow("process.exit(1)");
+      expect(consoleErrors.some((e) => e.includes("file exists"))).toBe(true);
     });
   });
 });
@@ -326,12 +300,8 @@ describe("configShowCommand", () => {
 
       await expect(configShowCommand({})).rejects.toThrow("process.exit(0)");
       expect(exitCode).toBe(0);
-      expect(consoleLogs.some((log) => log.includes("Fleet Configuration"))).toBe(
-        true
-      );
-      expect(consoleLogs.some((log) => log.includes("Name: test-fleet"))).toBe(
-        true
-      );
+      expect(consoleLogs.some((log) => log.includes("Fleet Configuration"))).toBe(true);
+      expect(consoleLogs.some((log) => log.includes("Name: test-fleet"))).toBe(true);
     });
 
     it("shows agents section", async () => {
@@ -364,15 +334,13 @@ defaults:
 agents:
   - path: ./agents/test-agent.yaml
 `,
-        "utf-8"
+        "utf-8",
       );
       createAgentConfig(tempDir, "test-agent.yaml", "test-agent");
 
       await expect(configShowCommand({})).rejects.toThrow("process.exit(0)");
       expect(consoleLogs.some((log) => log.includes("Defaults"))).toBe(true);
-      expect(consoleLogs.some((log) => log.includes("Model: claude-sonnet-4-20250514"))).toBe(
-        true
-      );
+      expect(consoleLogs.some((log) => log.includes("Model: claude-sonnet-4-20250514"))).toBe(true);
     });
   });
 
@@ -381,9 +349,7 @@ agents:
       createFleetConfig(tempDir);
       createAgentConfig(tempDir, "test-agent.yaml", "test-agent");
 
-      await expect(configShowCommand({ json: true })).rejects.toThrow(
-        "process.exit(0)"
-      );
+      await expect(configShowCommand({ json: true })).rejects.toThrow("process.exit(0)");
       expect(exitCode).toBe(0);
 
       // Combine all logs and parse as JSON
@@ -402,9 +368,7 @@ agents:
       createFleetConfig(tempDir);
       createAgentConfig(tempDir, "test-agent.yaml", "test-agent");
 
-      await expect(configShowCommand({ json: true })).rejects.toThrow(
-        "process.exit(0)"
-      );
+      await expect(configShowCommand({ json: true })).rejects.toThrow("process.exit(0)");
 
       const output = consoleLogs.join("\n");
       const parsed = JSON.parse(output);
@@ -420,16 +384,12 @@ agents:
     it("reports error for invalid config", async () => {
       await expect(configShowCommand({})).rejects.toThrow("process.exit(1)");
       expect(exitCode).toBe(1);
-      expect(
-        consoleErrors.some((e) => e.includes("Error loading configuration"))
-      ).toBe(true);
+      expect(consoleErrors.some((e) => e.includes("Error loading configuration"))).toBe(true);
     });
 
     it("suggests running validate for more info", async () => {
       await expect(configShowCommand({})).rejects.toThrow("process.exit(1)");
-      expect(
-        consoleErrors.some((e) => e.includes("herdctl config validate"))
-      ).toBe(true);
+      expect(consoleErrors.some((e) => e.includes("herdctl config validate"))).toBe(true);
     });
 
     it("accepts --config option", async () => {
@@ -439,7 +399,7 @@ agents:
       createAgentConfig(subdir, "test-agent.yaml", "test-agent");
 
       await expect(
-        configShowCommand({ config: path.join(subdir, "herdctl.yaml") })
+        configShowCommand({ config: path.join(subdir, "herdctl.yaml") }),
       ).rejects.toThrow("process.exit(0)");
       expect(exitCode).toBe(0);
     });

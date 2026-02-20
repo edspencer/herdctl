@@ -4,16 +4,16 @@
  * Parses herdctl.yaml files and validates them against the FleetConfig schema
  */
 
+import { readFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 import { parse as parseYaml, YAMLParseError } from "yaml";
 import { ZodError } from "zod";
 import {
-  FleetConfigSchema,
+  type AgentConfig,
   AgentConfigSchema,
   type FleetConfig,
-  type AgentConfig,
+  FleetConfigSchema,
 } from "./schema.js";
-import { readFile } from "node:fs/promises";
-import { resolve, dirname } from "node:path";
 
 // =============================================================================
 // Error Classes
@@ -39,9 +39,7 @@ export class YamlSyntaxError extends ConfigError {
 
   constructor(error: YAMLParseError) {
     const position = error.linePos?.[0];
-    const locationInfo = position
-      ? ` at line ${position.line}, column ${position.col}`
-      : "";
+    const locationInfo = position ? ` at line ${position.line}, column ${position.col}` : "";
 
     super(`Invalid YAML syntax${locationInfo}: ${error.message}`);
     this.name = "YamlSyntaxError";
@@ -64,9 +62,7 @@ export class SchemaValidationError extends ConfigError {
       code: issue.code,
     }));
 
-    const issueMessages = issues
-      .map((i) => `  - ${i.path}: ${i.message}`)
-      .join("\n");
+    const issueMessages = issues.map((i) => `  - ${i.path}: ${i.message}`).join("\n");
 
     super(`Configuration validation failed:\n${issueMessages}`);
     this.name = "SchemaValidationError";
@@ -111,9 +107,7 @@ export class AgentValidationError extends ConfigError {
       code: issue.code,
     }));
 
-    const issueMessages = issues
-      .map((i) => `  - ${i.path}: ${i.message}`)
-      .join("\n");
+    const issueMessages = issues.map((i) => `  - ${i.path}: ${i.message}`).join("\n");
 
     super(`Agent configuration validation failed in '${filePath}':\n${issueMessages}`);
     this.name = "AgentValidationError";
@@ -133,9 +127,7 @@ export class AgentYamlSyntaxError extends ConfigError {
 
   constructor(error: YAMLParseError, filePath: string) {
     const position = error.linePos?.[0];
-    const locationInfo = position
-      ? ` at line ${position.line}, column ${position.col}`
-      : "";
+    const locationInfo = position ? ` at line ${position.line}, column ${position.col}` : "";
 
     super(`Invalid YAML syntax in '${filePath}'${locationInfo}: ${error.message}`);
     this.name = "AgentYamlSyntaxError";
@@ -210,9 +202,9 @@ export function validateFleetConfig(config: unknown): FleetConfig {
  * @param yamlContent - The raw YAML string to check
  * @returns An object with success status and either the config or error
  */
-export function safeParseFleetConfig(yamlContent: string):
-  | { success: true; data: FleetConfig }
-  | { success: false; error: ConfigError } {
+export function safeParseFleetConfig(
+  yamlContent: string,
+): { success: true; data: FleetConfig } | { success: false; error: ConfigError } {
   try {
     const config = parseFleetConfig(yamlContent);
     return { success: true, data: config };
@@ -222,9 +214,7 @@ export function safeParseFleetConfig(yamlContent: string):
     }
     return {
       success: false,
-      error: new ConfigError(
-        error instanceof Error ? error.message : String(error)
-      ),
+      error: new ConfigError(error instanceof Error ? error.message : String(error)),
     };
   }
 }
@@ -242,10 +232,7 @@ export function safeParseFleetConfig(yamlContent: string):
  * @throws {AgentYamlSyntaxError} If the YAML syntax is invalid
  * @throws {AgentValidationError} If the configuration fails schema validation
  */
-export function parseAgentConfig(
-  yamlContent: string,
-  filePath: string = "<unknown>"
-): AgentConfig {
+export function parseAgentConfig(yamlContent: string, filePath: string = "<unknown>"): AgentConfig {
   // Parse YAML
   let rawConfig: unknown;
   try {
@@ -281,10 +268,7 @@ export function parseAgentConfig(
  * @returns A validated AgentConfig object
  * @throws {AgentValidationError} If the configuration fails schema validation
  */
-export function validateAgentConfig(
-  config: unknown,
-  filePath: string = "<unknown>"
-): AgentConfig {
+export function validateAgentConfig(config: unknown, filePath: string = "<unknown>"): AgentConfig {
   try {
     return AgentConfigSchema.parse(config);
   } catch (error) {
@@ -304,10 +288,8 @@ export function validateAgentConfig(
  */
 export function safeParseAgentConfig(
   yamlContent: string,
-  filePath: string = "<unknown>"
-):
-  | { success: true; data: AgentConfig }
-  | { success: false; error: ConfigError } {
+  filePath: string = "<unknown>",
+): { success: true; data: AgentConfig } | { success: false; error: ConfigError } {
   try {
     const config = parseAgentConfig(yamlContent, filePath);
     return { success: true, data: config };
@@ -317,9 +299,7 @@ export function safeParseAgentConfig(
     }
     return {
       success: false,
-      error: new ConfigError(
-        error instanceof Error ? error.message : String(error)
-      ),
+      error: new ConfigError(error instanceof Error ? error.message : String(error)),
     };
   }
 }
@@ -353,7 +333,7 @@ export function resolveAgentPath(agentPath: string, basePath: string): string {
  */
 export async function loadAgentConfig(
   agentPath: string,
-  fleetConfigPath?: string
+  fleetConfigPath?: string,
 ): Promise<AgentConfig> {
   // Resolve the path if a fleet config path is provided
   const resolvedPath = fleetConfigPath
@@ -365,10 +345,7 @@ export async function loadAgentConfig(
   try {
     content = await readFile(resolvedPath, "utf-8");
   } catch (error) {
-    throw new FileReadError(
-      resolvedPath,
-      error instanceof Error ? error : undefined
-    );
+    throw new FileReadError(resolvedPath, error instanceof Error ? error : undefined);
   }
 
   // Parse and validate

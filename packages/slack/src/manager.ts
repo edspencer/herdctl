@@ -10,38 +10,29 @@
  * @module manager
  */
 
+import {
+  type ChatConnectorLogger,
+  ChatSessionManager,
+  extractMessageContent,
+  extractToolResults,
+  extractToolUseBlocks,
+  getToolInputSummary,
+  StreamingResponder,
+  splitMessage,
+  TOOL_EMOJIS,
+} from "@herdctl/chat";
 import type {
+  ChatManagerConnectorState,
   FleetManagerContext,
   IChatManager,
-  ChatManagerConnectorState,
-  TriggerOptions,
-  TriggerResult,
-  ResolvedAgent,
   InjectedMcpServerDef,
+  ResolvedAgent,
+  TriggerOptions,
 } from "@herdctl/core";
-import {
-  createFileSenderDef,
-  type FileSenderContext,
-} from "@herdctl/core";
-import {
-  StreamingResponder,
-  extractMessageContent,
-  splitMessage,
-  ChatSessionManager,
-  extractToolUseBlocks,
-  extractToolResults,
-  getToolInputSummary,
-  TOOL_EMOJIS,
-  type ChatConnectorLogger,
-} from "@herdctl/chat";
-
-import { SlackConnector } from "./slack-connector.js";
+import { createFileSenderDef, type FileSenderContext } from "@herdctl/core";
 import { markdownToMrkdwn } from "./formatting.js";
-import type {
-  SlackConnectorState,
-  SlackMessageEvent,
-  SlackConnectorEventMap,
-} from "./types.js";
+import { SlackConnector } from "./slack-connector.js";
+import type { SlackConnectorEventMap, SlackMessageEvent } from "./types.js";
 
 // =============================================================================
 // Slack Manager
@@ -98,8 +89,11 @@ export class SlackManager implements IChatManager {
 
     // Find agents with Slack configured
     const slackAgents = config.agents.filter(
-      (agent): agent is ResolvedAgent & { chat: { slack: NonNullable<ResolvedAgent["chat"]>["slack"] } } =>
-        agent.chat?.slack !== undefined
+      (
+        agent,
+      ): agent is ResolvedAgent & {
+        chat: { slack: NonNullable<ResolvedAgent["chat"]>["slack"] };
+      } => agent.chat?.slack !== undefined,
     );
 
     if (slackAgents.length === 0) {
@@ -119,7 +113,7 @@ export class SlackManager implements IChatManager {
         const botToken = process.env[slackConfig.bot_token_env];
         if (!botToken) {
           logger.warn(
-            `Slack bot token not found in environment variable '${slackConfig.bot_token_env}' for agent '${agent.qualifiedName}'`
+            `Slack bot token not found in environment variable '${slackConfig.bot_token_env}' for agent '${agent.qualifiedName}'`,
           );
           continue;
         }
@@ -128,7 +122,7 @@ export class SlackManager implements IChatManager {
         const appToken = process.env[slackConfig.app_token_env];
         if (!appToken) {
           logger.warn(
-            `Slack app token not found in environment variable '${slackConfig.app_token_env}' for agent '${agent.qualifiedName}'`
+            `Slack app token not found in environment variable '${slackConfig.app_token_env}' for agent '${agent.qualifiedName}'`,
           );
           continue;
         }
@@ -169,7 +163,9 @@ export class SlackManager implements IChatManager {
         logger.debug(`Created Slack connector for agent '${agent.qualifiedName}'`);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.error(`Failed to create Slack connector for agent '${agent.qualifiedName}': ${errorMessage}`);
+        logger.error(
+          `Failed to create Slack connector for agent '${agent.qualifiedName}': ${errorMessage}`,
+        );
         // Continue with other agents - don't fail the whole initialization
       }
     }
@@ -213,14 +209,14 @@ export class SlackManager implements IChatManager {
           const errorMessage = error instanceof Error ? error.message : String(error);
           logger.error(`Failed to connect Slack for agent '${qualifiedName}': ${errorMessage}`);
           // Don't re-throw - we want to continue connecting other agents
-        })
+        }),
       );
     }
 
     await Promise.all(connectPromises);
 
     const connectedCount = Array.from(this.connectors.values()).filter((c) =>
-      c.isConnected()
+      c.isConnected(),
     ).length;
     logger.info(`Slack connectors started: ${connectedCount}/${this.connectors.size} connected`);
   }
@@ -249,11 +245,15 @@ export class SlackManager implements IChatManager {
       try {
         const activeSessionCount = await connector.sessionManager.getActiveSessionCount();
         if (activeSessionCount > 0) {
-          logger.debug(`Preserving ${activeSessionCount} active Slack session(s) for agent '${qualifiedName}'`);
+          logger.debug(
+            `Preserving ${activeSessionCount} active Slack session(s) for agent '${qualifiedName}'`,
+          );
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.warn(`Failed to get Slack session count for agent '${qualifiedName}': ${errorMessage}`);
+        logger.warn(
+          `Failed to get Slack session count for agent '${qualifiedName}': ${errorMessage}`,
+        );
         // Continue with shutdown - this is just informational logging
       }
     }
@@ -266,7 +266,7 @@ export class SlackManager implements IChatManager {
           const errorMessage = error instanceof Error ? error.message : String(error);
           logger.error(`Error disconnecting Slack for agent '${qualifiedName}': ${errorMessage}`);
           // Don't re-throw - graceful shutdown should continue
-        })
+        }),
       );
     }
 
@@ -299,9 +299,7 @@ export class SlackManager implements IChatManager {
    * @returns Number of connectors that are currently connected
    */
   getConnectedCount(): number {
-    return Array.from(this.connectors.values()).filter((c) =>
-      c.isConnected()
-    ).length;
+    return Array.from(this.connectors.values()).filter((c) => c.isConnected()).length;
   }
 
   /**
@@ -369,10 +367,7 @@ export class SlackManager implements IChatManager {
    * @param qualifiedName - Qualified name of the agent handling the message
    * @param event - The Slack message event
    */
-  private async handleMessage(
-    qualifiedName: string,
-    event: SlackMessageEvent
-  ): Promise<void> {
+  private async handleMessage(qualifiedName: string, event: SlackMessageEvent): Promise<void> {
     const logger = this.ctx.getLogger();
     const emitter = this.ctx.getEmitter();
 
@@ -400,7 +395,9 @@ export class SlackManager implements IChatManager {
         const existingSession = await connector.sessionManager.getSession(event.metadata.channelId);
         if (existingSession) {
           existingSessionId = existingSession.sessionId;
-          logger.debug(`Resuming session for channel ${event.metadata.channelId}: ${existingSessionId}`);
+          logger.debug(
+            `Resuming session for channel ${event.metadata.channelId}: ${existingSessionId}`,
+          );
           emitter.emit("slack:session:lifecycle", {
             agentName: qualifiedName,
             event: "resumed",
@@ -408,7 +405,9 @@ export class SlackManager implements IChatManager {
             sessionId: existingSessionId,
           });
         } else {
-          logger.debug(`No existing session for channel ${event.metadata.channelId}, starting new conversation`);
+          logger.debug(
+            `No existing session for channel ${event.metadata.channelId}, starting new conversation`,
+          );
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -461,7 +460,10 @@ export class SlackManager implements IChatManager {
 
     try {
       // Track pending tool_use blocks so we can pair them with results
-      const pendingToolUses = new Map<string, { name: string; input?: unknown; startTime: number }>();
+      const pendingToolUses = new Map<
+        string,
+        { name: string; input?: unknown; startTime: number }
+      >();
 
       // Execute job via FleetManager.trigger() through the context
       // Pass resume option for conversation continuity
@@ -497,7 +499,11 @@ export class SlackManager implements IChatManager {
 
           // Send tool results as Slack messages
           if (message.type === "user" && outputConfig.tool_results) {
-            const userMessage = message as { type: string; message?: { content?: unknown }; tool_use_result?: unknown };
+            const userMessage = message as {
+              type: string;
+              message?: { content?: unknown };
+              tool_use_result?: unknown;
+            };
             const toolResultsList = extractToolResults(userMessage);
             for (const toolResult of toolResultsList) {
               // Look up the matching tool_use for name, input, and timing
@@ -531,16 +537,23 @@ export class SlackManager implements IChatManager {
       // Flush any remaining buffered content
       await streamer.flush();
 
-      logger.info(`Slack job completed: ${result.jobId} for agent '${qualifiedName}'${result.sessionId ? ` (session: ${result.sessionId})` : ""}`);
+      logger.info(
+        `Slack job completed: ${result.jobId} for agent '${qualifiedName}'${result.sessionId ? ` (session: ${result.sessionId})` : ""}`,
+      );
 
       // If no messages were sent, send an appropriate fallback
       if (!streamer.hasSentMessages()) {
         if (result.success) {
-          await event.reply("I've completed the task, but I don't have a specific response to share.");
+          await event.reply(
+            "I've completed the task, but I don't have a specific response to share.",
+          );
         } else {
           // Job failed without streaming any messages - send error details
-          const errorMessage = result.errorDetails?.message ?? result.error?.message ?? "An unknown error occurred";
-          await event.reply(`*Error:* ${errorMessage}\n\nThe task could not be completed. Please check the logs for more details.`);
+          const errorMessage =
+            result.errorDetails?.message ?? result.error?.message ?? "An unknown error occurred";
+          await event.reply(
+            `*Error:* ${errorMessage}\n\nThe task could not be completed. Please check the logs for more details.`,
+          );
         }
 
         // Stop processing after sending fallback message (if not already stopped)
@@ -556,7 +569,9 @@ export class SlackManager implements IChatManager {
         const isNewSession = existingSessionId === null;
         try {
           await connector.sessionManager.setSession(event.metadata.channelId, result.sessionId);
-          logger.debug(`Stored session ${result.sessionId} for channel ${event.metadata.channelId}`);
+          logger.debug(
+            `Stored session ${result.sessionId} for channel ${event.metadata.channelId}`,
+          );
 
           if (isNewSession) {
             emitter.emit("slack:session:lifecycle", {
@@ -567,12 +582,15 @@ export class SlackManager implements IChatManager {
             });
           }
         } catch (sessionError) {
-          const errorMessage = sessionError instanceof Error ? sessionError.message : String(sessionError);
+          const errorMessage =
+            sessionError instanceof Error ? sessionError.message : String(sessionError);
           logger.warn(`Failed to store session: ${errorMessage}`);
           // Don't fail the message handling for session storage failure
         }
       } else if (connector && result.sessionId && !result.success) {
-        logger.debug(`Not storing session ${result.sessionId} for channel ${event.metadata.channelId} - job failed`);
+        logger.debug(
+          `Not storing session ${result.sessionId} for channel ${event.metadata.channelId} - job failed`,
+        );
       }
 
       // Emit event for tracking
@@ -671,10 +689,7 @@ export class SlackManager implements IChatManager {
    * @param reply - The reply function from the message event
    * @param content - The content to send
    */
-  async sendResponse(
-    reply: (content: string) => Promise<void>,
-    content: string
-  ): Promise<void> {
+  async sendResponse(reply: (content: string) => Promise<void>, content: string): Promise<void> {
     const chunks = this.splitResponse(content);
 
     for (const chunk of chunks) {
@@ -753,7 +768,9 @@ function formatToolResultForSlack(
     const maxChars = maxOutputChars ?? 900;
     let outputText = trimmedOutput;
     if (outputText.length > maxChars) {
-      outputText = outputText.substring(0, maxChars) + `\n... (${trimmedOutput.length.toLocaleString()} chars total)`;
+      outputText =
+        outputText.substring(0, maxChars) +
+        `\n... (${trimmedOutput.length.toLocaleString()} chars total)`;
     }
     parts.push(`\`\`\`${outputText}\`\`\``);
   }

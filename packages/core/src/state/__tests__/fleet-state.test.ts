@@ -1,27 +1,23 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdir, rm, realpath, writeFile, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { StateFileError } from "../errors.js";
 import {
-  readFleetState,
-  writeFleetState,
-  updateAgentState,
   initializeFleetState,
+  readFleetState,
   removeAgentState,
   type StateLogger,
+  updateAgentState,
+  writeFleetState,
 } from "../fleet-state.js";
-import {
-  createInitialFleetState,
-  type FleetState,
-  type AgentState,
-} from "../schemas/fleet-state.js";
-import { StateFileError } from "../errors.js";
+import { createInitialFleetState, type FleetState } from "../schemas/fleet-state.js";
 
 // Helper to create a temp directory
 async function createTempDir(): Promise<string> {
   const baseDir = join(
     tmpdir(),
-    `herdctl-fleet-state-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-fleet-state-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   await mkdir(baseDir, { recursive: true });
   // Resolve to real path to handle macOS /var -> /private/var symlink
@@ -663,7 +659,7 @@ describe("updateAgentState", () => {
         stateFile,
         "new-agent",
         { status: "running" },
-        { logger }
+        { logger },
       );
 
       expect(updatedState.agents["new-agent"].status).toBe("running");

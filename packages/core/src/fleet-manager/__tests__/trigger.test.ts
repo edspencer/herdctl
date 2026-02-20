@@ -4,7 +4,7 @@
  * Tests the trigger() method for manually triggering agents.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the Claude SDK to prevent real API calls during tests
 // Mock the SDK to return an async generator that yields a simple system message
@@ -15,17 +15,11 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
   }),
 }));
 
-import { mkdtemp, rm, mkdir, writeFile } from "fs/promises";
-import { tmpdir } from "os";
-import { join } from "path";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { AgentNotFoundError, InvalidStateError, ScheduleNotFoundError } from "../errors.js";
 import { FleetManager } from "../fleet-manager.js";
-import {
-  AgentNotFoundError,
-  ScheduleNotFoundError,
-  ConcurrencyLimitError,
-  InvalidStateError,
-} from "../errors.js";
-import type { TriggerOptions, TriggerResult } from "../types.js";
 
 describe("Manual Agent Triggering (US-5)", () => {
   let tempDir: string;
@@ -130,7 +124,7 @@ describe("Manual Agent Triggering (US-5)", () => {
           }),
           agentName: "event-agent",
           scheduleName: null,
-        })
+        }),
       );
     });
 
@@ -142,9 +136,7 @@ describe("Manual Agent Triggering (US-5)", () => {
 
       const manager = createTestManager(configPath);
 
-      await expect(manager.trigger("any-agent")).rejects.toThrow(
-        InvalidStateError
-      );
+      await expect(manager.trigger("any-agent")).rejects.toThrow(InvalidStateError);
       await expect(manager.trigger("any-agent")).rejects.toMatchObject({
         operation: "trigger",
         currentState: "uninitialized",
@@ -164,9 +156,7 @@ describe("Manual Agent Triggering (US-5)", () => {
       const manager = createTestManager(configPath);
       await manager.initialize();
 
-      await expect(manager.trigger("unknown-agent")).rejects.toThrow(
-        AgentNotFoundError
-      );
+      await expect(manager.trigger("unknown-agent")).rejects.toThrow(AgentNotFoundError);
       await expect(manager.trigger("unknown-agent")).rejects.toMatchObject({
         agentName: "unknown-agent",
         availableAgents: ["known-agent"],
@@ -250,12 +240,10 @@ describe("Manual Agent Triggering (US-5)", () => {
       const manager = createTestManager(configPath);
       await manager.initialize();
 
-      await expect(
-        manager.trigger("schedule-test", "unknown")
-      ).rejects.toThrow(ScheduleNotFoundError);
-      await expect(
-        manager.trigger("schedule-test", "unknown")
-      ).rejects.toMatchObject({
+      await expect(manager.trigger("schedule-test", "unknown")).rejects.toThrow(
+        ScheduleNotFoundError,
+      );
+      await expect(manager.trigger("schedule-test", "unknown")).rejects.toMatchObject({
         agentName: "schedule-test",
         scheduleName: "unknown",
         availableSchedules: ["known"],
@@ -275,12 +263,10 @@ describe("Manual Agent Triggering (US-5)", () => {
       const manager = createTestManager(configPath);
       await manager.initialize();
 
-      await expect(
-        manager.trigger("no-schedules", "any-schedule")
-      ).rejects.toThrow(ScheduleNotFoundError);
-      await expect(
-        manager.trigger("no-schedules", "any-schedule")
-      ).rejects.toMatchObject({
+      await expect(manager.trigger("no-schedules", "any-schedule")).rejects.toThrow(
+        ScheduleNotFoundError,
+      );
+      await expect(manager.trigger("no-schedules", "any-schedule")).rejects.toMatchObject({
         availableSchedules: [],
       });
     });
@@ -544,7 +530,7 @@ describe("Manual Agent Triggering (US-5)", () => {
           job: expect.objectContaining({
             trigger_type: "manual",
           }),
-        })
+        }),
       );
     });
 
@@ -575,7 +561,7 @@ describe("Manual Agent Triggering (US-5)", () => {
           job: expect.objectContaining({
             schedule: "test",
           }),
-        })
+        }),
       );
     });
 
@@ -604,7 +590,7 @@ describe("Manual Agent Triggering (US-5)", () => {
           job: expect.objectContaining({
             prompt: "Test prompt for job",
           }),
-        })
+        }),
       );
     });
   });

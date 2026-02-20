@@ -121,7 +121,7 @@ export function parseMemoryToBytes(memory: string): number {
   const match = memory.toLowerCase().match(/^(\d+(?:\.\d+)?)\s*([kmgt]?)b?$/i);
   if (!match) {
     throw new Error(
-      `Invalid memory format: "${memory}". Use format like "2g", "512m", "1024k", or "2048" (bytes).`
+      `Invalid memory format: "${memory}". Use format like "2g", "512m", "1024k", or "2048" (bytes).`,
     );
   }
 
@@ -162,7 +162,7 @@ export function parsePortBinding(port: string): PortBinding {
   }
 
   throw new Error(
-    `Invalid port format: "${port}". Use "hostPort:containerPort" or "containerPort".`
+    `Invalid port format: "${port}". Use "hostPort:containerPort" or "containerPort".`,
   );
 }
 
@@ -199,17 +199,16 @@ export function parseVolumeMount(volume: string): PathMapping {
 
   if (parts.length < 2 || parts.length > 3) {
     throw new Error(
-      `Invalid volume format: "${volume}". Use "host:container" or "host:container:ro|rw".`
+      `Invalid volume format: "${volume}". Use "host:container" or "host:container:ro|rw".`,
     );
   }
 
   const [hostPath, containerPath, modeStr] = parts;
-  const mode: VolumeMode =
-    modeStr === "ro" ? "ro" : modeStr === "rw" || !modeStr ? "rw" : "rw";
+  const mode: VolumeMode = modeStr === "ro" ? "ro" : modeStr === "rw" || !modeStr ? "rw" : "rw";
 
   if (modeStr && modeStr !== "ro" && modeStr !== "rw") {
     throw new Error(
-      `Invalid volume mode: "${modeStr}". Use "ro" (read-only) or "rw" (read-write).`
+      `Invalid volume mode: "${modeStr}". Use "ro" (read-only) or "rw" (read-write).`,
     );
   }
 

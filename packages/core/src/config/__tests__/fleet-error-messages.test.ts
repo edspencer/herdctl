@@ -6,16 +6,16 @@
  * messages are clear, actionable, and helpful for debugging.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdir, writeFile, rm, realpath } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  loadConfig,
   FleetCycleError,
-  FleetNameCollisionError,
   FleetLoadError,
+  FleetNameCollisionError,
   InvalidFleetNameError,
+  loadConfig,
 } from "../loader.js";
 import { AGENT_NAME_PATTERN } from "../schema.js";
 
@@ -26,7 +26,7 @@ import { AGENT_NAME_PATTERN } from "../schema.js";
 async function createTempDir(): Promise<string> {
   const baseDir = join(
     tmpdir(),
-    `herdctl-error-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    `herdctl-error-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   await mkdir(baseDir, { recursive: true });
   return await realpath(baseDir);
@@ -51,7 +51,7 @@ describe("FleetCycleError message format", () => {
     ]);
 
     expect(error.message).toBe(
-      "Fleet composition cycle detected: /path/to/root.yaml -> /path/to/project-a/herdctl.yaml -> /path/to/shared/herdctl.yaml -> /path/to/project-a/herdctl.yaml"
+      "Fleet composition cycle detected: /path/to/root.yaml -> /path/to/project-a/herdctl.yaml -> /path/to/shared/herdctl.yaml -> /path/to/project-a/herdctl.yaml",
     );
     expect(error.name).toBe("FleetCycleError");
   });
@@ -75,7 +75,7 @@ describe("FleetNameCollisionError message format", () => {
       "project-a",
       "/root/herdctl.yaml",
       "/root/project-a/herdctl.yaml",
-      "/root/renamed-a/herdctl.yaml"
+      "/root/renamed-a/herdctl.yaml",
     );
 
     expect(error.message).toContain('Fleet name collision at level "herdctl"');
@@ -93,15 +93,12 @@ describe("FleetNameCollisionError message format", () => {
       "my-fleet",
       "/parent.yaml",
       "/first/herdctl.yaml",
-      "/second/herdctl.yaml"
+      "/second/herdctl.yaml",
     );
 
     expect(error.fleetName).toBe("my-fleet");
     expect(error.parentConfigPath).toBe("/parent.yaml");
-    expect(error.conflictingPaths).toEqual([
-      "/first/herdctl.yaml",
-      "/second/herdctl.yaml",
-    ]);
+    expect(error.conflictingPaths).toEqual(["/first/herdctl.yaml", "/second/herdctl.yaml"]);
   });
 
   it("derives level name from parent config path", () => {
@@ -109,7 +106,7 @@ describe("FleetNameCollisionError message format", () => {
       "collision",
       "/workspace/super-fleet/herdctl.yaml",
       "/a.yaml",
-      "/b.yaml"
+      "/b.yaml",
     );
 
     // Level name should be derived from the parent config filename (without .yaml)
@@ -122,7 +119,7 @@ describe("InvalidFleetNameError message format", () => {
     const error = new InvalidFleetNameError("my.fleet", AGENT_NAME_PATTERN);
 
     expect(error.message).toBe(
-      'Invalid fleet name "my.fleet" — fleet names must match pattern ^[a-zA-Z0-9][a-zA-Z0-9_-]*$ (no dots allowed)'
+      'Invalid fleet name "my.fleet" — fleet names must match pattern ^[a-zA-Z0-9][a-zA-Z0-9_-]*$ (no dots allowed)',
     );
     expect(error.name).toBe("InvalidFleetNameError");
   });
@@ -143,7 +140,9 @@ describe("InvalidFleetNameError message format", () => {
 describe("FleetLoadError message format", () => {
   it("shows file not found format for missing files", () => {
     // Create a FileReadError-like error that indicates file not found
-    const cause = new Error("Failed to read file '/missing.yaml': ENOENT: no such file or directory");
+    const cause = new Error(
+      "Failed to read file '/missing.yaml': ENOENT: no such file or directory",
+    );
     // Need to add the properties that FileReadError has
     (cause as Error & { filePath: string }).filePath = "/missing.yaml";
     cause.name = "FileReadError";
@@ -199,7 +198,7 @@ describe("error message integration tests", () => {
 version: 1
 fleets:
   - path: ./fleet-a/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "fleet-a", "herdctl.yaml"),
@@ -209,7 +208,7 @@ fleet:
   name: fleet-a
 fleets:
   - path: ../fleet-b/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "fleet-b", "herdctl.yaml"),
@@ -219,7 +218,7 @@ fleet:
   name: fleet-b
 fleets:
   - path: ../fleet-a/herdctl.yaml
-`
+`,
       );
 
       try {
@@ -235,8 +234,8 @@ fleets:
 
         // Verify path chain contains all relevant paths
         expect(cycleError.pathChain.length).toBeGreaterThanOrEqual(3);
-        expect(cycleError.pathChain.some(p => p.includes("fleet-a"))).toBe(true);
-        expect(cycleError.pathChain.some(p => p.includes("fleet-b"))).toBe(true);
+        expect(cycleError.pathChain.some((p) => p.includes("fleet-a"))).toBe(true);
+        expect(cycleError.pathChain.some((p) => p.includes("fleet-b"))).toBe(true);
       }
     });
   });
@@ -250,7 +249,7 @@ version: 1
 fleets:
   - path: ./first/herdctl.yaml
   - path: ./second/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "first", "herdctl.yaml"),
@@ -259,7 +258,7 @@ version: 1
 fleet:
   name: duplicate-name
 agents: []
-`
+`,
       );
       await createFile(
         join(tempDir, "second", "herdctl.yaml"),
@@ -268,7 +267,7 @@ version: 1
 fleet:
   name: duplicate-name
 agents: []
-`
+`,
       );
 
       try {
@@ -279,7 +278,7 @@ agents: []
         const collisionError = error as FleetNameCollisionError;
 
         // Verify message format
-        expect(collisionError.message).toContain('Fleet name collision at level');
+        expect(collisionError.message).toContain("Fleet name collision at level");
         expect(collisionError.message).toContain('"duplicate-name"');
         expect(collisionError.message).toContain("Conflicting references:");
         expect(collisionError.message).toContain("disambiguate");
@@ -299,7 +298,7 @@ agents: []
 version: 1
 fleets:
   - path: ./sub/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -308,7 +307,7 @@ version: 1
 fleet:
   name: my.invalid.name
 agents: []
-`
+`,
       );
 
       try {
@@ -335,7 +334,7 @@ agents: []
 version: 1
 fleets:
   - path: ./sub/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "sub", "herdctl.yaml"),
@@ -344,7 +343,7 @@ version: 1
 fleet:
   name: -invalid
 agents: []
-`
+`,
       );
 
       try {
@@ -366,7 +365,7 @@ agents: []
 version: 1
 fleets:
   - path: ./nonexistent/herdctl.yaml
-`
+`,
       );
 
       try {
@@ -390,7 +389,7 @@ fleets:
 version: 1
 fleets:
   - path: ./missing-sub/herdctl.yaml
-`
+`,
       );
 
       try {
@@ -415,11 +414,11 @@ fleets:
 version: 1
 fleets:
   - path: ./bad/herdctl.yaml
-`
+`,
       );
       await createFile(
         join(tempDir, "bad", "herdctl.yaml"),
-        "invalid: yaml: syntax: breaks: here:"
+        "invalid: yaml: syntax: breaks: here:",
       );
 
       try {
