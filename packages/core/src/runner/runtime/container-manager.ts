@@ -360,7 +360,13 @@ async function refreshClaudeOAuthToken(
     });
 
     if (!response.ok) {
-      logger.error(`Token refresh failed: HTTP ${response.status}`);
+      let body = "";
+      try {
+        body = await response.text();
+      } catch {
+        // ignore body read failure
+      }
+      logger.error(`Token refresh failed: HTTP ${response.status}${body ? ` — ${body}` : ""}`);
       return null;
     }
 
