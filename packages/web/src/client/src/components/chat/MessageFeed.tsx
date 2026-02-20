@@ -47,7 +47,11 @@ export function MessageFeed(_props: MessageFeedProps) {
     return () => feed.removeEventListener("scroll", checkScrollPosition);
   }, [checkScrollPosition]);
 
-  // Auto-scroll only when pinned to bottom
+  // Auto-scroll only when pinned to bottom.
+  // chatMessages and chatStreamingContent are intentional triggers: the effect
+  // must re-run when new messages arrive or streaming chunks append so we scroll
+  // to reveal them, even though the effect body doesn't reference them directly.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional triggers for scroll
   useEffect(() => {
     if (!isAtBottom) return;
     const feed = feedRef.current;
