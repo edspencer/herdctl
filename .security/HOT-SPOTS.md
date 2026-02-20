@@ -13,7 +13,7 @@ These files contain security-critical logic that must be reviewed every audit:
 
 | File | Why Critical | What to Check |
 |------|--------------|---------------|
-| `packages/core/src/runner/runtime/container-manager.ts` | Docker security hardening, hostConfigOverride | Capability drops intact, no new bypass paths |
+| `packages/core/src/runner/runtime/container-manager.ts` | Docker security hardening, hostConfigOverride, OAuth credential handling | Capability drops intact, no new bypass paths, OAuth file permissions enforced (0600), logger calls don't leak tokens |
 | `packages/core/src/runner/runtime/container-runner.ts` | Docker exec, prompt embedding | Shell escaping complete, no injection paths |
 | `packages/core/src/config/schema.ts` | Primary input validation | All user strings validated, patterns restrictive |
 | `packages/core/src/state/utils/path-safety.ts` | Path traversal defense | No new bypass patterns, tests still pass |
@@ -67,6 +67,9 @@ grep -r "console\.\|logger\." packages/ --include="*.ts" | grep -i "key\|token\|
 
 # New Docker capabilities
 grep -r "CapAdd\|Privileged\|hostConfigOverride" packages/ --include="*.ts"
+
+# OAuth credential handling
+grep -r "readCredentialsFile\|writeCredentialsFile\|refreshClaudeOAuthToken\|ensureValidOAuthToken" packages/ --include="*.ts"
 ```
 
 ## Recent Additions
@@ -79,6 +82,7 @@ Track recently added hot spots here (move to main tables after 30 days):
 | 2026-02-05 | container-runner.ts shell escaping | Found incomplete escaping |
 | 2026-02-06 | job-output.ts | Discovered during Q2 audit - constructs paths with job.id |
 | 2026-02-06 | job-executor.ts | Discovered during Q2 audit - mkdir with job.id |
+| 2026-02-20 | container-manager.ts OAuth code | New credential file read/write/refresh functionality (Finding #011) |
 
 ---
 
