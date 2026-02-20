@@ -66,7 +66,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Playwright Chromium (for Mermaid diagram rendering)
-        run: pnpm exec playwright install chromium
+        run: pnpm --filter docs exec playwright install chromium
 
       - name: Build packages
         run: pnpm build
@@ -91,7 +91,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Playwright Chromium (for Mermaid diagram rendering)
-        run: pnpm exec playwright install chromium
+        run: pnpm --filter docs exec playwright install chromium
 
       - name: Build packages
         run: pnpm build
