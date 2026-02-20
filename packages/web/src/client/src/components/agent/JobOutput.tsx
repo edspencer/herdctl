@@ -47,6 +47,7 @@ interface JumpToBottomButtonProps {
 function JumpToBottomButton({ onClick }: JumpToBottomButtonProps) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className="
         absolute bottom-4 right-4

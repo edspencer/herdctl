@@ -69,7 +69,7 @@ export function interpolateString(
     index: number;
   }> = [];
 
-  let match;
+  let match: RegExpExecArray | null = null;
   while ((match = ENV_VAR_PATTERN.exec(value)) !== null) {
     matches.push({
       fullMatch: match[0],

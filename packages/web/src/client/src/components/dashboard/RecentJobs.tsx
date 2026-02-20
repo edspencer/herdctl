@@ -140,6 +140,7 @@ export function RecentJobs({ jobs, pageSize = 10 }: RecentJobsProps) {
               </span>
               <div className="flex items-center gap-1">
                 <button
+                  type="button"
                   onClick={() => setPage((p) => Math.max(0, p - 1))}
                   disabled={page === 0}
                   className="p-1 rounded hover:bg-herd-hover text-herd-muted hover:text-herd-fg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
@@ -151,6 +152,7 @@ export function RecentJobs({ jobs, pageSize = 10 }: RecentJobsProps) {
                   {page + 1} / {totalPages}
                 </span>
                 <button
+                  type="button"
                   onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
                   disabled={page >= totalPages - 1}
                   className="p-1 rounded hover:bg-herd-hover text-herd-muted hover:text-herd-fg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"

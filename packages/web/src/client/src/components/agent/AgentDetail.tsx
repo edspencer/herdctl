@@ -129,6 +129,7 @@ function ErrorState({ message, onRetry }: ErrorStateProps) {
         </div>
         <div className="flex gap-2 justify-center">
           <button
+            type="button"
             onClick={onRetry}
             className="bg-herd-primary hover:bg-herd-primary-hover text-white rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
           >

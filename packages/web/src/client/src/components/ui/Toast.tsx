@@ -56,6 +56,7 @@ function ToastItem({ toast, onDismiss }: ToastItemProps) {
       {getToastIcon(toast.type)}
       <span className="flex-1 text-xs">{toast.message}</span>
       <button
+        type="button"
         onClick={() => onDismiss(toast.id)}
         className="hover:bg-herd-hover rounded p-0.5 transition-colors flex-shrink-0"
         aria-label="Dismiss"

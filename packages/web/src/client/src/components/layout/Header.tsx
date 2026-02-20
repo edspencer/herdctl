@@ -108,6 +108,7 @@ export function Header() {
       <div className="flex items-center gap-2">
         {/* Hamburger menu — visible only on mobile */}
         <button
+          type="button"
           onClick={toggleSidebarMobile}
           className="md:hidden hover:bg-herd-hover text-herd-muted hover:text-herd-fg rounded-lg p-1.5 transition-colors"
           aria-label="Toggle sidebar"

@@ -61,6 +61,7 @@ export function AgentHeader({ agent }: AgentHeaderProps) {
           {/* Action buttons — hidden on small screens, visible on md+ */}
           <div className="hidden sm:flex gap-2 shrink-0">
             <button
+              type="button"
               disabled
               className="bg-herd-primary hover:bg-herd-primary-hover text-white rounded-lg px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
               title="Trigger Job (coming soon)"
@@ -106,6 +107,7 @@ export function AgentHeader({ agent }: AgentHeaderProps) {
         {/* Action buttons — visible on small screens only */}
         <div className="flex sm:hidden gap-2">
           <button
+            type="button"
             disabled
             className="bg-herd-primary hover:bg-herd-primary-hover text-white rounded-lg px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Trigger Job (coming soon)"

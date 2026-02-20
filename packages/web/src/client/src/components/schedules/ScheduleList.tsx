@@ -105,6 +105,7 @@ function ScheduleRow({ schedule, onTrigger, onEnable, onDisable }: ScheduleRowPr
       <td className="py-2 px-3">
         <div className="flex items-center gap-1.5">
           <button
+            type="button"
             onClick={() => onTrigger(schedule.agentName, schedule.name)}
             className="bg-herd-primary hover:bg-herd-primary-hover text-white rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors inline-flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Trigger Now"
@@ -114,6 +115,7 @@ function ScheduleRow({ schedule, onTrigger, onEnable, onDisable }: ScheduleRowPr
           </button>
           {isDisabled ? (
             <button
+              type="button"
               onClick={() => onEnable(schedule.agentName, schedule.name)}
               className="hover:bg-herd-hover text-herd-muted hover:text-herd-status-running rounded-lg p-1.5 transition-colors"
               title="Enable schedule"
@@ -122,6 +124,7 @@ function ScheduleRow({ schedule, onTrigger, onEnable, onDisable }: ScheduleRowPr
             </button>
           ) : (
             <button
+              type="button"
               onClick={() => onDisable(schedule.agentName, schedule.name)}
               className="hover:bg-herd-hover text-herd-muted hover:text-herd-status-error rounded-lg p-1.5 transition-colors"
               title="Disable schedule"
@@ -153,7 +156,7 @@ function ErrorBanner({ message, onRetry }: { message: string; onRetry: () => voi
   return (
     <div className="bg-herd-status-error/10 border border-herd-status-error/20 text-herd-status-error rounded-lg px-3 py-2 text-xs mb-4 flex items-center justify-between">
       <span>{message}</span>
-      <button onClick={onRetry} className="hover:underline font-medium ml-4">
+      <button type="button" onClick={onRetry} className="hover:underline font-medium ml-4">
         Retry
       </button>
     </div>

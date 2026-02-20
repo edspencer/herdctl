@@ -37,9 +37,13 @@ export function AppLayout({ children }: AppLayoutProps) {
       {sidebarMobileOpen && (
         <div className="md:hidden fixed inset-0 z-40">
           {/* Backdrop */}
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: backdrop dismissal via click */}
           <div
             className="absolute inset-0 bg-black/30"
             onClick={() => setSidebarMobileOpen(false)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setSidebarMobileOpen(false);
+            }}
           />
           {/* Sidebar drawer */}
           <div className="absolute inset-y-0 left-0 w-[260px] bg-herd-sidebar border-r border-herd-sidebar-border animate-fade-slide-in">

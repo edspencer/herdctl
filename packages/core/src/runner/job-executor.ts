@@ -38,6 +38,7 @@ import {
 import { extractSummary, isTerminalMessage, processSDKMessage } from "./message-processor.js";
 import type { RuntimeInterface } from "./runtime/index.js";
 import type {
+  ProcessedMessage,
   RunnerErrorDetails,
   RunnerOptionsWithCallbacks,
   RunnerResult,
@@ -348,7 +349,7 @@ export class JobExecutor {
           messagesReceived++;
 
           // Process the message safely (handles malformed responses)
-          let processed;
+          let processed: ProcessedMessage | undefined;
           try {
             processed = processSDKMessage(sdkMessage);
           } catch (processError) {

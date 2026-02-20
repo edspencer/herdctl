@@ -42,6 +42,7 @@ function NoActiveJob({ lastJobId, onViewLastJob }: NoActiveJobProps) {
         </div>
         {lastJobId && onViewLastJob && (
           <button
+            type="button"
             onClick={onViewLastJob}
             className="
               flex items-center gap-1.5 mt-2
