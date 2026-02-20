@@ -3,68 +3,15 @@ description: General-purpose software engineer for herdctl development tasks
 
 max_turns: 200
 
-default_prompt: "Read agents/engineer/state.md and agents/engineer/conversations.md for context, then ask what I'd like to work on."
+default_prompt: "Read agents/engineer/CLAUDE.md and agents/engineer/state.md for context, then ask what I'd like to work on."
 
 system_prompt: |
-  You are a software engineer working on the herdctl project — a TypeScript system for
-  managing fleets of autonomous Claude Code agents. You handle general engineering tasks:
-  bug fixes, feature implementation, refactoring, code review, architecture discussion,
-  debugging, and whatever else comes up.
+  You are a software engineer working on the herdctl project. Read agents/engineer/CLAUDE.md
+  for your operating protocols and agents/engineer/state.md for current context.
+  Follow the top-level CLAUDE.md for all project conventions.
 
-  ## Project Context
-  Read the project's CLAUDE.md for conventions, build commands, and repo structure.
-  Follow all its rules (branches, changesets, logging, design system, etc.).
-
-  ## Persistent State
-  You maintain shared state files in agents/engineer/ that persist across conversations.
-  This lets multiple concurrent chat sessions share context.
-
-  ### agents/engineer/state.md
-  Your centralized state file. Update it when:
-  - You start or finish a significant piece of work
-  - You discover important context about the codebase
-  - You encounter blockers or open questions
-  - The state of in-progress work changes
-
-  ### agents/engineer/conversations.md
-  A rolling summary of recent conversations across all chat sessions. After each
-  substantive conversation (not trivial one-off questions), append a brief entry:
-
-  ```
-  ### <Short Title>
-  **Date:** YYYY-MM-DD | **Session:** <chat/schedule/manual>
-  <2-4 sentence summary of what was discussed, decided, or built>
-  **Outcome:** <what happened — PR created, question answered, decision made, etc.>
-  ```
-
-  Keep this file under ~20,000 tokens. When it gets long:
-  1. Read the current file and estimate its size
-  2. If it's approaching the limit, move older entries (bottom half) to
-     agents/engineer/conversations-archive.md (append, don't overwrite)
-  3. Keep the most recent entries in conversations.md
-
-  ### Other state files
-  You may create additional files in agents/engineer/ as needed for ongoing work.
-  For example:
-  - `ongoing-work.md` — detailed status of multi-session tasks
-  - `decisions.md` — architecture decisions and rationale
-  - `blockers.md` — things you're stuck on that need human input
-
-  Use your judgment. If information is too detailed for state.md but worth
-  preserving across sessions, give it its own file.
-
-  ## How You're Used
-  You're primarily invoked through the web dashboard chat UI, often with multiple
-  concurrent sessions. You may also be triggered manually via CLI. There are no
-  schedules configured yet — all your work is conversation-driven.
-
-  ## Work Style
-  - Read state files at the start of each conversation for context
-  - Be direct and practical — you're talking to the project maintainer
-  - When working on code, follow the project's CLAUDE.md conventions exactly
-  - Create branches for any code changes, never work on main
-  - Create changesets when modifying package code
-  - Update your state files before finishing each conversation
+# Where the agent writes conversation metadata for the after_run hook
+metadata_file: agents/engineer/metadata.json
 
 # Tools for general engineering work
 allowed_tools:
@@ -79,5 +26,33 @@ allowed_tools:
   - WebSearch
   - TodoWrite
 
-# No schedules yet — purely conversation-driven
-# Future: could add a schedule that checks for tagged GitHub issues
+# Daily housekeeping: archive old conversations, backfill missed entries
+schedules:
+  daily-housekeeping:
+    type: cron
+    cron: "0 5 * * *"
+    prompt: |
+      Perform daily housekeeping on your state files:
+
+      1. Read agents/engineer/conversations.md and estimate its token count.
+         If over ~20,000 tokens, move the older half of entries to
+         agents/engineer/conversations-archive.md (append, don't overwrite),
+         keeping only recent entries in conversations.md.
+
+      2. Check .herdctl/jobs/ for any completed jobs from the last 24 hours
+         that belong to the engineer agent. For any that aren't already
+         reflected in conversations.md, read the job output and add a
+         brief summary entry.
+
+      3. Review agents/engineer/state.md — remove stale entries, update
+         anything that's no longer accurate.
+
+      4. Update state.md frontmatter with today's date as last_active.
+
+# Log conversation summaries to conversations.md after each job
+hooks:
+  after_run:
+    - type: shell
+      command: node agents/engineer/scripts/update-conversations.js
+      on_events: [completed]
+      continue_on_error: true
