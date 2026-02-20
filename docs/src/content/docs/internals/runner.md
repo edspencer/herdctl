@@ -7,23 +7,24 @@ The Runner is the execution engine that powers agent runs in herdctl. It integra
 
 ## Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         JobExecutor                                 │
-├─────────────────────────────────────────────────────────────────────┤
-│  1. Create job record                                               │
-│  2. Transform config → SDK options (sdk-adapter)                    │
-│  3. Execute SDK query (async iterator)                              │
-│  4. Process messages (message-processor)                            │
-│  5. Stream output to JSONL                                          │
-│  6. Update job status and session info                              │
-└─────────────────────────────────────────────────────────────────────┘
-         │                        │                        │
-         ▼                        ▼                        ▼
-   ┌──────────┐           ┌──────────────┐         ┌────────────┐
-   │ SDK      │           │ State        │         │ Error      │
-   │ Adapter  │           │ Management   │         │ Handler    │
-   └──────────┘           └──────────────┘         └────────────┘
+```mermaid
+flowchart TD
+  JE["JobExecutor
+  1. Create job record
+  2. Transform config → SDK options
+  3. Execute SDK query
+  4. Process messages
+  5. Stream output to JSONL
+  6. Update job status"]
+
+  JE --> SDK["SDK Adapter"]
+  JE --> SM["State Management"]
+  JE --> EH["Error Handler"]
+
+  style JE fill:#4f46e5,color:#fff,stroke:#3730a3
+  style SDK fill:#059669,color:#fff,stroke:#047857
+  style SM fill:#d97706,color:#fff,stroke:#b45309
+  style EH fill:#dc2626,color:#fff,stroke:#b91c1c
 ```
 
 The runner module consists of four main components:

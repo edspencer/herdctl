@@ -11,22 +11,18 @@ Work sources answer the question: "What should this agent work on?"
 
 While [schedules](/concepts/schedules/) control **when** an agent runs, work sources control **what** the agent works on when it runs.
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         WORK SOURCE FLOW                             │
-│                                                                      │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────────────┐   │
-│  │   External   │───▶│    Work      │───▶│       Agent          │   │
-│  │   System     │    │   Source     │    │                      │   │
-│  │              │    │   Adapter    │    │  Processes the task  │   │
-│  │ (GitHub,     │    │              │    │  and reports outcome │   │
-│  │  Linear,     │◀───│  Normalizes  │◀───│                      │   │
-│  │  Jira...)    │    │  work items  │    │                      │   │
-│  └──────────────┘    └──────────────┘    └──────────────────────┘   │
-│                                                                      │
-│  Example: GitHub Issues → GitHub Adapter → Agent works on issue     │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+  ES["External System
+  GitHub, Linear, Jira..."] <-->|normalizes
+  work items| WS["Work Source
+  Adapter"]
+  WS <-->|processes task &
+  reports outcome| AG["Agent"]
+
+  style ES fill:#7c3aed,color:#fff,stroke:#6d28d9
+  style WS fill:#4f46e5,color:#fff,stroke:#3730a3
+  style AG fill:#059669,color:#fff,stroke:#047857
 ```
 
 ## The Adapter Pattern
@@ -40,31 +36,23 @@ herdctl implements a **pluggable adapter pattern** that enables:
 
 ### How It Works
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                       ADAPTER ARCHITECTURE                           │
-│                                                                      │
-│  ┌─────────────────────────────────────────────────────────────┐    │
-│  │                  WorkSourceAdapter Interface                 │    │
-│  │                                                              │    │
-│  │  fetchAvailableWork()  →  Get tasks ready for processing    │    │
-│  │  claimWork()           →  Mark a task as being worked on    │    │
-│  │  completeWork()        →  Report task completion/failure    │    │
-│  │  releaseWork()         →  Return uncompleted task to queue  │    │
-│  │  getWork()             →  Fetch a specific task by ID       │    │
-│  └─────────────────────────────────────────────────────────────┘    │
-│                              │                                       │
-│              ┌───────────────┼───────────────┐                      │
-│              ▼               ▼               ▼                      │
-│  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐           │
-│  │    GitHub     │  │    Linear     │  │     Jira      │           │
-│  │    Adapter    │  │    Adapter    │  │    Adapter    │           │
-│  │               │  │               │  │               │           │
-│  │  Label-based  │  │  Status-based │  │  Transition   │           │
-│  │  workflow     │  │  workflow     │  │  workflow     │           │
-│  └───────────────┘  └───────────────┘  └───────────────┘           │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+  WSI["WorkSourceAdapter Interface
+  fetchAvailableWork() · claimWork()
+  completeWork() · releaseWork() · getWork()"]
+
+  WSI --> GH["GitHub Adapter
+  Label-based workflow"]
+  WSI --> LN["Linear Adapter
+  Status-based workflow"]
+  WSI --> JR["Jira Adapter
+  Transition workflow"]
+
+  style WSI fill:#4f46e5,color:#fff,stroke:#3730a3
+  style GH fill:#059669,color:#fff,stroke:#047857
+  style LN fill:#059669,color:#fff,stroke:#047857
+  style JR fill:#059669,color:#fff,stroke:#047857
 ```
 
 ## Work Items
@@ -89,36 +77,21 @@ Regardless of the source, all tasks are normalized into a consistent **WorkItem*
 
 Every work item follows a standard lifecycle across all adapters:
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                      WORK ITEM LIFECYCLE                             │
-│                                                                      │
-│                    ┌───────────────┐                                │
-│                    │   AVAILABLE   │                                │
-│                    │  Ready label  │                                │
-│                    └───────┬───────┘                                │
-│                            │                                        │
-│                      claimWork()                                    │
-│                            │                                        │
-│                            ▼                                        │
-│                    ┌───────────────┐                                │
-│                    │   CLAIMED     │                                │
-│                    │  In-progress  │                                │
-│                    │    label      │                                │
-│                    └───────┬───────┘                                │
-│                            │                                        │
-│              ┌─────────────┴─────────────┐                         │
-│              │                           │                          │
-│        completeWork()              releaseWork()                    │
-│              │                           │                          │
-│              ▼                           ▼                          │
-│     ┌───────────────┐           ┌───────────────┐                  │
-│     │   COMPLETED   │           │   RELEASED    │                  │
-│     │    (closed    │           │  (returned    │                  │
-│     │  if success)  │           │  to queue)    │                  │
-│     └───────────────┘           └───────────────┘                  │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+  AV["AVAILABLE
+  Ready label"]
+  AV -->|claimWork| CL["CLAIMED
+  In-progress label"]
+  CL -->|completeWork| CO["COMPLETED
+  Closed if success"]
+  CL -->|releaseWork| RE["RELEASED
+  Returned to queue"]
+
+  style AV fill:#4f46e5,color:#fff,stroke:#3730a3
+  style CL fill:#d97706,color:#fff,stroke:#b45309
+  style CO fill:#059669,color:#fff,stroke:#047857
+  style RE fill:#64748b,color:#fff,stroke:#475569
 ```
 
 ### Operations

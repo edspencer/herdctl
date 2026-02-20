@@ -9,27 +9,26 @@ This document describes the internal architecture and implementation of the herd
 
 The scheduler is a polling-based system that continuously checks agent schedules and triggers due jobs. It consists of several key components:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Scheduler                                │
-│                                                                 │
-│  ┌─────────────┐    ┌──────────────┐    ┌─────────────────┐    │
-│  │ Polling     │───▶│ Schedule     │───▶│ Trigger         │    │
-│  │ Loop        │    │ Checker      │    │ Callback        │    │
-│  └─────────────┘    └──────────────┘    └─────────────────┘    │
-│         │                  │                     │              │
-│         ▼                  ▼                     ▼              │
-│  ┌─────────────┐    ┌──────────────┐    ┌─────────────────┐    │
-│  │ Sleep/      │    │ State        │    │ Schedule        │    │
-│  │ Abort       │    │ Reader       │    │ Runner          │    │
-│  └─────────────┘    └──────────────┘    └─────────────────┘    │
-│                            │                     │              │
-│                            ▼                     ▼              │
-│                     ┌──────────────┐    ┌─────────────────┐    │
-│                     │ state.yaml   │    │ Work Source     │    │
-│                     │              │    │ Manager         │    │
-│                     └──────────────┘    └─────────────────┘    │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+  subgraph Scheduler
+    PL["Polling Loop"] --> SC["Schedule Checker"] --> TC["Trigger Callback"]
+    PL --> SA["Sleep / Abort"]
+    SC --> SR["State Reader"]
+    TC --> RN["Schedule Runner"]
+    SR --> SY[("state.yaml")]
+    RN --> WS["Work Source Manager"]
+  end
+
+  style Scheduler fill:transparent,stroke:#6366f1,stroke-width:2px
+  style PL fill:#4f46e5,color:#fff,stroke:#3730a3
+  style SC fill:#4f46e5,color:#fff,stroke:#3730a3
+  style TC fill:#4f46e5,color:#fff,stroke:#3730a3
+  style SA fill:#64748b,color:#fff,stroke:#475569
+  style SR fill:#64748b,color:#fff,stroke:#475569
+  style RN fill:#059669,color:#fff,stroke:#047857
+  style SY fill:#d97706,color:#fff,stroke:#b45309
+  style WS fill:#059669,color:#fff,stroke:#047857
 ```
 
 ## Module Structure

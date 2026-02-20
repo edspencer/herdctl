@@ -11,44 +11,46 @@ Building robust applications requires understanding how errors propagate and how
 
 herdctl provides a comprehensive error hierarchy organized by module. All errors include error codes for programmatic handling and support error chaining via the standard `cause` property.
 
-```
-FleetManagerError (base)
-├── ConfigurationError        // Configuration validation failures
-├── AgentNotFoundError        // Agent lookup failures
-├── JobNotFoundError          // Job lookup failures
-├── ScheduleNotFoundError     // Schedule lookup failures
-├── InvalidStateError         // Invalid operation for current state
-├── ConcurrencyLimitError     // Max concurrent jobs reached
-├── JobCancelError            // Job cancellation failures
-├── JobForkError              // Job forking failures
-├── FleetManagerShutdownError // Shutdown timeout/failures
-└── FleetManagerStateDirError // State directory failures
+```mermaid
+graph LR
+  FM["FleetManagerError"] --> CE["ConfigurationError"]
+  FM --> ANF["AgentNotFoundError"]
+  FM --> JNF["JobNotFoundError"]
+  FM --> SNF["ScheduleNotFoundError"]
+  FM --> IS["InvalidStateError"]
+  FM --> CL["ConcurrencyLimitError"]
+  FM --> JCE["JobCancelError"]
+  FM --> JFE["JobForkError"]
+  FM --> FMS["FleetManagerShutdownError"]
+  FM --> FSD["FleetManagerStateDirError"]
 
-RunnerError (base)
-├── SDKInitializationError    // SDK setup failures
-├── SDKStreamingError         // Runtime streaming failures
-└── MalformedResponseError    // Invalid SDK responses
+  RE["RunnerError"] --> SDKInit["SDKInitializationError"]
+  RE --> SDKStream["SDKStreamingError"]
+  RE --> MR["MalformedResponseError"]
 
-SchedulerError (base)
-├── IntervalParseError        // Invalid interval strings
-├── ScheduleTriggerError      // Schedule execution failures
-└── SchedulerShutdownError    // Scheduler shutdown failures
+  SE["SchedulerError"] --> IP["IntervalParseError"]
+  SE --> ST["ScheduleTriggerError"]
+  SE --> SS["SchedulerShutdownError"]
 
-StateError (base)
-├── StateDirectoryCreateError // Directory creation failures
-├── StateDirectoryValidationError // Validation failures
-└── StateFileError            // File read/write failures
+  StE["StateError"] --> SDC["StateDirectoryCreateError"]
+  StE --> SDV["StateDirectoryValidationError"]
+  StE --> SF["StateFileError"]
 
-WorkSourceError (base)
-├── UnknownWorkSourceError    // Unknown adapter type
-├── DuplicateWorkSourceError  // Duplicate registration
-├── GitHubAPIError            // GitHub API failures
-└── GitHubAuthError           // GitHub authentication failures
+  WS["WorkSourceError"] --> UW["UnknownWorkSourceError"]
+  WS --> DW["DuplicateWorkSourceError"]
+  WS --> GA["GitHubAPIError"]
+  WS --> GAu["GitHubAuthError"]
 
-ConfigError (base — config file parsing/loading)
-├── FleetCycleError              // Circular fleet references detected
-├── FleetNameCollisionError      // Duplicate sub-fleet names at same level
-└── FleetLoadError               // Sub-fleet file missing or invalid
+  CfE["ConfigError"] --> FC["FleetCycleError"]
+  CfE --> FNC["FleetNameCollisionError"]
+  CfE --> FL["FleetLoadError"]
+
+  style FM fill:#dc2626,color:#fff,stroke:#b91c1c
+  style RE fill:#ea580c,color:#fff,stroke:#c2410c
+  style SE fill:#d97706,color:#fff,stroke:#b45309
+  style StE fill:#4f46e5,color:#fff,stroke:#4338ca
+  style WS fill:#7c3aed,color:#fff,stroke:#6d28d9
+  style CfE fill:#be185d,color:#fff,stroke:#9d174d
 ```
 
 ---
