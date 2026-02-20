@@ -38,9 +38,6 @@ importers:
       astro:
         specifier: ^5.6.1
         version: 5.16.11(@types/node@20.19.30)(jiti@2.6.1)(lightningcss@1.30.2)(rollup@4.55.2)(typescript@5.9.3)(yaml@2.8.2)
-      playwright:
-        specifier: ^1.58.2
-        version: 1.58.2
       rehype-mermaid:
         specifier: ^3.0.0
         version: 3.0.0(playwright@1.58.2)
@@ -9733,13 +9730,15 @@ snapshots:
       mlly: 1.8.0
       pathe: 2.0.3
 
-  playwright-core@1.58.2: {}
+  playwright-core@1.58.2:
+    optional: true
 
   playwright@1.58.2:
     dependencies:
       playwright-core: 1.58.2
     optionalDependencies:
       fsevents: 2.3.2
+    optional: true
 
   points-on-curve@0.2.0: {}
 

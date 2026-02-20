@@ -8,7 +8,7 @@ import rehypeMermaid from 'rehype-mermaid';
 export default defineConfig({
 	site: 'https://herdctl.dev',
 	markdown: {
-		rehypePlugins: [[rehypeMermaid, { strategy: 'img-svg', dark: true }]],
+		rehypePlugins: [[rehypeMermaid, { strategy: 'pre-mermaid' }]],
 	},
 	integrations: [
 		sitemap(),
@@ -22,6 +22,12 @@ export default defineConfig({
 				alt: 'herdctl',
 			},
 			head: [
+				// Mermaid client-side rendering
+				{
+					tag: 'script',
+					attrs: { type: 'module' },
+					content: `import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'; mermaid.initialize({ startOnLoad: true, theme: 'dark' });`,
+				},
 				// OpenGraph meta tags
 				{
 					tag: 'meta',

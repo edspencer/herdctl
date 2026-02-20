@@ -66,7 +66,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build packages
-        run: pnpm exec turbo build --filter='!docs'
+        run: pnpm build
 
       - name: Run unit tests
         run: pnpm test
@@ -88,26 +88,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build packages
-        run: pnpm exec turbo build --filter='!docs'
+        run: pnpm build
 
       - name: Run CLI smoke tests
         run: pnpm --filter herdctl run test:smoke
-
-  docs:
-    name: Docs Build
-    runs-on: self-hosted
-    container:
-      image: node:20-bookworm
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Playwright Chromium (for Mermaid diagram rendering)
-        run: pnpm --filter docs exec playwright install --with-deps chromium
-
-      - name: Build docs
-        run: pnpm exec turbo build --filter=docs
