@@ -99,6 +99,10 @@ export default defineConfig({
 					link: '/',
 				},
 				{
+					label: "What's New",
+					slug: 'whats-new',
+				},
+				{
 					label: 'Security',
 					slug: 'security',
 				},
