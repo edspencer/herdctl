@@ -65,14 +65,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Playwright Chromium system deps
-        run: sudo pnpm --filter docs exec playwright install-deps chromium
-
-      - name: Install Playwright Chromium (for Mermaid diagram rendering)
-        run: pnpm --filter docs exec playwright install chromium
-
       - name: Build packages
-        run: pnpm build
+        run: turbo build --filter='!docs'
 
       - name: Run unit tests
         run: pnpm test
@@ -93,14 +87,27 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Playwright Chromium system deps
-        run: sudo pnpm --filter docs exec playwright install-deps chromium
-
-      - name: Install Playwright Chromium (for Mermaid diagram rendering)
-        run: pnpm --filter docs exec playwright install chromium
-
       - name: Build packages
-        run: pnpm build
+        run: turbo build --filter='!docs'
 
       - name: Run CLI smoke tests
         run: pnpm --filter herdctl run test:smoke
+
+  docs:
+    name: Docs Build
+    runs-on: self-hosted
+    container:
+      image: node:20-bookworm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium (for Mermaid diagram rendering)
+        run: pnpm --filter docs exec playwright install --with-deps chromium
+
+      - name: Build docs
+        run: turbo build --filter=docs
