@@ -6,7 +6,7 @@
  */
 
 import { MessageCircle } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "../../lib/types";
 import { useChatMessages } from "../../store";
 import { MessageBubble } from "./MessageBubble";
@@ -28,26 +28,32 @@ export function MessageFeed(_props: MessageFeedProps) {
   const { chatMessages, chatMessagesLoading, chatStreaming, chatStreamingContent } =
     useChatMessages();
   const feedRef = useRef<HTMLDivElement>(null);
-  const prevMessagesLengthRef = useRef(chatMessages.length);
+  const [isAtBottom, setIsAtBottom] = useState(true);
 
-  // Auto-scroll to bottom when new messages arrive or streaming content changes
+  // Track whether user is scrolled to the bottom
+  const checkScrollPosition = useCallback(() => {
+    const feed = feedRef.current;
+    if (!feed) return;
+    const threshold = 20;
+    const distanceFromBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight;
+    setIsAtBottom(distanceFromBottom <= threshold);
+  }, []);
+
+  // Attach scroll listener
   useEffect(() => {
     const feed = feedRef.current;
     if (!feed) return;
+    feed.addEventListener("scroll", checkScrollPosition);
+    return () => feed.removeEventListener("scroll", checkScrollPosition);
+  }, [checkScrollPosition]);
 
-    // Only auto-scroll if:
-    // 1. New messages were added
-    // 2. Streaming content updated
-    // 3. User is already near the bottom
-    const isNearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 100;
-    const newMessagesAdded = chatMessages.length > prevMessagesLengthRef.current;
-
-    if (newMessagesAdded || chatStreaming || isNearBottom) {
-      feed.scrollTop = feed.scrollHeight;
-    }
-
-    prevMessagesLengthRef.current = chatMessages.length;
-  }, [chatMessages, chatStreaming]);
+  // Auto-scroll only when pinned to bottom
+  useEffect(() => {
+    if (!isAtBottom) return;
+    const feed = feedRef.current;
+    if (!feed) return;
+    feed.scrollTop = feed.scrollHeight;
+  }, [chatMessages, chatStreamingContent, isAtBottom]);
 
   // Loading state
   if (chatMessagesLoading) {
