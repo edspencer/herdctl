@@ -1,0 +1,58 @@
+name: engineer
+description: General-purpose software engineer for herdctl development tasks
+
+max_turns: 200
+
+default_prompt: "Read agents/engineer/CLAUDE.md and agents/engineer/state.md for context, then ask what I'd like to work on."
+
+system_prompt: |
+  You are a software engineer working on the herdctl project. Read agents/engineer/CLAUDE.md
+  for your operating protocols and agents/engineer/state.md for current context.
+  Follow the top-level CLAUDE.md for all project conventions.
+
+# Where the agent writes conversation metadata for the after_run hook
+metadata_file: agents/engineer/metadata.json
+
+# Tools for general engineering work
+allowed_tools:
+  - Bash
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - Task
+  - WebFetch
+  - WebSearch
+  - TodoWrite
+
+# Daily housekeeping: archive old conversations, backfill missed entries
+schedules:
+  daily-housekeeping:
+    type: cron
+    cron: "0 5 * * *"
+    prompt: |
+      Perform daily housekeeping on your state files:
+
+      1. Read agents/engineer/conversations.md and estimate its token count.
+         If over ~20,000 tokens, move the older half of entries to
+         agents/engineer/conversations-archive.md (append, don't overwrite),
+         keeping only recent entries in conversations.md.
+
+      2. Check .herdctl/jobs/ for any completed jobs from the last 24 hours
+         that belong to the engineer agent. For any that aren't already
+         reflected in conversations.md, read the job output and add a
+         brief summary entry.
+
+      3. Review agents/engineer/state.md — remove stale entries, update
+         anything that's no longer accurate.
+
+      4. Update state.md frontmatter with today's date as last_active.
+
+# Log conversation summaries to conversations.md after each job
+hooks:
+  after_run:
+    - type: shell
+      command: node agents/engineer/scripts/update-conversations.js
+      on_events: [completed]
+      continue_on_error: true
