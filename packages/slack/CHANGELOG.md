@@ -1,5 +1,15 @@
 # @herdctl/slack
 
+## 1.2.1
+
+### Patch Changes
+
+- [#97](https://github.com/edspencer/herdctl/pull/97) [`7c928f6`](https://github.com/edspencer/herdctl/commit/7c928f627de425720a5ebadf88900209043921e4) Thanks [@edspencer](https://github.com/edspencer)! - Add Biome for linting and formatting across all packages
+
+- Updated dependencies [[`7c928f6`](https://github.com/edspencer/herdctl/commit/7c928f627de425720a5ebadf88900209043921e4)]:
+  - @herdctl/core@5.4.1
+  - @herdctl/chat@0.3.1
+
 ## 1.2.0
 
 ### Minor Changes
