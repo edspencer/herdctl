@@ -28,7 +28,8 @@
     "@herdctl/slack": "workspace:*",
     "@herdctl/web": "workspace:*",
     "@inquirer/prompts": "^8.2.0",
-    "commander": "^12"
+    "commander": "^12",
+    "yaml": "^2"
   },
   "devDependencies": {
     "typescript": "^5",

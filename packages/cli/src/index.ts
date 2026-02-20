@@ -4,7 +4,9 @@
  * herdctl - Autonomous Agent Fleet Management for Claude Code
  *
  * Commands (PRD 6):
- * - herdctl init              Initialize a new herdctl project
+ * - herdctl init              Initialize fleet or agent (interactive selector)
+ * - herdctl init fleet        Create a new herdctl.yaml fleet configuration
+ * - herdctl init agent [name] Add a new agent to the fleet
  * - herdctl start [agent]     Start all agents or a specific agent
  * - herdctl stop [agent]      Stop all agents or a specific agent
  * - herdctl status [agent]    Show fleet or agent status
@@ -33,7 +35,9 @@ const { version: VERSION } = require("../package.json");
 
 import { cancelCommand } from "./commands/cancel.js";
 import { configShowCommand, configValidateCommand } from "./commands/config.js";
-import { initCommand } from "./commands/init.js";
+import { initRouterAction } from "./commands/init.js";
+import { initAgentCommand } from "./commands/init-agent.js";
+import { initFleetCommand } from "./commands/init-fleet.js";
 import { jobCommand } from "./commands/job.js";
 import { jobsCommand } from "./commands/jobs.js";
 import { logsCommand } from "./commands/logs.js";
@@ -50,16 +54,60 @@ program
   .description("Autonomous Agent Fleet Management for Claude Code")
   .version(VERSION);
 
-program
+// Init command group
+const initCmd = program
   .command("init")
-  .description("Initialize a new herdctl project")
+  .description("Initialize a new fleet or add an agent")
+  .option("-y, --yes", "Accept all defaults without prompting")
+  .option("-f, --force", "Overwrite existing files")
+  .action(async (options) => {
+    try {
+      await initRouterAction(options);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("User force closed")) {
+        console.log("\nAborted.");
+        process.exit(0);
+      }
+      throw error;
+    }
+  });
+
+initCmd
+  .command("fleet")
+  .description("Create a new herdctl.yaml fleet configuration")
   .option("-n, --name <name>", "Fleet name")
-  .option("-e, --example <template>", "Use example template (simple, quickstart, github)")
   .option("-y, --yes", "Accept all defaults without prompting")
   .option("-f, --force", "Overwrite existing configuration")
   .action(async (options) => {
     try {
-      await initCommand(options);
+      await initFleetCommand(options);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("User force closed")) {
+        console.log("\nAborted.");
+        process.exit(0);
+      }
+      throw error;
+    }
+  });
+
+initCmd
+  .command("agent [name]")
+  .description("Add a new agent to the fleet")
+  .option("-d, --description <desc>", "Agent description")
+  .option(
+    "--permission-mode <mode>",
+    "Permission mode (default, acceptEdits, bypassPermissions, plan, delegate, dontAsk)",
+  )
+  .option("--docker", "Enable Docker isolation")
+  .option("--no-docker", "Disable Docker isolation")
+  .option("--runtime <runtime>", "Runtime backend (sdk or cli)")
+  .option("--discord", "Add Discord chat integration")
+  .option("--slack", "Add Slack chat integration")
+  .option("-y, --yes", "Skip all prompts, use defaults")
+  .option("-f, --force", "Overwrite existing agent file")
+  .action(async (name, options) => {
+    try {
+      await initAgentCommand(name, options);
     } catch (error) {
       if (error instanceof Error && error.message.includes("User force closed")) {
         console.log("\nAborted.");
