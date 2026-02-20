@@ -7,3 +7,4 @@ fleet:
 agents:
   - path: .security/agent.yaml
   - path: agents/docs/agent.yaml
+  - path: agents/changelog/agent.yaml
