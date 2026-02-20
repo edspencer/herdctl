@@ -119,29 +119,40 @@ export function useWebSocket() {
           break;
 
         case "chat:response": {
-          const { chunk } = message.payload;
-          appendStreamingChunk(chunk);
+          const { sessionId, chunk } = message.payload;
+          if (sessionId === useStore.getState().activeChatSessionId) {
+            appendStreamingChunk(chunk);
+          }
           break;
         }
 
         case "chat:complete": {
-          completeStreaming();
+          const { sessionId } = message.payload;
+          if (sessionId === useStore.getState().activeChatSessionId) {
+            completeStreaming();
+          }
           break;
         }
 
         case "chat:tool_call": {
-          addToolCallMessage({
-            toolName: message.payload.toolName,
-            inputSummary: message.payload.inputSummary,
-            output: message.payload.output,
-            isError: message.payload.isError,
-            durationMs: message.payload.durationMs,
-          });
+          const { sessionId } = message.payload;
+          if (sessionId === useStore.getState().activeChatSessionId) {
+            addToolCallMessage({
+              toolName: message.payload.toolName,
+              inputSummary: message.payload.inputSummary,
+              output: message.payload.output,
+              isError: message.payload.isError,
+              durationMs: message.payload.durationMs,
+            });
+          }
           break;
         }
 
         case "chat:error": {
-          setChatError(message.payload.error);
+          const { sessionId } = message.payload;
+          if (sessionId === useStore.getState().activeChatSessionId) {
+            setChatError(message.payload.error);
+          }
           break;
         }
       }
