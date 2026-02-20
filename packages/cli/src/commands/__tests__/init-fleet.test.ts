@@ -76,12 +76,11 @@ describe("initFleetCommand", () => {
       expect(content).toContain(`name: ${path.basename(tempDir)}`);
     });
 
-    it("creates agents/ directory", async () => {
+    it("does NOT create agents/ directory", async () => {
       await initFleetCommand({});
 
       const agentsDir = path.join(tempDir, "agents");
-      expect(fs.existsSync(agentsDir)).toBe(true);
-      expect(fs.statSync(agentsDir).isDirectory()).toBe(true);
+      expect(fs.existsSync(agentsDir)).toBe(false);
     });
 
     it("creates .herdctl/ directory", async () => {
@@ -90,14 +89,6 @@ describe("initFleetCommand", () => {
       const stateDir = path.join(tempDir, ".herdctl");
       expect(fs.existsSync(stateDir)).toBe(true);
       expect(fs.statSync(stateDir).isDirectory()).toBe(true);
-    });
-
-    it("does NOT create any agent YAML file", async () => {
-      await initFleetCommand({});
-
-      const agentsDir = path.join(tempDir, "agents");
-      const files = fs.readdirSync(agentsDir);
-      expect(files).toHaveLength(0);
     });
   });
 

@@ -3,7 +3,6 @@
  *
  * Non-interactive command that scaffolds:
  * - herdctl.yaml with a comprehensive commented template
- * - agents/ directory
  * - .herdctl/ state directory
  */
 
@@ -62,7 +61,6 @@ agents: []
 export async function initFleetCommand(options: InitFleetOptions): Promise<void> {
   const cwd = process.cwd();
   const configPath = path.join(cwd, "herdctl.yaml");
-  const agentsDir = path.join(cwd, "agents");
   const stateDir = path.join(cwd, ".herdctl");
 
   // Check if config already exists
@@ -73,10 +71,7 @@ export async function initFleetCommand(options: InitFleetOptions): Promise<void>
 
   const fleetName = options.name || path.basename(cwd);
 
-  // Create directories
-  if (!fs.existsSync(agentsDir)) {
-    fs.mkdirSync(agentsDir, { recursive: true });
-  }
+  // Create state directory
   if (!fs.existsSync(stateDir)) {
     fs.mkdirSync(stateDir, { recursive: true });
   }
@@ -93,7 +88,6 @@ export async function initFleetCommand(options: InitFleetOptions): Promise<void>
   console.log("");
   console.log("Created:");
   console.log("  herdctl.yaml");
-  console.log("  agents/");
   console.log("  .herdctl/");
   console.log("");
   console.log("Next steps:");
