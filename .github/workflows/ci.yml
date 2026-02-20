@@ -66,7 +66,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build packages
-        run: turbo build --filter='!docs'
+        run: pnpm exec turbo build --filter='!docs'
 
       - name: Run unit tests
         run: pnpm test
@@ -88,7 +88,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build packages
-        run: turbo build --filter='!docs'
+        run: pnpm exec turbo build --filter='!docs'
 
       - name: Run CLI smoke tests
         run: pnpm --filter herdctl run test:smoke
@@ -110,4 +110,4 @@ jobs:
         run: pnpm --filter docs exec playwright install --with-deps chromium
 
       - name: Build docs
-        run: turbo build --filter=docs
+        run: pnpm exec turbo build --filter=docs
