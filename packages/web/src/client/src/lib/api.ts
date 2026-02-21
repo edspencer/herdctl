@@ -132,6 +132,19 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 /**
  * Helper to make typed DELETE requests
  */
+async function patch<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  return handleResponse<T>(response);
+}
+
 async function del<T>(path: string): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, {
     method: "DELETE",

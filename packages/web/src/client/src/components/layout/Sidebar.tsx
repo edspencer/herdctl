@@ -410,7 +410,7 @@ function FleetSection({
               activeSessionId={activeSessionId}
               onNavigate={onNavigate}
               onNewChat={onNewChat}
-              onRenameSession={handleRenameSession}
+              onRenameSession={onRenameSession}
               indent={depth + 1}
             />
           ))}
