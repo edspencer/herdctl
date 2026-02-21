@@ -20,6 +20,41 @@ import type { AgentInfo, ChatSession, ConnectionStatus } from "../../lib/types";
 import { useChatActions, useFleet, useSidebarSessions } from "../../store";
 
 // =============================================================================
+// Version Info
+// =============================================================================
+
+interface VersionInfo {
+  web: string;
+  cli: string;
+  core: string;
+}
+
+function VersionDisplay() {
+  const [versions, setVersions] = useState<VersionInfo | null>(null);
+
+  useEffect(() => {
+    fetch("/api/version")
+      .then((res) => res.json())
+      .then((data) => setVersions(data))
+      .catch(() => {
+        // Silently fail - versions are non-critical
+      });
+  }, []);
+
+  if (!versions) return null;
+
+  return (
+    <div className="px-4 py-2 border-t border-herd-sidebar-border">
+      <p className="text-[10px] text-herd-sidebar-muted/60">
+        herdctl v{versions.cli} <span className="text-herd-sidebar-muted/40">&middot;</span> core v
+        {versions.core} <span className="text-herd-sidebar-muted/40">&middot;</span> web v
+        {versions.web}
+      </p>
+    </div>
+  );
+}
+
+// =============================================================================
 // Fleet Grouping Types
 // =============================================================================
 
@@ -539,6 +574,9 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
           <span className="text-herd-sidebar-muted/50">&middot;</span> {counts.errorAgents} errors
         </p>
       </div>
+
+      {/* Version info */}
+      <VersionDisplay />
     </div>
   );
 }

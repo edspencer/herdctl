@@ -162,6 +162,43 @@ export async function createWebServer(
     return reply.send({ status: "ok", timestamp: new Date().toISOString() });
   });
 
+  // Version endpoint - read package versions at runtime
+  server.get("/api/version", async (_request, reply) => {
+    try {
+      // Read package.json files from the dist directory structure
+      // When compiled, this file is at dist/server/index.js
+      // Package roots are at ../../ (for @herdctl/web), ../../../cli, ../../../core
+      const webPkgPath = join(__dirname, "..", "..", "package.json");
+      const cliPkgPath = join(__dirname, "..", "..", "..", "cli", "package.json");
+      const corePkgPath = join(__dirname, "..", "..", "..", "core", "package.json");
+
+      const readVersion = (path: string): string => {
+        try {
+          if (existsSync(path)) {
+            const pkg = JSON.parse(readFileSync(path, "utf-8"));
+            return pkg.version || "unknown";
+          }
+        } catch {
+          // Ignore read errors
+        }
+        return "unknown";
+      };
+
+      return reply.send({
+        web: readVersion(webPkgPath),
+        cli: readVersion(cliPkgPath),
+        core: readVersion(corePkgPath),
+      });
+    } catch (error) {
+      logger.warn(`Failed to read package versions: ${(error as Error).message}`);
+      return reply.send({
+        web: "unknown",
+        cli: "unknown",
+        core: "unknown",
+      });
+    }
+  });
+
   // SPA fallback - serve index.html for non-API, non-WS routes
   // This must be registered after static file serving and API routes
   const indexPath = join(clientDistPath, "index.html");
