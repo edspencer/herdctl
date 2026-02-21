@@ -23,7 +23,7 @@ export type RuntimeType = "sdk" | "cli";
 /**
  * Options for runtime factory
  */
-export interface RuntimeFactoryOptions {
+interface RuntimeFactoryOptions {
   /**
    * herdctl state directory (.herdctl/)
    *
