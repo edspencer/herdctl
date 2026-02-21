@@ -1,5 +1,11 @@
 # @herdctl/core
 
+## 5.4.2
+
+### Patch Changes
+
+- [#100](https://github.com/edspencer/herdctl/pull/100) [`4d1e4d8`](https://github.com/edspencer/herdctl/commit/4d1e4d8925d04a75f92a64360408d9fead9d3730) Thanks [@edspencer](https://github.com/edspencer)! - Log OAuth token refresh response body on failure for easier diagnosis
+
 ## 5.4.1
 
 ### Patch Changes
