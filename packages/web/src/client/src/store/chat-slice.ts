@@ -117,7 +117,7 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
   },
 
   fetchChatMessages: async (agentName: string, sessionId: string) => {
-    set({ chatMessagesLoading: true, chatError: null });
+    set({ chatMessagesLoading: true, chatError: null, chatStreaming: false, chatStreamingContent: "" });
 
     try {
       const response = await fetchChatSession(agentName, sessionId);
