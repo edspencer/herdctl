@@ -40,6 +40,8 @@ export interface WebChatSession {
   messageCount: number;
   /** Preview of the last message */
   preview?: string;
+  /** Custom name set by user (takes precedence over preview) */
+  customName?: string;
 }
 
 /**
@@ -299,6 +301,39 @@ export class WebChatManager {
     }
 
     logger.info(`Deleted web chat session`, { agentName, sessionId });
+
+    return true;
+  }
+
+  /**
+   * Rename a session with a custom name
+   *
+   * @param agentName - Name of the agent
+   * @param sessionId - Session ID
+   * @param customName - New custom name for the session
+   * @returns true if renamed, false if not found
+   */
+  async renameSession(agentName: string, sessionId: string, customName: string): Promise<boolean> {
+    this.ensureInitialized();
+
+    // Load sessions from disk if not in cache
+    await this.loadSessionsFromDisk(agentName);
+
+    const agentSessions = this.sessionMetadata.get(agentName);
+    const session = agentSessions?.get(sessionId);
+
+    if (!session) {
+      return false;
+    }
+
+    // Update custom name in metadata
+    session.customName = customName;
+
+    // Persist to disk by re-saving the message history with updated metadata
+    const messages = await this.loadMessageHistory(agentName, sessionId);
+    await this.saveMessageHistoryWithMetadata(agentName, sessionId, messages, session);
+
+    logger.info(`Renamed web chat session`, { agentName, sessionId, customName });
 
     return true;
   }
@@ -606,12 +641,13 @@ export class WebChatManager {
   }
 
   /**
-   * Save message history to disk
+   * Save message history to disk with optional metadata
    */
-  private async saveMessageHistory(
+  private async saveMessageHistoryWithMetadata(
     agentName: string,
     sessionId: string,
     messages: ChatMessage[],
+    session?: WebChatSession,
   ): Promise<void> {
     const filePath = this.getMessageHistoryPath(agentName, sessionId);
     const dir = dirname(filePath);
@@ -623,9 +659,24 @@ export class WebChatManager {
       agentName,
       messages,
       updatedAt: new Date().toISOString(),
+      customName: session?.customName,
     };
 
     await writeFile(filePath, JSON.stringify(data, null, 2), "utf-8");
+  }
+
+  /**
+   * Save message history to disk
+   */
+  private async saveMessageHistory(
+    agentName: string,
+    sessionId: string,
+    messages: ChatMessage[],
+  ): Promise<void> {
+    // Get session metadata to preserve customName if it exists
+    const agentSessions = this.sessionMetadata.get(agentName);
+    const session = agentSessions?.get(sessionId);
+    await this.saveMessageHistoryWithMetadata(agentName, sessionId, messages, session);
   }
 
   /**
@@ -677,6 +728,7 @@ export class WebChatManager {
             agentName: string;
             messages: ChatMessage[];
             updatedAt: string;
+            customName?: string;
           };
 
           const messages = data.messages ?? [];
@@ -690,6 +742,7 @@ export class WebChatManager {
             lastMessageAt: lastMessage?.timestamp ?? data.updatedAt,
             messageCount: messages.length,
             preview: lastMessage?.content?.substring(0, 100),
+            customName: data.customName,
           });
         } catch (error) {
           logger.warn(`Failed to load session file`, {

@@ -11,8 +11,8 @@
  * a flat agent list with no fleet grouping — identical to the pre-composition UI.
  */
 
-import { Briefcase, Calendar, ChevronRight, LayoutDashboard, Plus } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Briefcase, Calendar, ChevronRight, LayoutDashboard, Pencil, Plus } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { getAgentAvatar } from "../../lib/avatar";
 import { formatRelativeTime } from "../../lib/format";
@@ -200,6 +200,7 @@ interface AgentRowProps {
   activeSessionId: string | null;
   onNavigate?: () => void;
   onNewChat: (qualifiedName: string) => void;
+  onRenameSession: (agentQualifiedName: string, sessionId: string, name: string) => void;
   indent?: number;
 }
 
@@ -210,9 +211,39 @@ function AgentRow({
   activeSessionId,
   onNavigate,
   onNewChat,
+  onRenameSession,
   indent = 0,
 }: AgentRowProps) {
   const paddingLeft = indent > 0 ? `${indent * 16 + 2}px` : undefined;
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-focus input when entering edit mode
+  useEffect(() => {
+    if (editingSessionId && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editingSessionId]);
+
+  const startEditing = (session: ChatSession) => {
+    setEditingSessionId(session.sessionId);
+    setEditValue(session.customName || session.preview || "New conversation");
+  };
+
+  const handleSave = (sessionId: string) => {
+    if (editValue.trim()) {
+      onRenameSession(agent.qualifiedName, sessionId, editValue.trim());
+    }
+    setEditingSessionId(null);
+    setEditValue("");
+  };
+
+  const handleCancel = () => {
+    setEditingSessionId(null);
+    setEditValue("");
+  };
 
   return (
     <div>
@@ -249,22 +280,67 @@ function AgentRow({
         <div className="mr-1 mt-0.5 space-y-1">
           {sessions.map((session) => {
             const isSessionActive = session.sessionId === activeSessionId;
+            const isEditing = editingSessionId === session.sessionId;
+
+            if (isEditing) {
+              return (
+                <div
+                  key={session.sessionId}
+                  className="flex items-center gap-2 px-3 py-2 rounded bg-herd-sidebar-hover"
+                >
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleSave(session.sessionId);
+                      } else if (e.key === "Escape") {
+                        e.preventDefault();
+                        handleCancel();
+                      }
+                    }}
+                    onBlur={() => handleCancel()}
+                    className="flex-1 bg-transparent border-none outline-none text-sm text-herd-sidebar-fg focus:bg-herd-sidebar-hover transition-colors"
+                  />
+                </div>
+              );
+            }
+
             return (
-              <Link
+              <div
                 key={session.sessionId}
-                to={`/agents/${encodeURIComponent(agent.qualifiedName)}/chat/${session.sessionId}`}
-                onClick={onNavigate}
-                className={`flex items-center justify-between gap-2 px-3 py-2 rounded text-sm transition-colors ${
+                className={`group flex items-center gap-2 px-3 py-2 rounded text-sm transition-colors ${
                   isSessionActive
                     ? "text-herd-sidebar-fg bg-herd-sidebar-active"
                     : "text-herd-sidebar-muted hover:bg-herd-sidebar-hover hover:text-herd-sidebar-fg"
                 }`}
               >
-                <span className="truncate">{session.preview || "New conversation"}</span>
+                <Link
+                  to={`/agents/${encodeURIComponent(agent.qualifiedName)}/chat/${session.sessionId}`}
+                  onClick={onNavigate}
+                  className="flex-1 truncate min-w-0"
+                >
+                  {session.customName || session.preview || "New conversation"}
+                </Link>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    startEditing(session);
+                  }}
+                  className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-herd-sidebar-active rounded"
+                  title="Rename chat"
+                >
+                  <Pencil className="w-3 h-3 text-herd-sidebar-muted hover:text-herd-sidebar-fg" />
+                </button>
                 <span className="flex-shrink-0 text-herd-sidebar-muted/60 text-[10px]">
                   {formatRelativeTime(session.lastMessageAt)}
                 </span>
-              </Link>
+              </div>
             );
           })}
         </div>
@@ -280,6 +356,7 @@ interface FleetSectionProps {
   activeSessionId: string | null;
   onNavigate?: () => void;
   onNewChat: (qualifiedName: string) => void;
+  onRenameSession: (qualifiedName: string, sessionId: string, name: string) => void;
   depth?: number;
   expandedFleets: Set<string>;
   toggleFleet: (fleetKey: string) => void;
@@ -293,6 +370,7 @@ function FleetSection({
   activeSessionId,
   onNavigate,
   onNewChat,
+  onRenameSession,
   depth = 0,
   expandedFleets,
   toggleFleet,
@@ -332,6 +410,7 @@ function FleetSection({
               activeSessionId={activeSessionId}
               onNavigate={onNavigate}
               onNewChat={onNewChat}
+              onRenameSession={handleRenameSession}
               indent={depth + 1}
             />
           ))}
@@ -346,6 +425,7 @@ function FleetSection({
               activeSessionId={activeSessionId}
               onNavigate={onNavigate}
               onNewChat={onNewChat}
+              onRenameSession={onRenameSession}
               depth={depth + 1}
               expandedFleets={expandedFleets}
               toggleFleet={toggleFleet}
@@ -395,7 +475,7 @@ interface SidebarProps {
 export function Sidebar({ onNavigate }: SidebarProps = {}) {
   const { agents, connectionStatus, fleetStatus } = useFleet();
   const { sidebarSessions } = useSidebarSessions();
-  const { createChatSession, fetchSidebarSessions } = useChatActions();
+  const { createChatSession, fetchSidebarSessions, renameChatSession } = useChatActions();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -473,6 +553,14 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
     [createChatSession, navigate, onNavigate],
   );
 
+  // Handle chat session rename
+  const handleRenameSession = useCallback(
+    async (qualifiedName: string, sessionId: string, name: string) => {
+      await renameChatSession(qualifiedName, sessionId, name);
+    },
+    [renameChatSession],
+  );
+
   // Count stats
   const counts = fleetStatus?.counts ?? {
     runningAgents: 0,
@@ -509,6 +597,7 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
                   activeSessionId={activeSessionId}
                   onNavigate={onNavigate}
                   onNewChat={handleNewChat}
+                  onRenameSession={handleRenameSession}
                   expandedFleets={expandedFleets}
                   toggleFleet={toggleFleet}
                 />
@@ -529,6 +618,7 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
                 activeSessionId={activeSessionId}
                 onNavigate={onNavigate}
                 onNewChat={handleNewChat}
+                onRenameSession={handleRenameSession}
               />
             ))}
           </div>

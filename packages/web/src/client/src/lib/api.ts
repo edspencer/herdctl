@@ -357,3 +357,21 @@ export async function deleteChatSession(agentName: string, sessionId: string): P
     `/api/chat/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`,
   );
 }
+
+/**
+ * Rename a chat session with a custom name
+ *
+ * @param agentName - Agent name
+ * @param sessionId - Session ID
+ * @param name - New custom name for the session
+ */
+export async function renameChatSession(
+  agentName: string,
+  sessionId: string,
+  name: string,
+): Promise<void> {
+  await patch<{ renamed: boolean }>(
+    `/api/chat/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`,
+    { name },
+  );
+}

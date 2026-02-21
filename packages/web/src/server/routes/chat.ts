@@ -159,6 +159,48 @@ export function registerChatRoutes(
   });
 
   /**
+   * PATCH /api/chat/:agentName/sessions/:sessionId
+   *
+   * Update a chat session (currently supports renaming via customName).
+   *
+   * Request body: { name: string }
+   * @returns { renamed: true }
+   */
+  server.patch<{
+    Params: { agentName: string; sessionId: string };
+    Body: { name: string };
+  }>("/api/chat/:agentName/sessions/:sessionId", async (request, reply) => {
+    try {
+      const { agentName, sessionId } = request.params;
+      const { name } = request.body;
+
+      if (!name || typeof name !== "string") {
+        return reply.status(400).send({
+          error: "Name is required",
+          statusCode: 400,
+        });
+      }
+
+      const renamed = await chatManager.renameSession(agentName, sessionId, name);
+
+      if (!renamed) {
+        return reply.status(404).send({
+          error: `Session not found: ${sessionId}`,
+          statusCode: 404,
+        });
+      }
+
+      return reply.send({ renamed: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return reply.status(500).send({
+        error: `Failed to rename session: ${message}`,
+        statusCode: 500,
+      });
+    }
+  });
+
+  /**
    * POST /api/chat/:agentName/sessions/:sessionId/messages
    *
    * Send a message in a chat session. The actual response streams via WebSocket.

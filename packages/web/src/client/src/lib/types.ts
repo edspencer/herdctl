@@ -355,6 +355,7 @@ export interface ChatSession {
   lastMessageAt: string;
   messageCount: number;
   preview: string;
+  customName?: string;
 }
 
 export interface ChatToolCall {
