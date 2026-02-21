@@ -431,7 +431,10 @@ export class WebChatManager {
       const result = await this.fleetManager.trigger(agentName, undefined, {
         triggerType: "web",
         prompt: message,
-        resume: existingSdkSessionId,
+        // Use null (not undefined) when no SDK session exists for this web chat.
+        // undefined means "use agent-level fallback session" which would cross-contaminate
+        // conversations by resuming a different chat's session context.
+        resume: existingSdkSessionId ?? null,
         onMessage: async (sdkMessage) => {
           // Extract text content from assistant messages
           if (sdkMessage.type === "assistant") {
