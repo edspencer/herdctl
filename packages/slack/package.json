@@ -20,10 +20,7 @@
     "@herdctl/chat": "workspace:*",
     "@herdctl/core": "workspace:*",
     "@slack/bolt": "^4.1.0",
-    "@slack/web-api": "^7.8.0",
-    "slackify-markdown": "^5.0.0",
-    "yaml": "^2.3.0",
-    "zod": "^3.22.0"
+    "slackify-markdown": "^5.0.0"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.17",
