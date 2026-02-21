@@ -38,7 +38,7 @@ const logger = createLogger("CLIRuntime");
  * @param prompt - Prompt text to provide via stdin (required for -p mode)
  * @param signal - AbortSignal for cancellation
  */
-export type ProcessSpawner = (
+type ProcessSpawner = (
   args: string[],
   cwd: string,
   prompt: string,
@@ -48,7 +48,7 @@ export type ProcessSpawner = (
 /**
  * CLI runtime configuration options
  */
-export interface CLIRuntimeOptions {
+interface CLIRuntimeOptions {
   /**
    * Custom process spawner for claude CLI execution
    *

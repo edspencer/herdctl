@@ -174,18 +174,9 @@ importers:
       '@slack/bolt':
         specifier: ^4.1.0
         version: 4.6.0(@types/express@5.0.6)
-      '@slack/web-api':
-        specifier: ^7.8.0
-        version: 7.14.1
       slackify-markdown:
         specifier: ^5.0.0
         version: 5.0.0
-      yaml:
-        specifier: ^2.3.0
-        version: 2.8.2
-      zod:
-        specifier: ^3.22.0
-        version: 3.25.76
     devDependencies:
       '@vitest/coverage-v8':
         specifier: ^4.0.17

@@ -28,16 +28,10 @@ import type {
 } from "../config/schema.js";
 
 // Re-export for convenience within the hooks module
-// Export both output types (for processed config) and input types (for test construction)
+// Export input types (used by tests and runners)
 export type {
   HookEvent,
   HookConfig,
-  ShellHookConfig,
-  WebhookHookConfig,
-  DiscordHookConfig,
-  SlackHookConfig,
-};
-export type {
   ShellHookConfigInput,
   WebhookHookConfigInput,
   DiscordHookConfigInput,

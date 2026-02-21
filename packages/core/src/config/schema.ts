@@ -136,7 +136,7 @@ export const InstancesSchema = z.object({
  * - "bridge": Standard Docker networking with NAT (default)
  * - "host": Share host network namespace (least isolated)
  */
-export const DockerNetworkModeSchema = z.enum(["none", "bridge", "host"]);
+const DockerNetworkModeSchema = z.enum(["none", "bridge", "host"]);
 
 /**
  * Agent-level Docker configuration schema (safe options only)
@@ -903,7 +903,7 @@ export const AgentConfigSchema = z
  * This allows overriding nested fields like `schedules.check.interval`
  * without having to re-specify all required fields like `type`.
  */
-export const AgentOverridesSchema = z.record(z.string(), z.unknown());
+const AgentOverridesSchema = z.record(z.string(), z.unknown());
 
 // =============================================================================
 // Fleet Reference Schema (for composing sub-fleets)
@@ -1045,7 +1045,6 @@ export type DockerInput = z.input<typeof DockerSchema>;
 export type Docker = z.infer<typeof DockerSchema>;
 export type Defaults = z.infer<typeof DefaultsSchema>;
 export type WorkingDirectory = z.infer<typeof WorkingDirectorySchema>;
-export type AgentOverrides = z.infer<typeof AgentOverridesSchema>;
 export type AgentReference = z.infer<typeof AgentReferenceSchema>;
 export type DiscordChat = z.infer<typeof DiscordChatSchema>;
 export type Chat = z.infer<typeof ChatSchema>;

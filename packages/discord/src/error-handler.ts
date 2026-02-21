@@ -36,7 +36,7 @@ export const USER_ERROR_MESSAGES = {
   PERMISSION_ERROR: "I don't have permission to do that in this channel.",
 } as const;
 
-export type UserErrorMessageKey = keyof typeof USER_ERROR_MESSAGES;
+type UserErrorMessageKey = keyof typeof USER_ERROR_MESSAGES;
 
 // =============================================================================
 // Error Classification
@@ -61,7 +61,7 @@ export enum ErrorCategory {
 /**
  * Classified error with category and user-friendly message
  */
-export interface ClassifiedError {
+interface ClassifiedError {
   /** Original error */
   error: Error;
   /** Error category for handling */
@@ -239,7 +239,7 @@ function isTimeoutError(error: Error): boolean {
 /**
  * Options for retry operations
  */
-export interface RetryOptions {
+interface RetryOptions {
   /** Maximum number of retry attempts (default: 3) */
   maxAttempts?: number;
   /** Base delay between retries in ms (default: 1000) */

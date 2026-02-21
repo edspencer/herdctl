@@ -26,7 +26,7 @@ export const SessionModeSchema = z.enum(["autonomous", "interactive", "review"])
 /**
  * Runtime type for session tracking
  */
-export const RuntimeTypeSchema = z.enum(["sdk", "cli"]);
+const RuntimeTypeSchema = z.enum(["sdk", "cli"]);
 
 /**
  * Session info schema for individual agent session files
