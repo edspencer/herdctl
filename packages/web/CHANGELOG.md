@@ -1,5 +1,17 @@
 # @herdctl/web
 
+## 0.4.0
+
+### Minor Changes
+
+- [#110](https://github.com/edspencer/herdctl/pull/110) [`d106157`](https://github.com/edspencer/herdctl/commit/d10615780afa35a7095fd9682b075af49aa1f56a) Thanks [@edspencer](https://github.com/edspencer)! - Add package version display to web dashboard sidebar showing herdctl, @herdctl/core, and @herdctl/web versions
+
+### Patch Changes
+
+- [#111](https://github.com/edspencer/herdctl/pull/111) [`212f830`](https://github.com/edspencer/herdctl/commit/212f8309f44cf5d32e199013d3afc9623471a2ee) Thanks [@edspencer](https://github.com/edspencer)! - Fix chat UI bugs: typing indicator persisting when switching sessions and send button staying disabled after typing
+
+- [#109](https://github.com/edspencer/herdctl/pull/109) [`c7c67d0`](https://github.com/edspencer/herdctl/commit/c7c67d02bba5323937865fbf68818fc089942730) Thanks [@edspencer](https://github.com/edspencer)! - Fix iOS Safari auto-zoom on chat input focus by increasing font-size to 16px
+
 ## 0.3.4
 
 ### Patch Changes
