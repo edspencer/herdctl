@@ -282,7 +282,7 @@ function formatConfigForDisplay(config: ResolvedConfig): string {
         const scheduleInfo = [];
         scheduleInfo.push(`type=${schedule.type}`);
         if (schedule.interval) scheduleInfo.push(`interval=${schedule.interval}`);
-        if (schedule.expression) scheduleInfo.push(`cron=${schedule.expression}`);
+        if (schedule.cron) scheduleInfo.push(`cron=${schedule.cron}`);
         lines.push(`    - ${name}: ${scheduleInfo.join(", ")}`);
       }
     }

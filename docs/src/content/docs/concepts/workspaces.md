@@ -93,7 +93,7 @@ workspace: ~/projects/my-app  # Same workspace
 schedules:
   daily-review:
     type: cron
-    expression: "0 9 * * *"
+    cron: "0 9 * * *"
     prompt: "Review recent changes and suggest improvements."
 ```
 

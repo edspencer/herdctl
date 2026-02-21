@@ -70,7 +70,7 @@ const mockAgentInfo = [
         name: "daily",
         agentName: "code-reviewer",
         type: "cron",
-        expression: "0 9 * * *",
+        cron: "0 9 * * *",
         status: "idle",
         lastRunAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(), // 12h ago
         nextRunAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(), // in 12h

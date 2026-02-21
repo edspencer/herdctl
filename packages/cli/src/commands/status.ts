@@ -388,8 +388,8 @@ function formatAgentDetail(agent: AgentInfo): string {
       if (schedule.interval) {
         lines.push(`    Interval: ${schedule.interval}`);
       }
-      if (schedule.expression) {
-        lines.push(`    Cron:     ${schedule.expression}`);
+      if (schedule.cron) {
+        lines.push(`    Cron:     ${schedule.cron}`);
       }
 
       lines.push(`    Last run: ${formatRelativeTime(schedule.lastRunAt)}`);

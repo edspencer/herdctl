@@ -208,7 +208,7 @@ export interface ScheduleInfo {
   /**
    * Cron expression for cron schedules
    */
-  expression?: string;
+  cron?: string;
 
   /**
    * Current schedule status (idle, running, disabled)

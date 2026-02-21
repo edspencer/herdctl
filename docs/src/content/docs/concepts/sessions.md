@@ -289,7 +289,7 @@ schedules:
   - name: daily-analysis
     trigger:
       type: cron
-      expression: "0 9 * * *"
+      cron: "0 9 * * *"
     prompt: |
       Continue your codebase analysis. Review what you learned yesterday
       and explore new areas. Update your findings in research-notes.md.
@@ -353,7 +353,7 @@ schedules:
   - name: fresh-review
     trigger:
       type: cron
-      expression: "0 9 * * 1"  # Monday mornings
+      cron: "0 9 * * 1"  # Monday mornings
     prompt: "Review the codebase with fresh eyes."
     session:
       mode: fresh_per_job      # Override: start fresh for reviews

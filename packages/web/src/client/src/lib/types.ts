@@ -63,7 +63,7 @@ export interface ScheduleInfo {
   agentName: string;
   type: ScheduleType;
   interval?: string;
-  expression?: string;
+  cron?: string;
   status: ScheduleStatus;
   lastRunAt: string | null;
   nextRunAt: string | null;

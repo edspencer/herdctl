@@ -673,7 +673,7 @@ describe("FleetManager Coverage Tests", () => {
         schedules: {
           check: {
             type: "cron",
-            expression: "0 * * * *",
+            cron: "0 * * * *",
           },
         },
       });
@@ -689,13 +689,13 @@ describe("FleetManager Coverage Tests", () => {
       );
     });
 
-    it("detects schedule expression changes", async () => {
+    it("detects schedule cron changes", async () => {
       await createAgentConfig("expr-agent", {
         name: "expr-agent",
         schedules: {
           check: {
             type: "cron",
-            expression: "0 * * * *",
+            cron: "0 * * * *",
           },
         },
       });
@@ -713,13 +713,13 @@ describe("FleetManager Coverage Tests", () => {
 
       await manager.initialize();
 
-      // Change expression
+      // Change cron expression
       await createAgentConfig("expr-agent", {
         name: "expr-agent",
         schedules: {
           check: {
             type: "cron",
-            expression: "30 * * * *",
+            cron: "30 * * * *",
           },
         },
       });
@@ -731,7 +731,7 @@ describe("FleetManager Coverage Tests", () => {
           type: "modified",
           category: "schedule",
           name: "expr-agent/check",
-          details: expect.stringContaining("expression"),
+          details: expect.stringContaining("cron"),
         }),
       );
     });

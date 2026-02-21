@@ -46,10 +46,7 @@ function createMockLogger(): SchedulerLogger & {
 // Helper to create a test agent
 function createTestAgent(
   name: string,
-  schedules?: Record<
-    string,
-    { type: string; interval?: string; expression?: string; prompt?: string }
-  >,
+  schedules?: Record<string, { type: string; interval?: string; cron?: string; prompt?: string }>,
 ): ResolvedAgent {
   return {
     name,
@@ -407,7 +404,7 @@ describe("Scheduler", () => {
         // Use a cron that runs every minute
         const agents = [
           createTestAgent("cron-agent", {
-            everyMinute: { type: "cron", expression: "* * * * *", prompt: "cron test" },
+            everyMinute: { type: "cron", cron: "* * * * *", prompt: "cron test" },
           }),
         ];
 
@@ -429,7 +426,7 @@ describe("Scheduler", () => {
       }
     });
 
-    it("skips cron schedules missing expression value", async () => {
+    it("skips cron schedules missing cron expression", async () => {
       const scheduler = new Scheduler({
         stateDir: tempDir,
         checkInterval: 50,
@@ -438,14 +435,14 @@ describe("Scheduler", () => {
 
       const agents = [
         createTestAgent("test-agent", {
-          broken: { type: "cron" }, // Missing expression value
+          broken: { type: "cron" }, // Missing cron expression
         }),
       ];
 
       const startPromise = scheduler.start(agents);
       await wait(100);
 
-      expect(mockLogger.warnings.some((m) => m.includes("missing expression value"))).toBe(true);
+      expect(mockLogger.warnings.some((m) => m.includes("missing cron expression"))).toBe(true);
       expect(scheduler.getState().triggerCount).toBe(0);
 
       await scheduler.stop();
@@ -461,7 +458,7 @@ describe("Scheduler", () => {
 
       const agents = [
         createTestAgent("test-agent", {
-          broken: { type: "cron", expression: "invalid cron" },
+          broken: { type: "cron", cron: "invalid cron" },
         }),
       ];
 
@@ -495,7 +492,7 @@ describe("Scheduler", () => {
         // Use every-minute cron
         const agents = [
           createTestAgent("test-agent", {
-            everyMinute: { type: "cron", expression: "* * * * *" },
+            everyMinute: { type: "cron", cron: "* * * * *" },
           }),
         ];
 
@@ -565,7 +562,7 @@ describe("Scheduler", () => {
 
       const agents = [
         createTestAgent("test-agent", {
-          hourly: { type: "cron", expression: "@hourly" }, // Runs at :00 of each hour
+          hourly: { type: "cron", cron: "@hourly" }, // Runs at :00 of each hour
         }),
       ];
 
@@ -630,7 +627,7 @@ describe("Scheduler", () => {
 
         const agents = [
           createTestAgent("cron-agent", {
-            everyMinute: { type: "cron", expression: "* * * * *", prompt: "test" },
+            everyMinute: { type: "cron", cron: "* * * * *", prompt: "test" },
           }),
         ];
 
@@ -687,7 +684,7 @@ describe("Scheduler", () => {
 
       const agents = [
         createTestAgent("cron-agent", {
-          daily: { type: "cron", expression: "@daily", prompt: "test" },
+          daily: { type: "cron", cron: "@daily", prompt: "test" },
         }),
       ];
 

@@ -91,7 +91,7 @@ export class ScheduleManagement {
       agentName,
       type: schedule.type,
       interval: schedule.interval,
-      expression: schedule.expression,
+      cron: schedule.cron,
       status: scheduleState?.status ?? "idle",
       lastRunAt: scheduleState?.last_run_at ?? null,
       nextRunAt: scheduleState?.next_run_at ?? null,
