@@ -9,6 +9,7 @@ import { MessageSquare, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { formatRelativeTime } from "../../lib/format";
+import { agentChatPath } from "../../lib/paths";
 import { useChatActions, useChatSessions } from "../../store";
 
 // =============================================================================
@@ -41,7 +42,7 @@ export function SessionList({ agentName, activeSessionId }: SessionListProps) {
   const handleNewChat = useCallback(async () => {
     const sessionId = await createChatSession(agentName);
     if (sessionId) {
-      navigate(`/agents/${encodeURIComponent(agentName)}/chat/${sessionId}`);
+      navigate(agentChatPath(agentName, sessionId));
     }
   }, [agentName, createChatSession, navigate]);
 
@@ -62,7 +63,7 @@ export function SessionList({ agentName, activeSessionId }: SessionListProps) {
 
       // Navigate away if we deleted the active session
       if (sessionId === activeSessionId) {
-        navigate(`/agents/${encodeURIComponent(agentName)}/chat`);
+        navigate(agentChatPath(agentName));
       }
     },
     [agentName, activeSessionId, deleteChatSession, navigate],
@@ -115,7 +116,7 @@ export function SessionList({ agentName, activeSessionId }: SessionListProps) {
               return (
                 <Link
                   key={session.sessionId}
-                  to={`/agents/${encodeURIComponent(agentName)}/chat/${session.sessionId}`}
+                  to={agentChatPath(agentName, session.sessionId)}
                   className={`group block mx-2 mb-1 px-3 py-2.5 rounded-lg transition-colors ${
                     isActive ? "bg-herd-active" : "hover:bg-herd-hover"
                   } ${isDeleting ? "opacity-50" : ""}`}

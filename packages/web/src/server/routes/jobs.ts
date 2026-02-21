@@ -16,12 +16,14 @@ const logger = createLogger("web:jobs");
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapJobToSummary(job: any, agents: ResolvedAgent[]): Record<string, unknown> {
-  const agent = agents.find((a) => a.qualifiedName === job.agent);
+  // Match by qualifiedName first, then fall back to local name for older jobs
+  const agent =
+    agents.find((a) => a.qualifiedName === job.agent) ?? agents.find((a) => a.name === job.agent);
   const workspace = agent ? resolveWorkingDirectory(agent) : undefined;
 
   return {
     jobId: job.id,
-    agentName: job.agent,
+    agentName: agent?.qualifiedName ?? job.agent,
     prompt: job.prompt ?? "",
     status: job.status,
     createdAt: job.started_at,

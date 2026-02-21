@@ -8,6 +8,7 @@
 import { Calendar, Play, Power, PowerOff } from "lucide-react";
 import { useEffect } from "react";
 import { Link } from "react-router";
+import { agentPath } from "../../lib/paths";
 import type { ScheduleInfo, ScheduleType } from "../../lib/types";
 import { useScheduleActions, useSchedules } from "../../store";
 import { Card, Spinner, StatusBadge } from "../ui";
@@ -84,7 +85,7 @@ function ScheduleRow({ schedule, onTrigger, onEnable, onDisable }: ScheduleRowPr
     <tr className="hover:bg-herd-hover transition-colors">
       <td className="py-2 px-3 text-herd-fg">
         <Link
-          to={`/agents/${encodeURIComponent(schedule.agentName)}`}
+          to={agentPath(schedule.agentName)}
           className="text-herd-primary hover:text-herd-primary-hover transition-colors"
         >
           {schedule.agentName}

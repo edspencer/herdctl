@@ -162,7 +162,7 @@ export class JobExecutor {
     // Step 1: Create job record
     try {
       job = await createJob(jobsDir, {
-        agent: agent.name,
+        agent: agent.qualifiedName,
         trigger_type: effectiveTriggerType,
         prompt,
         schedule,

@@ -8,6 +8,7 @@
 import { MessageCircle } from "lucide-react";
 import { useEffect } from "react";
 import { useNavigate, useParams } from "react-router";
+import { agentChatPath } from "../../lib/paths";
 import { useChatActions, useChatMessages, useChatSessions } from "../../store";
 import { Composer } from "./Composer";
 import { MessageFeed } from "./MessageFeed";
@@ -54,7 +55,7 @@ export function ChatView() {
   const handleStartNewChat = async () => {
     const newSessionId = await createChatSession(qualifiedName);
     if (newSessionId) {
-      navigate(`/agents/${encodeURIComponent(qualifiedName)}/chat/${newSessionId}`);
+      navigate(agentChatPath(qualifiedName, newSessionId));
     }
   };
 
