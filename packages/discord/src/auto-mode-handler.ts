@@ -18,9 +18,6 @@ import {
 } from "@herdctl/chat";
 import type { ChatDM, DiscordChannel, DiscordGuild } from "@herdctl/core";
 
-// Re-export shared types for backwards compatibility during migration
-export type { DMFilterResult };
-
 // =============================================================================
 // Types
 // =============================================================================
