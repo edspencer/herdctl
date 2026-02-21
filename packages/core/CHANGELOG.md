@@ -1,5 +1,23 @@
 # @herdctl/core
 
+## 5.5.0
+
+### Minor Changes
+
+- [#119](https://github.com/edspencer/herdctl/pull/119) [`d52fa37`](https://github.com/edspencer/herdctl/commit/d52fa37f98df825c75f3d0ba29abbe5b838d2c6e) Thanks [@edspencer](https://github.com/edspencer)! - Add configurable message grouping for web chat
+
+  When a Claude Code agent produces multiple assistant text turns separated by tool calls, the web chat now supports displaying each turn as a separate message bubble ("separate" mode) or merging them into one ("grouped" mode).
+
+  - Add `message_grouping` config option to `WebSchema` (default: "separate")
+  - Add `chat:message_boundary` WebSocket message for signaling turn boundaries
+  - Add client-side toggle to switch between separate and grouped display modes
+  - Persist user preference in localStorage with server config as default
+  - Add `GET /api/chat/config` endpoint for client to read server defaults
+
+### Patch Changes
+
+- [#120](https://github.com/edspencer/herdctl/pull/120) [`a0e7ad8`](https://github.com/edspencer/herdctl/commit/a0e7ad8cc8c4aa9a8da46bd0b5ff933e56c5158c) Thanks [@edspencer](https://github.com/edspencer)! - Fix shell escaping in Docker CLI runtime to prevent `$` and backtick characters in prompts from being interpreted by the shell. Previously, prompts containing dollar signs (e.g., "$1234") would have `$1` consumed by shell variable expansion, silently corrupting the prompt sent to the agent.
+
 ## 5.4.3
 
 ### Patch Changes

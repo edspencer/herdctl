@@ -1,5 +1,29 @@
 # @herdctl/web
 
+## 0.6.0
+
+### Minor Changes
+
+- [#119](https://github.com/edspencer/herdctl/pull/119) [`d52fa37`](https://github.com/edspencer/herdctl/commit/d52fa37f98df825c75f3d0ba29abbe5b838d2c6e) Thanks [@edspencer](https://github.com/edspencer)! - Add configurable message grouping for web chat
+
+  When a Claude Code agent produces multiple assistant text turns separated by tool calls, the web chat now supports displaying each turn as a separate message bubble ("separate" mode) or merging them into one ("grouped" mode).
+
+  - Add `message_grouping` config option to `WebSchema` (default: "separate")
+  - Add `chat:message_boundary` WebSocket message for signaling turn boundaries
+  - Add client-side toggle to switch between separate and grouped display modes
+  - Persist user preference in localStorage with server config as default
+  - Add `GET /api/chat/config` endpoint for client to read server defaults
+
+- [#123](https://github.com/edspencer/herdctl/pull/123) [`c030557`](https://github.com/edspencer/herdctl/commit/c0305579177825d6d3e0b2ccb65bc5311523d2f9) Thanks [@edspencer](https://github.com/edspencer)! - Add delete button to chat sessions in the sidebar. Hover over a chat to reveal pencil (rename) and trash (delete) icons. Clicking delete shows a confirmation step before removing the session. Also removes the unused SessionList component.
+
+### Patch Changes
+
+- [#122](https://github.com/edspencer/herdctl/pull/122) [`82061c0`](https://github.com/edspencer/herdctl/commit/82061c0683aeeb4d595fe92dd8c17f3cdb1b3a4a) Thanks [@edspencer](https://github.com/edspencer)! - Fix web chat session cross-contamination when SDK session mapping is missing. Previously, if a web chat session had no stored SDK session ID (e.g. after migration or expiry), the system would fall back to the agent's global session, causing the agent to resume a different conversation's context. Now explicitly starts a fresh session instead of using the fallback.
+
+- Updated dependencies [[`a0e7ad8`](https://github.com/edspencer/herdctl/commit/a0e7ad8cc8c4aa9a8da46bd0b5ff933e56c5158c), [`d52fa37`](https://github.com/edspencer/herdctl/commit/d52fa37f98df825c75f3d0ba29abbe5b838d2c6e)]:
+  - @herdctl/core@5.5.0
+  - @herdctl/chat@0.3.4
+
 ## 0.5.0
 
 ### Minor Changes

@@ -1,5 +1,13 @@
 # @herdctl/discord
 
+## 1.0.10
+
+### Patch Changes
+
+- Updated dependencies [[`a0e7ad8`](https://github.com/edspencer/herdctl/commit/a0e7ad8cc8c4aa9a8da46bd0b5ff933e56c5158c), [`d52fa37`](https://github.com/edspencer/herdctl/commit/d52fa37f98df825c75f3d0ba29abbe5b838d2c6e)]:
+  - @herdctl/core@5.5.0
+  - @herdctl/chat@0.3.4
+
 ## 1.0.9
 
 ### Patch Changes
