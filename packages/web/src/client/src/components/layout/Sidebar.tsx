@@ -46,9 +46,9 @@ function VersionDisplay() {
   return (
     <div className="px-4 py-2 border-t border-herd-sidebar-border">
       <p className="text-[10px] text-herd-sidebar-muted/60">
-        herdctl v{versions.cli}{" "}
-        <span className="text-herd-sidebar-muted/40">&middot;</span> core v{versions.core}{" "}
-        <span className="text-herd-sidebar-muted/40">&middot;</span> web v{versions.web}
+        herdctl v{versions.cli} <span className="text-herd-sidebar-muted/40">&middot;</span> core v
+        {versions.core} <span className="text-herd-sidebar-muted/40">&middot;</span> web v
+        {versions.web}
       </p>
     </div>
   );
