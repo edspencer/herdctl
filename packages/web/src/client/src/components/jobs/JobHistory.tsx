@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
+import { agentPath } from "../../lib/paths";
 import type { JobStatus, JobSummary, TriggerType } from "../../lib/types";
 import { useJobs, useJobsActions, useSelectedJob } from "../../store";
 import { Card, Spinner, StatusBadge } from "../ui";
@@ -287,7 +288,7 @@ function JobRow({ job, showAgent, isSelected, onSelect }: JobRowProps) {
       {showAgent && (
         <td className="py-2 px-3 text-herd-fg">
           <Link
-            to={`/agents/${encodeURIComponent(job.agentName)}`}
+            to={agentPath(job.agentName)}
             onClick={(e) => e.stopPropagation()}
             className="text-herd-primary hover:text-herd-primary-hover transition-colors"
           >

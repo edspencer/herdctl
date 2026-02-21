@@ -10,6 +10,7 @@
 import { Cpu, FolderOpen, MessageSquare, Play, Shield } from "lucide-react";
 import { Link } from "react-router";
 import { getAgentAvatar } from "../../lib/avatar";
+import { agentChatPath } from "../../lib/paths";
 import type { AgentInfo } from "../../lib/types";
 import { StatusBadge } from "../ui";
 
@@ -27,7 +28,7 @@ interface AgentHeaderProps {
 // =============================================================================
 
 export function AgentHeader({ agent }: AgentHeaderProps) {
-  const encodedName = encodeURIComponent(agent.qualifiedName);
+  const chatPath = agentChatPath(agent.qualifiedName);
 
   return (
     <div className="flex items-start gap-4">
@@ -70,7 +71,7 @@ export function AgentHeader({ agent }: AgentHeaderProps) {
               Trigger Job
             </button>
             <Link
-              to={`/agents/${encodedName}/chat`}
+              to={chatPath}
               className="border border-herd-border hover:bg-herd-hover text-herd-fg rounded-lg px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5"
             >
               <MessageSquare className="w-3.5 h-3.5" />
@@ -116,7 +117,7 @@ export function AgentHeader({ agent }: AgentHeaderProps) {
             Trigger Job
           </button>
           <Link
-            to={`/agents/${encodedName}/chat`}
+            to={chatPath}
             className="border border-herd-border hover:bg-herd-hover text-herd-fg rounded-lg px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5"
           >
             <MessageSquare className="w-3.5 h-3.5" />
