@@ -150,7 +150,11 @@ export class ContainerRunner implements RuntimeInterface {
         // Build docker exec command with prompt piped to stdin
         // Uses printf to avoid issues with newlines and special chars in prompt
         // Command: docker exec <container> sh -c 'cd /workspace && printf %s "prompt" | claude <args>'
-        const escapedPrompt = prompt.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+        const escapedPrompt = prompt
+          .replace(/\\/g, "\\\\")
+          .replace(/\$/g, "\\$")
+          .replace(/`/g, "\\`")
+          .replace(/"/g, '\\"');
         const claudeArgs = args
           .map((arg) => {
             // Escape single quotes in arguments
