@@ -165,7 +165,7 @@ export class WebChatManager {
 
     // Create session managers for each agent
     for (const agent of fleetConfig.agents) {
-      await this.createSessionManagerForAgent(agent.name);
+      await this.createSessionManagerForAgent(agent.qualifiedName);
     }
 
     // Ensure chat history directories exist
