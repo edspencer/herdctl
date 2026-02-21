@@ -214,6 +214,17 @@ export class WebSocketHandler {
             },
           });
         },
+        async () => {
+          // Signal a message boundary between distinct assistant turns
+          this.sendToClient(client, {
+            type: "chat:message_boundary",
+            payload: {
+              agentName,
+              sessionId,
+              jobId,
+            },
+          });
+        },
       );
 
       jobId = result.jobId;

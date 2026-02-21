@@ -294,6 +294,15 @@ export interface ChatToolCallMessage {
   };
 }
 
+export interface ChatMessageBoundaryMessage {
+  type: "chat:message_boundary";
+  payload: {
+    agentName: string;
+    sessionId: string;
+    jobId: string;
+  };
+}
+
 export type ServerMessage =
   | FleetStatusMessage
   | AgentUpdatedMessage
@@ -307,6 +316,7 @@ export type ServerMessage =
   | ChatResponseMessage
   | ChatCompleteMessage
   | ChatToolCallMessage
+  | ChatMessageBoundaryMessage
   | ChatErrorMessage;
 
 // =============================================================================

@@ -5,7 +5,7 @@
  * Handles routing between session list and active chat.
  */
 
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, SplitSquareHorizontal } from "lucide-react";
 import { useEffect } from "react";
 import { useNavigate, useParams } from "react-router";
 import { agentChatPath } from "../../lib/paths";
@@ -21,10 +21,15 @@ export function ChatView() {
   // Route param `name` now contains the qualified name (e.g., "herdctl.security-auditor")
   const { name: qualifiedName, sessionId } = useParams<{ name: string; sessionId?: string }>();
   const navigate = useNavigate();
-  const { chatError } = useChatMessages();
+  const { chatError, messageGrouping } = useChatMessages();
   const { chatSessions } = useChatSessions();
-  const { fetchChatMessages, setActiveChatSession, clearActiveChatState, createChatSession } =
-    useChatActions();
+  const {
+    fetchChatMessages,
+    setActiveChatSession,
+    clearActiveChatState,
+    createChatSession,
+    setMessageGrouping,
+  } = useChatActions();
 
   // Clear active chat session state when leaving the page or changing agents
   // (preserves sidebar sessions so they don't vanish on navigation)
@@ -74,6 +79,23 @@ export function ChatView() {
               </div>
             </div>
           )}
+
+          {/* Message grouping toggle */}
+          <div className="flex items-center justify-end px-4 pt-2">
+            <div className="max-w-2xl mx-auto w-full flex justify-end">
+              <button
+                type="button"
+                onClick={() =>
+                  setMessageGrouping(messageGrouping === "separate" ? "grouped" : "separate")
+                }
+                className="text-[11px] text-herd-muted hover:text-herd-fg transition-colors flex items-center gap-1"
+                title={`Message display: ${messageGrouping === "separate" ? "separate bubbles per turn" : "grouped into single bubble"}`}
+              >
+                <SplitSquareHorizontal className="w-3 h-3" />
+                {messageGrouping === "separate" ? "Separate" : "Grouped"}
+              </button>
+            </div>
+          </div>
 
           {/* Message feed */}
           <MessageFeed agentName={qualifiedName} />

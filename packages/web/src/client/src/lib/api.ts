@@ -329,6 +329,23 @@ export interface ChatSessionDetailResponse {
 }
 
 /**
+ * Chat configuration response from the server
+ */
+export interface ChatConfigResponse {
+  message_grouping: "separate" | "grouped";
+  tool_results: boolean;
+}
+
+/**
+ * Fetch chat configuration defaults
+ *
+ * GET /api/chat/config
+ */
+export async function fetchChatConfig(): Promise<ChatConfigResponse> {
+  return get<ChatConfigResponse>("/api/chat/config");
+}
+
+/**
  * Create a new chat session for an agent
  *
  * POST /api/chat/:agentName/sessions

@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useRef } from "react";
-import { fetchAgents, fetchFleetStatus } from "../lib/api";
+import { fetchAgents, fetchChatConfig, fetchFleetStatus } from "../lib/api";
 import type { ConnectionStatus, ServerMessage } from "../lib/types";
 import { createWebSocketClient, type WebSocketClient } from "../lib/ws";
 import { useStore } from "../store";
@@ -58,6 +58,8 @@ export function useWebSocket() {
   const completeStreaming = useStore((state) => state.completeStreaming);
   const addToolCallMessage = useStore((state) => state.addToolCallMessage);
   const setChatError = useStore((state) => state.setChatError);
+  const flushStreamingMessage = useStore((state) => state.flushStreamingMessage);
+  const setMessageGrouping = useStore((state) => state.setMessageGrouping);
   const updateScheduleFromWS = useStore((state) => state.updateScheduleFromWS);
   const addToast = useStore((state) => state.addToast);
 
@@ -148,6 +150,17 @@ export function useWebSocket() {
           break;
         }
 
+        case "chat:message_boundary": {
+          const { sessionId } = message.payload;
+          if (sessionId === useStore.getState().activeChatSessionId) {
+            // Only flush if user prefers separate messages
+            if (useStore.getState().messageGrouping === "separate") {
+              flushStreamingMessage();
+            }
+          }
+          break;
+        }
+
         case "chat:error": {
           const { sessionId } = message.payload;
           if (sessionId === useStore.getState().activeChatSessionId) {
@@ -197,6 +210,19 @@ export function useWebSocket() {
     // Expose client globally for useJobOutput hook to access
     (window as unknown as { __herdWsClient?: WebSocketClient }).__herdWsClient = clientRef.current;
 
+    // Fetch chat config defaults on mount (only sets if no localStorage override)
+    void (async () => {
+      try {
+        const config = await fetchChatConfig();
+        const stored = localStorage.getItem("herdctl:message_grouping");
+        if (!stored) {
+          setMessageGrouping(config.message_grouping);
+        }
+      } catch {
+        // Ignore -- use client default
+      }
+    })();
+
     // Cleanup on unmount
     return () => {
       clientRef.current?.disconnect();
@@ -214,10 +240,12 @@ export function useWebSocket() {
     completeJob,
     completeStreaming,
     failJob,
+    flushStreamingMessage,
     setAgents,
     setChatError,
     setConnectionStatus,
     setFleetStatus,
+    setMessageGrouping,
     updateAgent, // Refetch schedules to update runCount, lastRunAt, status, etc.
     updateScheduleFromWS,
   ]);

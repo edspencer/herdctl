@@ -996,6 +996,8 @@ export const WebSchema = z.object({
   open_browser: z.boolean().optional().default(false),
   /** Show tool call results in chat conversations (default: true) */
   tool_results: z.boolean().optional().default(true),
+  /** How to display consecutive assistant text turns: "separate" shows each as its own bubble, "grouped" merges them (default: "separate") */
+  message_grouping: z.enum(["separate", "grouped"]).optional().default("separate"),
 });
 
 // =============================================================================
