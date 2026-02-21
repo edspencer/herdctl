@@ -48,7 +48,7 @@ export function Composer({ agentName, sessionId }: ComposerProps) {
     // Set to scroll height but cap at max
     const newHeight = Math.min(textarea.scrollHeight, 200);
     textarea.style.height = `${newHeight}px`;
-  }, [value]);
+  }, []);
 
   const canSend = value.trim().length > 0 && !chatStreaming;
 
