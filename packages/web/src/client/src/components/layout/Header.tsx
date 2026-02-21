@@ -8,6 +8,7 @@
 
 import { ArrowLeft, Menu, Monitor, Moon, Sun } from "lucide-react";
 import { Link, useLocation, useParams } from "react-router";
+import { agentPath } from "../../lib/paths";
 import type { ConnectionStatus, Theme } from "../../lib/types";
 import { useFleet, useUI, useUIActions } from "../../store";
 
@@ -68,14 +69,14 @@ function getPageTitleInfo(pathname: string, agentName?: string): PageTitleInfo {
     if (chatSessionMatch) {
       return {
         title: `Chat with ${agentName}`,
-        backTo: `/agents/${encodeURIComponent(agentName)}`,
+        backTo: agentPath(agentName),
         sessionId: chatSessionMatch[1],
       };
     }
     if (pathname.endsWith("/chat")) {
       return {
         title: `Chat with ${agentName}`,
-        backTo: `/agents/${encodeURIComponent(agentName)}`,
+        backTo: agentPath(agentName),
       };
     }
     return { title: agentName };

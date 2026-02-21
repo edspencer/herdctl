@@ -25,6 +25,7 @@ import {
 import { useCallback, useState } from "react";
 import { Link } from "react-router";
 import { cancelJob as apiCancelJob, forkJob as apiForkJob } from "../../lib/api";
+import { agentPath, agentTabPath } from "../../lib/paths";
 import type { JobSummary, TriggerType } from "../../lib/types";
 import { useJobsActions } from "../../store";
 import { Card, Spinner, StatusBadge } from "../ui";
@@ -487,7 +488,7 @@ export function JobDetail({ jobId, job, loading, onClose }: JobDetailProps) {
             {/* Agent */}
             <DetailRow label="Agent">
               <Link
-                to={`/agents/${encodeURIComponent(job.agentName)}`}
+                to={agentPath(job.agentName)}
                 className="text-herd-primary hover:text-herd-primary-hover transition-colors"
               >
                 {job.agentName}
@@ -573,7 +574,7 @@ export function JobDetail({ jobId, job, loading, onClose }: JobDetailProps) {
 
           {/* View Agent Output */}
           <Link
-            to={`/agents/${encodeURIComponent(job.agentName)}/output`}
+            to={agentTabPath(job.agentName, "output")}
             className="flex items-center justify-center gap-1.5 w-full bg-herd-primary hover:bg-herd-primary-hover text-white rounded-lg px-3 py-2 text-xs font-medium transition-colors"
           >
             <ExternalLink className="w-3.5 h-3.5" />

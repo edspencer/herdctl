@@ -8,6 +8,7 @@
 import { ArrowLeft, History, LayoutDashboard, Terminal } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { useAgentDetail } from "../../hooks/useAgentDetail";
+import { agentTabPath } from "../../lib/paths";
 import { Card, Spinner } from "../ui";
 import { AgentConfig } from "./AgentConfig";
 import { AgentHeader } from "./AgentHeader";
@@ -46,8 +47,6 @@ interface TabBarProps {
 }
 
 function TabBar({ activeTab, agentName }: TabBarProps) {
-  const encodedName = encodeURIComponent(agentName);
-
   return (
     <div className="flex border-b border-herd-border">
       {TABS.map((tab) => {
@@ -57,7 +56,7 @@ function TabBar({ activeTab, agentName }: TabBarProps) {
         return (
           <Link
             key={tab.id}
-            to={`/agents/${encodedName}/${tab.id}`}
+            to={agentTabPath(agentName, tab.id)}
             replace
             className={`
               flex items-center gap-1.5 px-4 py-2 text-xs font-medium transition-colors

@@ -7,6 +7,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
+import { agentPath } from "../../lib/paths";
 import type { JobSummary } from "../../lib/types";
 import { StatusBadge } from "../ui";
 
@@ -111,7 +112,7 @@ export function RecentJobs({ jobs, pageSize = 10 }: RecentJobsProps) {
                   <tr key={job.jobId} className="hover:bg-herd-hover transition-colors">
                     <td className="py-2 px-3 text-herd-fg">
                       <Link
-                        to={`/agents/${encodeURIComponent(job.agentName)}`}
+                        to={agentPath(job.agentName)}
                         className="hover:text-herd-primary transition-colors"
                       >
                         {job.agentName}

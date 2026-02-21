@@ -7,6 +7,7 @@
 
 import { Eye, MessageSquare } from "lucide-react";
 import { Link } from "react-router";
+import { agentChatPath, agentPath } from "../../lib/paths";
 import type { AgentInfo } from "../../lib/types";
 import { Card, StatusBadge } from "../ui";
 
@@ -209,14 +210,14 @@ export function AgentCard({ agent }: AgentCardProps) {
       {/* Action buttons */}
       <div className="flex gap-2 pt-1 border-t border-herd-border mt-auto">
         <Link
-          to={`/agents/${encodeURIComponent(agent.qualifiedName)}`}
+          to={agentPath(agent.qualifiedName)}
           className="flex items-center gap-1.5 border border-herd-border hover:bg-herd-hover text-herd-fg rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
         >
           <Eye className="w-3.5 h-3.5" />
           View
         </Link>
         <Link
-          to={`/agents/${encodeURIComponent(agent.qualifiedName)}/chat`}
+          to={agentChatPath(agent.qualifiedName)}
           className="flex items-center gap-1.5 bg-herd-primary hover:bg-herd-primary-hover text-white rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
         >
           <MessageSquare className="w-3.5 h-3.5" />

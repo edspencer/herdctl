@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { getAgentAvatar } from "../../lib/avatar";
 import { formatRelativeTime } from "../../lib/format";
+import { agentChatPath, agentPath } from "../../lib/paths";
 import type { AgentInfo, ChatSession, ConnectionStatus } from "../../lib/types";
 import { useChatActions, useFleet, useSidebarSessions } from "../../store";
 
@@ -219,7 +220,7 @@ function AgentRow({
       {/* Agent heading row */}
       <div className="flex items-center border-b border-herd-sidebar-border bg-herd-sidebar-hover">
         <Link
-          to={`/agents/${encodeURIComponent(agent.qualifiedName)}`}
+          to={agentPath(agent.qualifiedName)}
           onClick={onNavigate}
           className={`flex-1 flex items-center gap-2 py-2.5 rounded-lg text-sm font-semibold tracking-wide transition-colors min-w-0 ${
             isActive ? "text-herd-sidebar-fg" : "text-herd-sidebar-fg/80 hover:text-herd-sidebar-fg"
@@ -252,7 +253,7 @@ function AgentRow({
             return (
               <Link
                 key={session.sessionId}
-                to={`/agents/${encodeURIComponent(agent.qualifiedName)}/chat/${session.sessionId}`}
+                to={agentChatPath(agent.qualifiedName, session.sessionId)}
                 onClick={onNavigate}
                 className={`flex items-center justify-between gap-2 px-3 py-2 rounded text-sm transition-colors ${
                   isSessionActive
@@ -466,7 +467,7 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
     async (qualifiedName: string) => {
       const sessionId = await createChatSession(qualifiedName);
       if (sessionId) {
-        navigate(`/agents/${encodeURIComponent(qualifiedName)}/chat/${sessionId}`);
+        navigate(agentChatPath(qualifiedName, sessionId));
         onNavigate?.();
       }
     },
