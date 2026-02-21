@@ -1,5 +1,17 @@
 # @herdctl/web
 
+## 0.3.4
+
+### Patch Changes
+
+- [#105](https://github.com/edspencer/herdctl/pull/105) [`8876ffb`](https://github.com/edspencer/herdctl/commit/8876ffbe9db200982cace35a690620f4c48e866e) Thanks [@edspencer](https://github.com/edspencer)! - Fix chat auto-scroll hijacking scroll position during streaming responses. The message feed now tracks whether the user is scrolled to the bottom via a scroll event listener and only auto-scrolls when pinned within 20px of the bottom, allowing users to freely read chat history while new messages stream in.
+
+- [#106](https://github.com/edspencer/herdctl/pull/106) [`5bdb4a5`](https://github.com/edspencer/herdctl/commit/5bdb4a558e8e8a0f28ff2e85a8be2978ad353e91) Thanks [@edspencer](https://github.com/edspencer)! - Fix chat messages leaking between sessions and vanishing on navigation. WebSocket chat handlers now validate the incoming sessionId against the active session before updating state, preventing streaming chunks from one chat appearing in another and ensuring messages aren't lost when navigating away mid-response.
+
+- Updated dependencies [[`4d1e4d8`](https://github.com/edspencer/herdctl/commit/4d1e4d8925d04a75f92a64360408d9fead9d3730)]:
+  - @herdctl/core@5.4.2
+  - @herdctl/chat@0.3.2
+
 ## 0.3.3
 
 ### Patch Changes
