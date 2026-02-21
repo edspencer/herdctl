@@ -161,9 +161,6 @@ function RecentJobsEmptyState() {
 // Main Component
 // =============================================================================
 
-/** Cutoff for "recent" jobs: 24 hours */
-const RECENT_HOURS = 24;
-
 export function FleetDashboard() {
   const { fleetStatus, agents, recentJobs, lastUpdated } = useFleet();
   const { setRecentJobs } = useFleetActions();
@@ -179,12 +176,6 @@ export function FleetDashboard() {
         // Non-critical — dashboard still works from WebSocket events
       });
   }, [setRecentJobs]);
-
-  // Filter to last 24 hours
-  const cutoff = Date.now() - RECENT_HOURS * 60 * 60 * 1000;
-  const recentJobsFiltered = recentJobs.filter(
-    (job) => new Date(job.createdAt).getTime() >= cutoff,
-  );
 
   const counts = fleetStatus?.counts ?? {
     totalAgents: 0,
@@ -277,13 +268,13 @@ export function FleetDashboard() {
       {/* Recent Jobs Section */}
       <section>
         <Card className="p-4">
-          {recentJobsFiltered.length === 0 ? (
+          {recentJobs.length === 0 ? (
             <>
               <h2 className="text-sm font-semibold text-herd-fg mb-3">Recent Jobs</h2>
               <RecentJobsEmptyState />
             </>
           ) : (
-            <RecentJobs jobs={recentJobsFiltered} pageSize={10} />
+            <RecentJobs jobs={recentJobs} pageSize={10} />
           )}
         </Card>
       </section>
