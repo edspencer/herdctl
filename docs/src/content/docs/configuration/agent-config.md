@@ -598,6 +598,11 @@ chat:
     app_token_env: SLACK_APP_TOKEN
     session_expiry_hours: 24
     log_level: standard
+    output:
+      tool_results: true
+      tool_result_max_length: 900
+      system_status: true
+      errors: true
     channels:
       - id: "C0123456789"
         mode: mention
@@ -612,6 +617,7 @@ chat:
 | `app_token_env` | string | — | **Required.** Environment variable containing the App-Level Token (`xapp-`) for Socket Mode |
 | `session_expiry_hours` | number | `24` | Hours before conversation context expires |
 | `log_level` | string | `standard` | Logging level: `minimal`, `standard`, or `verbose` |
+| `output` | object | — | Control which SDK messages appear in Slack (tool results, system status, errors). See [Slack Output Settings](/integrations/slack/#output-settings) |
 | `channels` | array | — | Slack channels this agent monitors |
 | `channels[].id` | string | — | Slack channel ID (starts with `C`) |
 | `channels[].mode` | string | `mention` | `mention` (respond when @mentioned) or `auto` (respond to all) |

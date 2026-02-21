@@ -129,10 +129,11 @@ The chat feature lets you send messages to any agent directly from the dashboard
 - **Create chat sessions** per agent
 - **Send messages** and receive streaming responses
 - **View message history** with Markdown rendering
+- **Tool call visibility** showing when the agent uses tools like Bash, Read, or Write, with collapsible details including input, duration, and output
 - **Multiple sessions** per agent for separate conversation threads
 - **Session persistence** across page reloads (sessions expire after the configured hours)
 
-Chat messages are sent via WebSocket for low-latency streaming, with the full response appearing incrementally as the agent generates it.
+Chat messages are sent via WebSocket for low-latency streaming, with the full response appearing incrementally as the agent generates it. Tool calls appear as collapsible UI components in the message feed, allowing you to inspect what the agent did and the results it received.
 
 ### Schedule Management
 

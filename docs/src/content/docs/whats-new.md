@@ -7,6 +7,13 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Tool Call Visibility for Slack and Web
+**February 19, 2026** · `@herdctl/slack@1.2.0` · `@herdctl/web@0.2.0` · `@herdctl/chat@0.3.0` · `@herdctl/core@5.3.0`
+
+Slack and Web chat integrations now display tool calls and results, matching Discord's existing functionality. When agents use tools like Bash, Read, Write, or Grep during conversations, the results appear as formatted messages (Slack) or collapsible UI components (Web) showing the tool name, input summary, execution duration, and output preview. Shared tool parsing utilities (`extractToolUseBlocks`, `extractToolResults`, `getToolInputSummary`, `TOOL_EMOJIS`) are now in `@herdctl/chat` for reuse across all platforms. Slack adds a configurable `output` block (matching Discord) with `tool_results`, `tool_result_max_length`, `system_status`, and `errors` settings.
+
+---
+
 ### Web Dashboard
 **February 18, 2026** · `herdctl@1.2.0` · `@herdctl/web@0.1.0` · `@herdctl/core@5.2.0`
 
