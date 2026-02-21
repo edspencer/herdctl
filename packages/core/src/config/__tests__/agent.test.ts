@@ -99,7 +99,7 @@ describe("AgentConfigSchema", () => {
         },
         daily: {
           type: "cron",
-          expression: "0 9 * * *",
+          cron: "0 9 * * *",
           prompt: "Daily check",
         },
       },
@@ -306,6 +306,20 @@ describe("ScheduleSchema", () => {
   it("parses cron schedule", () => {
     const schedule = {
       type: "cron",
+      cron: "0 9 * * 1-5",
+      prompt: "Morning check",
+    };
+    const result = ScheduleSchema.safeParse(schedule);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.type).toBe("cron");
+      expect(result.data.cron).toBe("0 9 * * 1-5");
+    }
+  });
+
+  it("accepts expression as backward-compat alias for cron", () => {
+    const schedule = {
+      type: "cron",
       expression: "0 9 * * 1-5",
       prompt: "Morning check",
     };
@@ -313,7 +327,8 @@ describe("ScheduleSchema", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.type).toBe("cron");
-      expect(result.data.expression).toBe("0 9 * * 1-5");
+      expect(result.data.cron).toBe("0 9 * * 1-5");
+      expect("expression" in result.data).toBe(false);
     }
   });
 

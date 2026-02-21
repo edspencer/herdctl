@@ -106,7 +106,7 @@ Cron triggers execute on a precise schedule using standard cron expressions. Thi
 schedules:
   daily-report:
     type: cron
-    expression: "0 9 * * *"
+    cron: "0 9 * * *"
     prompt: "Generate the daily status report."
 ```
 
@@ -142,49 +142,49 @@ Cron expressions use five fields:
 schedules:
   morning-standup:
     type: cron
-    expression: "0 9 * * *"
+    cron: "0 9 * * *"
     prompt: "Review yesterday's progress and plan today's tasks."
 
 # Weekdays at 9am (Monday-Friday)
 schedules:
   weekday-check:
     type: cron
-    expression: "0 9 * * 1-5"
+    cron: "0 9 * * 1-5"
     prompt: "Check for urgent issues before the team arrives."
 
 # Every hour on the hour
 schedules:
   hourly-scan:
     type: cron
-    expression: "0 * * * *"
+    cron: "0 * * * *"
     prompt: "Scan for security vulnerabilities in dependencies."
 
 # Every 15 minutes
 schedules:
   frequent-check:
     type: cron
-    expression: "*/15 * * * *"
+    cron: "*/15 * * * *"
     prompt: "Check for high-priority alerts."
 
 # Weekly on Monday at 10am
 schedules:
   weekly-summary:
     type: cron
-    expression: "0 10 * * 1"
+    cron: "0 10 * * 1"
     prompt: "Generate the weekly team summary report."
 
 # Monthly on the 1st at midnight
 schedules:
   monthly-audit:
     type: cron
-    expression: "0 0 1 * *"
+    cron: "0 0 1 * *"
     prompt: "Run the monthly security audit."
 
 # Quarterly (1st of Jan, Apr, Jul, Oct)
 schedules:
   quarterly-review:
     type: cron
-    expression: "0 9 1 1,4,7,10 *"
+    cron: "0 9 1 1,4,7,10 *"
     prompt: "Generate the quarterly performance review."
 ```
 
@@ -527,7 +527,7 @@ Temporarily disable a trigger without removing it:
 schedules:
   maintenance:
     type: cron
-    expression: "0 2 * * *"
+    cron: "0 2 * * *"
     enabled: false  # Disabled during development
     prompt: "Run maintenance tasks."
 ```

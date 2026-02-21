@@ -437,7 +437,7 @@ describe("computeScheduleChanges with qualified names", () => {
     });
     const newAgent = makeAgent("designer", ["project-b", "frontend"], {
       schedules: {
-        check: { type: "cron", expression: "0 * * * *" },
+        check: { type: "cron", cron: "0 * * * *" },
       },
     });
 

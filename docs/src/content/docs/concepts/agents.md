@@ -199,13 +199,13 @@ schedules:
   - name: hourly-scan
     trigger:
       type: cron
-      expression: "0 * * * *"
+      cron: "0 * * * *"
     prompt: "Scan social media for product mentions."
 
   - name: daily-report
     trigger:
       type: cron
-      expression: "0 9 * * *"
+      cron: "0 9 * * *"
     prompt: "Generate daily analytics report."
 ```
 

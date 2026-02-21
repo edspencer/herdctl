@@ -8,6 +8,7 @@ import type { StateCreator } from "zustand";
 import {
   createChatSession as apiCreateChatSession,
   deleteChatSession as apiDeleteChatSession,
+  renameChatSession as apiRenameChatSession,
   fetchChatSession,
   fetchChatSessions,
 } from "../lib/api";
@@ -52,6 +53,8 @@ export interface ChatActions {
   createChatSession: (agentName: string) => Promise<string | null>;
   /** Delete a chat session */
   deleteChatSession: (agentName: string, sessionId: string) => Promise<void>;
+  /** Rename a chat session */
+  renameChatSession: (agentName: string, sessionId: string, name: string) => Promise<void>;
   /** Set the active session */
   setActiveChatSession: (sessionId: string | null) => void;
   /** Append a chunk to streaming content */
@@ -207,6 +210,40 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to delete chat session";
+      set({ chatError: message });
+    }
+  },
+
+  renameChatSession: async (agentName: string, sessionId: string, name: string) => {
+    set({ chatError: null });
+
+    try {
+      await apiRenameChatSession(agentName, sessionId, name);
+
+      set((state) => {
+        // Update custom name in main session list
+        const chatSessions = state.chatSessions.map((s) =>
+          s.sessionId === sessionId ? { ...s, customName: name } : s,
+        );
+
+        // Update custom name in sidebar sessions
+        const agentSessions = state.sidebarSessions[agentName];
+        const updatedSidebarSessions = agentSessions
+          ? {
+              ...state.sidebarSessions,
+              [agentName]: agentSessions.map((s) =>
+                s.sessionId === sessionId ? { ...s, customName: name } : s,
+              ),
+            }
+          : state.sidebarSessions;
+
+        return {
+          chatSessions,
+          sidebarSessions: updatedSidebarSessions,
+        };
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to rename chat session";
       set({ chatError: message });
     }
   },

@@ -50,7 +50,7 @@ Think of it as "Kubernetes for AI agents" - declarative configuration, multiple 
 │  │                                                          │    │
 │  │  ┌──────────────────────────────────────────────────┐   │    │
 │  │  │ Schedule: "daily-analytics"                      │   │    │
-│  │  │ trigger: { type: cron, expression: "0 9 * * *" }│   │    │
+│  │  │ trigger: { type: cron, cron: "0 9 * * *" }       │   │    │
 │  │  │ prompt: "Analyze site traffic and report..."    │   │    │
 │  │  └──────────────────────────────────────────────────┘   │    │
 │  └─────────────────────────────────────────────────────────┘    │
@@ -387,7 +387,7 @@ schedules:
   - name: hourly-reddit-scan
     trigger:
       type: cron
-      expression: "0 * * * *"  # Every hour on the hour
+      cron: "0 * * * *"  # Every hour on the hour
     prompt: |
       Scan Reddit for mentions of BragDoc, career documentation,
       or brag documents. Report any interesting threads to the
@@ -396,7 +396,7 @@ schedules:
   - name: daily-analytics
     trigger:
       type: cron
-      expression: "0 9 * * *"  # 9am daily
+      cron: "0 9 * * *"  # 9am daily
     prompt: |
       Analyze site traffic for the past 24 hours.
       Create a brief report covering:
@@ -409,7 +409,7 @@ schedules:
   - name: weekly-report
     trigger:
       type: cron
-      expression: "0 9 * * 1"  # Monday 9am
+      cron: "0 9 * * 1"  # Monday 9am
     prompt: |
       Generate comprehensive weekly marketing report.
       Include:
@@ -478,7 +478,7 @@ schedules:
   - name: daily-summary
     trigger:
       type: cron
-      expression: "0 18 * * *"  # 6pm daily
+      cron: "0 18 * * *"  # 6pm daily
     prompt: |
       Summarize today's support conversations.
       Post summary to #team-updates channel.

@@ -37,7 +37,7 @@ function getTypeLabel(type: ScheduleType): string {
  * Get the expression string for a schedule (cron expression or interval)
  */
 function getExpression(schedule: ScheduleInfo): string {
-  if (schedule.expression) return schedule.expression;
+  if (schedule.cron) return schedule.cron;
   if (schedule.interval) return schedule.interval;
   return "-";
 }

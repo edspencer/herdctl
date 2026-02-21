@@ -443,8 +443,8 @@ export async function runSchedule(options: RunScheduleOptions): Promise<Schedule
 function calculateNextScheduleTrigger(schedule: Schedule): Date | null {
   if (schedule.type === "interval" && schedule.interval) {
     return calculateNextTrigger(new Date(), schedule.interval);
-  } else if (schedule.type === "cron" && schedule.expression) {
-    return calculateNextCronTrigger(schedule.expression);
+  } else if (schedule.type === "cron" && schedule.cron) {
+    return calculateNextCronTrigger(schedule.cron);
   }
   return null;
 }

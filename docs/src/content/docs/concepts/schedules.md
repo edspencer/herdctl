@@ -32,14 +32,14 @@ schedules:
 
   daily-analytics:
     type: cron
-    expression: "0 9 * * *"
+    cron: "0 9 * * *"
     prompt: |
       Analyze yesterday's site traffic and conversion data.
       Update analytics/daily-report.md with findings.
 
   weekly-report:
     type: cron
-    expression: "0 10 * * 1"
+    cron: "0 10 * * 1"
     prompt: |
       Generate the weekly marketing summary.
       Include: traffic trends, top content, social engagement.
@@ -60,7 +60,7 @@ schedules:
   schedule-name:
     type: interval | cron | webhook | chat
     interval: "5m"           # For interval triggers
-    expression: "0 9 * * *"  # For cron triggers
+    cron: "0 9 * * *"  # For cron triggers
     prompt: |
       Instructions for what the agent should do.
     work_source:             # Optional: where to get tasks
@@ -76,7 +76,7 @@ schedules:
 |----------|----------|-------------|
 | `type` | Yes | Trigger type: `interval`, `cron`, `webhook`, or `chat` |
 | `interval` | For interval | Duration string like `5m`, `1h`, `30s` |
-| `expression` | For cron | Cron expression like `0 9 * * 1-5` |
+| `cron` | For cron | Cron expression like `0 9 * * 1-5` |
 | `prompt` | No | Instructions for this schedule |
 | `work_source` | No | Task source configuration (e.g., GitHub Issues) |
 
@@ -425,7 +425,7 @@ Execute on a cron schedule for precise timing:
 schedules:
   morning-standup:
     type: cron
-    expression: "0 9 * * 1-5"  # 9am weekdays
+    cron: "0 9 * * 1-5"  # 9am weekdays
     prompt: "Review yesterday's progress and plan today's work."
 ```
 
@@ -491,7 +491,7 @@ schedules:
   # Hourly security scan
   security-scan:
     type: cron
-    expression: "0 * * * *"
+    cron: "0 * * * *"
     prompt: |
       Scan for security vulnerabilities in dependencies.
       Update security/scan-results.md with findings.
@@ -500,7 +500,7 @@ schedules:
   # Daily capacity report
   daily-capacity:
     type: cron
-    expression: "0 8 * * *"
+    cron: "0 8 * * *"
     prompt: |
       Analyze resource utilization across all environments.
       Generate capacity report in reports/capacity/{{date}}.md.
@@ -509,7 +509,7 @@ schedules:
   # Weekly infrastructure review
   weekly-review:
     type: cron
-    expression: "0 10 * * 1"
+    cron: "0 10 * * 1"
     prompt: |
       Comprehensive infrastructure review:
       - Resource utilization trends

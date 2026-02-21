@@ -22,7 +22,7 @@ import type { ConfigChange, ConfigReloadedPayload } from "./types.js";
 interface ScheduleForComparison {
   type: string;
   interval?: string;
-  expression?: string;
+  cron?: string;
   prompt?: string;
 }
 
@@ -373,7 +373,7 @@ export function isScheduleModified(
   return (
     oldSchedule.type !== newSchedule.type ||
     oldSchedule.interval !== newSchedule.interval ||
-    oldSchedule.expression !== newSchedule.expression ||
+    oldSchedule.cron !== newSchedule.cron ||
     oldSchedule.prompt !== newSchedule.prompt
   );
 }
@@ -397,10 +397,8 @@ export function getScheduleModificationDetails(
   if (oldSchedule.interval !== newSchedule.interval) {
     details.push(`interval: ${oldSchedule.interval ?? "none"} → ${newSchedule.interval ?? "none"}`);
   }
-  if (oldSchedule.expression !== newSchedule.expression) {
-    details.push(
-      `expression: ${oldSchedule.expression ?? "none"} → ${newSchedule.expression ?? "none"}`,
-    );
+  if (oldSchedule.cron !== newSchedule.cron) {
+    details.push(`cron: ${oldSchedule.cron ?? "none"} → ${newSchedule.cron ?? "none"}`);
   }
   if (oldSchedule.prompt !== newSchedule.prompt) {
     details.push("prompt changed");

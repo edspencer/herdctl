@@ -132,6 +132,19 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 /**
  * Helper to make typed DELETE requests
  */
+async function patch<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  return handleResponse<T>(response);
+}
+
 async function del<T>(path: string): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, {
     method: "DELETE",
@@ -355,5 +368,23 @@ export async function fetchChatSession(
 export async function deleteChatSession(agentName: string, sessionId: string): Promise<void> {
   await del<{ deleted: boolean }>(
     `/api/chat/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`,
+  );
+}
+
+/**
+ * Rename a chat session with a custom name
+ *
+ * @param agentName - Agent name
+ * @param sessionId - Session ID
+ * @param name - New custom name for the session
+ */
+export async function renameChatSession(
+  agentName: string,
+  sessionId: string,
+  name: string,
+): Promise<void> {
+  await patch<{ renamed: boolean }>(
+    `/api/chat/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`,
+    { name },
   );
 }

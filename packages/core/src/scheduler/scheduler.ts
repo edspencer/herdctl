@@ -104,6 +104,7 @@ export class Scheduler {
   private checkCount = 0;
   private triggerCount = 0;
   private lastCheckAt: string | null = null;
+  private warnedSchedules = new Set<string>();
 
   constructor(options: SchedulerOptions) {
     this.checkInterval = options.checkInterval ?? DEFAULT_CHECK_INTERVAL;
@@ -231,6 +232,7 @@ export class Scheduler {
 
     this.status = "stopped";
     this.abortController = null;
+    this.warnedSchedules.clear();
     this.logger.info("Scheduler stopped");
   }
 
@@ -242,6 +244,16 @@ export class Scheduler {
   setAgents(agents: ResolvedAgent[]): void {
     this.agents = agents;
     this.logger.debug(`Updated agents list: ${agents.length} agents`);
+  }
+
+  /**
+   * Log a warning only once per schedule key, to avoid spamming on every tick.
+   */
+  private warnOnce(key: string, message: string): void {
+    if (!this.warnedSchedules.has(key)) {
+      this.warnedSchedules.add(key);
+      this.logger.warn(message);
+    }
   }
 
   /**
@@ -312,7 +324,7 @@ export class Scheduler {
   private async checkSchedule(
     agent: ResolvedAgent,
     scheduleName: string,
-    schedule: { type: string; interval?: string; expression?: string; enabled?: boolean },
+    schedule: { type: string; interval?: string; cron?: string; enabled?: boolean },
   ): Promise<ScheduleCheckResult> {
     const baseResult = {
       agentName: agent.qualifiedName,
@@ -391,7 +403,8 @@ export class Scheduler {
 
     if (schedule.type === "interval") {
       if (!schedule.interval) {
-        this.logger.warn(
+        this.warnOnce(
+          `${agent.qualifiedName}/${scheduleName}`,
           `Skipping ${agent.qualifiedName}/${scheduleName}: interval schedule missing interval value`,
         );
         return {
@@ -403,9 +416,10 @@ export class Scheduler {
       nextTrigger = calculateNextTrigger(lastRunAt, schedule.interval);
     } else {
       // schedule.type === "cron"
-      if (!schedule.expression) {
-        this.logger.warn(
-          `Skipping ${agent.qualifiedName}/${scheduleName}: cron schedule missing expression value`,
+      if (!schedule.cron) {
+        this.warnOnce(
+          `${agent.qualifiedName}/${scheduleName}`,
+          `Skipping ${agent.qualifiedName}/${scheduleName}: cron schedule missing cron expression`,
         );
         return {
           ...baseResult,
@@ -415,9 +429,10 @@ export class Scheduler {
       }
 
       // Validate cron expression (defense in depth - should be validated at config load time)
-      if (!isValidCronExpression(schedule.expression)) {
-        this.logger.warn(
-          `Skipping ${agent.qualifiedName}/${scheduleName}: invalid cron expression "${schedule.expression}"`,
+      if (!isValidCronExpression(schedule.cron)) {
+        this.warnOnce(
+          `${agent.qualifiedName}/${scheduleName}`,
+          `Skipping ${agent.qualifiedName}/${scheduleName}: invalid cron expression "${schedule.cron}"`,
         );
         return {
           ...baseResult,
@@ -433,12 +448,12 @@ export class Scheduler {
         // If multiple occurrences were missed (e.g. scheduler was down),
         // only one catch-up trigger fires because last_run_at updates to now
         // on trigger, making the next calculation return a future time.
-        nextTrigger = calculateNextCronTrigger(schedule.expression, lastRunAt);
+        nextTrigger = calculateNextCronTrigger(schedule.cron, lastRunAt);
       } else {
         // For NEW cron schedules (no lastRunAt), determine if we're in a "trigger window"
         // We use the previous cron time as a reference point and compare with current time
-        const previousTrigger = calculatePreviousCronTrigger(schedule.expression, now);
-        const nextFutureTrigger = calculateNextCronTrigger(schedule.expression, now);
+        const previousTrigger = calculatePreviousCronTrigger(schedule.cron, now);
+        const nextFutureTrigger = calculateNextCronTrigger(schedule.cron, now);
 
         // Calculate the cron interval (time between previous and next)
         const intervalMs = nextFutureTrigger.getTime() - previousTrigger.getTime();
@@ -519,7 +534,7 @@ export class Scheduler {
   private async triggerSchedule(
     agent: ResolvedAgent,
     scheduleName: string,
-    schedule: { type: string; interval?: string; expression?: string; prompt?: string },
+    schedule: { type: string; interval?: string; cron?: string; prompt?: string },
   ): Promise<void> {
     this.logger.info(`Triggering ${agent.qualifiedName}/${scheduleName}`);
     this.triggerCount++;
@@ -565,7 +580,7 @@ export class Scheduler {
   private async executeJob(
     agent: ResolvedAgent,
     scheduleName: string,
-    schedule: { type: string; interval?: string; expression?: string; prompt?: string },
+    schedule: { type: string; interval?: string; cron?: string; prompt?: string },
   ): Promise<void> {
     const stateLogger: ScheduleStateLogger = { warn: this.logger.warn };
 
@@ -594,8 +609,8 @@ export class Scheduler {
       let nextTrigger: Date | null = null;
       if (schedule.type === "interval" && schedule.interval) {
         nextTrigger = calculateNextTrigger(new Date(Date.now()), schedule.interval);
-      } else if (schedule.type === "cron" && schedule.expression) {
-        nextTrigger = calculateNextCronTrigger(schedule.expression, new Date(Date.now()));
+      } else if (schedule.type === "cron" && schedule.cron) {
+        nextTrigger = calculateNextCronTrigger(schedule.cron, new Date(Date.now()));
       }
 
       // Update schedule state to idle with next run time

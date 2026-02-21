@@ -458,19 +458,29 @@ export const IdentitySchema = z.object({
 
 export const ScheduleTypeSchema = z.enum(["interval", "cron", "webhook", "chat"]);
 
-export const ScheduleSchema = z.object({
-  type: ScheduleTypeSchema,
-  interval: z.string().optional(), // "5m", "1h", etc.
-  expression: z.string().optional(), // cron expression
-  prompt: z.string().optional(),
-  work_source: WorkSourceSchema.optional(),
-  /** When true, job output is also written to .herdctl/jobs/{jobId}/output.log (default: false) */
-  outputToFile: z.boolean().optional(),
-  /** When false, schedule will not auto-trigger but can still be manually triggered (default: true) */
-  enabled: z.boolean().optional().default(true),
-  /** When false, start a fresh session instead of resuming (default: true - resumes existing session) */
-  resume_session: z.boolean().optional().default(true),
-});
+export const ScheduleSchema = z
+  .object({
+    type: ScheduleTypeSchema,
+    interval: z.string().optional(), // "5m", "1h", etc.
+    cron: z.string().optional(), // cron expression (e.g. "0 9 * * *")
+    expression: z.string().optional(), // deprecated alias for cron
+    prompt: z.string().optional(),
+    work_source: WorkSourceSchema.optional(),
+    /** When true, job output is also written to .herdctl/jobs/{jobId}/output.log (default: false) */
+    outputToFile: z.boolean().optional(),
+    /** When false, schedule will not auto-trigger but can still be manually triggered (default: true) */
+    enabled: z.boolean().optional().default(true),
+    /** When false, start a fresh session instead of resuming (default: true - resumes existing session) */
+    resume_session: z.boolean().optional().default(true),
+  })
+  .transform((val) => {
+    // Accept `expression` as backward-compat alias for `cron`
+    if (val.expression && !val.cron) {
+      val.cron = val.expression;
+    }
+    const { expression: _, ...rest } = val;
+    return rest;
+  });
 
 // =============================================================================
 // MCP Server Schema
