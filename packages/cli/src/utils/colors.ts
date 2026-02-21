@@ -12,7 +12,7 @@ import type { LogLevel } from "@herdctl/core";
 /**
  * Check if colors should be used based on environment and TTY
  */
-function shouldUseColor(): boolean {
+export function shouldUseColor(): boolean {
   // NO_COLOR takes precedence (https://no-color.org/)
   if (process.env.NO_COLOR !== undefined && process.env.NO_COLOR !== "") {
     return false;
@@ -28,7 +28,7 @@ function shouldUseColor(): boolean {
 /**
  * ANSI color codes
  */
-const colors = {
+export const colors = {
   reset: "\x1b[0m",
   bold: "\x1b[1m",
   dim: "\x1b[2m",
