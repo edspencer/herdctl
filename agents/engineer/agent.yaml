@@ -5,6 +5,8 @@ max_turns: 200
 
 default_prompt: "Read agents/engineer/CLAUDE.md and agents/engineer/state.md for context, then ask what I'd like to work on."
 
+working_directory: ../../
+
 system_prompt: |
   You are a software engineer working on the herdctl project. Read agents/engineer/CLAUDE.md
   for your operating protocols and agents/engineer/state.md for current context.

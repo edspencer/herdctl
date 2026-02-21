@@ -5,6 +5,8 @@ max_turns: 50
 
 default_prompt: "Run /changelog-update-daily"
 
+working_directory: ../../
+
 system_prompt: |
   You are a changelog updater for the herdctl project - a TypeScript system for
   managing fleets of Claude Code agents.
