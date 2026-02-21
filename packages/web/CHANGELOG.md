@@ -1,5 +1,33 @@
 # @herdctl/web
 
+## 0.5.0
+
+### Minor Changes
+
+- [#116](https://github.com/edspencer/herdctl/pull/116) [`979dbf6`](https://github.com/edspencer/herdctl/commit/979dbf68510c237f3ba8ceb24b30f9830f6c3e7b) Thanks [@edspencer](https://github.com/edspencer)! - Add inline editing for chat session names in sidebar. Users can now click a pencil icon (visible on hover) to rename chat sessions. Press Enter to save or Escape to cancel. Custom names take precedence over auto-generated previews.
+
+### Patch Changes
+
+- [#114](https://github.com/edspencer/herdctl/pull/114) [`63dc4db`](https://github.com/edspencer/herdctl/commit/63dc4dbc87db064cac20abc1b6ea39b778b92847) Thanks [@edspencer](https://github.com/edspencer)! - Fix agent links to use qualified names for correct navigation
+
+  Jobs now store the agent's qualified name (e.g., `herdctl.engineer`) instead of the local name (`engineer`) in job metadata. The web server also resolves older jobs with local names back to qualified names via a fallback lookup.
+
+  On the client side, all agent link construction is now centralized through path helper functions (`agentPath`, `agentChatPath`, `agentTabPath`) to prevent future inconsistencies.
+
+- [#117](https://github.com/edspencer/herdctl/pull/117) [`5237983`](https://github.com/edspencer/herdctl/commit/523798328007f01221469af0be2c999d27e7b8c5) Thanks [@edspencer](https://github.com/edspencer)! - Fix dashboard showing empty "Recent Jobs" section
+
+  Removed the 24-hour client-side filter that was discarding all jobs when none had run recently. The section already limits to the 50 most recent jobs via the store, so the time-based cutoff was unnecessary and caused the dashboard to appear broken.
+
+- [#116](https://github.com/edspencer/herdctl/pull/116) [`979dbf6`](https://github.com/edspencer/herdctl/commit/979dbf68510c237f3ba8ceb24b30f9830f6c3e7b) Thanks [@edspencer](https://github.com/edspencer)! - Rename schedule `expression` field to `cron` and suppress repeated warnings
+
+  The `cron` field is now the canonical name for cron expressions in schedule config (e.g., `cron: "0 9 * * *"`). The old `expression` field is still accepted as a backward-compatible alias.
+
+  Misconfigured schedules now log their warning only once instead of every scheduler tick (~1/second).
+
+- Updated dependencies [[`63dc4db`](https://github.com/edspencer/herdctl/commit/63dc4dbc87db064cac20abc1b6ea39b778b92847), [`979dbf6`](https://github.com/edspencer/herdctl/commit/979dbf68510c237f3ba8ceb24b30f9830f6c3e7b)]:
+  - @herdctl/core@5.4.3
+  - @herdctl/chat@0.3.3
+
 ## 0.4.0
 
 ### Minor Changes
