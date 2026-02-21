@@ -1,5 +1,12 @@
 # herdctl
 
+## 1.3.6
+
+### Patch Changes
+
+- Updated dependencies [[`d106157`](https://github.com/edspencer/herdctl/commit/d10615780afa35a7095fd9682b075af49aa1f56a), [`212f830`](https://github.com/edspencer/herdctl/commit/212f8309f44cf5d32e199013d3afc9623471a2ee), [`c7c67d0`](https://github.com/edspencer/herdctl/commit/c7c67d02bba5323937865fbf68818fc089942730)]:
+  - @herdctl/web@0.4.0
+
 ## 1.3.5
 
 ### Patch Changes
