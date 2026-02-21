@@ -272,6 +272,13 @@ chat:
     # Log level: minimal, standard, verbose (default: standard)
     log_level: standard
 
+    # Output configuration - control what SDK messages appear in Slack
+    output:
+      tool_results: true          # Show tool results (default: true)
+      tool_result_max_length: 900 # Max chars in tool output (default: 900, max: 1000)
+      system_status: true         # Show system status messages (default: true)
+      errors: true                # Show error messages (default: true)
+
     # Channel configurations
     channels:
       - id: "C0123456789"          # Slack channel ID (required)
@@ -304,6 +311,7 @@ chat:
 | `app_token_env` | string | — | **Required.** Environment variable name containing the App-Level Token (`xapp-`) for Socket Mode |
 | `session_expiry_hours` | number | `24` | Hours before a conversation session expires |
 | `log_level` | string | `standard` | Logging verbosity: `minimal`, `standard`, `verbose` |
+| `output` | object | — | Control what SDK messages appear in Slack (tool results, system status, errors) |
 | `channels` | array | — | List of Slack channels to operate in |
 
 #### Channel Settings
@@ -325,8 +333,61 @@ chat:
 | `dm.blocklist` | string[] | — | Block DMs from these Slack user IDs |
 
 <Aside type="note">
-  Unlike Discord, Slack does not have guild (server) hierarchy, presence settings, or output formatting options. Slack DM configuration uses the same `dm` schema as Discord.
+  Unlike Discord, Slack does not have guild (server) hierarchy or presence settings. Slack DM configuration uses the same `dm` schema as Discord.
 </Aside>
+
+#### Output Settings
+
+Control which SDK messages are surfaced in Slack. When your agent uses tools (Bash, Read, Write, etc.) or the SDK emits system/error messages, these settings determine what appears in the channel.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `output.tool_results` | boolean | `true` | Show tool results when the agent uses tools |
+| `output.tool_result_max_length` | number | `900` | Maximum characters shown in tool output (max: 1000) |
+| `output.system_status` | boolean | `true` | Show system status messages (e.g., "Compacting context...") |
+| `output.errors` | boolean | `true` | Show error messages when the SDK reports errors |
+
+All output types appear as formatted Slack messages with emoji indicators:
+
+| Message Type | Emoji | Example Content |
+|-------------|-------|-----------------|
+| Tool result (success) | Tool emoji | `🔧 Bash` — `> git status` with output preview |
+| Tool result (error) | Tool emoji | `🔧 Bash` — command output with error |
+| System status | ⚙️ | `⚙️ System` — "Compacting context..." |
+| Error | ❌ | `❌ Error` — error description |
+
+Tool result messages include the tool name with an emoji, the input summary (command, file path, or search pattern), execution duration, output length, and a truncated preview of the output.
+
+<Aside type="tip">
+  Set `tool_results: false` if you want a minimal chat experience showing only text responses. This is useful for end-user facing channels where tool details would be distracting.
+</Aside>
+
+**Minimal output (text responses only):**
+
+```yaml
+chat:
+  slack:
+    bot_token_env: SLACK_BOT_TOKEN
+    app_token_env: SLACK_APP_TOKEN
+    output:
+      tool_results: false
+      system_status: false
+      errors: false
+```
+
+**Full visibility (all message types):**
+
+```yaml
+chat:
+  slack:
+    bot_token_env: SLACK_BOT_TOKEN
+    app_token_env: SLACK_APP_TOKEN
+    output:
+      tool_results: true
+      tool_result_max_length: 500
+      system_status: true
+      errors: true
+```
 
 ## Environment Variables
 
