@@ -96,7 +96,7 @@ export function getCliSessionFile(workspacePath: string, sessionId: string): str
  * @returns Promise resolving to path of newest .jsonl file
  * @throws {Error} If directory doesn't exist or contains no .jsonl files
  */
-export async function findNewestSessionFile(sessionDir: string): Promise<string> {
+async function findNewestSessionFile(sessionDir: string): Promise<string> {
   try {
     const files = await readdir(sessionDir);
     const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
