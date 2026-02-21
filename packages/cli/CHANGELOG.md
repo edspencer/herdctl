@@ -1,5 +1,15 @@
 # herdctl
 
+## 1.3.8
+
+### Patch Changes
+
+- Updated dependencies [[`a0e7ad8`](https://github.com/edspencer/herdctl/commit/a0e7ad8cc8c4aa9a8da46bd0b5ff933e56c5158c), [`82061c0`](https://github.com/edspencer/herdctl/commit/82061c0683aeeb4d595fe92dd8c17f3cdb1b3a4a), [`d52fa37`](https://github.com/edspencer/herdctl/commit/d52fa37f98df825c75f3d0ba29abbe5b838d2c6e), [`c030557`](https://github.com/edspencer/herdctl/commit/c0305579177825d6d3e0b2ccb65bc5311523d2f9)]:
+  - @herdctl/core@5.5.0
+  - @herdctl/web@0.6.0
+  - @herdctl/discord@1.0.10
+  - @herdctl/slack@1.2.4
+
 ## 1.3.7
 
 ### Patch Changes
