@@ -275,6 +275,7 @@ export function useChatActions() {
       fetchChatMessages: state.fetchChatMessages,
       createChatSession: state.createChatSession,
       deleteChatSession: state.deleteChatSession,
+      renameChatSession: state.renameChatSession,
       setActiveChatSession: state.setActiveChatSession,
       appendStreamingChunk: state.appendStreamingChunk,
       completeStreaming: state.completeStreaming,
