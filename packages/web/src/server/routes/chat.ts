@@ -22,6 +22,28 @@ export function registerChatRoutes(
   chatManager: WebChatManager,
 ): void {
   /**
+   * GET /api/chat/config
+   *
+   * Returns chat-related configuration defaults from the fleet config.
+   *
+   * @returns { message_grouping, tool_results }
+   */
+  server.get("/api/chat/config", async (_request, reply) => {
+    try {
+      const resolvedConfig = fleetManager.getConfig();
+      const webConfig = resolvedConfig?.fleet?.web;
+      return reply.send({
+        message_grouping: webConfig?.message_grouping ?? "separate",
+        tool_results: webConfig?.tool_results ?? true,
+      });
+    } catch (error) {
+      return reply.status(500).send({
+        error: error instanceof Error ? error.message : "Failed to read config",
+      });
+    }
+  });
+
+  /**
    * POST /api/chat/:agentName/sessions
    *
    * Create a new chat session for an agent.

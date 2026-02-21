@@ -110,6 +110,11 @@ export interface ToolCallData {
  */
 export type OnToolCallCallback = (toolCall: ToolCallData) => void | Promise<void>;
 
+/**
+ * Callback for signaling a message boundary between distinct assistant turns
+ */
+export type OnBoundaryCallback = () => void | Promise<void>;
+
 // =============================================================================
 // WebChatManager Implementation
 // =============================================================================
@@ -160,7 +165,7 @@ export class WebChatManager {
 
     // Create session managers for each agent
     for (const agent of fleetConfig.agents) {
-      await this.createSessionManagerForAgent(agent.name);
+      await this.createSessionManagerForAgent(agent.qualifiedName);
     }
 
     // Ensure chat history directories exist
@@ -354,6 +359,7 @@ export class WebChatManager {
     message: string,
     onChunk: OnChunkCallback,
     onToolCall?: OnToolCallCallback,
+    onBoundary?: OnBoundaryCallback,
   ): Promise<SendMessageResult> {
     this.ensureInitialized();
 
@@ -432,6 +438,18 @@ export class WebChatManager {
             const castMessage = sdkMessage as Parameters<typeof extractMessageContent>[0];
             const content = extractMessageContent(castMessage);
             if (content) {
+              // If we already have accumulated assistant content, this is a new
+              // assistant turn. Flush the previous content as a separate message
+              // and signal a boundary to the client.
+              if (assistantContent && onBoundary) {
+                messages.push({
+                  role: "assistant",
+                  content: assistantContent,
+                  timestamp: new Date().toISOString(),
+                });
+                assistantContent = "";
+                await onBoundary();
+              }
               assistantContent += content;
               // Send chunk to client
               await onChunk(content);

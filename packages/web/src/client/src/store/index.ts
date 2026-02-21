@@ -261,6 +261,7 @@ export function useChatMessages() {
       chatStreaming: state.chatStreaming,
       chatStreamingContent: state.chatStreamingContent,
       chatError: state.chatError,
+      messageGrouping: state.messageGrouping,
     })),
   );
 }
@@ -282,6 +283,8 @@ export function useChatActions() {
       addUserMessage: state.addUserMessage,
       setChatError: state.setChatError,
       fetchSidebarSessions: state.fetchSidebarSessions,
+      flushStreamingMessage: state.flushStreamingMessage,
+      setMessageGrouping: state.setMessageGrouping,
       clearActiveChatState: state.clearActiveChatState,
       clearChatState: state.clearChatState,
     })),

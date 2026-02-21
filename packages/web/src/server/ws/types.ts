@@ -241,6 +241,25 @@ export interface ChatToolCallMessage {
 }
 
 /**
+ * Chat message boundary signal
+ *
+ * Server sends this between distinct assistant text turns to signal
+ * that the previous streaming content belongs to a separate message.
+ * The client decides whether to act on this based on message_grouping preference.
+ */
+export interface ChatMessageBoundaryMessage {
+  type: "chat:message_boundary";
+  payload: {
+    /** Name of the agent */
+    agentName: string;
+    /** Session ID for the chat conversation */
+    sessionId: string;
+    /** Job ID for tracking the execution */
+    jobId: string;
+  };
+}
+
+/**
  * Chat error message
  *
  * Server sends this when a chat error occurs.
@@ -273,6 +292,7 @@ export type ServerMessage =
   | ChatResponseMessage
   | ChatCompleteMessage
   | ChatToolCallMessage
+  | ChatMessageBoundaryMessage
   | ChatErrorMessage;
 
 // =============================================================================

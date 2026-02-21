@@ -42,6 +42,8 @@ export interface ChatState {
   sidebarSessions: Record<string, ChatSession[]>;
   /** Loading state for sidebar session fetch */
   sidebarSessionsLoading: boolean;
+  /** Message grouping preference: "separate" shows each turn as its own bubble, "grouped" merges them */
+  messageGrouping: "separate" | "grouped";
 }
 
 export interface ChatActions {
@@ -69,6 +71,10 @@ export interface ChatActions {
   setChatError: (error: string | null) => void;
   /** Fetch recent sessions for all agents (sidebar display) */
   fetchSidebarSessions: (agentNames: string[]) => Promise<void>;
+  /** Flush streaming content as a finalized message (on boundary between assistant turns) */
+  flushStreamingMessage: () => void;
+  /** Set message grouping preference */
+  setMessageGrouping: (mode: "separate" | "grouped") => void;
   /** Clear active chat session state (preserves sidebar sessions) */
   clearActiveChatState: () => void;
   /** Clear all chat state */
@@ -81,6 +87,17 @@ export type ChatSlice = ChatState & ChatActions;
 // Initial State
 // =============================================================================
 
+/** Read stored message grouping preference from localStorage */
+function getStoredMessageGrouping(): "separate" | "grouped" | null {
+  try {
+    const stored = localStorage.getItem("herdctl:message_grouping");
+    if (stored === "separate" || stored === "grouped") return stored;
+  } catch {
+    /* ignore storage errors */
+  }
+  return null;
+}
+
 const initialChatState: ChatState = {
   chatSessions: [],
   chatSessionsLoading: false,
@@ -92,6 +109,7 @@ const initialChatState: ChatState = {
   chatError: null,
   sidebarSessions: {},
   sidebarSessionsLoading: false,
+  messageGrouping: getStoredMessageGrouping() ?? "separate",
 };
 
 // =============================================================================
@@ -357,6 +375,31 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
       set({ sidebarSessions, sidebarSessionsLoading: false });
     } catch {
       set({ sidebarSessionsLoading: false });
+    }
+  },
+
+  flushStreamingMessage: () => {
+    const { chatStreamingContent } = get();
+    if (chatStreamingContent) {
+      const assistantMessage: ChatMessage = {
+        role: "assistant",
+        content: chatStreamingContent,
+        timestamp: new Date().toISOString(),
+      };
+      set((state) => ({
+        chatMessages: [...state.chatMessages, assistantMessage],
+        chatStreamingContent: "",
+        // Keep chatStreaming: true because more content is coming
+      }));
+    }
+  },
+
+  setMessageGrouping: (mode: "separate" | "grouped") => {
+    set({ messageGrouping: mode });
+    try {
+      localStorage.setItem("herdctl:message_grouping", mode);
+    } catch {
+      /* ignore storage errors */
     }
   },
 

@@ -68,6 +68,8 @@ export interface WebServerConfigExtended extends WebServerConfig {
   sessionExpiryHours?: number;
   /** Show tool call results in chat conversations (default: true) */
   toolResults?: boolean;
+  /** How to display consecutive assistant text turns (default: "separate") */
+  messageGrouping?: "separate" | "grouped";
 }
 
 /**
@@ -118,6 +120,7 @@ export async function createWebServer(
       session_expiry_hours: config.sessionExpiryHours ?? 24,
       open_browser: false,
       tool_results: config.toolResults ?? true,
+      message_grouping: config.messageGrouping ?? "separate",
     });
 
     // Wire up chat manager to WebSocket handler
@@ -314,6 +317,7 @@ export class WebManager implements IChatManager {
         stateDir,
         sessionExpiryHours: webConfig.session_expiry_hours,
         toolResults: webConfig.tool_results,
+        messageGrouping: webConfig.message_grouping,
       });
 
       this.server = result.server;

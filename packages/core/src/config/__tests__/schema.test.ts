@@ -90,6 +90,7 @@ describe("FleetConfigSchema", () => {
       expect(result.data.web?.host).toBe("localhost");
       expect(result.data.web?.session_expiry_hours).toBe(24);
       expect(result.data.web?.open_browser).toBe(false);
+      expect(result.data.web?.message_grouping).toBe("separate");
     }
   });
 
@@ -1014,6 +1015,7 @@ describe("WebSchema", () => {
       expect(result.data.host).toBe("localhost");
       expect(result.data.session_expiry_hours).toBe(24);
       expect(result.data.open_browser).toBe(false);
+      expect(result.data.message_grouping).toBe("separate");
     }
   });
 
@@ -1026,6 +1028,7 @@ describe("WebSchema", () => {
       expect(result.data.host).toBe("localhost");
       expect(result.data.session_expiry_hours).toBe(24);
       expect(result.data.open_browser).toBe(false);
+      expect(result.data.message_grouping).toBe("separate");
     }
   });
 
@@ -1085,6 +1088,25 @@ describe("WebSchema", () => {
 
   it("accepts non-boolean enabled as invalid", () => {
     const result = WebSchema.safeParse({ enabled: "true" });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts valid message_grouping values", () => {
+    const separate = WebSchema.safeParse({ message_grouping: "separate" });
+    expect(separate.success).toBe(true);
+    if (separate.success) {
+      expect(separate.data.message_grouping).toBe("separate");
+    }
+
+    const grouped = WebSchema.safeParse({ message_grouping: "grouped" });
+    expect(grouped.success).toBe(true);
+    if (grouped.success) {
+      expect(grouped.data.message_grouping).toBe("grouped");
+    }
+  });
+
+  it("rejects invalid message_grouping value", () => {
+    const result = WebSchema.safeParse({ message_grouping: "invalid" });
     expect(result.success).toBe(false);
   });
 });

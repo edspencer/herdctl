@@ -6,7 +6,7 @@
  */
 
 import { MessageCircle } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChatMessage } from "../../lib/types";
 import { useChatMessages } from "../../store";
 import { MessageBubble } from "./MessageBubble";
@@ -25,8 +25,13 @@ interface MessageFeedProps {
 // =============================================================================
 
 export function MessageFeed(_props: MessageFeedProps) {
-  const { chatMessages, chatMessagesLoading, chatStreaming, chatStreamingContent } =
-    useChatMessages();
+  const {
+    chatMessages,
+    chatMessagesLoading,
+    chatStreaming,
+    chatStreamingContent,
+    messageGrouping,
+  } = useChatMessages();
   const feedRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
 
@@ -59,6 +64,27 @@ export function MessageFeed(_props: MessageFeedProps) {
     feed.scrollTop = feed.scrollHeight;
   }, [chatMessages, chatStreamingContent, isAtBottom]);
 
+  // When "grouped", merge consecutive assistant messages (no tool between them)
+  // into a single bubble. Persisted history always stores separate turns,
+  // so this merge is needed for the grouped visual display.
+  const displayMessages = useMemo(() => {
+    if (messageGrouping === "separate") return chatMessages;
+    const merged: ChatMessage[] = [];
+    for (const msg of chatMessages) {
+      const prev = merged[merged.length - 1];
+      if (msg.role === "assistant" && prev?.role === "assistant") {
+        merged[merged.length - 1] = {
+          ...prev,
+          content: prev.content + msg.content,
+          timestamp: msg.timestamp,
+        };
+      } else {
+        merged.push(msg);
+      }
+    }
+    return merged;
+  }, [chatMessages, messageGrouping]);
+
   // Loading state
   if (chatMessagesLoading) {
     return (
@@ -72,7 +98,7 @@ export function MessageFeed(_props: MessageFeedProps) {
   }
 
   // Empty state
-  if (chatMessages.length === 0 && !chatStreaming) {
+  if (displayMessages.length === 0 && !chatStreaming) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-herd-muted">
@@ -95,7 +121,7 @@ export function MessageFeed(_props: MessageFeedProps) {
   return (
     <div ref={feedRef} className="flex-1 overflow-y-auto px-4 py-4">
       <div className="max-w-2xl mx-auto space-y-4">
-        {chatMessages.map((message, index) => (
+        {displayMessages.map((message, index) => (
           <MessageBubble key={`${message.timestamp}-${index}`} message={message} />
         ))}
 
