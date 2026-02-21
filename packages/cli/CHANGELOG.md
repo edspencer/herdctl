@@ -1,5 +1,21 @@
 # herdctl
 
+## 1.3.7
+
+### Patch Changes
+
+- [#116](https://github.com/edspencer/herdctl/pull/116) [`979dbf6`](https://github.com/edspencer/herdctl/commit/979dbf68510c237f3ba8ceb24b30f9830f6c3e7b) Thanks [@edspencer](https://github.com/edspencer)! - Rename schedule `expression` field to `cron` and suppress repeated warnings
+
+  The `cron` field is now the canonical name for cron expressions in schedule config (e.g., `cron: "0 9 * * *"`). The old `expression` field is still accepted as a backward-compatible alias.
+
+  Misconfigured schedules now log their warning only once instead of every scheduler tick (~1/second).
+
+- Updated dependencies [[`63dc4db`](https://github.com/edspencer/herdctl/commit/63dc4dbc87db064cac20abc1b6ea39b778b92847), [`5237983`](https://github.com/edspencer/herdctl/commit/523798328007f01221469af0be2c999d27e7b8c5), [`979dbf6`](https://github.com/edspencer/herdctl/commit/979dbf68510c237f3ba8ceb24b30f9830f6c3e7b), [`979dbf6`](https://github.com/edspencer/herdctl/commit/979dbf68510c237f3ba8ceb24b30f9830f6c3e7b)]:
+  - @herdctl/core@5.4.3
+  - @herdctl/web@0.5.0
+  - @herdctl/discord@1.0.9
+  - @herdctl/slack@1.2.3
+
 ## 1.3.6
 
 ### Patch Changes
