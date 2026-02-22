@@ -1,5 +1,11 @@
 # @herdctl/web
 
+## 0.7.0
+
+### Minor Changes
+
+- [#127](https://github.com/edspencer/herdctl/pull/127) [`1dc3b3c`](https://github.com/edspencer/herdctl/commit/1dc3b3c417c821fdb1d0651213ba40c4f2eb04c9) Thanks [@edspencer](https://github.com/edspencer)! - Add tabbed sidebar with Fleet View and Recent Conversations modes, search filtering, and Cmd+K Spotlight dialog for quick new chat creation
+
 ## 0.6.0
 
 ### Minor Changes
