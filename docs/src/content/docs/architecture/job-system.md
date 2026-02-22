@@ -34,7 +34,7 @@ The `JobControl` class in `job-control.ts` is the primary interface for job oper
 
 Every job receives a unique identifier with the format:
 
-```
+```text
 job-YYYY-MM-DD-<random6>
 ```
 
@@ -42,7 +42,7 @@ For example: `job-2024-01-19-abc123`
 
 The date portion uses the job creation date. The suffix is 6 lowercase alphanumeric characters generated from `Math.random().toString(36)`. The format is enforced by a regex in `JobMetadataSchema`:
 
-```
+```text
 /^job-\d{4}-\d{2}-\d{2}-[a-z0-9]{6}$/
 ```
 
@@ -125,7 +125,7 @@ The trigger type is set at job creation time and is immutable. Platform-specific
 
 A job progresses through a linear status lifecycle:
 
-```
+```text
 pending ──► running ──► completed
                    ├──► failed
                    └──► cancelled
@@ -206,7 +206,7 @@ For details on session management, see [Runner: Session Management](/architectur
 
 Each job produces a JSONL output file alongside its metadata file. The two files share the same base name:
 
-```
+```text
 .herdctl/jobs/
 ├── job-2024-01-19-abc123.yaml    # Metadata
 ├── job-2024-01-19-abc123.jsonl   # Streaming output
@@ -364,7 +364,7 @@ The FleetManager emits strongly-typed events throughout a job's lifecycle. These
 
 A typical job lifecycle emits events in this order:
 
-```
+```text
 job:created    ──► Job record written, status is "pending"
                    (execution begins)
 job:output     ──► Repeated for each output chunk during execution
@@ -377,7 +377,7 @@ job:cancelled  ──► Job was cancelled
 
 Fork operations emit an additional event:
 
-```
+```text
 job:created    ──► New forked job record written
 job:forked     ──► Links the new job to its parent
 ```
@@ -432,7 +432,7 @@ During fleet shutdown, `cancelRunningJobs()` cancels all currently running jobs 
 
 The job system spans several files in `packages/core/src/`:
 
-```
+```text
 packages/core/src/
 ├── state/
 │   ├── schemas/

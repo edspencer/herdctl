@@ -32,7 +32,7 @@ The server is created by the `createWebServer()` factory function in `packages/w
 
 `WebManager` is the IChatManager implementation for the web platform. FleetManager dynamically imports `@herdctl/web` at startup when the fleet configuration includes a `web` block with `enabled: true`. WebManager follows the same lifecycle as the Discord and Slack managers:
 
-```
+```text
 FleetManager.initialize()
   -> WebManager.initialize()     # Creates Fastify server, registers routes
   -> FleetManager.start()
@@ -406,7 +406,7 @@ This filtering prevents flooding inactive dashboard tabs with high-volume output
 
 The `FleetBridge` class connects FleetManager's event system to WebSocket clients. It subscribes to FleetManager events at startup and translates them into WebSocket server messages:
 
-```
+```text
 FleetManager Events          FleetBridge           WebSocket Clients
 
 agent:started     -------->  broadcast()  -------->  All clients

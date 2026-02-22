@@ -11,7 +11,7 @@ This page covers the internal architecture of the Docker runtime. For the runner
 
 `ContainerRunner` implements the decorator pattern. It wraps any base runtime (`SDKRuntime` or `CLIRuntime`) and transparently redirects execution into a Docker container. The `RuntimeFactory` composes this automatically when an agent's configuration has `docker.enabled: true`:
 
-```
+```text
 agent.runtime = "sdk" + docker.enabled  ──► ContainerRunner(SDKRuntime)
 agent.runtime = "cli" + docker.enabled  ──► ContainerRunner(CLIRuntime)
 ```
@@ -303,7 +303,7 @@ An `InjectedMcpServerDef` contains handler functions -- JavaScript closures that
 
 `ContainerRunner` starts an HTTP server on the herdctl side that implements the MCP Streamable HTTP transport (JSON-RPC 2.0 over POST). The agent container connects to this server via Docker network DNS:
 
-```
+```text
 herdctl container                    agent container
 ┌─────────────────────┐              ┌─────────────────────┐
 │ MCP HTTP Bridge     │◄── HTTP ────►│ Claude Agent SDK    │
@@ -398,7 +398,7 @@ If the credentials file is not available (no bind mount), `buildContainerEnv()` 
 
 herdctl uses the **sibling container pattern**, not Docker-in-Docker (DinD). The herdctl container mounts the Docker socket (`/var/run/docker.sock`) and calls the Docker API to spawn agent containers as peers on the same Docker daemon:
 
-```
+```text
 Docker daemon (host)
 ├── herdctl container      (mounts /var/run/docker.sock)
 ├── agent-1 container      (spawned by herdctl via Docker API)

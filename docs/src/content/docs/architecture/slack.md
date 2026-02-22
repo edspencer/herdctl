@@ -29,7 +29,7 @@ Socket Mode establishes a WebSocket connection from the herdctl process to Slack
 
 ## Source Code Layout
 
-```
+```text
 packages/slack/
 ├── package.json                 # @slack/bolt, slackify-markdown, @herdctl/chat, @herdctl/core
 ├── tsconfig.json

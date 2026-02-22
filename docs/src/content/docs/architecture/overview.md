@@ -150,7 +150,7 @@ FleetManager implements this interface and passes itself (`this`) to each module
 
 ### How It Fits Together
 
-```
+```text
 FleetManager (extends EventEmitter, implements FleetManagerContext)
   ├── StatusQueries(this)      → getFleetStatus(), getAgentInfo(), ...
   ├── ScheduleManagement(this) → getSchedules(), enableSchedule(), ...

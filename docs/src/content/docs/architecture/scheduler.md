@@ -244,7 +244,7 @@ The parser validates:
 
 Invalid inputs throw `IntervalParseError` with actionable messages:
 
-```
+```text
 "5"     -> Missing time unit. Expected format: "{number}{unit}"
 "5.5m"  -> Decimal values are not supported
 "0m"    -> Zero interval is not allowed
@@ -275,7 +275,7 @@ isValidCronExpression("invalid");  // false
 
 Invalid cron expressions throw `CronParseError` with context:
 
-```
+```text
 CronParseError: Invalid cron expression "0 25 * * *" - hour must be 0-23
 CronParseError: Invalid cron expression "* * *" - expected 5 fields, got 3
 ```

@@ -9,7 +9,7 @@ herdctl uses a file-based state system to track agents, jobs, and sessions. All 
 
 The `.herdctl/` directory is created automatically in the project root when the fleet initializes. Its layout is:
 
-```
+```text
 .herdctl/
 ├── state.yaml              # Fleet state (agent status, schedules)
 ├── jobs/
@@ -602,7 +602,7 @@ ls -la .herdctl/jobs/.*.tmp.* 2>/dev/null
 
 The state module lives in `packages/core/src/state/` with the following structure:
 
-```
+```text
 packages/core/src/state/
 ├── index.ts              # Public exports
 ├── schemas/

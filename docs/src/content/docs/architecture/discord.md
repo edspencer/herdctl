@@ -24,7 +24,7 @@ The Discord package sits at the edge of the system. It depends on `@herdctl/chat
 
 Unlike architectures that use a single bot to route messages to different backends, herdctl creates one Discord bot per agent. Each bot is a separate Discord Application created in the [Developer Portal](https://discord.com/developers/applications), with its own token, username, avatar, and presence.
 
-```
+```text
 Discord Server                          FleetManager
 +-----------------------+               +---------------------------+
 | Members:              |               | Agent: support            |
@@ -87,7 +87,7 @@ Two partials are also enabled:
 
 The connector transitions through these states:
 
-```
+```text
 disconnected --> connecting --> connected --> disconnecting --> disconnected
                     |               |
                     v               v
@@ -451,7 +451,7 @@ The end-to-end flow for a Discord message:
 
 ## Source Code Layout
 
-```
+```text
 packages/discord/
   src/
     index.ts                            # Package exports

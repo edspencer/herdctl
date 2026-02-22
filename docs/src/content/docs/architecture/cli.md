@@ -20,7 +20,7 @@ If a feature involves decision-making about agents, schedules, jobs, or configur
 
 ## Source Code Layout
 
-```
+```text
 packages/cli/
 ├── bin/
 │   └── herdctl.js              # Entry point (#!/usr/bin/env node)
@@ -65,7 +65,7 @@ The CLI does not use chalk or cli-table3. Terminal colors are implemented with r
 
 All commands are defined in `src/index.ts` using Commander.js. The program structure is flat with two command groups:
 
-```
+```text
 herdctl
 ├── init                        # Scaffold new project
 ├── start                       # Start fleet (long-running)
@@ -218,14 +218,14 @@ Errors follow a consistent pattern across all commands. The CLI catches typed er
 
 Human-readable errors include the error message, optional error code, and a suggested next action:
 
-```
+```text
 Error: No configuration file found.
 Searched from: /home/user/project
 
 Run 'herdctl init' to create a configuration file.
 ```
 
-```
+```text
 Error: Agent 'unknown-agent' not found.
 
 Run 'herdctl status' to see all agents.

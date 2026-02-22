@@ -35,7 +35,7 @@ Vite was chosen over Next.js because the dashboard is a localhost SPA with no SE
 
 ## Source Code Layout
 
-```
+```text
 packages/web/
   src/
     server/                          # Backend (Fastify + WebSocket)
@@ -126,7 +126,7 @@ The `:name` parameter accepts qualified agent names (e.g., `herdctl.security-aud
 
 The layout is a three-panel structure built with `react-resizable-panels`:
 
-```
+```text
 +------------------+----------------------------------+------------------+
 |                  |                                  |                  |
 |  LEFT SIDEBAR    |  MAIN CONTENT                   |  DETAIL PANEL    |
@@ -290,7 +290,7 @@ State enters the store from two sources:
 
 The real-time data flow follows a pipeline from FleetManager events through to React component re-renders:
 
-```
+```text
 FleetManager events
        |
        v

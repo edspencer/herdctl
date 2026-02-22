@@ -67,7 +67,7 @@ The interface uses generic lifecycle verbs -- fetch, claim, complete, release --
 
 A work item moves through four phases during processing:
 
-```
+```text
 Available  -->  Claimed  -->  Completed
                    |
                    +-------->  Released (back to Available)
@@ -280,7 +280,7 @@ const prompt = buildSchedulePrompt(schedule, workItem);
 
 Without a work item, the function returns the schedule's prompt string (or a default). With a work item, it appends a formatted section:
 
-```
+```text
 Process this issue:
 
 ## Work Item: Fix authentication bug
@@ -504,7 +504,7 @@ When an issue returns 404 (deleted, transferred, or visibility changed):
 
 Work source errors form a typed hierarchy that callers can use for precise error handling:
 
-```
+```text
 WorkSourceError (base)
 ├── UnknownWorkSourceError    -- Unregistered adapter type
 ├── DuplicateWorkSourceError  -- Type already registered

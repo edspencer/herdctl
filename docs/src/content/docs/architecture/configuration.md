@@ -481,7 +481,7 @@ By default, only the root fleet's web configuration is honored. Sub-fleet web co
 
 The loader maintains a `visitedPaths: Set<string>` of absolute config file paths as it descends the fleet tree. Before loading any sub-fleet, it checks whether the resolved path has already been visited. If a cycle is detected, it throws `FleetCycleError` with the full path chain showing exactly where the cycle occurs:
 
-```
+```text
 Fleet composition cycle detected: /root.yaml -> /project-a/herdctl.yaml -> /shared/herdctl.yaml -> /project-a/herdctl.yaml
 ```
 
@@ -489,7 +489,7 @@ Fleet composition cycle detected: /root.yaml -> /project-a/herdctl.yaml -> /shar
 
 If two sub-fleets at the same level resolve to the same fleet name (after the naming resolution described above), the loader throws `FleetNameCollisionError` at startup with an actionable message:
 
-```
+```text
 Fleet name collision at level "herdctl": two sub-fleets resolve to name "project-a".
 Conflicting references: ./project-a/herdctl.yaml, ./renamed-a/herdctl.yaml
 Add explicit "name" overrides to disambiguate.

@@ -196,7 +196,7 @@ All runtimes return the same `AsyncIterable<SDKMessage>` stream, making them int
 
 The `RuntimeFactory` selects and composes runtimes based on agent configuration:
 
-```
+```text
 agent.runtime = "sdk" (default)  ──► SDKRuntime
 agent.runtime = "cli"            ──► CLIRuntime
 
@@ -345,7 +345,7 @@ mcp_servers:
 
 MCP tools are namespaced as `mcp__<server>__<tool>`:
 
-```
+```text
 mcp__github__create_issue
 mcp__github__list_pull_requests
 mcp__postgres__query
@@ -381,7 +381,7 @@ Sessions enable agents to maintain conversation context across multiple executio
 
 Resume continues an exact conversation:
 
-```
+```text
 Job A (creates session)
     |
     v
@@ -404,7 +404,7 @@ const result = await executor.execute({
 
 Fork branches from a point in history:
 
-```
+```text
 Job A (creates session)
     |
     +---> Job B (fork from A) --> new branch with A's context
@@ -517,7 +517,7 @@ The runner provides structured error handling with typed error classes, classifi
 
 ### Error Hierarchy
 
-```
+```text
 RunnerError (base)
 ├── SDKInitializationError
 │   ├── isMissingApiKey()   -- missing ANTHROPIC_API_KEY
@@ -577,7 +577,7 @@ if (result.errorDetails?.messagesReceived === 0) {
 
 **"Missing API Key" errors**
 
-```
+```text
 SDKInitializationError: Missing or invalid API key
 ```
 
@@ -585,7 +585,7 @@ Set your Anthropic API key: `export ANTHROPIC_API_KEY=sk-ant-...`
 
 **Rate limit errors**
 
-```
+```text
 SDKStreamingError: Rate limit exceeded
 ```
 
@@ -593,7 +593,7 @@ Wait and retry (the `errorDetails` may include retry-after information), reduce 
 
 **Connection errors**
 
-```
+```text
 SDKStreamingError: Connection refused (ECONNREFUSED)
 ```
 
@@ -601,7 +601,7 @@ Check network connectivity, verify MCP server URLs are accessible, and review fi
 
 **Malformed response errors**
 
-```
+```text
 MalformedResponseError: Invalid message format
 ```
 
