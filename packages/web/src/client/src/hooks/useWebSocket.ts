@@ -62,6 +62,7 @@ export function useWebSocket() {
   const setMessageGrouping = useStore((state) => state.setMessageGrouping);
   const updateScheduleFromWS = useStore((state) => state.updateScheduleFromWS);
   const addToast = useStore((state) => state.addToast);
+  const touchRecentSession = useStore((state) => state.touchRecentSession);
 
   useEffect(() => {
     // Message handler that dispatches to store
@@ -125,6 +126,7 @@ export function useWebSocket() {
           if (sessionId === useStore.getState().activeChatSessionId) {
             appendStreamingChunk(chunk);
           }
+          touchRecentSession(message.payload.sessionId, message.payload.agentName);
           break;
         }
 
@@ -133,6 +135,7 @@ export function useWebSocket() {
           if (sessionId === useStore.getState().activeChatSessionId) {
             completeStreaming();
           }
+          touchRecentSession(message.payload.sessionId, message.payload.agentName);
           break;
         }
 
@@ -147,6 +150,7 @@ export function useWebSocket() {
               durationMs: message.payload.durationMs,
             });
           }
+          touchRecentSession(message.payload.sessionId, message.payload.agentName);
           break;
         }
 
@@ -246,6 +250,7 @@ export function useWebSocket() {
     setConnectionStatus,
     setFleetStatus,
     setMessageGrouping,
+    touchRecentSession,
     updateAgent, // Refetch schedules to update runCount, lastRunAt, status, etc.
     updateScheduleFromWS,
   ]);

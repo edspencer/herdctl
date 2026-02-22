@@ -86,6 +86,8 @@ export interface ChatActions {
   clearChatState: () => void;
   /** Fetch recent sessions across all agents */
   fetchRecentSessions: (limit?: number) => Promise<void>;
+  /** Update lastMessageAt for a session in recentSessions (for real-time ordering) */
+  touchRecentSession: (sessionId: string, agentName: string) => void;
 }
 
 export type ChatSlice = ChatState & ChatActions;
@@ -191,6 +193,13 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
         const agentSessions = state.sidebarSessions[agentName] ?? [];
         const updatedAgentSessions = [newSession, ...agentSessions].slice(0, SIDEBAR_SESSION_LIMIT);
 
+        // Also add to recentSessions for the Recent tab
+        const newRecentSession: RecentChatSession = {
+          ...newSession,
+          agentName,
+        };
+        const recentSessions = [newRecentSession, ...state.recentSessions];
+
         return {
           chatSessions,
           activeChatSessionId: response.sessionId,
@@ -199,6 +208,7 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
             ...state.sidebarSessions,
             [agentName]: updatedAgentSessions,
           },
+          recentSessions,
         };
       });
 
@@ -233,6 +243,7 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
           activeChatSessionId: activeChatSessionId === sessionId ? null : activeChatSessionId,
           chatMessages: activeChatSessionId === sessionId ? [] : state.chatMessages,
           sidebarSessions: updatedSidebarSessions,
+          recentSessions: state.recentSessions.filter((s) => s.sessionId !== sessionId),
         };
       });
     } catch (error) {
@@ -264,9 +275,14 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
             }
           : state.sidebarSessions;
 
+        const recentSessions = state.recentSessions.map((s) =>
+          s.sessionId === sessionId ? { ...s, customName: name } : s,
+        );
+
         return {
           chatSessions,
           sidebarSessions: updatedSidebarSessions,
+          recentSessions,
         };
       });
     } catch (error) {
@@ -446,5 +462,16 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
         chatError: message,
       });
     }
+  },
+
+  touchRecentSession: (sessionId: string, _agentName: string) => {
+    set((state) => {
+      const idx = state.recentSessions.findIndex((s) => s.sessionId === sessionId);
+      if (idx === -1) return state;
+
+      const updated = { ...state.recentSessions[idx], lastMessageAt: new Date().toISOString() };
+      const recentSessions = [updated, ...state.recentSessions.filter((_, i) => i !== idx)];
+      return { recentSessions };
+    });
   },
 });
