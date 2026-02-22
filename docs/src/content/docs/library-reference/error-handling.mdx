@@ -11,47 +11,7 @@ Building robust applications requires understanding how errors propagate and how
 
 herdctl provides a comprehensive error hierarchy organized by module. All errors include error codes for programmatic handling and support error chaining via the standard `cause` property.
 
-```mermaid
-graph LR
-  FM["FleetManagerError"] --> CE["ConfigurationError"]
-  FM --> ANF["AgentNotFoundError"]
-  FM --> JNF["JobNotFoundError"]
-  FM --> SNF["ScheduleNotFoundError"]
-  FM --> IS["InvalidStateError"]
-  FM --> CL["ConcurrencyLimitError"]
-  FM --> JCE["JobCancelError"]
-  FM --> JFE["JobForkError"]
-  FM --> FMS["FleetManagerShutdownError"]
-  FM --> FSD["FleetManagerStateDirError"]
-
-  RE["RunnerError"] --> SDKInit["SDKInitializationError"]
-  RE --> SDKStream["SDKStreamingError"]
-  RE --> MR["MalformedResponseError"]
-
-  SE["SchedulerError"] --> IP["IntervalParseError"]
-  SE --> ST["ScheduleTriggerError"]
-  SE --> SS["SchedulerShutdownError"]
-
-  StE["StateError"] --> SDC["StateDirectoryCreateError"]
-  StE --> SDV["StateDirectoryValidationError"]
-  StE --> SF["StateFileError"]
-
-  WS["WorkSourceError"] --> UW["UnknownWorkSourceError"]
-  WS --> DW["DuplicateWorkSourceError"]
-  WS --> GA["GitHubAPIError"]
-  WS --> GAu["GitHubAuthError"]
-
-  CfE["ConfigError"] --> FC["FleetCycleError"]
-  CfE --> FNC["FleetNameCollisionError"]
-  CfE --> FL["FleetLoadError"]
-
-  style FM fill:#dc2626,color:#fff,stroke:#b91c1c
-  style RE fill:#ea580c,color:#fff,stroke:#c2410c
-  style SE fill:#d97706,color:#fff,stroke:#b45309
-  style StE fill:#4f46e5,color:#fff,stroke:#4338ca
-  style WS fill:#7c3aed,color:#fff,stroke:#6d28d9
-  style CfE fill:#be185d,color:#fff,stroke:#9d174d
-```
+<img src="/diagrams/error-hierarchy.svg" alt="Error type hierarchy showing FleetManager, Runner, Scheduler, State, WorkSource, and Config error families with their subtypes" width="100%" />
 
 ---
 

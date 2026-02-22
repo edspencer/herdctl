@@ -1,0 +1,277 @@
+# Error Hierarchy Diagram
+# Shows the complete error type hierarchy for @herdctl/core
+
+direction: right
+
+# Container styling
+FleetManagerError: {
+  label: "FleetManagerError"
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 18
+
+  grid-columns: 2
+  grid-gap: 8
+
+  ConfigurationError {
+    style.fill: "#f8fafc"
+    style.stroke: "#cbd5e1"
+    style.font-color: "#1e293b"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+  AgentNotFoundError {
+    style.fill: "#94a3b8"
+    style.stroke: "#64748b"
+    style.font-color: "#0f172a"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+  JobNotFoundError {
+    style.fill: "#93c5fd"
+    style.stroke: "#60a5fa"
+    style.font-color: "#1e293b"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+  ScheduleNotFoundError {
+    style.fill: "#38bdf8"
+    style.stroke: "#0ea5e9"
+    style.font-color: "#0c4a6e"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+  InvalidStateError {
+    style.fill: "#fdba74"
+    style.stroke: "#f59e0b"
+    style.font-color: "#451a03"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+  ConcurrencyLimitError {
+    style.fill: "#fbbf24"
+    style.stroke: "#d97706"
+    style.font-color: "#451a03"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+  JobCancelError {
+    style.fill: "#f87171"
+    style.stroke: "#ef4444"
+    style.font-color: "#ffffff"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+  JobForkError {
+    style.fill: "#fda4af"
+    style.stroke: "#fb7185"
+    style.font-color: "#4c0519"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+  FleetManagerShutdownError {
+    style.fill: "#c4b5fd"
+    style.stroke: "#a78bfa"
+    style.font-color: "#2e1065"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+  FleetManagerStateDirError {
+    style.fill: "#6ee7b7"
+    style.stroke: "#34d399"
+    style.font-color: "#064e3b"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+}
+
+RunnerError: {
+  label: "RunnerError"
+  style.fill: "#326CE5"
+  style.stroke: "#2857b8"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 18
+
+  grid-columns: 1
+  grid-gap: 8
+
+  SDKInitializationError {
+    style.fill: "#22d3ee"
+    style.stroke: "#06b6d4"
+    style.font-color: "#083344"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+  SDKStreamingError {
+    style.fill: "#a3e635"
+    style.stroke: "#84cc16"
+    style.font-color: "#1a2e05"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+  MalformedResponseError {
+    style.fill: "#fb923c"
+    style.stroke: "#f97316"
+    style.font-color: "#431407"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+}
+
+SchedulerError: {
+  label: "SchedulerError"
+  style.fill: "#2a9d8f"
+  style.stroke: "#21867a"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 18
+
+  grid-columns: 1
+  grid-gap: 8
+
+  IntervalParseError {
+    style.fill: "#d6d3d1"
+    style.stroke: "#a8a29e"
+    style.font-color: "#1c1917"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+  ScheduleTriggerError {
+    style.fill: "#78716c"
+    style.stroke: "#57534e"
+    style.font-color: "#ffffff"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+  SchedulerShutdownError {
+    style.fill: "#475569"
+    style.stroke: "#334155"
+    style.font-color: "#ffffff"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+}
+
+StateError: {
+  label: "StateError"
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 18
+
+  grid-columns: 1
+  grid-gap: 8
+
+  StateDirectoryCreateError {
+    style.fill: "#f8fafc"
+    style.stroke: "#cbd5e1"
+    style.font-color: "#1e293b"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+  StateDirectoryValidationError {
+    style.fill: "#93c5fd"
+    style.stroke: "#60a5fa"
+    style.font-color: "#1e293b"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+  StateFileError {
+    style.fill: "#fbbf24"
+    style.stroke: "#d97706"
+    style.font-color: "#451a03"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+}
+
+WorkSourceError: {
+  label: "WorkSourceError"
+  style.fill: "#326CE5"
+  style.stroke: "#2857b8"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 18
+
+  grid-columns: 2
+  grid-gap: 8
+
+  UnknownWorkSourceError {
+    style.fill: "#c4b5fd"
+    style.stroke: "#a78bfa"
+    style.font-color: "#2e1065"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+  DuplicateWorkSourceError {
+    style.fill: "#fda4af"
+    style.stroke: "#fb7185"
+    style.font-color: "#4c0519"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+  GitHubAPIError {
+    style.fill: "#6ee7b7"
+    style.stroke: "#34d399"
+    style.font-color: "#064e3b"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+  GitHubAuthError {
+    style.fill: "#22d3ee"
+    style.stroke: "#06b6d4"
+    style.font-color: "#083344"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+}
+
+ConfigError: {
+  label: "ConfigError"
+  style.fill: "#2a9d8f"
+  style.stroke: "#21867a"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 18
+
+  grid-columns: 1
+  grid-gap: 8
+
+  FleetCycleError {
+    style.fill: "#f87171"
+    style.stroke: "#ef4444"
+    style.font-color: "#ffffff"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+  FleetNameCollisionError {
+    style.fill: "#fdba74"
+    style.stroke: "#f59e0b"
+    style.font-color: "#451a03"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+  FleetLoadError {
+    style.fill: "#38bdf8"
+    style.stroke: "#0ea5e9"
+    style.font-color: "#0c4a6e"
+    style.border-radius: 6
+    style.font-size: 12
+  }
+}
