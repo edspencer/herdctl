@@ -21,7 +21,7 @@ This document catalogs all 21 Mermaid diagrams in the herdctl docs and identifie
 - **File**: `concepts/fleet-composition.md` (was line 63)
 - **Type**: `graph TD` — 18 nodes
 - **Description**: Fleet with Engineering/Marketing/Legal team groupings
-- **D2 source**: `d2-spike/fleet-composition-subteams-rainbow.d2`
+- **D2 source**: `d2-spike/fleet-composition-subteams.d2`
 - **Rendered**: `public/diagrams/fleet-composition-subteams.svg`
 
 ### 3. Fleet Composition — Config Merge Priority ⏭️ KEEP MERMAID

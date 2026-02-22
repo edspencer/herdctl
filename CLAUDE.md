@@ -237,7 +237,7 @@ Colors are derived from the herdctl logo blue (`#326CE5`). All diagrams use thes
 
 #### Reference Implementation
 
-See `docs/d2-spike/fleet-composition-subteams-rainbow.d2` for the canonical example using the full palette with individually-colored agents.
+See `docs/d2-spike/fleet-composition-subteams.d2` for the canonical example using the full palette with individually-colored agents.
 
 
 DO NOT use `git add -A` or `git add .` to stage changes. Stage just the files you definitely want to commit.
