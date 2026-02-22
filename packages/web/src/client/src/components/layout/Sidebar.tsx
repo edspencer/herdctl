@@ -27,6 +27,7 @@ import { formatRelativeTime } from "../../lib/format";
 import { agentChatPath, agentPath } from "../../lib/paths";
 import type { AgentInfo, ChatSession, ConnectionStatus } from "../../lib/types";
 import { useChatActions, useFleet, useSidebarSessions, useSidebarTab } from "../../store";
+import { RecentConversationsList } from "./RecentConversationsList";
 import { SidebarSearch } from "./SidebarSearch";
 import { SidebarTabs } from "./SidebarTabs";
 
@@ -797,10 +798,7 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
             </div>
           </>
         ) : (
-          /* Recent Conversations: placeholder for Phase 3 */
-          <div className="p-4">
-            <p className="text-xs text-herd-sidebar-muted">Recent conversations</p>
-          </div>
+          <RecentConversationsList onNavigate={onNavigate} />
         )}
       </div>
 
