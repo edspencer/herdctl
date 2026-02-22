@@ -224,6 +224,39 @@ export class WebChatManager {
   }
 
   /**
+   * List recent sessions across all agents
+   *
+   * @param limit - Maximum number of sessions to return (default: 100)
+   * @returns Array of session summaries sorted by lastMessageAt descending
+   */
+  async listAllRecentSessions(limit = 100): Promise<WebChatSession[]> {
+    this.ensureInitialized();
+
+    const allSessions: WebChatSession[] = [];
+
+    // Iterate all agent session metadata maps
+    for (const [agentName] of this.sessionMetadata) {
+      // Ensure sessions are loaded from disk for this agent
+      await this.loadSessionsFromDisk(agentName);
+
+      const sessionsMap = this.sessionMetadata.get(agentName);
+      if (sessionsMap) {
+        for (const session of sessionsMap.values()) {
+          allSessions.push(session);
+        }
+      }
+    }
+
+    // Sort by lastMessageAt descending (most recent first)
+    allSessions.sort(
+      (a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime(),
+    );
+
+    // Return top N sessions
+    return allSessions.slice(0, limit);
+  }
+
+  /**
    * List all sessions for an agent
    *
    * @param agentName - Name of the agent

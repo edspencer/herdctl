@@ -74,7 +74,7 @@ export type {
   ToastState,
   ToastType,
 } from "./toast-slice";
-export type { UIActions, UISlice, UIState } from "./ui-slice";
+export type { SidebarTab, UIActions, UISlice, UIState } from "./ui-slice";
 
 // =============================================================================
 // Selector Hooks
@@ -116,6 +116,8 @@ export function useUI() {
       activeView: state.activeView,
       theme: state.theme,
       rightPanelOpen: state.rightPanelOpen,
+      sidebarTab: state.sidebarTab,
+      spotlightOpen: state.spotlightOpen,
     })),
   );
 }
@@ -135,6 +137,8 @@ export function useUIActions() {
       setTheme: state.setTheme,
       toggleRightPanel: state.toggleRightPanel,
       setRightPanelOpen: state.setRightPanelOpen,
+      setSidebarTab: state.setSidebarTab,
+      setSpotlightOpen: state.setSpotlightOpen,
     })),
   );
 }
@@ -287,6 +291,7 @@ export function useChatActions() {
       setMessageGrouping: state.setMessageGrouping,
       clearActiveChatState: state.clearActiveChatState,
       clearChatState: state.clearChatState,
+      fetchRecentSessions: state.fetchRecentSessions,
     })),
   );
 }
@@ -301,6 +306,34 @@ export function useSidebarSessions() {
       sidebarSessionsLoading: state.sidebarSessionsLoading,
     })),
   );
+}
+
+/**
+ * Select recent sessions across all agents
+ */
+export function useRecentSessions() {
+  return useStore((state) => state.recentSessions);
+}
+
+/**
+ * Select recent sessions loading state
+ */
+export function useRecentSessionsLoading() {
+  return useStore((state) => state.recentSessionsLoading);
+}
+
+/**
+ * Select current sidebar tab
+ */
+export function useSidebarTab() {
+  return useStore((state) => state.sidebarTab);
+}
+
+/**
+ * Select spotlight open state
+ */
+export function useSpotlightOpen() {
+  return useStore((state) => state.spotlightOpen);
 }
 
 // =============================================================================

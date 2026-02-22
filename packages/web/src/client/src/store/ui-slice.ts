@@ -12,6 +12,9 @@ import type { ActiveView, Theme } from "../lib/types";
 // State Types
 // =============================================================================
 
+/** Active sidebar tab */
+export type SidebarTab = "fleet" | "recent";
+
 export interface UIState {
   /** Whether the sidebar is collapsed */
   sidebarCollapsed: boolean;
@@ -25,6 +28,10 @@ export interface UIState {
   theme: Theme;
   /** Whether the right detail panel is open */
   rightPanelOpen: boolean;
+  /** Active sidebar tab (fleet hierarchy vs recent conversations) */
+  sidebarTab: SidebarTab;
+  /** Whether the Spotlight dialog (Cmd+K agent picker) is open */
+  spotlightOpen: boolean;
 }
 
 export interface UIActions {
@@ -46,6 +53,10 @@ export interface UIActions {
   toggleRightPanel: () => void;
   /** Set right panel open state explicitly */
   setRightPanelOpen: (open: boolean) => void;
+  /** Set the active sidebar tab */
+  setSidebarTab: (tab: SidebarTab) => void;
+  /** Set the Spotlight dialog open state */
+  setSpotlightOpen: (open: boolean) => void;
 }
 
 export type UISlice = UIState & UIActions;
@@ -61,6 +72,8 @@ const initialUIState: UIState = {
   activeView: "dashboard",
   theme: getStoredTheme(),
   rightPanelOpen: false,
+  sidebarTab: "fleet",
+  spotlightOpen: false,
 };
 
 // =============================================================================
@@ -115,5 +128,15 @@ export const createUISlice: StateCreator<UISlice, [], [], UISlice> = (set) => ({
   setRightPanelOpen: (open) =>
     set({
       rightPanelOpen: open,
+    }),
+
+  setSidebarTab: (tab) =>
+    set({
+      sidebarTab: tab,
+    }),
+
+  setSpotlightOpen: (open) =>
+    set({
+      spotlightOpen: open,
     }),
 });

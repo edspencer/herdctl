@@ -13,6 +13,7 @@ import type {
   FleetStatus,
   ForkJobResult,
   JobSummary,
+  RecentChatSession,
   ScheduleInfo,
   TriggerResult,
 } from "./types";
@@ -404,4 +405,16 @@ export async function renameChatSession(
     `/api/chat/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`,
     { name },
   );
+}
+
+/**
+ * Fetch recent chat sessions across all agents
+ *
+ * GET /api/chat/recent
+ *
+ * @param limit - Maximum number of sessions to return (default: 100, max: 500)
+ */
+export async function fetchRecentSessions(limit = 100): Promise<RecentChatSession[]> {
+  const response = await get<{ sessions: RecentChatSession[] }>("/api/chat/recent", { limit });
+  return response.sessions;
 }

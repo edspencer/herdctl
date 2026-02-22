@@ -22,6 +22,39 @@ export function registerChatRoutes(
   chatManager: WebChatManager,
 ): void {
   /**
+   * GET /api/chat/recent
+   *
+   * Returns recent chat sessions across all agents, sorted by lastMessageAt descending.
+   *
+   * @param limit - Optional limit (default: 100, max: 500)
+   * @returns { sessions: WebChatSession[] }
+   */
+  server.get<{
+    Querystring: { limit?: string };
+  }>("/api/chat/recent", async (request, reply) => {
+    try {
+      // Parse and clamp the limit parameter
+      let limit = 100;
+      if (request.query.limit) {
+        const parsedLimit = parseInt(request.query.limit, 10);
+        if (!Number.isNaN(parsedLimit) && parsedLimit > 0) {
+          limit = Math.min(parsedLimit, 500);
+        }
+      }
+
+      const sessions = await chatManager.listAllRecentSessions(limit);
+
+      return reply.send({ sessions });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return reply.status(500).send({
+        error: `Failed to list recent sessions: ${message}`,
+        statusCode: 500,
+      });
+    }
+  });
+
+  /**
    * GET /api/chat/config
    *
    * Returns chat-related configuration defaults from the fleet config.

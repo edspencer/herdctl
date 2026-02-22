@@ -8,11 +8,12 @@ import type { StateCreator } from "zustand";
 import {
   createChatSession as apiCreateChatSession,
   deleteChatSession as apiDeleteChatSession,
+  fetchRecentSessions as apiFetchRecentSessions,
   renameChatSession as apiRenameChatSession,
   fetchChatSession,
   fetchChatSessions,
 } from "../lib/api";
-import type { ChatMessage, ChatSession, ChatToolCall } from "../lib/types";
+import type { ChatMessage, ChatSession, ChatToolCall, RecentChatSession } from "../lib/types";
 
 // =============================================================================
 // Types
@@ -44,6 +45,10 @@ export interface ChatState {
   sidebarSessionsLoading: boolean;
   /** Message grouping preference: "separate" shows each turn as its own bubble, "grouped" merges them */
   messageGrouping: "separate" | "grouped";
+  /** Recent sessions across all agents for the Recent Conversations view */
+  recentSessions: RecentChatSession[];
+  /** Loading state for recent sessions fetch */
+  recentSessionsLoading: boolean;
 }
 
 export interface ChatActions {
@@ -79,6 +84,8 @@ export interface ChatActions {
   clearActiveChatState: () => void;
   /** Clear all chat state */
   clearChatState: () => void;
+  /** Fetch recent sessions across all agents */
+  fetchRecentSessions: (limit?: number) => Promise<void>;
 }
 
 export type ChatSlice = ChatState & ChatActions;
@@ -110,6 +117,8 @@ const initialChatState: ChatState = {
   sidebarSessions: {},
   sidebarSessionsLoading: false,
   messageGrouping: getStoredMessageGrouping() ?? "separate",
+  recentSessions: [],
+  recentSessionsLoading: false,
 };
 
 // =============================================================================
@@ -419,5 +428,23 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
 
   clearChatState: () => {
     set(initialChatState);
+  },
+
+  fetchRecentSessions: async (limit = 100) => {
+    set({ recentSessionsLoading: true });
+
+    try {
+      const sessions = await apiFetchRecentSessions(limit);
+      set({
+        recentSessions: sessions,
+        recentSessionsLoading: false,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to fetch recent sessions";
+      set({
+        recentSessionsLoading: false,
+        chatError: message,
+      });
+    }
   },
 });

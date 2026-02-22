@@ -368,6 +368,14 @@ export interface ChatSession {
   customName?: string;
 }
 
+/**
+ * Chat session with agent name included
+ * Used for cross-agent session listing (e.g., recent conversations view)
+ */
+export interface RecentChatSession extends ChatSession {
+  agentName: string;
+}
+
 export interface ChatToolCall {
   toolName: string;
   inputSummary?: string;
