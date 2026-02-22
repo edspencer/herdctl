@@ -10,6 +10,8 @@
  * - Keyboard navigation (Arrow Up/Down, Enter, Escape)
  * - Pre-selects most recently active agent
  * - Creates new chat session and navigates to it
+ * - Enter/exit animations (backdrop fade, panel slide)
+ * - Focus trap: Tab/Shift+Tab cycle within dialog, focus restored on close
  */
 
 import { Search } from "lucide-react";
@@ -26,6 +28,13 @@ import {
   useSpotlightOpen,
   useUIActions,
 } from "../../store";
+
+// =============================================================================
+// Constants
+// =============================================================================
+
+const ANIMATION_DURATION_MS = 150;
+const FOCUSABLE_SELECTOR = 'input, button, [tabindex]:not([tabindex="-1"])';
 
 // =============================================================================
 // Status Dot Component
@@ -55,8 +64,65 @@ export function SpotlightDialog() {
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
+  // Animation state: shouldRender keeps the DOM alive during exit animation
+  const [shouldRender, setShouldRender] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<Element | null>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ---------------------------------------------------------------------------
+  // 6.1 — Enter/exit animation lifecycle
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (spotlightOpen) {
+      // Cancel any pending close timer
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
+      setIsClosing(false);
+      setShouldRender(true);
+    } else if (shouldRender) {
+      // Begin exit animation
+      setIsClosing(true);
+      closeTimerRef.current = setTimeout(() => {
+        setShouldRender(false);
+        setIsClosing(false);
+        closeTimerRef.current = null;
+      }, ANIMATION_DURATION_MS);
+    }
+    return () => {
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
+    };
+  }, [spotlightOpen, shouldRender]);
+
+  // ---------------------------------------------------------------------------
+  // 6.2 — Focus management: save previous focus & restore on close
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (spotlightOpen) {
+      // Save the element that had focus before the dialog opened
+      previousFocusRef.current = document.activeElement;
+    }
+  }, [spotlightOpen]);
+
+  // Restore focus when dialog finishes unmounting
+  useEffect(() => {
+    if (!shouldRender && !spotlightOpen && previousFocusRef.current) {
+      const el = previousFocusRef.current as HTMLElement;
+      if (typeof el.focus === "function") {
+        el.focus();
+      }
+      previousFocusRef.current = null;
+    }
+  }, [shouldRender, spotlightOpen]);
 
   // Filter agents based on search query
   const filteredAgents = useMemo(() => {
@@ -131,6 +197,34 @@ export function SpotlightDialog() {
     [createChatSession, navigate, setSpotlightOpen, isCreating],
   );
 
+  // ---------------------------------------------------------------------------
+  // 6.2 — Focus trap: cycle Tab/Shift+Tab within dialog
+  // ---------------------------------------------------------------------------
+  const handleFocusTrap = useCallback((e: React.KeyboardEvent) => {
+    if (e.key !== "Tab" || !dialogRef.current) return;
+
+    const focusableEls = Array.from(
+      dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+    ).filter((el) => !el.hasAttribute("disabled") && el.offsetParent !== null);
+
+    if (focusableEls.length === 0) return;
+
+    const first = focusableEls[0];
+    const last = focusableEls[focusableEls.length - 1];
+
+    if (e.shiftKey) {
+      if (document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      if (document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }, []);
+
   // Handle keyboard navigation
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -163,20 +257,34 @@ export function SpotlightDialog() {
     [setSpotlightOpen],
   );
 
-  // Don't render if not open
-  if (!spotlightOpen) {
+  // Don't render if not open and not animating out
+  if (!shouldRender) {
     return null;
   }
 
+  // Animation classes: enter vs exit
+  const backdropAnimation = isClosing
+    ? "animate-[fadeIn_150ms_ease-out_reverse_forwards]"
+    : "animate-[fadeIn_150ms_ease-out_forwards]";
+  const panelAnimation = isClosing
+    ? "animate-[fadeSlideIn_150ms_ease-out_reverse_forwards]"
+    : "animate-[fadeSlideIn_150ms_ease-out_forwards]";
+
   return createPortal(
-    // biome-ignore lint/a11y/useKeyWithClickEvents: backdrop dismissal pattern
     // biome-ignore lint/a11y/noStaticElementInteractions: backdrop dismissal pattern
     <div
-      className="fixed inset-0 z-50 flex justify-center bg-black/30"
+      className={`fixed inset-0 z-50 flex justify-center bg-black/30 ${backdropAnimation}`}
       onClick={handleBackdropClick}
+      onKeyDown={handleFocusTrap}
       style={{ paddingTop: "20vh" }}
     >
-      <div className="bg-herd-card border border-herd-border rounded-[10px] shadow-lg max-w-md w-full mx-4 h-fit">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Start a new chat"
+        className={`bg-herd-card border border-herd-border rounded-[10px] shadow-lg max-w-md w-full mx-4 h-fit ${panelAnimation}`}
+      >
         {/* Search input */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-herd-muted pointer-events-none" />
