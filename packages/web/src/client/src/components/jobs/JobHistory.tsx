@@ -370,7 +370,7 @@ export function JobHistory({ agentName }: JobHistoryProps) {
       // Error is already handled in fetchJobs, which sets jobsError
       // This catch block just prevents unhandled promise rejection
     });
-  }, [fetchJobs]);
+  }, [fetchJobs, jobsFilter, jobsOffset]);
 
   // Check if any filters are active
   const hasFilters = useMemo(() => {
