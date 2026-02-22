@@ -6,6 +6,7 @@
  * - Renders routing with layout shell
  */
 
+import { useEffect } from "react";
 import { Route, Routes } from "react-router";
 import { AgentDetail } from "./components/agent";
 import { ChatView } from "./components/chat";
@@ -13,10 +14,12 @@ import { FleetDashboard } from "./components/dashboard/FleetDashboard";
 import { JobHistory } from "./components/jobs";
 import { AppLayout } from "./components/layout/AppLayout";
 import { ScheduleList } from "./components/schedules";
+import { SpotlightDialog } from "./components/spotlight/SpotlightDialog";
 import { ErrorBoundary } from "./components/ui";
 import { ToastContainer } from "./components/ui/Toast";
 import { useFleetStatus } from "./hooks/useFleetStatus";
 import { useWebSocket } from "./hooks/useWebSocket";
+import { useSpotlightOpen, useUIActions } from "./store";
 
 // =============================================================================
 // Placeholder Page Components
@@ -50,6 +53,22 @@ export default function App() {
 
   // Fetch initial fleet status (non-blocking — data populates into store)
   useFleetStatus();
+
+  // Spotlight dialog state
+  const spotlightOpen = useSpotlightOpen();
+  const { setSpotlightOpen } = useUIActions();
+
+  // Global Cmd+K / Ctrl+K shortcut for Spotlight
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setSpotlightOpen(!spotlightOpen);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [spotlightOpen, setSpotlightOpen]);
 
   // Always render the layout shell — loading/error states show within the dashboard
   return (
@@ -115,6 +134,7 @@ export default function App() {
         </Routes>
       </AppLayout>
       <ToastContainer />
+      <SpotlightDialog />
     </ErrorBoundary>
   );
 }
