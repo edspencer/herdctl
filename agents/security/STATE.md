@@ -1,17 +1,17 @@
 ---
-last_updated: 2026-02-17T06:30:00Z
+last_updated: 2026-02-20T00:00:00Z
 last_mapping: 2026-02-14
-last_audit: 2026-02-17
+last_audit: 2026-02-20
 commits_since_audit: 0
-commits_since_mapping: 2
-open_findings: 6
+commits_since_mapping: 40
+open_findings: 7
 open_questions: 7
 status: audit_complete_yellow
 ---
 
 # Security Audit State
 
-**Last Updated:** 2026-02-17 06:30 UTC
+**Last Updated:** 2026-02-20 00:00 UTC
 
 This document provides persistent state for security audits, enabling incremental reviews that build on previous work rather than starting fresh each time.
 
@@ -22,25 +22,26 @@ This document provides persistent state for security audits, enabling incrementa
 | Metric | Value | Notes |
 |--------|-------|-------|
 | Last full mapping | 2026-02-14 | Comprehensive audit completed |
-| Last incremental audit | 2026-02-17 06:30 | Incremental - YELLOW - 0 new findings |
-| Commits since last audit | 0 | At b337721 (2026-02-15 HALT review commit) |
-| Open findings | 6 | See [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
-| Open questions | 7 | Q3, Q4, Q5, Q8, Q9, Q10, Q11 |
+| Last incremental audit | 2026-02-20 | Incremental - YELLOW - 1 new finding (#011 OAuth) |
+| Commits since last audit | 0 | At 5469008 (2026-02-20) |
+| Open findings | 7 | See [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
+| Open questions | 7 | Q1, Q3, Q4, Q5, Q7, Q8, Q9, Q10, Q11 |
 
-**Status:** YELLOW - Finding #010 DOWNGRADED from CRITICAL RED to MEDIUM (measurement error corrected: 21 files, not 143). HALT directive LIFTED.
+**Status:** YELLOW - Finding #011 (OAuth credential management) needs security review for credential leak vectors.
 
 ### Finding Breakdown
 
-- **Critical: 0** (Previous CRITICAL #010 was based on measurement error)
-- High: 1 (accepted risk - hostConfigOverride)
-- Medium: 4 (1 tracked #010 revised, 2 accepted, 1 needs manual check)
-- Low: 1 (tech debt - shell escaping)
+- **Critical: 0**
+- High: 1 (accepted risk - hostConfigOverride #002)
+- **Medium: 4** (#011 NEW OAuth, #010 job retention, #008 npm audit, #006 accepted)
+- Low: 1 (tech debt - shell escaping #009)
+- Intentional: 1 (#005 example config)
 
 ### Question Priorities
 
 - High: 0
-- Medium: 5 (Q1 partially answered, Q4, Q5, Q7 partially answered, Q8)
-- Low: 2 (Q3 - container name characters, Q11 - GitHub SSRF)
+- Medium: 5 (Q1 webhook auth, Q4 log injection, Q5 config merge, Q7 container user, Q8 SDK escaping)
+- Low: 2 (Q3 container name chars, Q9 rate limiting, Q10 MCP security, Q11 GitHub SSRF)
 
 ---
 
@@ -50,12 +51,12 @@ Security coverage by area with staleness tracking.
 
 | Area | Last Checked | Commits Since | Status | Notes |
 |------|--------------|---------------|--------|-------|
-| Attack surface | 2026-02-14 | 2 | Current | Comprehensive mapping completed |
-| Data flows | 2026-02-14 | 2 | Current | All flows traced and validated |
-| Security controls | 2026-02-17 | 0 | Current | Hot spots re-verified |
-| Threat vectors | 2026-02-14 | 2 | Current | 8 vectors analyzed (T1-T8) |
-| Hot spots | 2026-02-17 06:30 | 0 | Current | Scanner run complete - ~400ms |
-| Code patterns | 2026-02-17 06:30 | 0 | Current | All checks complete - PASS |
+| Attack surface | 2026-02-14 | 40 | STALE | Needs refresh - major features added |
+| Data flows | 2026-02-14 | 40 | STALE | OAuth flow added, needs mapping |
+| Security controls | 2026-02-20 | 0 | Current | Hot spots verified (container-manager.ts OAuth reviewed) |
+| Threat vectors | 2026-02-14 | 40 | STALE | New web UI and OAuth paths |
+| Hot spots | 2026-02-20 | 0 | Current | Scanner run complete - 2273ms |
+| Code patterns | 2026-02-20 | 0 | Current | All checks complete - FAIL (pre-existing) |
 
 ### Staleness Thresholds
 
@@ -71,25 +72,26 @@ Active findings and open questions requiring attention.
 
 | ID | Type | Summary | Priority | Status | Source |
 |----|------|---------|----------|--------|--------|
-| #010 | Finding | bypassPermissions in 21 audit job files | **MEDIUM** | YELLOW - 21 files (corrected from 143 - measurement error); HALT lifted; retention policy needed | [2026-02-17 Report](intel/2026-02-17.md) |
-| Q1 | Question | Webhook authentication | Medium | Partially answered - `secret_env` field in schema; server impl status unclear | [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
+| #011 | Finding | OAuth credential management in container-manager.ts | **MEDIUM** | YELLOW - Needs review for file permissions, logging leaks | [2026-02-20 Report](intel/2026-02-20.md) |
+| #010 | Finding | bypassPermissions in 22 job files | MEDIUM | YELLOW - Retention policy needed (stable growth) | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
+| #008 | Finding | npm audit parser error | Medium | Manual check needed | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
+| Q1 | Question | Webhook authentication | Medium | Partially answered - secret_env in schema; server impl unclear | [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
 | Q4 | Question | Log injection via agent output | Medium | Open | [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
 | Q5 | Question | Fleet/agent config merge overrides | Medium | Open | [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
-| Q7 | Question | Docker container user (root?) | Medium | Partially answered - `user` field configurable; default = image default (unverified) | [2026-02-17 Report](intel/2026-02-17.md) |
+| Q7 | Question | Docker container user (root?) | Medium | Partially answered - user field configurable; default = image default | [2026-02-17 Report](intel/2026-02-17.md) |
 | Q8 | Question | SDK wrapper prompt escaping | Medium | Open | [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
-| #008 | Finding | npm audit parser error | Medium | Manual check needed | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
 | #009 | Finding | Incomplete shell escaping | Low | Tech debt | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
-| Q3 | Question | Container name special chars | Low | Open | [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
 
 ### Priority Queue
 
 Ordered by urgency for next audit session:
 
-1. **MEDIUM P2:** Implement job file retention policy (30 days) to resolve #010
-2. **MEDIUM P2:** Verify webhook server implementation for inbound auth (Q1)
-3. **MEDIUM P3:** Docker container user configuration (Q7) - set explicit UID:GID
-4. **LOW:** #009 (shell escaping - fix when convenient)
-5. **LOW:** Q4 (log injection), Q8 (SDK prompt escaping)
+1. **MEDIUM P1:** Review OAuth logging for credential leaks (#011)
+2. **MEDIUM P2:** Add file permission enforcement for credentials.json (#011)
+3. **MEDIUM P3:** Implement job file retention policy (30 days) to resolve #010
+4. **MEDIUM P4:** Verify webhook server implementation for inbound auth (Q1)
+5. **LOW:** Docker container user configuration (Q7) - set explicit UID:GID
+6. **LOW:** #009 (shell escaping - fix when convenient)
 
 ---
 
@@ -99,11 +101,10 @@ Ordered by urgency for next audit session:
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
-| 2026-02-17 06:30 | #010 DOWNGRADED to MEDIUM; HALT LIFTED | 2026-02-15 audit correctly identified measurement error: 143 count included JSONL files; correct count is 21 YAML files with bypassPermissions |
-| 2026-02-15 | #010 measurement error identified | 143 count was wrong (included JSONL files); corrected to ~17-21 files; HALT was not justified |
-| 2026-02-14 21:04 | HALT ALL AUDITS (since retracted) | Based on incorrect 143-file count; retracted 2026-02-17 after correction |
-| 2026-02-14 00:10 | Comprehensive security audit completed | Full attack surface mapping, data flow tracing, controls assessment, threat modeling |
-| 2026-02-06 | #010 growth stabilizing (+2 files, 85→87) | bypassPermissions growth rate slowing; job cleanup remains MEDIUM priority |
+| 2026-02-20 | #011 MEDIUM - OAuth credential review needed | New credential handling added to container-manager.ts; needs file permission and logging audit |
+| 2026-02-17 | #010 DOWNGRADED to MEDIUM; HALT LIFTED | 2026-02-15 audit correctly identified measurement error: 143 count included JSONL files; correct count is 21 YAML files |
+| 2026-02-15 | #010 measurement error identified | 143 count was wrong (included JSONL files); corrected to ~21 files; HALT was not justified |
+| 2026-02-14 | Comprehensive security audit completed | Full attack surface mapping, data flow tracing, controls assessment, threat modeling |
 | 2026-02-05 | #001 path traversal FIXED | buildSafeFilePath + AGENT_NAME_PATTERN in place |
 | 2026-02-05 | #002 hostConfigOverride ACCEPTED | Required for advanced Docker configurations at fleet level |
 | 2026-02-05 | #006 shell:true ACCEPTED | Required for shell hook functionality |
@@ -112,20 +113,20 @@ Ordered by urgency for next audit session:
 
 Security capabilities not yet implemented or areas needing investigation:
 
-- **MEDIUM: Job file retention policy not implemented** - 21 bypassPermissions files accumulating
-- **MEDIUM: Inbound webhook authentication status unclear** - secret_env in schema but server impl unknown
-- **LOW: Container user not explicitly set** - default may be root depending on image
+- **MEDIUM NEW: OAuth credential file permissions not enforced** - writeCredentialsFile() doesn't set 0600 (#011)
+- **MEDIUM NEW: OAuth error logging may leak tokens** - logger.error() calls need review (#011)
+- **MEDIUM: Job file retention policy not implemented** - 22 bypassPermissions files accumulating (#010)
+- **MEDIUM: Inbound webhook authentication status unclear** - secret_env in schema but server impl unknown (Q1)
+- **LOW: Container user not explicitly set** - default may be root depending on image (Q7)
 - No secret detection in logs (output could leak sensitive data) - Q4
-- No rate limiting on triggers (DoS vector for scheduled jobs)
-- ~~Other path traversal vectors not fully audited (Q2)~~ - RESOLVED 2026-02-06
-- ~~#010 CRITICAL halt condition~~ - RETRACTED 2026-02-17 (measurement error)
+- No rate limiting on triggers (DoS vector for scheduled jobs) - Q9
 
 ### Session Continuity
 
-- **Last session:** 2026-02-17 06:30 - Incremental audit - YELLOW (corrected #010 severity)
-- **Completed:** Scanner run, hot spot verification, #010 reassessment, STATE.md update
-- **Resume from:** Normal operations; next scheduled audit ~2026-02-24
-- **Next priority:** Job retention policy (#010), webhook server verification (Q1)
+- **Last session:** 2026-02-20 - Incremental audit covering 40 commits
+- **Completed:** Scanner run (FAIL - pre-existing), change analysis (OAuth added), hot spot verification (container-manager.ts), #011 discovery
+- **Resume from:** Normal operations; next scheduled audit ~2026-02-27
+- **Next priority:** OAuth logging review (#011), credential file permissions (#011), job retention policy (#010)
 
 ---
 
@@ -154,3 +155,4 @@ When commits occur to the codebase:
 ---
 
 **End of STATE.md**
+

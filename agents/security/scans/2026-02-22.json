@@ -1,0 +1,109 @@
+{
+  "date": "2026-02-22",
+  "timestamp": "2026-02-22T06:00:58.261Z",
+  "commit": "7097d6c",
+  "branch": "docs/changelog-update-2026-02-22",
+  "checks": [
+    {
+      "name": "npm-audit",
+      "status": "warn",
+      "findings": [
+        {
+          "severity": "medium",
+          "description": "2 moderate vulnerabilities found in dependencies",
+          "recommendation": "Review and update affected packages when possible"
+        }
+      ],
+      "duration": 2370
+    },
+    {
+      "name": "docker-config",
+      "status": "fail",
+      "findings": [
+        {
+          "severity": "high",
+          "location": "packages/core/src/runner/runtime/docker-config.ts:259",
+          "description": "hostConfigOverride can bypass Docker security hardening",
+          "recommendation": "Ensure this is only used at fleet-level config, never from agent input"
+        },
+        {
+          "severity": "high",
+          "location": "packages/core/src/runner/runtime/container-manager.ts:144",
+          "description": "hostConfigOverride can bypass Docker security hardening",
+          "recommendation": "Ensure this is only used at fleet-level config, never from agent input"
+        },
+        {
+          "severity": "high",
+          "location": "packages/core/src/runner/runtime/container-manager.ts:145",
+          "description": "hostConfigOverride can bypass Docker security hardening",
+          "recommendation": "Ensure this is only used at fleet-level config, never from agent input"
+        }
+      ],
+      "duration": 204
+    },
+    {
+      "name": "permission-modes",
+      "status": "warn",
+      "findings": [
+        {
+          "severity": "low",
+          "location": "examples/bragdoc-developer/agents/developer.yaml:47",
+          "description": "bypassPermissions used in 1 example config(s) - consider adding Docker isolation",
+          "recommendation": "Example configs with bypassPermissions should demonstrate Docker isolation for security."
+        }
+      ],
+      "duration": 58
+    },
+    {
+      "name": "subprocess-patterns",
+      "status": "warn",
+      "findings": [
+        {
+          "severity": "low",
+          "location": "packages/core/src/hooks/runners/shell.ts:8",
+          "description": "Direct child_process import - consider using execa instead",
+          "recommendation": "execa provides better escaping and cross-platform support"
+        },
+        {
+          "severity": "low",
+          "location": "packages/cli/src/commands/sessions.ts:12",
+          "description": "Direct child_process import - consider using execa instead",
+          "recommendation": "execa provides better escaping and cross-platform support"
+        },
+        {
+          "severity": "medium",
+          "location": "packages/core/src/hooks/runners/shell.ts:154",
+          "description": "shell: true option enables shell interpretation",
+          "recommendation": "Avoid shell: true unless necessary - it enables shell metacharacter processing"
+        },
+        {
+          "severity": "medium",
+          "location": "packages/cli/src/commands/sessions.ts:421",
+          "description": "shell: true option enables shell interpretation",
+          "recommendation": "Avoid shell: true unless necessary - it enables shell metacharacter processing"
+        }
+      ],
+      "duration": 39
+    },
+    {
+      "name": "path-safety",
+      "status": "pass",
+      "findings": [],
+      "duration": 3
+    },
+    {
+      "name": "env-handling",
+      "status": "pass",
+      "findings": [],
+      "duration": 108
+    }
+  ],
+  "summary": {
+    "total": 6,
+    "passed": 2,
+    "warned": 3,
+    "failed": 1
+  },
+  "status": "fail",
+  "duration": 2792
+}

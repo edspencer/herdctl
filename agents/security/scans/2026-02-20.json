@@ -1,0 +1,72 @@
+Running security checks...
+
+  Checking npm-audit... WARN (1731ms, 1 findings)
+  Checking docker-config... FAIL (172ms, 3 findings)
+  Checking permission-modes... WARN (32ms, 1 findings)
+  Checking subprocess-patterns... WARN (40ms, 4 findings)
+  Checking path-safety... PASS (3ms, 0 findings)
+  Checking env-handling... PASS (108ms, 0 findings)
+════════════════════════════════════════════════════════════
+  HERDCTL SECURITY SCAN REPORT
+════════════════════════════════════════════════════════════
+
+  Date:    2026-02-20
+  Commit:  5469008
+  Branch:  security-audits
+  Status:  FAIL
+
+────────────────────────────────────────────────────────────
+  SUMMARY
+────────────────────────────────────────────────────────────
+  Total checks: 6  |  Passed: 2  |  Warned: 3  |  Failed: 1
+
+────────────────────────────────────────────────────────────
+  NPM-AUDIT (warn)
+────────────────────────────────────────────────────────────
+  [~] [MEDIUM] 2 moderate vulnerabilities found in dependencies
+      Recommendation: Review and update affected packages when possible
+
+────────────────────────────────────────────────────────────
+  DOCKER-CONFIG (fail)
+────────────────────────────────────────────────────────────
+  [!] [HIGH] hostConfigOverride can bypass Docker security hardening
+      Location: packages/core/src/runner/runtime/docker-config.ts:260
+      Recommendation: Ensure this is only used at fleet-level config, never from agent input
+
+  [!] [HIGH] hostConfigOverride can bypass Docker security hardening
+      Location: packages/core/src/runner/runtime/container-manager.ts:146
+      Recommendation: Ensure this is only used at fleet-level config, never from agent input
+
+  [!] [HIGH] hostConfigOverride can bypass Docker security hardening
+      Location: packages/core/src/runner/runtime/container-manager.ts:147
+      Recommendation: Ensure this is only used at fleet-level config, never from agent input
+
+────────────────────────────────────────────────────────────
+  PERMISSION-MODES (warn)
+────────────────────────────────────────────────────────────
+  [.] [LOW] bypassPermissions used in 1 example config(s) - consider adding Docker isolation
+      Location: examples/bragdoc-developer/agents/developer.yaml:47
+      Recommendation: Example configs with bypassPermissions should demonstrate Docker isolation for security.
+
+────────────────────────────────────────────────────────────
+  SUBPROCESS-PATTERNS (warn)
+────────────────────────────────────────────────────────────
+  [.] [LOW] Direct child_process import - consider using execa instead
+      Location: packages/core/src/hooks/runners/shell.ts:8
+      Recommendation: execa provides better escaping and cross-platform support
+
+  [.] [LOW] Direct child_process import - consider using execa instead
+      Location: packages/cli/src/commands/sessions.ts:14
+      Recommendation: execa provides better escaping and cross-platform support
+
+  [~] [MEDIUM] shell: true option enables shell interpretation
+      Location: packages/core/src/hooks/runners/shell.ts:154
+      Recommendation: Avoid shell: true unless necessary - it enables shell metacharacter processing
+
+  [~] [MEDIUM] shell: true option enables shell interpretation
+      Location: packages/cli/src/commands/sessions.ts:415
+      Recommendation: Avoid shell: true unless necessary - it enables shell metacharacter processing
+
+════════════════════════════════════════════════════════════
+  Completed in 2103ms
+════════════════════════════════════════════════════════════

@@ -7,7 +7,8 @@ and manual review. Updated after each security review.
 
 | ID | Severity | Title | First Seen | Status | Location |
 |----|----------|-------|------------|--------|----------|
-| 010 | **CRITICAL** | **bypassPermissions in 143 production jobs** | 2026-02-12 | 🔴 **RED - CRITICAL (143 files, +31.2%)** | .herdctl/jobs/*.yaml |
+| 011 | **MEDIUM** | **OAuth credential management in container-manager.ts** | 2026-02-20 | 🟡 YELLOW - Needs Review | container-manager.ts |
+| 010 | Medium | bypassPermissions in job files (22 files) | 2026-02-12 | 🟡 YELLOW - Retention needed | .herdctl/jobs/*.yaml |
 | 002 | High | hostConfigOverride can bypass Docker security | 2026-02-05 | ⚠️ Accepted Risk | container-manager.ts |
 | 005 | Medium | bypassPermissions in example config | 2026-02-05 | ℹ️ Intentional | examples/bragdoc-developer/ |
 | 006 | Medium | shell:true in hook runner | 2026-02-05 | ⚠️ Accepted Risk | hooks/runners/shell.ts |
@@ -52,8 +53,6 @@ name like `../../../tmp/evil` could write files outside `.herdctl/`.
 - Added `AGENT_NAME_PATTERN` regex validation to config schema
 - Created `buildSafeFilePath()` utility for defense-in-depth
 - Updated session.ts and job-metadata.ts to use safe utility
-
-**Deep Dive**: [001-path-traversal-agent-names.md](./findings/001-path-traversal-agent-names.md)
 
 ---
 
@@ -147,97 +146,87 @@ Missing escapes for shell special characters: `$`, `` ` ``, `!`
 - Fleet config authors are trusted
 - Practical risk is low
 
-**Recommendation**: Add complete escaping for defense in depth:
-```typescript
-const escapedPrompt = prompt
-  .replace(/\\/g, '\\\\')
-  .replace(/"/g, '\\"')
-  .replace(/\$/g, '\\$')
-  .replace(/`/g, '\\`')
-  .replace(/!/g, '\\!');
-```
+**Recommendation**: Add complete escaping for defense in depth.
 
 ---
 
-### ID 010: bypassPermissions in Production Job Files 🔴 CRITICAL
-**Severity**: CRITICAL (escalated from High on 2026-02-14)
+### ID 010: bypassPermissions in Job Files 🟡 DOWNGRADED
+**Severity**: MEDIUM (downgraded from CRITICAL on 2026-02-17)
 **First Seen**: 2026-02-12
-**Location**: `.herdctl/jobs/*.yaml` (143 files as of 2026-02-14 21:04)
-**Status**: 🔴 RED - CRITICAL PRIORITY - HALT AUDITS REQUIRED
+**Location**: `.herdctl/jobs/*.yaml` (22 files as of 2026-02-20)
+**Status**: 🟡 YELLOW - Retention policy needed
 
-Production job configuration files in `.herdctl/jobs/` contain `bypassPermissions: true`, which bypasses ALL security checks including:
-- Path traversal protection
-- File access validation
-- Privilege escalation prevention
-- Schema validation
+Job configuration files in `.herdctl/jobs/` contain `bypassPermissions: true`, which bypasses security checks. 
 
 **Growth History**:
 ```
 2026-02-12 Initial:   61 files (initial detection)
-2026-02-13:           69 files (+8, +13.1%)
-2026-02-14 00:10:     85 files (+13, +18.1%)
-2026-02-14 02:06:     87 files (+2, +2.4%)
-2026-02-14 04:05:     87 files (+0, 0%)
-2026-02-14 06:04:     91 files (+4, +4.6%)
-2026-02-14 12:08:    103 files (+12, +13.2%)
-2026-02-14 14:03:    109 files (+6, +5.8%)
-2026-02-14 21:04:    143 files (+34, +31.2%) ← HIGHEST GROWTH RATE
+2026-02-14:          143 files (measurement ERROR - included JSONL files)
+2026-02-17:           21 files (corrected count - YAML only)
+2026-02-20:           22 files (+1 in 3 days)
 ```
 
-**Why CRITICAL**:
-1. **Record growth rate**: +31.2% is the highest increase recorded
-2. **Unbounded exposure**: 143 files bypass ALL safety mechanisms
-3. **Self-defeating loop**: Security audits creating security risk
-4. **Accelerating trend**: Growth is exponential, not linear
-5. **No mitigation**: No cleanup policy exists
+**CRITICAL CORRECTION (2026-02-17)**:
+The 2026-02-14 audit incorrectly counted 143 files by including JSONL log files. The correct count is **21 YAML job files**, revised to 22 on 2026-02-20. This is 22.9% of total job files (96), not 100% as previously thought.
+
+**Why Downgraded from CRITICAL**:
+1. Count was overstated by ~6.8x due to measurement error
+2. 22 files over ~3 weeks = expected audit cadence
+3. Growth is stable (+1 file in 3 days)
+4. Files are in `.herdctl/jobs/` which is internal state
+5. Not unbounded growth - just needs cleanup policy
 
 **Root Cause**:
-Security audit agents use `bypassPermissions: true` to scan the codebase. Each audit run creates new job files in `.herdctl/jobs/`, which accumulate indefinitely with NO cleanup policy implemented.
+Security audit agents use `bypassPermissions: true` to scan the codebase. Each audit creates new job files which accumulate without cleanup.
 
-**THE SECURITY AUDIT SYSTEM IS CREATING THE SECURITY RISK IT'S DESIGNED TO PREVENT.**
+**Recommended Actions (MEDIUM Priority)**:
+1. Implement 30-day job file retention policy
+2. Add automated cleanup on fleet start
+3. Consider reducing bypassPermissions scope in audit agents
 
-**Impact**:
-- **Path Traversal**: Malicious job could read/write ANY file on host
-- **Privilege Escalation**: Could modify system files if running as root
-- **Data Exfiltration**: Could access sensitive files outside project directory
-- **Container Escape**: Combined with other vulnerabilities, could escape container
+**Current Risk**: MEDIUM - Needs retention policy but not emergency
 
-**Immediate Actions Required (P0 CRITICAL)**:
-1. **🛑 HALT all /security-audit-daily executions immediately**
-2. **Implement job file retention policy** (keep 7-14 days)
-3. **Manual cleanup of old job files** (reduce 143 → ~30)
-4. **Review audit agent config** - eliminate bypassPermissions if possible
+---
 
-**Mitigation Strategy**:
-```yaml
-# Implement retention policy:
-# 1. Keep only last 7-14 days of job files
-# 2. Archive older jobs to .herdctl/jobs/archive/
-# 3. Add automated cleanup on fleet start
-# 4. Add cleanup to job lifecycle hooks
-```
+### ID 011: OAuth Credential Management 🟡 NEW
+**Severity**: MEDIUM
+**First Seen**: 2026-02-20
+**Location**: `packages/core/src/runner/runtime/container-manager.ts`
+**Status**: 🟡 YELLOW - Needs security review
 
-**Risk Assessment**:
-- **Current Risk**: CRITICAL - Unbounded growth with no mitigation
-- **Residual Risk** (after cleanup): MEDIUM - Still using bypassPermissions but controlled
-- **Target State**: LOW - Remove bypassPermissions from audit agents entirely
+OAuth token refresh functionality added to container-manager.ts reads/writes credentials from `~/.claude/.credentials.json` and refreshes tokens via HTTPS to console.anthropic.com.
 
-**Deep Dive**: See audit reports:
-- [2026-02-14-comprehensive-v7.md](2026-02-14-comprehensive-v7.md) (THIS AUDIT - 143 files)
-- [2026-02-14-audit-v6.md](2026-02-14-audit-v6.md) (109 files)
-- [2026-02-14-daily-audit-v4.md](2026-02-14-daily-audit-v4.md) (103 files - ESCALATION)
+**Security Concerns**:
+1. **File permissions**: No enforcement of 0600 on credentials file
+2. **Logging**: logger.error() calls may leak refresh tokens in error messages
+3. **Multi-user systems**: Reading from homedir may expose credentials if permissions wrong
+4. **Token lifecycle**: Need to verify old tokens are cleared after refresh
+
+**Code Added**:
+- `readCredentialsFile()` - Reads `~/.claude/.credentials.json`
+- `writeCredentialsFile()` - Writes updated tokens to disk
+- `refreshClaudeOAuthToken()` - HTTPS POST to console.anthropic.com/v1/oauth/token
+- `ensureValidOAuthToken()` - Token expiry check with 5-minute buffer
+
+**Recommended Actions (MEDIUM Priority)**:
+1. Add explicit `fs.chmodSync(credsPath, 0o600)` after writeCredentialsFile()
+2. Review all logger calls in OAuth functions - ensure no token data in messages
+3. Verify error handling doesn't expose refresh_token or access_token in logs
+4. Add comment documenting that credentials file must be user-readable only
+
+**Introduced In**: Commits fd8f39d, 0953e36 (2026-02-17 to 2026-02-20)
 
 ---
 
 ## Statistics
 
-- **Total Findings**: 10
+- **Total Findings**: 11
 - **Resolved**: 2
 - **False Positives**: 2
-- **Active**: 6
-  - **Critical: 1 (#010 - 143 files - HALT REQUIRED)**
+- **Active**: 7
+  - Critical: 0
   - High: 1 (accepted)
-  - Medium: 3 (2 accepted, 1 needs manual check)
+  - **Medium: 4 (2 new, 1 accepted, 1 needs manual check)**
   - Low: 1 (tech debt)
 
 ---
@@ -259,15 +248,16 @@ Based on false positives identified:
 | Date | Reviewer | New Findings | Resolved | Notes |
 |------|----------|--------------|----------|-------|
 | 2026-02-05 | Claude + Ed | 8 | 1 | Initial baseline + path traversal fix |
-| 2026-02-05 | Claude + Ed | 0 | 3 | Review of findings: 2 false positives, 1 already fixed |
-| 2026-02-05 | Claude (automated) | 1 | 0 | Evening review: verified fixes, found shell escaping tech debt |
-| 2026-02-06 | /security-audit | 0 | 0 | Automated incremental audit; verified 32 commits (all security improvements); Q2 answered |
-| 2026-02-12 | /security-audit | 1 | 0 | Finding #010 discovered - bypassPermissions in 61 job files |
-| 2026-02-13 | /security-audit | 0 | 0 | #010 tracking - growth to 69 files (+13.1%) |
-| 2026-02-14 | /security-audit | 0 | 0 | #010 monitoring - multiple audits showing unstable growth (85→87→91→103→109) |
-| 2026-02-14 21:04 | Manual comprehensive audit | 0 | 0 | **#010 CRITICAL - 143 files (+31.2% highest growth) - HALT REQUIRED** |
+| 2026-02-05 | Claude + Ed | 0 | 3 | Review: 2 false positives, 1 already fixed |
+| 2026-02-05 | Claude (automated) | 1 | 0 | Shell escaping tech debt discovered |
+| 2026-02-06 | /security-audit | 0 | 0 | Incremental audit; 32 commits verified |
+| 2026-02-12 | /security-audit | 1 | 0 | #010 discovered - bypassPermissions in job files |
+| 2026-02-14 | Manual audit | 0 | 0 | #010 CRITICAL escalation (measurement ERROR) |
+| 2026-02-17 | /security-audit | 0 | 0 | **#010 DOWNGRADED** - corrected count: 21 files |
+| 2026-02-20 | /security-audit | 1 | 0 | **#011 NEW** - OAuth credential management |
 
 ---
 
-**Last Updated:** 2026-02-14 21:04 UTC
-**Status:** 🔴 CRITICAL RED - DO NOT RUN MORE AUDITS
+**Last Updated:** 2026-02-20
+**Status:** 🟡 YELLOW - 1 new finding needs review
+

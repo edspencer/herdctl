@@ -1,0 +1,165 @@
+{
+  "date": "2026-02-18",
+  "duration_ms": 2895,
+  "scanner_version": "1.0",
+  "commit": "d3f14a0",
+  "branch": "security-audits",
+  "status": "WARN",
+  "checks": [
+    {
+      "id": "npm-audit",
+      "status": "WARN",
+      "description": "2 moderate vulnerabilities found in dependencies",
+      "findings": [
+        {
+          "package": "lodash",
+          "severity": "MEDIUM",
+          "advisory": "GHSA-xxjr-mmjv-4gpg",
+          "description": "Prototype Pollution Vulnerability in _.unset and _.omit",
+          "vulnerable_versions": ">=4.0.0 <=4.17.22",
+          "patched_versions": ">=4.17.23"
+        },
+        {
+          "package": "undici",
+          "severity": "MEDIUM",
+          "advisory": "GHSA-g9mf-h72j-4rw9",
+          "description": "Unbounded decompression chain in HTTP responses leads to resource exhaustion",
+          "vulnerable_versions": "<6.23.0",
+          "patched_versions": ">=6.23.0"
+        }
+      ],
+      "note": "Resolves previous finding #008 (parser error). Now have concrete CVE data. Likely transitive deps - needs path investigation."
+    },
+    {
+      "id": "docker-config",
+      "status": "FAIL",
+      "description": "hostConfigOverride can bypass Docker security hardening",
+      "findings": [
+        {
+          "file": "packages/core/src/runner/runtime/docker-config.ts",
+          "line": 260,
+          "severity": "HIGH",
+          "note": "Pre-existing accepted risk #002 - only at fleet-level config"
+        },
+        {
+          "file": "packages/core/src/runner/runtime/container-manager.ts",
+          "line": 146,
+          "severity": "HIGH",
+          "note": "Pre-existing accepted risk #002 - fleet-level only, well-documented"
+        },
+        {
+          "file": "packages/core/src/runner/runtime/container-manager.ts",
+          "line": 147,
+          "severity": "HIGH",
+          "note": "Pre-existing accepted risk #002 - fleet-level only"
+        }
+      ]
+    },
+    {
+      "id": "permission-modes",
+      "status": "WARN",
+      "description": "bypassPermissions in 1 example config",
+      "findings": [
+        {
+          "file": "examples/bragdoc-developer/agents/developer.yaml",
+          "line": 47,
+          "severity": "LOW",
+          "note": "Pre-existing intentional finding #005 - example config"
+        }
+      ]
+    },
+    {
+      "id": "subprocess-patterns",
+      "status": "WARN",
+      "description": "4 subprocess pattern warnings",
+      "findings": [
+        {
+          "file": "packages/core/src/hooks/runners/shell.ts",
+          "line": 8,
+          "severity": "LOW",
+          "note": "Direct child_process import - accepted risk #006"
+        },
+        {
+          "file": "packages/cli/src/commands/sessions.ts",
+          "line": 14,
+          "severity": "LOW",
+          "note": "Direct child_process import - related to NEW finding #011"
+        },
+        {
+          "file": "packages/core/src/hooks/runners/shell.ts",
+          "line": 154,
+          "severity": "MEDIUM",
+          "note": "shell:true - accepted risk #006 required for shell hook functionality"
+        },
+        {
+          "file": "packages/cli/src/commands/sessions.ts",
+          "line": 415,
+          "severity": "MEDIUM",
+          "note": "shell:true with unvalidated session_id - NEW finding #011"
+        }
+      ]
+    },
+    {
+      "id": "path-safety",
+      "status": "PASS",
+      "description": "Path safety controls verified intact",
+      "findings": []
+    },
+    {
+      "id": "env-handling",
+      "status": "PASS",
+      "description": "No hardcoded secrets or credential logging detected",
+      "findings": []
+    }
+  ],
+  "hot_spot_verification": {
+    "status": "WARN",
+    "checked": [
+      {"file": "container-manager.ts", "status": "PASS", "notes": "CapDrop, SecurityOpt, hostConfigOverride gating all intact"},
+      {"file": "container-runner.ts", "status": "WARN", "notes": "Known #009 shell escaping tech debt - no regression"},
+      {"file": "schema.ts", "status": "PASS", "notes": "AGENT_NAME_PATTERN, Zod strict all verified"},
+      {"file": "path-safety.ts", "status": "PASS", "notes": "buildSafeFilePath, SAFE_IDENTIFIER_PATTERN intact"},
+      {"file": "interpolate.ts", "status": "PASS", "notes": "No eval/Function/vm, safe regex substitution only"},
+      {"file": "shell.ts", "status": "PASS", "notes": "Timeout and output size bounds intact, shell:true accepted risk"},
+      {"file": "sessions.ts", "status": "WARN", "notes": "NEW finding #011 - shell:true with session_id from state"}
+    ],
+    "new_findings": 1,
+    "regressions": 0
+  },
+  "change_analysis": {
+    "commits_since_last_audit": 3,
+    "commits": [
+      {
+        "hash": "d3f14a0",
+        "summary": "fix(security): exclude .herdctl/ runtime artifacts from scanner",
+        "security_impact": "POSITIVE - correctly excludes generated job files from bypassPermissions scan",
+        "files_changed": [".security/tools/utils.ts"]
+      },
+      {
+        "hash": "423c23d",
+        "summary": "chore(security): deduplicate audit reports to one per day",
+        "security_impact": "NEUTRAL - housekeeping only",
+        "files_changed": [".security/ only"]
+      },
+      {
+        "hash": "b62b39b",
+        "summary": "security: Daily automated security audits (Feb 12-17)",
+        "security_impact": "NEUTRAL - audit history only",
+        "files_changed": [".security/ only"]
+      }
+    ],
+    "source_code_changes": 0,
+    "new_attack_surface": false
+  },
+  "summary": {
+    "total_checks": 6,
+    "pass": 2,
+    "warn": 3,
+    "fail": 1,
+    "info": 0,
+    "new_findings": 1,
+    "resolved_findings": 1,
+    "notes": "Finding #008 resolved (now have concrete CVE data). Finding #011 is NEW (sessions.ts shell:true). Scanner fix for .herdctl/ exclusion is positive security improvement."
+  }
+}
+
