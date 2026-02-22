@@ -42,7 +42,11 @@ const FOCUSABLE_SELECTOR = 'input, button, [tabindex]:not([tabindex="-1"])';
 
 function StatusDot({ status }: { status: AgentInfo["status"] }) {
   const colorClass =
-    status === "idle" ? "bg-emerald-400" : status === "running" ? "bg-amber-400" : "bg-red-400";
+    status === "idle"
+      ? "bg-herd-status-idle"
+      : status === "running"
+        ? "bg-herd-status-running animate-pulse"
+        : "bg-herd-status-error";
 
   return <span className={`w-2 h-2 rounded-full flex-shrink-0 ${colorClass}`} />;
 }

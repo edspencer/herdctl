@@ -35,10 +35,12 @@ export function RecentConversationsList({ onNavigate }: RecentConversationsListP
 
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Fetch recent sessions on mount
+  // Fetch recent sessions on mount (skip if we already have data to avoid refetch on rapid tab switching)
   useEffect(() => {
-    fetchRecentSessions();
-  }, [fetchRecentSessions]);
+    if (recentSessions.length === 0 && !recentSessionsLoading) {
+      fetchRecentSessions();
+    }
+  }, [fetchRecentSessions, recentSessions.length, recentSessionsLoading]);
 
   // Detect if we're on Mac for keyboard shortcut hint
   const isMac = useMemo(() => {

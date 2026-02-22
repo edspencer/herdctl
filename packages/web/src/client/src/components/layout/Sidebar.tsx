@@ -742,6 +742,12 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
               placeholder="Search agents..."
             />
 
+            {isSearchActive && filteredAgents.length > 0 && (
+              <p className="text-[11px] text-herd-sidebar-muted px-4 pb-1">
+                {filteredAgents.length} {filteredAgents.length === 1 ? "agent" : "agents"} found
+              </p>
+            )}
+
             <div className="p-2 pt-0">
               {/* Fleet-grouped agents — each fleet is a visually distinct group */}
               {fleetNodes.length > 0 && (
