@@ -7,6 +7,48 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Chat Session Management Improvements
+**February 22, 2026** · `@herdctl/web@0.6.0` · `@herdctl/core@5.5.0` · `herdctl@1.3.8`
+
+The web dashboard now includes comprehensive chat session management features. Delete chat sessions directly from the sidebar by hovering over a chat to reveal trash and pencil icons. Deleted sessions are removed immediately with a confirmation step. Additionally, you can now configure how agent messages are displayed: choose between "separate" mode (each assistant turn as its own bubble) or "grouped" mode (consecutive turns merged into one). The preference is saved in your browser and can be toggled via a new chat settings control. Also includes a critical fix for session cross-contamination when SDK session mappings were missing, ensuring each web chat always starts with the correct conversation context.
+
+---
+
+### Inline Chat Session Renaming and Dashboard Improvements
+**February 21, 2026** · `@herdctl/web@0.5.0` · `@herdctl/core@5.4.3` · `herdctl@1.3.7`
+
+Chat sessions in the web dashboard sidebar can now be renamed inline. Click the pencil icon (visible on hover) to edit the session name, press Enter to save or Escape to cancel. Custom names take precedence over auto-generated previews. This release also fixes agent link navigation issues (jobs now store qualified names like `herdctl.engineer` for correct routing) and renames the schedule `expression` field to the more intuitive `cron` field (the old name still works for backward compatibility). Misconfigured schedules now log warnings only once instead of spamming every scheduler tick. The dashboard's "Recent Jobs" section no longer appears empty when no jobs have run in the last 24 hours.
+
+---
+
+### Shell Escaping Fix for Docker CLI Runtime
+**February 21, 2026** · `@herdctl/core@5.5.0`
+
+Fixed a critical bug where special characters in prompts (`$` and backticks) were being interpreted by the shell instead of passed literally to agents running in Docker CLI mode. Previously, prompts containing dollar signs (e.g., "Analyze $1234 in sales data") would have `$1` consumed by shell variable expansion, silently corrupting the agent's input. All prompts are now properly escaped before being passed to Docker containers.
+
+---
+
+### Pre-commit Hooks and iOS Safari Fix
+**February 21, 2026** · `@herdctl/web@0.4.0`
+
+Added pre-commit hooks to enforce code quality checks before commits. Fixed an iOS Safari issue where focusing on the chat input field would trigger aggressive auto-zoom, making the interface difficult to use on mobile devices. The input field now uses a 16px font size to prevent Safari's zoom behavior.
+
+---
+
+### Software Engineer Agent and Documentation Diagrams
+**February 20, 2026** · `@herdctl/core@5.4.0`
+
+Introduced a new built-in software engineer agent with persistent conversation state for multi-turn development workflows. The agent maintains context across sessions, making it ideal for iterative code reviews, debugging, and implementation tasks. Additionally, the documentation site now includes comprehensive Mermaid diagrams across multiple pages, visualizing architecture, data flows, and system interactions.
+
+---
+
+### Code Quality Tooling
+**February 19, 2026** · `@herdctl/core@5.4.1` · `herdctl@1.3.4`
+
+Added Biome for linting and formatting across all packages, replacing the previous linting setup. The new tooling provides faster, more consistent code formatting and better integration with modern development workflows. Also removed dead code identified by a knip audit, reducing bundle size and maintenance surface area.
+
+---
+
 ### Tool Call Visibility for Slack and Web
 **February 19, 2026** · `@herdctl/slack@1.2.0` · `@herdctl/web@0.2.0` · `@herdctl/chat@0.3.0` · `@herdctl/core@5.3.0`
 
