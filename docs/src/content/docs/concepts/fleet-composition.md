@@ -7,42 +7,7 @@ description: Composing hierarchical fleets from multiple projects and teams
 
 ## What is Fleet Composition?
 
-```mermaid
-graph TD
-  SF["Super Fleet: all-projects"]
-
-  SF --> H["herdctl"]
-  SF --> B["bragdoc"]
-  SF --> P["personal"]
-  SF --> M(["monitor"])
-
-  H --> H1(["security-auditor"])
-  H --> H2(["docs"])
-  H --> H3(["changelog"])
-  H --> H4(["engineer"])
-
-  B --> B1(["coder"])
-  B --> B2(["marketer"])
-  B --> B3(["support"])
-
-  P --> P1(["homelab"])
-  P --> P2(["garden"])
-
-  style SF fill:#4f46e5,color:#fff,stroke:#3730a3
-  style H fill:#1e40af,color:#fff,stroke:#1e3a8a
-  style B fill:#1e40af,color:#fff,stroke:#1e3a8a
-  style P fill:#1e40af,color:#fff,stroke:#1e3a8a
-  style M fill:#059669,color:#fff,stroke:#047857
-  style H1 fill:#059669,color:#fff,stroke:#047857
-  style H2 fill:#059669,color:#fff,stroke:#047857
-  style H3 fill:#059669,color:#fff,stroke:#047857
-  style H4 fill:#059669,color:#fff,stroke:#047857
-  style B1 fill:#059669,color:#fff,stroke:#047857
-  style B2 fill:#059669,color:#fff,stroke:#047857
-  style B3 fill:#059669,color:#fff,stroke:#047857
-  style P1 fill:#059669,color:#fff,stroke:#047857
-  style P2 fill:#059669,color:#fff,stroke:#047857
-```
+<img src="/diagrams/fleet-composition.svg" alt="Fleet composition diagram showing a super fleet containing three sub-fleets (herdctl, bragdoc, personal) with their individual agents" width="100%" />
 
 *One FleetManager · One scheduler · One web dashboard*
 
@@ -60,47 +25,7 @@ A typical setup might look like: your open source project has security, docs, an
 
 A large project can benefit from grouping agents by function. Marketing agents might grab analytics, optimize SEO, and monitor social sentiment. Engineering agents handle code review and deployment. Legal agents scan for compliance issues.
 
-```mermaid
-graph TD
-  SF["Super Fleet: all-projects"]
-
-  SF --> H["herdctl"]
-  SF --> B["bragdoc"]
-  SF --> P["personal"]
-
-  B --> PM(["product-manager"])
-
-  B --> MKT["Marketing"]
-  MKT --> MKT1(["analytics"])
-  MKT --> MKT2(["seo-optimizer"])
-  MKT --> MKT3(["social-monitor"])
-
-  B --> ENG["Engineering"]
-  ENG --> ENG1(["coder"])
-  ENG --> ENG2(["code-reviewer"])
-  ENG --> ENG3(["deploy-agent"])
-
-  B --> LEG["Legal"]
-  LEG --> LEG1(["compliance-scanner"])
-  LEG --> LEG2(["license-auditor"])
-
-  style SF fill:#4f46e5,color:#fff,stroke:#3730a3
-  style H fill:#1e40af,color:#fff,stroke:#1e3a8a
-  style B fill:#1e40af,color:#fff,stroke:#1e3a8a
-  style P fill:#1e40af,color:#fff,stroke:#1e3a8a
-  style MKT fill:#7c3aed,color:#fff,stroke:#6d28d9
-  style ENG fill:#7c3aed,color:#fff,stroke:#6d28d9
-  style LEG fill:#7c3aed,color:#fff,stroke:#6d28d9
-  style PM fill:#d97706,color:#fff,stroke:#b45309
-  style MKT1 fill:#059669,color:#fff,stroke:#047857
-  style MKT2 fill:#059669,color:#fff,stroke:#047857
-  style MKT3 fill:#059669,color:#fff,stroke:#047857
-  style ENG1 fill:#059669,color:#fff,stroke:#047857
-  style ENG2 fill:#059669,color:#fff,stroke:#047857
-  style ENG3 fill:#059669,color:#fff,stroke:#047857
-  style LEG1 fill:#059669,color:#fff,stroke:#047857
-  style LEG2 fill:#059669,color:#fff,stroke:#047857
-```
+<img src="/diagrams/fleet-composition-subteams.svg" alt="Fleet composition with sub-teams showing herdctl with Engineering, Marketing, and Legal teams each containing specialized agents" width="100%" />
 
 With fleet composition, each team can maintain their own fleet config in their own repo, and a central super-fleet brings them all together. The marketing team owns their agent definitions; engineering provides the infrastructure.
 

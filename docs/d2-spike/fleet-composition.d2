@@ -1,0 +1,135 @@
+# Super Fleet container
+all-projects: {
+  label: "Super Fleet: all-projects"
+  style.fill: "#4f46e5"
+  style.stroke: "#3730a3"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 16
+  style.shadow: true
+  style.font-size: 28
+
+  grid-columns: 4
+  grid-gap: 16
+
+  # Sub-fleet: herdctl
+  herdctl: {
+    label: "herdctl"
+    style.fill: "#1e40af"
+    style.stroke: "#1e3a8a"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 10
+    style.shadow: true
+    style.font-size: 20
+
+    grid-columns: 2
+    grid-gap: 10
+
+    security-auditor {
+      style.fill: "#059669"
+      style.stroke: "#047857"
+      style.font-color: "#ffffff"
+      style.border-radius: 8
+      style.font-size: 14
+    }
+    docs {
+      style.fill: "#059669"
+      style.stroke: "#047857"
+      style.font-color: "#ffffff"
+      style.border-radius: 8
+      style.font-size: 14
+    }
+    changelog {
+      style.fill: "#059669"
+      style.stroke: "#047857"
+      style.font-color: "#ffffff"
+      style.border-radius: 8
+      style.font-size: 14
+    }
+    engineer {
+      style.fill: "#059669"
+      style.stroke: "#047857"
+      style.font-color: "#ffffff"
+      style.border-radius: 8
+      style.font-size: 14
+    }
+  }
+
+  # Sub-fleet: bragdoc
+  bragdoc: {
+    label: "bragdoc"
+    style.fill: "#1e40af"
+    style.stroke: "#1e3a8a"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 10
+    style.shadow: true
+    style.font-size: 20
+
+    grid-columns: 1
+    grid-gap: 10
+
+    coder {
+      style.fill: "#059669"
+      style.stroke: "#047857"
+      style.font-color: "#ffffff"
+      style.border-radius: 8
+      style.font-size: 14
+    }
+    marketer {
+      style.fill: "#059669"
+      style.stroke: "#047857"
+      style.font-color: "#ffffff"
+      style.border-radius: 8
+      style.font-size: 14
+    }
+    support {
+      style.fill: "#059669"
+      style.stroke: "#047857"
+      style.font-color: "#ffffff"
+      style.border-radius: 8
+      style.font-size: 14
+    }
+  }
+
+  # Sub-fleet: personal
+  personal: {
+    label: "personal"
+    style.fill: "#1e40af"
+    style.stroke: "#1e3a8a"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 10
+    style.shadow: true
+    style.font-size: 20
+
+    grid-columns: 1
+    grid-gap: 10
+
+    homelab {
+      style.fill: "#059669"
+      style.stroke: "#047857"
+      style.font-color: "#ffffff"
+      style.border-radius: 8
+      style.font-size: 14
+    }
+    garden {
+      style.fill: "#059669"
+      style.stroke: "#047857"
+      style.font-color: "#ffffff"
+      style.border-radius: 8
+      style.font-size: 14
+    }
+  }
+
+  # Agent directly on root fleet
+  monitor {
+    style.fill: "#059669"
+    style.stroke: "#047857"
+    style.font-color: "#ffffff"
+    style.border-radius: 8
+    style.font-size: 16
+    style.bold: true
+  }
+}
