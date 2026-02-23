@@ -218,7 +218,7 @@ export function registerChatRoutes(
    *
    * Get token usage for a chat session by reading the Claude Code session file.
    *
-   * @returns { inputTokens: number, outputTokens: number, hasData: boolean }
+   * @returns { inputTokens: number, turnCount: number, hasData: boolean }
    */
   server.get<{
     Params: { agentName: string; sessionId: string };

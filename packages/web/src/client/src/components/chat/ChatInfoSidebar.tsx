@@ -224,7 +224,7 @@ export function ChatInfoSidebar({ agentName, sessionId, createdAt }: ChatInfoSid
   // Build "Continue in Claude Code" command (only for non-Docker agents)
   const resumeCommand =
     sdkSessionId && !dockerEnabled
-      ? `${workDir ? `cd ${workDir} && ` : ""}claude --resume ${sdkSessionId}`
+      ? `${workDir ? `cd '${workDir}' && ` : ""}claude --resume ${sdkSessionId}`
       : null;
 
   return (

@@ -104,7 +104,7 @@ export function ChatView() {
                 <button
                   type="button"
                   onClick={toggleChatInfoSidebar}
-                  className={`text-[11px] transition-colors flex items-center gap-1 ${
+                  className={`text-[11px] transition-colors hidden lg:flex items-center gap-1 ${
                     chatInfoSidebarOpen ? "text-herd-fg" : "text-herd-muted hover:text-herd-fg"
                   }`}
                   title="Toggle session info"

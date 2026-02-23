@@ -311,7 +311,13 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       // Stop all chat managers first (graceful disconnect)
       for (const [platform, manager] of this.chatManagers) {
         this.logger.debug(`Stopping ${platform} chat manager...`);
-        await manager.stop();
+        try {
+          await manager.stop();
+        } catch (error) {
+          this.logger.error(
+            `Failed to stop ${platform} chat manager: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
       }
 
       if (this.scheduler) {

@@ -987,6 +987,8 @@ export class WebChatManager {
           // Skip malformed lines
         }
       }
+    } catch {
+      return noData;
     } finally {
       rl.close();
       fileStream.destroy();
