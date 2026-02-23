@@ -1,0 +1,196 @@
+# Chat Infrastructure Components
+# Shows @herdctl/chat internals with types, utilities, error handling, formatting subgroups
+
+direction: down
+
+# Main package container
+chat-package: {
+  label: "@herdctl/chat"
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 16
+  style.shadow: true
+  style.font-size: 24
+
+  grid-columns: 2
+  grid-gap: 16
+
+  # Shared Types & Interfaces
+  types: {
+    label: "Shared Types & Interfaces"
+    style.fill: "#326CE5"
+    style.stroke: "#2857b8"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 10
+    style.shadow: true
+    style.font-size: 16
+
+    grid-columns: 1
+    grid-gap: 8
+
+    IChatConnector: {
+      label: "IChatConnector\nconnect · disconnect\nisConnected · getState"
+      style.fill: "#f8fafc"
+      style.stroke: "#cbd5e1"
+      style.font-color: "#1e293b"
+      style.border-radius: 6
+      style.font-size: 11
+    }
+
+    IChatSession: {
+      label: "IChatSessionManager\ngetOrCreateSession · touchSession\nclearSession"
+      style.fill: "#93c5fd"
+      style.stroke: "#60a5fa"
+      style.font-color: "#1e293b"
+      style.border-radius: 6
+      style.font-size: 11
+    }
+
+    ChatEvent: {
+      label: "ChatConnectorEventMap\nready · disconnect · error\nmessage · messageIgnored\ncommandExecuted · sessionLifecycle"
+      style.fill: "#38bdf8"
+      style.stroke: "#0ea5e9"
+      style.font-color: "#0c4a6e"
+      style.border-radius: 6
+      style.font-size: 11
+    }
+
+    ChatMsg: {
+      label: "ChatMessageEvent\nagentName · prompt · metadata\nreply() · startProcessingIndicator()"
+      style.fill: "#c4b5fd"
+      style.stroke: "#a78bfa"
+      style.font-color: "#2e1065"
+      style.border-radius: 6
+      style.font-size: 11
+    }
+  }
+
+  # Shared Utilities
+  utilities: {
+    label: "Shared Utilities"
+    style.fill: "#326CE5"
+    style.stroke: "#2857b8"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 10
+    style.shadow: true
+    style.font-size: 16
+
+    grid-columns: 1
+    grid-gap: 8
+
+    SessionMgr: {
+      label: "ChatSessionManager\nPer-channel session persistence\nYAML state files · Expiry · Cleanup"
+      style.fill: "#6ee7b7"
+      style.stroke: "#34d399"
+      style.font-color: "#064e3b"
+      style.border-radius: 6
+      style.font-size: 11
+    }
+
+    Streaming: {
+      label: "StreamingResponder\nMessage buffering · Rate limiting\nAuto-splitting for platform limits"
+      style.fill: "#fbbf24"
+      style.stroke: "#d97706"
+      style.font-color: "#451a03"
+      style.border-radius: 6
+      style.font-size: 11
+    }
+
+    Splitting: {
+      label: "Message Splitting\nfindSplitPoint · splitMessage\nParagraph/sentence/word boundaries"
+      style.fill: "#fdba74"
+      style.stroke: "#f59e0b"
+      style.font-color: "#451a03"
+      style.border-radius: 6
+      style.font-size: 11
+    }
+
+    Extract: {
+      label: "Message Extraction\nextractMessageContent\nClaude SDK message parsing"
+      style.fill: "#22d3ee"
+      style.stroke: "#06b6d4"
+      style.font-color: "#083344"
+      style.border-radius: 6
+      style.font-size: 11
+    }
+
+    ToolParse: {
+      label: "Tool Parsing\nextractToolUseBlocks · extractToolResults\nTool input summaries · Emoji mapping"
+      style.fill: "#a3e635"
+      style.stroke: "#84cc16"
+      style.font-color: "#1a2e05"
+      style.border-radius: 6
+      style.font-size: 11
+    }
+  }
+
+  # Error Handling & Filtering
+  safety: {
+    label: "Error Handling & Filtering"
+    style.fill: "#2a9d8f"
+    style.stroke: "#21867a"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 10
+    style.shadow: true
+    style.font-size: 16
+
+    grid-columns: 1
+    grid-gap: 8
+
+    Errors: {
+      label: "ChatConnectorError Hierarchy\nConnectionError · AlreadyConnectedError\nInvalidTokenError · MissingTokenError"
+      style.fill: "#f87171"
+      style.stroke: "#ef4444"
+      style.font-color: "#ffffff"
+      style.border-radius: 6
+      style.font-size: 11
+    }
+
+    ErrHandler: {
+      label: "Error Handler\nwithRetry · safeExecute · ErrorCategory\nExponential backoff · Classification"
+      style.fill: "#fda4af"
+      style.stroke: "#fb7185"
+      style.font-color: "#4c0519"
+      style.border-radius: 6
+      style.font-size: 11
+    }
+
+    DMFilter: {
+      label: "DM Filtering\nAllowlist/blocklist · Mode detection\nshouldProcessInMode"
+      style.fill: "#fb923c"
+      style.stroke: "#f97316"
+      style.font-color: "#431407"
+      style.border-radius: 6
+      style.font-size: 11
+    }
+  }
+
+  # Formatting
+  formatting: {
+    label: "Formatting"
+    style.fill: "#2a9d8f"
+    style.stroke: "#21867a"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 10
+    style.shadow: true
+    style.font-size: 16
+
+    grid-columns: 1
+    grid-gap: 8
+
+    StatusFmt: {
+      label: "Status Formatting\nformatTimestamp · formatDuration\ngetStatusEmoji · formatCost"
+      style.fill: "#94a3b8"
+      style.stroke: "#64748b"
+      style.font-color: "#0f172a"
+      style.border-radius: 6
+      style.font-size: 11
+    }
+  }
+}

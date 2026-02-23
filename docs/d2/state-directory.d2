@@ -1,0 +1,152 @@
+# State Directory Structure
+# Shows the .herdctl/ directory layout for fleet state management
+
+herdctl-dir: {
+  label: ".herdctl/"
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 16
+  style.shadow: true
+  style.font-size: 24
+
+  grid-columns: 4
+  grid-gap: 16
+
+  # Fleet state file - standalone at root level
+  state-yaml: {
+    label: "state.yaml"
+    style.fill: "#fbbf24"
+    style.stroke: "#d97706"
+    style.font-color: "#451a03"
+    style.border-radius: 6
+    style.font-size: 13
+  }
+
+  # Jobs directory
+  jobs: {
+    label: "jobs/"
+    style.fill: "#326CE5"
+    style.stroke: "#2857b8"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 10
+    style.shadow: true
+    style.font-size: 18
+
+    grid-columns: 1
+    grid-gap: 8
+
+    job1-yaml: {
+      label: "job-2025-01-19-abc123.yaml"
+      style.fill: "#6ee7b7"
+      style.stroke: "#34d399"
+      style.font-color: "#064e3b"
+      style.border-radius: 6
+      style.font-size: 11
+    }
+
+    job1-jsonl: {
+      label: "job-2025-01-19-abc123.jsonl"
+      style.fill: "#c4b5fd"
+      style.stroke: "#a78bfa"
+      style.font-color: "#2e1065"
+      style.border-radius: 6
+      style.font-size: 11
+    }
+
+    job2-yaml: {
+      label: "job-2025-01-19-def456.yaml"
+      style.fill: "#6ee7b7"
+      style.stroke: "#34d399"
+      style.font-color: "#064e3b"
+      style.border-radius: 6
+      style.font-size: 11
+    }
+
+    job2-jsonl: {
+      label: "job-2025-01-19-def456.jsonl"
+      style.fill: "#c4b5fd"
+      style.stroke: "#a78bfa"
+      style.font-color: "#2e1065"
+      style.border-radius: 6
+      style.font-size: 11
+    }
+  }
+
+  # Sessions directory
+  sessions: {
+    label: "sessions/"
+    style.fill: "#326CE5"
+    style.stroke: "#2857b8"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 10
+    style.shadow: true
+    style.font-size: 18
+
+    grid-columns: 1
+    grid-gap: 8
+
+    sess1: {
+      label: "bragdoc-coder.json"
+      style.fill: "#38bdf8"
+      style.stroke: "#0ea5e9"
+      style.font-color: "#0c4a6e"
+      style.border-radius: 6
+      style.font-size: 11
+    }
+
+    sess2: {
+      label: "bragdoc-marketer.json"
+      style.fill: "#93c5fd"
+      style.stroke: "#60a5fa"
+      style.font-color: "#1e293b"
+      style.border-radius: 6
+      style.font-size: 11
+    }
+
+    sess3: {
+      label: "herdctl.security-auditor.json"
+      style.fill: "#22d3ee"
+      style.stroke: "#06b6d4"
+      style.font-color: "#083344"
+      style.border-radius: 6
+      style.font-size: 11
+    }
+  }
+
+  # Logs directory
+  logs: {
+    label: "logs/"
+    style.fill: "#326CE5"
+    style.stroke: "#2857b8"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 10
+    style.shadow: true
+    style.font-size: 18
+
+    grid-columns: 1
+    grid-gap: 8
+
+    log1: {
+      label: "bragdoc-coder.log"
+      style.fill: "#94a3b8"
+      style.stroke: "#64748b"
+      style.font-color: "#0f172a"
+      style.border-radius: 6
+      style.font-size: 11
+    }
+
+    log2: {
+      label: "bragdoc-marketer.log"
+      style.fill: "#78716c"
+      style.stroke: "#57534e"
+      style.font-color: "#ffffff"
+      style.border-radius: 6
+      style.font-size: 11
+    }
+  }
+}

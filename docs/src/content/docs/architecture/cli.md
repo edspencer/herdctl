@@ -7,6 +7,8 @@ The `herdctl` CLI is a thin wrapper around `@herdctl/core`. It contains no busin
 
 For a bird's-eye view of how the CLI fits into the broader system, see [System Architecture Overview](/architecture/overview/).
 
+![CLI command mapping showing each herdctl command delegating to its corresponding FleetManager API method](/diagrams/cli-command-mapping.svg)
+
 ## Design Principle: Zero Business Logic
 
 The CLI follows the project-wide **library-first** architecture. All fleet management logic lives in `@herdctl/core`. The CLI adds only:
@@ -115,6 +117,8 @@ Every command delegates to `@herdctl/core` APIs. The CLI never reads configurati
 Commands that only need to read job data (`jobs`, `job`) use `JobManager` directly rather than creating a full `FleetManager`. This avoids configuration validation overhead for read-only queries against the `.herdctl/jobs/` directory.
 
 ## PID File Management
+
+![CLI lifecycle flow showing start command, PID file management, signal handling, and graceful shutdown](/diagrams/cli-lifecycle-flow.svg)
 
 The `start` and `stop` commands use a PID file to coordinate the fleet process lifecycle.
 

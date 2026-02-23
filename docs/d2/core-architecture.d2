@@ -1,0 +1,175 @@
+# Core Architecture - FleetManager as Central Orchestrator
+# Shows how FleetManager connects all internal modules
+
+direction: down
+
+# Central orchestrator - using logo blue as the focal point
+fleet-manager: {
+  label: "FleetManager\nCentral Orchestrator"
+  style.fill: "#326CE5"
+  style.stroke: "#2857b8"
+  style.stroke-width: 3
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 18
+  style.bold: true
+}
+
+# Core modules container - navy for top-level grouping
+core-modules: {
+  label: "Core Modules"
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 16
+
+  grid-columns: 4
+  grid-gap: 12
+
+  config-loader: {
+    label: "ConfigLoader\nYAML parsing, validation,\nfleet composition"
+    style.fill: "#93c5fd"
+    style.stroke: "#60a5fa"
+    style.font-color: "#1e293b"
+    style.border-radius: 8
+    style.font-size: 12
+  }
+
+  scheduler: {
+    label: "Scheduler\nInterval & cron triggers,\nconcurrency control"
+    style.fill: "#6ee7b7"
+    style.stroke: "#34d399"
+    style.font-color: "#064e3b"
+    style.border-radius: 8
+    style.font-size: 12
+  }
+
+  state-manager: {
+    label: "StateManager\n.herdctl/ persistence,\natomic writes"
+    style.fill: "#fbbf24"
+    style.stroke: "#d97706"
+    style.font-color: "#451a03"
+    style.border-radius: 8
+    style.font-size: 12
+  }
+
+  runner: {
+    label: "Runner\nSDK/CLI/Docker runtime,\nmessage processing"
+    style.fill: "#f87171"
+    style.stroke: "#ef4444"
+    style.font-color: "#ffffff"
+    style.border-radius: 8
+    style.font-size: 12
+  }
+}
+
+# Additional managers container - teal for secondary grouping
+managers: {
+  label: "Managers"
+  style.fill: "#2a9d8f"
+  style.stroke: "#21867a"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 16
+
+  grid-columns: 2
+  grid-gap: 12
+
+  job-manager: {
+    label: "JobManager\nJob queue, lifecycle,\npriority, retention"
+    style.fill: "#c4b5fd"
+    style.stroke: "#a78bfa"
+    style.font-color: "#2e1065"
+    style.border-radius: 8
+    style.font-size: 12
+  }
+
+  web-chat: {
+    label: "Web / Chat Managers\nDashboard, Discord, Slack\n(loaded dynamically)"
+    style.fill: "#fdba74"
+    style.stroke: "#f59e0b"
+    style.font-color: "#451a03"
+    style.border-radius: 8
+    style.font-size: 12
+  }
+}
+
+# External systems - distinct colors for each
+claude-sdk: {
+  label: "Claude Code\nSDK / CLI"
+  shape: cylinder
+  style.fill: "#fb923c"
+  style.stroke: "#f97316"
+  style.font-color: "#431407"
+  style.border-radius: 8
+  style.font-size: 12
+}
+
+filesystem: {
+  label: ".herdctl/\nstate.yaml, jobs/, sessions/"
+  shape: cylinder
+  style.fill: "#22d3ee"
+  style.stroke: "#06b6d4"
+  style.font-color: "#083344"
+  style.border-radius: 8
+  style.font-size: 12
+}
+
+# Connections from FleetManager to all modules
+fleet-manager -> core-modules.config-loader: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+fleet-manager -> core-modules.scheduler: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+fleet-manager -> core-modules.state-manager: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+fleet-manager -> core-modules.runner: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+fleet-manager -> managers.job-manager: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+fleet-manager -> managers.web-chat: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+
+# Internal module interactions
+core-modules.scheduler -> core-modules.runner: triggers {
+  style.stroke: "#64748b"
+  style.stroke-width: 1
+  style.stroke-dash: 4
+}
+core-modules.runner -> core-modules.state-manager: streams output {
+  style.stroke: "#64748b"
+  style.stroke-width: 1
+  style.stroke-dash: 4
+}
+managers.job-manager -> core-modules.runner: enqueue & track {
+  style.stroke: "#64748b"
+  style.stroke-width: 1
+  style.stroke-dash: 4
+}
+
+# External connections
+core-modules.runner -> claude-sdk: {
+  style.stroke: "#f97316"
+  style.stroke-width: 2
+}
+core-modules.state-manager -> filesystem: {
+  style.stroke: "#06b6d4"
+  style.stroke-width: 2
+}

@@ -1,0 +1,399 @@
+# Container Architecture - Docker Runtime Isolation
+# Shows how herdctl manages containerized Claude Code agents
+#
+# Strategy: Use ONLY top-level connections (host -> docker -> api)
+# to force vertical stacking. Use grid layouts inside containers
+# to keep them compact. Cross-boundary details shown via labels.
+
+direction: down
+
+# ============================================================
+# ROW 1: HOST SYSTEM
+# ============================================================
+host: {
+  label: "Host System"
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 16
+  style.shadow: true
+  style.font-size: 20
+
+  grid-columns: 2
+  grid-gap: 12
+
+  process: {
+    label: "herdctl Process"
+    style.fill: "#2a9d8f"
+    style.stroke: "#21867a"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 10
+    style.shadow: true
+    style.font-size: 16
+
+    # Use grid to control layout tightly
+    grid-columns: 1
+    grid-gap: 6
+
+    # Row 1: FleetManager -> RuntimeFactory -> ContainerRunner
+    top-row: {
+      label: ""
+      style.fill: "transparent"
+      style.stroke: "transparent"
+
+      grid-columns: 3
+      grid-gap: 8
+
+      fleet-manager: {
+        label: "FleetManager"
+        style.fill: "#93c5fd"
+        style.stroke: "#60a5fa"
+        style.stroke-width: 2
+        style.font-color: "#1e293b"
+        style.border-radius: 8
+        style.bold: true
+        style.font-size: 12
+      }
+
+      runtime-factory: {
+        label: "RuntimeFactory"
+        style.fill: "#c4b5fd"
+        style.stroke: "#a78bfa"
+        style.stroke-width: 2
+        style.font-color: "#2e1065"
+        style.border-radius: 8
+        style.bold: true
+        style.font-size: 12
+      }
+
+      container-runner: {
+        label: "ContainerRunner\n(decorator)"
+        style.fill: "#f87171"
+        style.stroke: "#ef4444"
+        style.stroke-width: 2
+        style.font-color: "#ffffff"
+        style.border-radius: 8
+        style.bold: true
+        style.font-size: 12
+      }
+
+      fleet-manager -> runtime-factory: creates {
+        style.stroke: "#e2e8f0"
+        style.stroke-width: 2
+        style.font-size: 10
+        style.font-color: "#e2e8f0"
+      }
+      runtime-factory -> container-runner: composes {
+        style.stroke: "#e2e8f0"
+        style.stroke-width: 2
+        style.font-size: 10
+        style.font-color: "#e2e8f0"
+      }
+    }
+
+    # Row 2: Components managed by ContainerRunner
+    bottom-row: {
+      label: ""
+      style.fill: "transparent"
+      style.stroke: "transparent"
+
+      grid-columns: 4
+      grid-gap: 6
+
+      sdk-runtime: {
+        label: "SDKRuntime"
+        style.fill: "#6ee7b7"
+        style.stroke: "#34d399"
+        style.font-color: "#064e3b"
+        style.border-radius: 6
+        style.bold: true
+        style.font-size: 11
+      }
+
+      cli-runtime: {
+        label: "CLIRuntime"
+        style.fill: "#fbbf24"
+        style.stroke: "#d97706"
+        style.font-color: "#451a03"
+        style.border-radius: 6
+        style.bold: true
+        style.font-size: 11
+      }
+
+      mcp-bridge: {
+        label: "MCP HTTP\nBridge"
+        style.fill: "#fdba74"
+        style.stroke: "#f59e0b"
+        style.stroke-width: 2
+        style.font-color: "#451a03"
+        style.border-radius: 8
+        style.bold: true
+        style.font-size: 11
+      }
+
+      container-manager: {
+        label: "Container\nManager"
+        style.fill: "#38bdf8"
+        style.stroke: "#0ea5e9"
+        style.stroke-width: 2
+        style.font-color: "#0c4a6e"
+        style.border-radius: 8
+        style.bold: true
+        style.font-size: 11
+      }
+    }
+
+    # Vertical connections: ContainerRunner -> children
+    top-row.container-runner -> bottom-row.sdk-runtime: wraps {
+      style.stroke: "#e2e8f0"
+      style.stroke-width: 2
+      style.font-size: 9
+      style.font-color: "#e2e8f0"
+    }
+    top-row.container-runner -> bottom-row.cli-runtime: wraps {
+      style.stroke: "#e2e8f0"
+      style.stroke-width: 2
+      style.font-size: 9
+      style.font-color: "#e2e8f0"
+    }
+    top-row.container-runner -> bottom-row.mcp-bridge: starts {
+      style.stroke: "#e2e8f0"
+      style.stroke-width: 2
+      style.font-size: 9
+      style.font-color: "#e2e8f0"
+    }
+    top-row.container-runner -> bottom-row.container-manager: manages {
+      style.stroke: "#e2e8f0"
+      style.stroke-width: 2
+      style.font-size: 9
+      style.font-color: "#e2e8f0"
+    }
+  }
+
+  filesystem: {
+    label: "Host Filesystem"
+    style.fill: "#2a9d8f"
+    style.stroke: "#21867a"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 10
+    style.shadow: true
+    style.font-size: 14
+
+    grid-columns: 1
+    grid-gap: 8
+
+    workspace-dir: {
+      label: "working_directory/\nProject source code"
+      style.fill: "#f8fafc"
+      style.stroke: "#cbd5e1"
+      style.stroke-width: 2
+      style.font-color: "#1e293b"
+      style.border-radius: 6
+      style.bold: true
+      style.font-size: 11
+    }
+
+    state-dir: {
+      label: ".herdctl/docker-sessions/\nSession files"
+      style.fill: "#f8fafc"
+      style.stroke: "#cbd5e1"
+      style.stroke-width: 2
+      style.font-color: "#1e293b"
+      style.border-radius: 6
+      style.bold: true
+      style.font-size: 11
+    }
+
+    credentials: {
+      label: "~/.claude/.credentials.json\nOAuth tokens"
+      style.fill: "#f8fafc"
+      style.stroke: "#cbd5e1"
+      style.stroke-width: 2
+      style.font-color: "#1e293b"
+      style.border-radius: 6
+      style.bold: true
+      style.font-size: 11
+    }
+  }
+}
+
+# ============================================================
+# ROW 2: DOCKER CONTAINER
+# ============================================================
+docker: {
+  label: "Docker Container -- herdctl/runtime:latest"
+  style.fill: "#326CE5"
+  style.stroke: "#2857b8"
+  style.stroke-width: 3
+  style.font-color: "#ffffff"
+  style.border-radius: 16
+  style.shadow: true
+  style.bold: true
+  style.font-size: 18
+
+  grid-columns: 3
+  grid-gap: 10
+
+  runtime-env: {
+    label: "Runtime Environment"
+    style.fill: "#1e3a5f"
+    style.stroke: "#142842"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 10
+    style.font-size: 13
+
+    grid-columns: 2
+    grid-gap: 6
+
+    node: {
+      label: "Node.js 22"
+      style.fill: "#6ee7b7"
+      style.stroke: "#34d399"
+      style.stroke-width: 2
+      style.font-color: "#064e3b"
+      style.border-radius: 6
+      style.bold: true
+      style.font-size: 11
+    }
+
+    claude-cli: {
+      label: "Claude CLI"
+      style.fill: "#93c5fd"
+      style.stroke: "#60a5fa"
+      style.stroke-width: 2
+      style.font-color: "#1e293b"
+      style.border-radius: 6
+      style.bold: true
+      style.font-size: 11
+    }
+
+    claude-sdk: {
+      label: "Claude Agent SDK"
+      style.fill: "#c4b5fd"
+      style.stroke: "#a78bfa"
+      style.stroke-width: 2
+      style.font-color: "#2e1065"
+      style.border-radius: 6
+      style.bold: true
+      style.font-size: 11
+    }
+
+    sdk-wrapper: {
+      label: "docker-sdk-wrapper.js\nJSONL streaming"
+      style.fill: "#fbbf24"
+      style.stroke: "#d97706"
+      style.stroke-width: 2
+      style.font-color: "#451a03"
+      style.border-radius: 6
+      style.bold: true
+      style.font-size: 10
+    }
+  }
+
+  mounts: {
+    label: "Mount Points (bind mounts)"
+    style.fill: "#1e3a5f"
+    style.stroke: "#142842"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 10
+    style.font-size: 13
+
+    grid-columns: 1
+    grid-gap: 6
+
+    workspace-mount: {
+      label: "/workspace (rw)\nfrom working_directory/"
+      style.fill: "#fdba74"
+      style.stroke: "#f59e0b"
+      style.stroke-width: 2
+      style.font-color: "#451a03"
+      style.border-radius: 6
+      style.bold: true
+      style.font-size: 10
+    }
+
+    session-mount: {
+      label: "/home/claude/.claude/projects/ (rw)\nfrom .herdctl/docker-sessions/"
+      style.fill: "#fdba74"
+      style.stroke: "#f59e0b"
+      style.stroke-width: 2
+      style.font-color: "#451a03"
+      style.border-radius: 6
+      style.bold: true
+      style.font-size: 10
+    }
+  }
+
+  security: {
+    label: "Security Hardening"
+    style.fill: "#1e3a5f"
+    style.stroke: "#142842"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 10
+    style.font-size: 13
+
+    grid-columns: 1
+    grid-gap: 6
+
+    caps: {
+      label: "CapDrop: ALL\nno-new-privileges"
+      style.fill: "#f87171"
+      style.stroke: "#ef4444"
+      style.stroke-width: 2
+      style.font-color: "#ffffff"
+      style.border-radius: 6
+      style.bold: true
+      style.font-size: 10
+    }
+
+    limits: {
+      label: "Memory + CPU +\nPID limits\nNon-root user"
+      style.fill: "#fb923c"
+      style.stroke: "#f97316"
+      style.stroke-width: 2
+      style.font-color: "#431407"
+      style.border-radius: 6
+      style.bold: true
+      style.font-size: 10
+    }
+  }
+}
+
+# ============================================================
+# ROW 3: ANTHROPIC API
+# ============================================================
+anthropic-api: {
+  label: "Anthropic API\napi.anthropic.com"
+  shape: cylinder
+  style.fill: "#475569"
+  style.stroke: "#334155"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 8
+  style.bold: true
+  style.font-size: 14
+}
+
+# ============================================================
+# TOP-LEVEL CONNECTIONS ONLY
+# ============================================================
+
+host -> docker: "docker exec  |  bind mounts (rw)  |  MCP Streamable Transport (HTTP)" {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+  style.font-size: 11
+  style.font-color: "#94a3b8"
+}
+
+docker -> anthropic-api: "HTTPS / Docker bridge network" {
+  style.stroke: "#06b6d4"
+  style.stroke-width: 2
+  style.font-size: 11
+  style.font-color: "#06b6d4"
+}

@@ -7,6 +7,8 @@ The Docker container runtime enables herdctl to execute Claude Code agents insid
 
 This page covers the internal architecture of the Docker runtime. For the runner system as a whole, see [Agent Execution Engine](/architecture/runner/). For the overall system design, see [System Architecture Overview](/architecture/overview/).
 
+![Docker container architecture showing host process, container internals, volume mounts, network bridge, and MCP HTTP bridge](/diagrams/container-architecture.svg)
+
 ## Decorator Pattern
 
 `ContainerRunner` implements the decorator pattern. It wraps any base runtime (`SDKRuntime` or `CLIRuntime`) and transparently redirects execution into a Docker container. The `RuntimeFactory` composes this automatically when an agent's configuration has `docker.enabled: true`:
@@ -28,6 +30,8 @@ for await (const message of runtime.execute(options)) {
   // process messages
 }
 ```
+
+![ContainerRunner decorator pattern showing how it wraps base runtimes with container lifecycle management](/diagrams/container-runner-decorator.svg)
 
 ### How Wrapping Works
 
@@ -120,6 +124,8 @@ After execution completes:
 ## Network Configuration
 
 Network mode controls how agent containers connect to the outside world.
+
+![Network modes comparison showing bridge mode with NAT isolation versus host mode with shared network namespace](/diagrams/network-modes-comparison.svg)
 
 | Mode | Config Value | Behavior |
 |------|-------------|----------|

@@ -1,0 +1,222 @@
+# Multi-color agents — each agent gets a distinct color
+all-projects: {
+  label: "Super Fleet: all-projects"
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 16
+  style.shadow: true
+  style.font-size: 28
+
+  grid-columns: 4
+  grid-gap: 16
+
+  project-a: {
+    label: "Project A"
+    style.fill: "#326CE5"
+    style.stroke: "#2857b8"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 10
+    style.shadow: true
+    style.font-size: 20
+
+    grid-columns: 3
+    grid-gap: 10
+
+    engineering: {
+      label: "Engineering"
+      style.fill: "#2a9d8f"
+      style.stroke: "#21867a"
+      style.stroke-width: 2
+      style.font-color: "#ffffff"
+      style.border-radius: 8
+      style.shadow: true
+      style.font-size: 16
+
+      grid-columns: 1
+      grid-gap: 8
+
+      security-auditor {
+        style.fill: "#f8fafc"
+        style.stroke: "#cbd5e1"
+        style.font-color: "#1e293b"
+        style.border-radius: 6
+        style.font-size: 13
+      }
+      changelog {
+        style.fill: "#94a3b8"
+        style.stroke: "#64748b"
+        style.font-color: "#0f172a"
+        style.border-radius: 6
+        style.font-size: 13
+      }
+      docs {
+        style.fill: "#93c5fd"
+        style.stroke: "#60a5fa"
+        style.font-color: "#1e293b"
+        style.border-radius: 6
+        style.font-size: 13
+      }
+      engineer {
+        style.fill: "#38bdf8"
+        style.stroke: "#0ea5e9"
+        style.font-color: "#0c4a6e"
+        style.border-radius: 6
+        style.font-size: 13
+      }
+    }
+
+    marketing: {
+      label: "Marketing"
+      style.fill: "#2a9d8f"
+      style.stroke: "#21867a"
+      style.stroke-width: 2
+      style.font-color: "#ffffff"
+      style.border-radius: 8
+      style.shadow: true
+      style.font-size: 16
+
+      grid-columns: 1
+      grid-gap: 8
+
+      analytics {
+        style.fill: "#fdba74"
+        style.stroke: "#f59e0b"
+        style.font-color: "#451a03"
+        style.border-radius: 6
+        style.font-size: 13
+      }
+      seo {
+        label: "SEO"
+        style.fill: "#fbbf24"
+        style.stroke: "#d97706"
+        style.font-color: "#451a03"
+        style.border-radius: 6
+        style.font-size: 13
+      }
+      social-media {
+        label: "social media"
+        style.fill: "#f87171"
+        style.stroke: "#ef4444"
+        style.font-color: "#ffffff"
+        style.border-radius: 6
+        style.font-size: 13
+      }
+    }
+
+    legal: {
+      label: "Legal"
+      style.fill: "#2a9d8f"
+      style.stroke: "#21867a"
+      style.stroke-width: 2
+      style.font-color: "#ffffff"
+      style.border-radius: 8
+      style.shadow: true
+      style.font-size: 16
+
+      grid-columns: 1
+      grid-gap: 8
+
+      gdpr-scanner {
+        label: "GDPR scanner"
+        style.fill: "#fda4af"
+        style.stroke: "#fb7185"
+        style.font-color: "#4c0519"
+        style.border-radius: 6
+        style.font-size: 13
+      }
+      tos-scanner {
+        label: "TOS scanner"
+        style.fill: "#c4b5fd"
+        style.stroke: "#a78bfa"
+        style.font-color: "#2e1065"
+        style.border-radius: 6
+        style.font-size: 13
+      }
+      legal-news {
+        label: "legal news scanner"
+        style.fill: "#6ee7b7"
+        style.stroke: "#34d399"
+        style.font-color: "#064e3b"
+        style.border-radius: 6
+        style.font-size: 13
+      }
+    }
+  }
+
+  project-b: {
+    label: "Project B"
+    style.fill: "#326CE5"
+    style.stroke: "#2857b8"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 10
+    style.shadow: true
+    style.font-size: 20
+
+    grid-columns: 1
+    grid-gap: 10
+
+    engineer {
+      style.fill: "#38bdf8"
+      style.stroke: "#0ea5e9"
+      style.font-color: "#0c4a6e"
+      style.border-radius: 6
+      style.font-size: 13
+    }
+    marketer {
+      style.fill: "#78716c"
+      style.stroke: "#57534e"
+      style.font-color: "#ffffff"
+      style.border-radius: 6
+      style.font-size: 13
+    }
+    support {
+      style.fill: "#6ee7b7"
+      style.stroke: "#34d399"
+      style.font-color: "#064e3b"
+      style.border-radius: 6
+      style.font-size: 13
+    }
+  }
+
+  personal: {
+    label: "Personal"
+    style.fill: "#326CE5"
+    style.stroke: "#2857b8"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 10
+    style.shadow: true
+    style.font-size: 20
+
+    grid-columns: 1
+    grid-gap: 10
+
+    homelab {
+      style.fill: "#fdba74"
+      style.stroke: "#f59e0b"
+      style.font-color: "#451a03"
+      style.border-radius: 6
+      style.font-size: 13
+    }
+    garden {
+      style.fill: "#a3e635"
+      style.stroke: "#84cc16"
+      style.font-color: "#1a2e05"
+      style.border-radius: 6
+      style.font-size: 13
+    }
+  }
+
+  monitor {
+    style.fill: "#475569"
+    style.stroke: "#334155"
+    style.font-color: "#ffffff"
+    style.border-radius: 6
+    style.font-size: 14
+    style.bold: true
+  }
+}

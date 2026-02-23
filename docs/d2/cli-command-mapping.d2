@@ -1,0 +1,368 @@
+# CLI Command Mapping - herdctl commands → FleetManager → @herdctl/core APIs
+# Shows how each CLI command maps through FleetManager to core library methods
+
+direction: right
+
+# ──────────────────────────────────────────────
+# CLI Commands (left column) - each with a distinct secondary color
+# ──────────────────────────────────────────────
+
+cmd-init: {
+  label: "herdctl init"
+  style.fill: "#f8fafc"
+  style.stroke: "#cbd5e1"
+  style.stroke-width: 2
+  style.font-color: "#1e293b"
+  style.border-radius: 8
+  style.font-size: 14
+  style.bold: true
+}
+
+cmd-start: {
+  label: "herdctl start"
+  style.fill: "#93c5fd"
+  style.stroke: "#60a5fa"
+  style.stroke-width: 2
+  style.font-color: "#1e293b"
+  style.border-radius: 8
+  style.font-size: 14
+  style.bold: true
+}
+
+cmd-stop: {
+  label: "herdctl stop"
+  style.fill: "#38bdf8"
+  style.stroke: "#0ea5e9"
+  style.stroke-width: 2
+  style.font-color: "#0c4a6e"
+  style.border-radius: 8
+  style.font-size: 14
+  style.bold: true
+}
+
+cmd-status: {
+  label: "herdctl status"
+  style.fill: "#6ee7b7"
+  style.stroke: "#34d399"
+  style.stroke-width: 2
+  style.font-color: "#064e3b"
+  style.border-radius: 8
+  style.font-size: 14
+  style.bold: true
+}
+
+cmd-trigger: {
+  label: "herdctl trigger"
+  style.fill: "#fbbf24"
+  style.stroke: "#d97706"
+  style.stroke-width: 2
+  style.font-color: "#451a03"
+  style.border-radius: 8
+  style.font-size: 14
+  style.bold: true
+}
+
+cmd-logs: {
+  label: "herdctl logs"
+  style.fill: "#fdba74"
+  style.stroke: "#f59e0b"
+  style.stroke-width: 2
+  style.font-color: "#451a03"
+  style.border-radius: 8
+  style.font-size: 14
+  style.bold: true
+}
+
+cmd-jobs: {
+  label: "herdctl jobs"
+  style.fill: "#c4b5fd"
+  style.stroke: "#a78bfa"
+  style.stroke-width: 2
+  style.font-color: "#2e1065"
+  style.border-radius: 8
+  style.font-size: 14
+  style.bold: true
+}
+
+cmd-job: {
+  label: "herdctl job <id>"
+  style.fill: "#22d3ee"
+  style.stroke: "#06b6d4"
+  style.stroke-width: 2
+  style.font-color: "#083344"
+  style.border-radius: 8
+  style.font-size: 14
+  style.bold: true
+}
+
+cmd-cancel: {
+  label: "herdctl cancel"
+  style.fill: "#fb923c"
+  style.stroke: "#f97316"
+  style.stroke-width: 2
+  style.font-color: "#431407"
+  style.border-radius: 8
+  style.font-size: 14
+  style.bold: true
+}
+
+cmd-sessions: {
+  label: "herdctl sessions"
+  style.fill: "#a3e635"
+  style.stroke: "#84cc16"
+  style.stroke-width: 2
+  style.font-color: "#1a2e05"
+  style.border-radius: 8
+  style.font-size: 14
+  style.bold: true
+}
+
+cmd-config: {
+  label: "herdctl config"
+  style.fill: "#fda4af"
+  style.stroke: "#fb7185"
+  style.stroke-width: 2
+  style.font-color: "#4c0519"
+  style.border-radius: 8
+  style.font-size: 14
+  style.bold: true
+}
+
+# ──────────────────────────────────────────────
+# FleetManager (center) - logo blue, prominent
+# ──────────────────────────────────────────────
+
+fm: {
+  label: "FleetManager\n@herdctl/core"
+  style.fill: "#326CE5"
+  style.stroke: "#2857b8"
+  style.stroke-width: 3
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 20
+  style.bold: true
+}
+
+# ──────────────────────────────────────────────
+# API Methods (right column) - matching colors to CLI commands
+# ──────────────────────────────────────────────
+
+api-scaffolding: {
+  label: "File scaffolding (templates)"
+  style.fill: "#f8fafc"
+  style.stroke: "#cbd5e1"
+  style.stroke-width: 2
+  style.font-color: "#1e293b"
+  style.border-radius: 8
+  style.font-size: 13
+  style.bold: true
+}
+
+api-start: {
+  label: "initialize() / start() / streamLogs()"
+  style.fill: "#93c5fd"
+  style.stroke: "#60a5fa"
+  style.stroke-width: 2
+  style.font-color: "#1e293b"
+  style.border-radius: 8
+  style.font-size: 13
+  style.bold: true
+}
+
+api-stop: {
+  label: "PID file + SIGTERM / SIGKILL"
+  style.fill: "#38bdf8"
+  style.stroke: "#0ea5e9"
+  style.stroke-width: 2
+  style.font-color: "#0c4a6e"
+  style.border-radius: 8
+  style.font-size: 13
+  style.bold: true
+}
+
+api-status: {
+  label: "getFleetStatus() / getAgentInfo()"
+  style.fill: "#6ee7b7"
+  style.stroke: "#34d399"
+  style.stroke-width: 2
+  style.font-color: "#064e3b"
+  style.border-radius: 8
+  style.font-size: 13
+  style.bold: true
+}
+
+api-trigger: {
+  label: "trigger() / streamJobOutput()"
+  style.fill: "#fbbf24"
+  style.stroke: "#d97706"
+  style.stroke-width: 2
+  style.font-color: "#451a03"
+  style.border-radius: 8
+  style.font-size: 13
+  style.bold: true
+}
+
+api-logs: {
+  label: "streamLogs() / streamAgentLogs()"
+  style.fill: "#fdba74"
+  style.stroke: "#f59e0b"
+  style.stroke-width: 2
+  style.font-color: "#451a03"
+  style.border-radius: 8
+  style.font-size: 13
+  style.bold: true
+}
+
+api-jobs: {
+  label: "JobManager.getJobs()"
+  style.fill: "#c4b5fd"
+  style.stroke: "#a78bfa"
+  style.stroke-width: 2
+  style.font-color: "#2e1065"
+  style.border-radius: 8
+  style.font-size: 13
+  style.bold: true
+}
+
+api-job: {
+  label: "JobManager.getJob() / streamJobOutput()"
+  style.fill: "#22d3ee"
+  style.stroke: "#06b6d4"
+  style.stroke-width: 2
+  style.font-color: "#083344"
+  style.border-radius: 8
+  style.font-size: 13
+  style.bold: true
+}
+
+api-cancel: {
+  label: "cancelJob()"
+  style.fill: "#fb923c"
+  style.stroke: "#f97316"
+  style.stroke-width: 2
+  style.font-color: "#431407"
+  style.border-radius: 8
+  style.font-size: 13
+  style.bold: true
+}
+
+api-sessions: {
+  label: "listSessions() / loadConfig()"
+  style.fill: "#a3e635"
+  style.stroke: "#84cc16"
+  style.stroke-width: 2
+  style.font-color: "#1a2e05"
+  style.border-radius: 8
+  style.font-size: 13
+  style.bold: true
+}
+
+api-config: {
+  label: "safeLoadConfig()"
+  style.fill: "#fda4af"
+  style.stroke: "#fb7185"
+  style.stroke-width: 2
+  style.font-color: "#4c0519"
+  style.border-radius: 8
+  style.font-size: 13
+  style.bold: true
+}
+
+# ──────────────────────────────────────────────
+# Connections: CLI → FleetManager
+# ──────────────────────────────────────────────
+
+cmd-init -> fm: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+cmd-start -> fm: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+cmd-stop -> fm: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+cmd-status -> fm: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+cmd-trigger -> fm: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+cmd-logs -> fm: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+cmd-jobs -> fm: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+cmd-job -> fm: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+cmd-cancel -> fm: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+cmd-sessions -> fm: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+cmd-config -> fm: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+
+# ──────────────────────────────────────────────
+# Connections: FleetManager → API Methods
+# ──────────────────────────────────────────────
+
+fm -> api-scaffolding: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+fm -> api-start: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+fm -> api-stop: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+fm -> api-status: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+fm -> api-trigger: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+fm -> api-logs: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+fm -> api-jobs: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+fm -> api-job: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+fm -> api-cancel: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+fm -> api-sessions: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+fm -> api-config: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}

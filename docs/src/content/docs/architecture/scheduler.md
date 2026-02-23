@@ -7,6 +7,10 @@ The scheduler is the timing engine of herdctl. It runs a continuous polling loop
 
 For the user-facing perspective on configuring schedules, see [Schedules](/concepts/schedules/). For how the scheduler fits into the broader system, see the [Architecture Overview](/architecture/overview/).
 
+![Core architecture diagram showing FleetManager as central orchestrator connecting ConfigLoader, Scheduler, StateManager, Runner, JobManager, Web, and Chat](/diagrams/core-architecture.svg)
+
+![Scheduler polling loop showing tick-based evaluation of agent schedules, condition checking, and trigger firing](/diagrams/scheduler-polling-loop.svg)
+
 ## Module Structure
 
 The scheduler module lives in `packages/core/src/scheduler/` and is organized into focused files:
@@ -219,6 +223,8 @@ private async checkSchedule(agent, scheduleName, schedule): Promise<ScheduleChec
 | `already_running` | Schedule already has an active job in this process |
 | `at_capacity` | Agent is at its `max_concurrent` limit |
 | `not_due` | Next trigger time has not yet arrived |
+
+![Schedule evaluation decision tree showing the five condition checks performed on each schedule per tick](/diagrams/schedule-evaluation-decision-tree.svg)
 
 ## Interval Parsing
 

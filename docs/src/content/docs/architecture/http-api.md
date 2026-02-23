@@ -5,6 +5,8 @@ description: REST endpoints, WebSocket real-time streaming, and server architect
 
 The HTTP API is a thin REST layer over [FleetManager](/architecture/overview/). Like the [CLI](/architecture/cli/), it contains no business logic of its own -- every endpoint delegates to a FleetManager method and returns the result. The API powers the [web dashboard](/architecture/web-dashboard/) and can be consumed by external scripts, CI/CD pipelines, or custom integrations.
 
+![HTTP API request flow showing client requests through Fastify, route handlers, FleetBridge, to FleetManager, plus WebSocket event relay path](/diagrams/http-api-request-flow.svg)
+
 ## Design Principles
 
 The API follows the same **thin client** principle as every other interaction layer in herdctl:
@@ -66,6 +68,8 @@ Routes are organized into focused modules, each receiving the Fastify instance a
 ## REST Endpoint Reference
 
 All endpoints are prefixed with `/api`. Responses are JSON.
+
+![API route map showing endpoint groups for fleet, agents, jobs, schedules, chat, system, and WebSocket](/diagrams/api-route-map.svg)
 
 ### Fleet
 
@@ -405,6 +409,8 @@ This filtering prevents flooding inactive dashboard tabs with high-volume output
 ## FleetBridge: Event Relay
 
 The `FleetBridge` class connects FleetManager's event system to WebSocket clients. It subscribes to FleetManager events at startup and translates them into WebSocket server messages:
+
+![WebSocket event relay showing client subscriptions, FleetBridge event filtering, and real-time broadcast to connected clients](/diagrams/websocket-event-relay.svg)
 
 ```text
 FleetManager Events          FleetBridge           WebSocket Clients

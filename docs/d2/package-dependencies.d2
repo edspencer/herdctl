@@ -1,0 +1,101 @@
+# Package Dependencies Diagram for herdctl
+# A layered architecture showing package relationships
+
+direction: down
+
+# Top layer: CLI (the entry point)
+cli: {
+  label: "herdctl\n(CLI)"
+  style.fill: "#326CE5"
+  style.stroke: "#2857b8"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 18
+  style.bold: true
+}
+
+# Middle layer: User-facing packages (Web, Discord, Slack)
+web: {
+  label: "@herdctl/web"
+  style.fill: "#c4b5fd"
+  style.stroke: "#a78bfa"
+  style.stroke-width: 2
+  style.font-color: "#2e1065"
+  style.border-radius: 10
+  style.shadow: true
+  style.font-size: 16
+}
+
+discord: {
+  label: "@herdctl/discord"
+  style.fill: "#93c5fd"
+  style.stroke: "#60a5fa"
+  style.stroke-width: 2
+  style.font-color: "#1e293b"
+  style.border-radius: 10
+  style.shadow: true
+  style.font-size: 16
+}
+
+slack: {
+  label: "@herdctl/slack"
+  style.fill: "#6ee7b7"
+  style.stroke: "#34d399"
+  style.stroke-width: 2
+  style.font-color: "#064e3b"
+  style.border-radius: 10
+  style.shadow: true
+  style.font-size: 16
+}
+
+# Infrastructure layer: Chat
+chat: {
+  label: "@herdctl/chat"
+  style.fill: "#fbbf24"
+  style.stroke: "#d97706"
+  style.stroke-width: 2
+  style.font-color: "#451a03"
+  style.border-radius: 10
+  style.shadow: true
+  style.font-size: 16
+}
+
+# Foundation layer: Core
+core: {
+  label: "@herdctl/core"
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 18
+  style.bold: true
+}
+
+# Connection styling
+connection_style: {
+  style.stroke: "#64748b"
+  style.stroke-width: 2
+}
+
+# CLI dependencies
+cli -> web: {style.stroke: "#64748b"; style.stroke-width: 2}
+cli -> discord: {style.stroke: "#64748b"; style.stroke-width: 2}
+cli -> slack: {style.stroke: "#64748b"; style.stroke-width: 2}
+cli -> core: {style.stroke: "#64748b"; style.stroke-width: 2}
+
+# Web, Discord, Slack depend on Chat
+web -> chat: {style.stroke: "#64748b"; style.stroke-width: 2}
+discord -> chat: {style.stroke: "#64748b"; style.stroke-width: 2}
+slack -> chat: {style.stroke: "#64748b"; style.stroke-width: 2}
+
+# Web, Discord, Slack also depend on Core
+web -> core: {style.stroke: "#64748b"; style.stroke-width: 2}
+discord -> core: {style.stroke: "#64748b"; style.stroke-width: 2}
+slack -> core: {style.stroke: "#64748b"; style.stroke-width: 2}
+
+# Chat depends on Core
+chat -> core: {style.stroke: "#64748b"; style.stroke-width: 2}

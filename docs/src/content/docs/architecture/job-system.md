@@ -125,11 +125,7 @@ The trigger type is set at job creation time and is immutable. Platform-specific
 
 A job progresses through a linear status lifecycle:
 
-```text
-pending ──► running ──► completed
-                   ├──► failed
-                   └──► cancelled
-```
+![Job status state machine showing transitions between pending, running, completed, failed, and cancelled states](/diagrams/job-state-machine.svg)
 
 ### Status Values
 
@@ -150,6 +146,10 @@ The job starts in `pending` when `createJob()` writes the metadata file. The [Ru
 - **Cancellation**: status becomes `cancelled`, exit_reason is `cancelled`.
 
 A job in a terminal state (`completed`, `failed`, `cancelled`) is never updated again. There is no mechanism to restart a finished job -- instead, fork it to create a new job with the same context.
+
+For details on how the Runner executes these transitions and manages the SDK session, see [Agent Execution Engine](/architecture/runner/).
+
+![Runner architecture diagram showing job creation, session validation, runtime factory, SDK adapter, message processing, and error handling](/diagrams/runner-architecture.svg)
 
 ### Relationship to Agent State
 
@@ -172,6 +172,8 @@ The Runner's `classifyError()` function examines error messages and codes to det
 ## Job Forking
 
 Forking creates a new job based on an existing one. The new job inherits the original's agent and schedule but receives a fresh job ID and starts in `pending` status. The `forked_from` field links back to the parent job.
+
+![Job fork flow showing how a new job inherits the session from a completed parent job](/diagrams/job-fork-flow.svg)
 
 ### Fork Mechanics
 

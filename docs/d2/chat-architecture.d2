@@ -1,0 +1,207 @@
+# Chat Architecture — Top Level
+# Shows FleetManager → IChatManager → Discord/Slack managers → connectors → APIs
+
+direction: down
+
+# Top-level container: Fleet Management
+fleet-management: {
+  label: "Fleet Management"
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 18
+
+  FleetManager: {
+    label: "FleetManager\n@herdctl/core"
+    style.fill: "#93c5fd"
+    style.stroke: "#60a5fa"
+    style.font-color: "#1e293b"
+    style.border-radius: 8
+    style.font-size: 14
+  }
+
+  IChatManager: {
+    label: "IChatManager Interface\ninitialize · start · stop\ngetState · getConnectedCount"
+    style.fill: "#c4b5fd"
+    style.stroke: "#a78bfa"
+    style.font-color: "#2e1065"
+    style.border-radius: 8
+    style.font-size: 12
+  }
+
+  FleetManager -> IChatManager: "dynamic import" {
+    style.stroke: "#64748b"
+    style.font-color: "#475569"
+    style.font-size: 11
+  }
+}
+
+# Shared Infrastructure
+chat-package: {
+  label: "@herdctl/chat\nShared Chat Infrastructure"
+  style.fill: "#326CE5"
+  style.stroke: "#2857b8"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 10
+  style.shadow: true
+  style.font-size: 16
+}
+
+# Platform Managers
+platform-managers: {
+  label: "Platform Managers"
+  style.fill: "#2a9d8f"
+  style.stroke: "#21867a"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 10
+  style.shadow: true
+  style.font-size: 16
+
+  grid-columns: 2
+  grid-gap: 12
+
+  DiscordManager: {
+    label: "DiscordManager\n@herdctl/discord"
+    style.fill: "#38bdf8"
+    style.stroke: "#0ea5e9"
+    style.font-color: "#0c4a6e"
+    style.border-radius: 8
+    style.font-size: 13
+  }
+
+  SlackManager: {
+    label: "SlackManager\n@herdctl/slack"
+    style.fill: "#fbbf24"
+    style.stroke: "#d97706"
+    style.font-color: "#451a03"
+    style.border-radius: 8
+    style.font-size: 13
+  }
+}
+
+# Connectors
+connectors: {
+  label: "Platform Connectors"
+  style.fill: "#2a9d8f"
+  style.stroke: "#21867a"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 10
+  style.shadow: true
+  style.font-size: 16
+
+  grid-columns: 2
+  grid-gap: 12
+
+  DiscordConnector: {
+    label: "DiscordConnector\ndiscord.js · Gateway\nSlash Commands"
+    style.fill: "#6ee7b7"
+    style.stroke: "#34d399"
+    style.font-color: "#064e3b"
+    style.border-radius: 8
+    style.font-size: 12
+  }
+
+  SlackConnector: {
+    label: "SlackConnector\nBolt · Socket Mode\nPrefix Commands"
+    style.fill: "#fdba74"
+    style.stroke: "#f59e0b"
+    style.font-color: "#451a03"
+    style.border-radius: 8
+    style.font-size: 12
+  }
+}
+
+# External APIs
+external-apis: {
+  label: "External APIs"
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 10
+  style.shadow: true
+  style.font-size: 16
+
+  grid-columns: 2
+  grid-gap: 12
+
+  DiscordAPI: {
+    label: "Discord API"
+    style.fill: "#f87171"
+    style.stroke: "#ef4444"
+    style.font-color: "#ffffff"
+    style.border-radius: 8
+    style.font-size: 13
+  }
+
+  SlackAPI: {
+    label: "Slack API"
+    style.fill: "#fb923c"
+    style.stroke: "#f97316"
+    style.font-color: "#431407"
+    style.border-radius: 8
+    style.font-size: 13
+  }
+}
+
+# Agent
+ClaudeAgent: {
+  label: "Claude Agent\nvia FleetManager.trigger()"
+  style.fill: "#475569"
+  style.stroke: "#334155"
+  style.font-color: "#ffffff"
+  style.border-radius: 8
+  style.font-size: 13
+}
+
+# Connections
+fleet-management.IChatManager -> platform-managers.DiscordManager {
+  style.stroke: "#64748b"
+}
+fleet-management.IChatManager -> platform-managers.SlackManager {
+  style.stroke: "#64748b"
+}
+
+platform-managers.DiscordManager -> chat-package: "imports shared utilities" {
+  style.stroke: "#2857b8"
+  style.stroke-dash: 3
+  style.font-color: "#326CE5"
+  style.font-size: 10
+}
+platform-managers.SlackManager -> chat-package: "imports shared utilities" {
+  style.stroke: "#2857b8"
+  style.stroke-dash: 3
+  style.font-color: "#326CE5"
+  style.font-size: 10
+}
+
+platform-managers.DiscordManager -> connectors.DiscordConnector {
+  style.stroke: "#64748b"
+}
+platform-managers.SlackManager -> connectors.SlackConnector {
+  style.stroke: "#64748b"
+}
+
+connectors.DiscordConnector -> external-apis.DiscordAPI {
+  style.stroke: "#64748b"
+}
+connectors.SlackConnector -> external-apis.SlackAPI {
+  style.stroke: "#64748b"
+}
+
+platform-managers.DiscordManager -> ClaudeAgent: "trigger()" {
+  style.stroke: "#475569"
+  style.font-color: "#475569"
+  style.font-size: 11
+}
+platform-managers.SlackManager -> ClaudeAgent: "trigger()" {
+  style.stroke: "#475569"
+  style.font-color: "#475569"
+  style.font-size: 11
+}

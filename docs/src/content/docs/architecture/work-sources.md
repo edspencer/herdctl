@@ -7,6 +7,8 @@ The work source system decouples **what agents work on** from **when they run**.
 
 For the user-facing perspective on configuring work sources, see [Work Sources](/concepts/work-sources/). For how work sources integrate with scheduling, see the [Schedule System](/architecture/scheduler/).
 
+![Work item lifecycle state machine showing transitions between available, claimed, completed, and released states](/diagrams/work-item-lifecycle.svg)
+
 ## Module Structure
 
 The work source module lives in `packages/core/src/work-sources/` and is organized into focused files:
@@ -62,6 +64,8 @@ interface WorkSourceAdapter {
 ```
 
 The interface uses generic lifecycle verbs -- fetch, claim, complete, release -- that map naturally to both label-based workflows (GitHub Issues) and status-based workflows in other systems.
+
+![WorkSourceAdapter interface showing the adapter pattern with GitHub Issues implementation and extensibility for future sources](/diagrams/work-source-adapter.svg)
 
 ## Work Item Lifecycle
 

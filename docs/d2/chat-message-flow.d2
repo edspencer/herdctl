@@ -1,0 +1,213 @@
+# Chat Message Flow
+# Shows user message through platform layer, shared layer, core execution, reply path
+
+direction: down
+
+# Entry point
+User: {
+  label: "User sends message\nin Discord or Slack"
+  style.fill: "#475569"
+  style.stroke: "#334155"
+  style.font-color: "#ffffff"
+  style.border-radius: 20
+  style.font-size: 14
+}
+
+# Platform Layer
+platform: {
+  label: "Platform Layer"
+  style.fill: "#2a9d8f"
+  style.stroke: "#21867a"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 18
+
+  grid-columns: 4
+  grid-gap: 10
+
+  Connector: {
+    label: "Platform Connector\nReceives raw\nplatform event"
+    style.fill: "#f8fafc"
+    style.stroke: "#cbd5e1"
+    style.font-color: "#1e293b"
+    style.border-radius: 8
+    style.font-size: 11
+  }
+
+  Mention: {
+    label: "Mention Detection\nDiscord: message.mentions\nSlack: text pattern"
+    style.fill: "#93c5fd"
+    style.stroke: "#60a5fa"
+    style.font-color: "#1e293b"
+    style.border-radius: 8
+    style.font-size: 11
+  }
+
+  Strip: {
+    label: "Strip Bot Mention\nExtract clean\nprompt text"
+    style.fill: "#38bdf8"
+    style.stroke: "#0ea5e9"
+    style.font-color: "#0c4a6e"
+    style.border-radius: 8
+    style.font-size: 11
+  }
+
+  Indicator: {
+    label: "Processing Indicator\nDiscord: typing\nSlack: hourglass"
+    style.fill: "#c4b5fd"
+    style.stroke: "#a78bfa"
+    style.font-color: "#2e1065"
+    style.border-radius: 8
+    style.font-size: 11
+  }
+
+  Connector -> Mention
+  Mention -> Strip
+  Strip -> Indicator
+}
+
+# Shared Layer
+shared: {
+  label: "Shared Layer (@herdctl/chat)"
+  style.fill: "#326CE5"
+  style.stroke: "#2857b8"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 18
+
+  grid-columns: 4
+  grid-gap: 10
+
+  Session: {
+    label: "Session Manager\ngetOrCreateSession\nResume or create"
+    style.fill: "#6ee7b7"
+    style.stroke: "#34d399"
+    style.font-color: "#064e3b"
+    style.border-radius: 8
+    style.font-size: 11
+  }
+
+  Stream: {
+    label: "Streaming Responder\nBuffer · Rate limit\nSplit for max length"
+    style.fill: "#fbbf24"
+    style.stroke: "#d97706"
+    style.font-color: "#451a03"
+    style.border-radius: 8
+    style.font-size: 11
+  }
+
+  Extract: {
+    label: "Extract Content\nParse Claude SDK\nJoin text content"
+    style.fill: "#fdba74"
+    style.stroke: "#f59e0b"
+    style.font-color: "#451a03"
+    style.border-radius: 8
+    style.font-size: 11
+  }
+
+  Tools: {
+    label: "Tool Parsing\ntool_use · tool_result\nHuman-readable"
+    style.fill: "#22d3ee"
+    style.stroke: "#06b6d4"
+    style.font-color: "#083344"
+    style.border-radius: 8
+    style.font-size: 11
+  }
+}
+
+# Core Layer
+core: {
+  label: "Core Layer (@herdctl/core)"
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 18
+
+  Trigger: {
+    label: "FleetManager.trigger()\nExecute agent with prompt\nStream SDK messages back"
+    style.fill: "#a3e635"
+    style.stroke: "#84cc16"
+    style.font-color: "#1a2e05"
+    style.border-radius: 8
+    style.font-size: 12
+  }
+}
+
+# Reply Path
+reply: {
+  label: "Reply Path"
+  style.fill: "#2a9d8f"
+  style.stroke: "#21867a"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 18
+
+  grid-columns: 2
+  grid-gap: 12
+
+  Format: {
+    label: "Platform Formatting\nDiscord: embeds + markdown\nSlack: mrkdwn + threads"
+    style.fill: "#f87171"
+    style.stroke: "#ef4444"
+    style.font-color: "#ffffff"
+    style.border-radius: 8
+    style.font-size: 11
+  }
+
+  Send: {
+    label: "Send to User\nSplit messages if needed"
+    style.fill: "#fb923c"
+    style.stroke: "#f97316"
+    style.font-color: "#431407"
+    style.border-radius: 20
+    style.font-size: 12
+  }
+
+  Format -> Send
+}
+
+# Main flow connections
+User -> platform.Connector {
+  style.stroke: "#64748b"
+}
+
+platform.Indicator -> shared.Session {
+  style.stroke: "#64748b"
+}
+
+shared.Session -> core.Trigger {
+  style.stroke: "#64748b"
+}
+
+core.Trigger -> shared.Extract: "SDK messages" {
+  style.stroke: "#326CE5"
+  style.font-color: "#326CE5"
+  style.font-size: 10
+}
+
+core.Trigger -> shared.Tools: "tool events" {
+  style.stroke: "#326CE5"
+  style.font-color: "#326CE5"
+  style.font-size: 10
+}
+
+shared.Extract -> shared.Stream {
+  style.stroke: "#64748b"
+}
+
+shared.Stream -> reply.Format {
+  style.stroke: "#64748b"
+}
+
+shared.Tools -> reply.Format {
+  style.stroke: "#64748b"
+}

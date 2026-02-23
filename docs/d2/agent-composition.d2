@@ -1,0 +1,204 @@
+# Agent Composition Diagram
+# Shows the anatomy of a herdctl agent with core and optional components
+
+agent: {
+  label: "Agent"
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 3
+  style.font-color: "#ffffff"
+  style.border-radius: 16
+  style.shadow: true
+  style.font-size: 32
+  style.bold: true
+
+  grid-columns: 2
+  grid-gap: 20
+
+  # Core Components Container (left column)
+  core: {
+    label: "Core Components"
+    style.fill: "#326CE5"
+    style.stroke: "#2857b8"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 12
+    style.shadow: true
+    style.font-size: 20
+
+    grid-columns: 2
+    grid-gap: 12
+
+    identity: {
+      label: "Identity"
+      style.fill: "#2a9d8f"
+      style.stroke: "#21867a"
+      style.stroke-width: 2
+      style.font-color: "#ffffff"
+      style.border-radius: 8
+      style.shadow: true
+      style.font-size: 16
+
+      grid-columns: 1
+      grid-gap: 8
+
+      claude-md: {
+        label: "CLAUDE.md"
+        style.fill: "#93c5fd"
+        style.stroke: "#60a5fa"
+        style.font-color: "#1e293b"
+        style.border-radius: 6
+        style.font-size: 13
+      }
+      knowledge: {
+        label: "Knowledge files"
+        style.fill: "#38bdf8"
+        style.stroke: "#0ea5e9"
+        style.font-color: "#0c4a6e"
+        style.border-radius: 6
+        style.font-size: 13
+      }
+      system-prompt: {
+        label: "System prompt"
+        style.fill: "#22d3ee"
+        style.stroke: "#06b6d4"
+        style.font-color: "#083344"
+        style.border-radius: 6
+        style.font-size: 13
+      }
+    }
+
+    workspace: {
+      label: "Workspace"
+      style.fill: "#6ee7b7"
+      style.stroke: "#34d399"
+      style.font-color: "#064e3b"
+      style.border-radius: 8
+      style.font-size: 16
+      style.bold: true
+    }
+
+    schedules: {
+      label: "Schedules"
+      style.fill: "#2a9d8f"
+      style.stroke: "#21867a"
+      style.stroke-width: 2
+      style.font-color: "#ffffff"
+      style.border-radius: 8
+      style.shadow: true
+      style.font-size: 16
+
+      grid-columns: 1
+      grid-gap: 8
+
+      interval: {
+        label: "Interval trigger"
+        style.fill: "#fbbf24"
+        style.stroke: "#d97706"
+        style.font-color: "#451a03"
+        style.border-radius: 6
+        style.font-size: 13
+      }
+      cron: {
+        label: "Cron trigger"
+        style.fill: "#fdba74"
+        style.stroke: "#f59e0b"
+        style.font-color: "#451a03"
+        style.border-radius: 6
+        style.font-size: 13
+      }
+    }
+
+    permissions: {
+      label: "Permissions"
+      style.fill: "#2a9d8f"
+      style.stroke: "#21867a"
+      style.stroke-width: 2
+      style.font-color: "#ffffff"
+      style.border-radius: 8
+      style.shadow: true
+      style.font-size: 16
+
+      grid-columns: 1
+      grid-gap: 8
+
+      mode: {
+        label: "Permission mode"
+        style.fill: "#fb923c"
+        style.stroke: "#f97316"
+        style.font-color: "#431407"
+        style.border-radius: 6
+        style.font-size: 13
+      }
+      tools: {
+        label: "Allowed / denied tools"
+        style.fill: "#f87171"
+        style.stroke: "#ef4444"
+        style.font-color: "#ffffff"
+        style.border-radius: 6
+        style.font-size: 13
+      }
+    }
+  }
+
+  # Optional Components Container (right column)
+  optional: {
+    label: "Optional Components"
+    style.fill: "#326CE5"
+    style.stroke: "#2857b8"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 12
+    style.shadow: true
+    style.font-size: 20
+    style.stroke-dash: 5
+
+    grid-columns: 1
+    grid-gap: 12
+
+    work-source: {
+      label: "Work Source"
+      style.fill: "#c4b5fd"
+      style.stroke: "#a78bfa"
+      style.font-color: "#2e1065"
+      style.border-radius: 8
+      style.font-size: 14
+    }
+
+    chat: {
+      label: "Chat"
+      style.fill: "#fda4af"
+      style.stroke: "#fb7185"
+      style.font-color: "#4c0519"
+      style.border-radius: 8
+      style.font-size: 14
+    }
+
+    mcp: {
+      label: "MCP Servers"
+      style.fill: "#a3e635"
+      style.stroke: "#84cc16"
+      style.font-color: "#1a2e05"
+      style.border-radius: 8
+      style.font-size: 14
+    }
+
+    hooks: {
+      label: "Hooks"
+      style.fill: "#d6d3d1"
+      style.stroke: "#a8a29e"
+      style.font-color: "#1c1917"
+      style.border-radius: 8
+      style.font-size: 14
+    }
+
+    session: {
+      label: "Session"
+      style.fill: "#94a3b8"
+      style.stroke: "#64748b"
+      style.font-color: "#0f172a"
+      style.border-radius: 8
+      style.font-size: 14
+    }
+  }
+}
