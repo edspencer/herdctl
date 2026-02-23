@@ -7,6 +7,13 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Tabbed Sidebar with Cmd+K Spotlight and Documentation Improvements
+**February 23, 2026** · `@herdctl/web@0.7.0` · `herdctl@1.3.9`
+
+The web dashboard sidebar now features two navigation modes: Fleet view (hierarchical agent browser) and Chats view (recent conversations across all agents). Switch between them with the tab controls at the top of the sidebar. Both views include search filtering with auto-expand on active queries. The Chats tab shows the most recent conversations with inline rename/delete actions and current-chat highlighting. A new Apple Spotlight-style dialog (Cmd+K or Ctrl+K) provides instant agent search and new chat creation with keyboard navigation and Enter-to-confirm. Agent rows in the Fleet view are now collapsible with persistent state stored in localStorage. Additionally, the documentation site has been significantly improved with the migration from Mermaid to D2 diagrams, providing higher-quality visualizations for architecture, data flows, and system interactions. The architecture documentation has also been consolidated from 65 scattered files into 14 comprehensive pages.
+
+---
+
 ### Chat Session Management Improvements
 **February 22, 2026** · `@herdctl/web@0.6.0` · `@herdctl/core@5.5.0` · `herdctl@1.3.8`
 
