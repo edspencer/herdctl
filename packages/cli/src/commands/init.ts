@@ -1,42 +1,19 @@
 /**
- * herdctl init - Router and shared utilities
+ * herdctl init - Router for init subcommands
  *
  * When invoked without a subcommand, asks whether to initialize a fleet or agent.
- * Shared helpers (e.g. gitignore updates) are exported for use by init-fleet and init-agent.
  */
 
-import * as fs from "node:fs";
-import * as path from "node:path";
 import { select } from "@inquirer/prompts";
 import { initAgentCommand } from "./init-agent.js";
 import { initFleetCommand } from "./init-fleet.js";
 
+// Re-export for backwards compatibility
+export { updateGitignore } from "./init-utils.js";
+
 export interface InitRouterOptions {
   yes?: boolean;
   force?: boolean;
-}
-
-/**
- * Update .gitignore to include .herdctl/ if it exists and doesn't already have it.
- */
-export function updateGitignore(cwd: string): void {
-  const gitignorePath = path.join(cwd, ".gitignore");
-
-  if (!fs.existsSync(gitignorePath)) {
-    return;
-  }
-
-  const gitignoreContent = fs.readFileSync(gitignorePath, "utf-8");
-  const linesToAdd: string[] = [];
-
-  if (!gitignoreContent.includes(".herdctl/")) {
-    linesToAdd.push(".herdctl/");
-  }
-
-  if (linesToAdd.length > 0) {
-    const newContent = `${gitignoreContent.trimEnd()}\n\n# herdctl state directory\n${linesToAdd.join("\n")}\n`;
-    fs.writeFileSync(gitignorePath, newContent, "utf-8");
-  }
 }
 
 /**

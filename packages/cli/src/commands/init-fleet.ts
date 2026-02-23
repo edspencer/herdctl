@@ -8,11 +8,10 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { updateGitignore } from "./init.js";
+import { updateGitignore } from "./init-utils.js";
 
 export interface InitFleetOptions {
   name?: string;
-  yes?: boolean;
   force?: boolean;
 }
 

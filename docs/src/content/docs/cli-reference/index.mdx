@@ -241,26 +241,80 @@ herdctl validate agents/my-agent.yaml
 
 ### init
 
-Initialize a new herdctl project.
+Initialize a new fleet or add an agent. Running `herdctl init` without a subcommand launches an interactive selector.
 
 ```bash
-herdctl init [options]
+herdctl init           # Interactive: choose fleet or agent
+herdctl init fleet     # Create a new herdctl.yaml
+herdctl init agent     # Add a new agent (interactive)
+```
+
+#### init fleet
+
+Create a new `herdctl.yaml` fleet configuration and `.herdctl/` state directory.
+
+```bash
+herdctl init fleet [options]
 ```
 
 **Options:**
 
 | Option | Description |
 |--------|-------------|
-| `--example <name>` | Start from an example template |
+| `-n, --name <name>` | Fleet name (defaults to directory name) |
+| `-f, --force` | Overwrite existing configuration |
 
 **Examples:**
 
 ```bash
-# Initialize in current directory
-herdctl init
+# Initialize with default name
+herdctl init fleet
 
-# Initialize from example
-herdctl init --example price-checker
+# Initialize with a specific fleet name
+herdctl init fleet --name my-fleet
+```
+
+#### init agent
+
+Add a new agent to the fleet via an interactive wizard or flags.
+
+```bash
+herdctl init agent [name] [options]
+```
+
+**Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `name` | Agent name (optional — prompted if not given) |
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-d, --description <desc>` | Agent description |
+| `--permission-mode <mode>` | Permission mode (`default`, `acceptEdits`, `bypassPermissions`, `plan`) |
+| `--docker` / `--no-docker` | Enable or disable Docker isolation |
+| `--runtime <runtime>` | Runtime backend (`sdk` or `cli`) |
+| `--discord` | Add Discord chat integration |
+| `--slack` | Add Slack chat integration |
+| `-y, --yes` | Skip all prompts, use defaults |
+| `-f, --force` | Overwrite existing agent file |
+
+**Examples:**
+
+```bash
+# Interactive agent creation
+herdctl init agent
+
+# Create agent with a name (still prompts for other options)
+herdctl init agent price-checker
+
+# Fully non-interactive
+herdctl init agent price-checker --yes --runtime cli --docker
+
+# With chat integrations
+herdctl init agent my-bot --discord --slack --yes
 ```
 
 ### sessions

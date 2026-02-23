@@ -117,12 +117,12 @@ describe("initAgentCommand", () => {
       throw new Error(`process.exit(${code})`);
     }) as never;
 
+    vi.resetAllMocks();
+
     // Default: docker not available
     mockedExecSync.mockImplementation(() => {
       throw new Error("docker not found");
     });
-
-    vi.clearAllMocks();
   });
 
   afterEach(() => {

@@ -82,7 +82,6 @@ initCmd
   .command("fleet")
   .description("Create a new herdctl.yaml fleet configuration")
   .option("-n, --name <name>", "Fleet name")
-  .option("-y, --yes", "Accept all defaults without prompting")
   .option("-f, --force", "Overwrite existing configuration")
   .action(async (options) => {
     try {

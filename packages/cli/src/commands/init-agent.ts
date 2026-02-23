@@ -50,12 +50,21 @@ interface AgentConfig {
   slack: boolean;
 }
 
+/** Quote a YAML scalar if it contains characters that need escaping */
+function yamlQuote(value: string): string {
+  if (/[:#{}[\],&*?|>!%@`'"\n\r]/.test(value) || value !== value.trim()) {
+    // Use double-quote form with backslash escapes
+    return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  }
+  return value;
+}
+
 function generateAgentYaml(config: AgentConfig): string {
   const lines: string[] = [];
 
   lines.push(`name: ${config.name}`);
   if (config.description) {
-    lines.push(`description: ${config.description}`);
+    lines.push(`description: ${yamlQuote(config.description)}`);
   }
   lines.push("");
   lines.push(`permission_mode: ${config.permissionMode}`);
