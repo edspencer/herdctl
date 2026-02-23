@@ -1,0 +1,97 @@
+---
+interface FeedItem {
+  id: string;
+  title: string;
+  url: string;
+  content_html: string;
+  image?: string;
+  date_modified: string;
+}
+
+interface JsonFeed {
+  items: FeedItem[];
+}
+
+// Fetch the blog JSON feed at build time
+let posts: { title: string; url: string; image?: string; date: string; excerpt: string }[] = [];
+
+try {
+  const response = await fetch('https://edspencer.net/feed.json');
+  const feed: JsonFeed = await response.json();
+
+  // Filter to herdctl posts by ID
+  const herdctlItems = feed.items.filter((item) => item.id.includes('herdctl'));
+
+  posts = herdctlItems.slice(0, 6).map((item) => {
+    // Extract first paragraph as excerpt, strip HTML tags
+    const match = item.content_html.match(/<p>(.*?)<\/p>/s);
+    const excerpt = match ? match[1].replace(/<[^>]+>/g, '').slice(0, 180) + '…' : '';
+
+    // Format date
+    const date = new Date(item.date_modified).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+
+    // Fix double-slash in URL
+    const url = item.url.replace(/\/\/(?=\d)/, '/');
+
+    return { title: item.title, url, image: item.image, date, excerpt };
+  });
+} catch {
+  // Silently fail — the section just won't render if the feed is unreachable
+}
+---
+
+{posts.length > 0 && (
+  <div class="bg-white py-16 sm:py-20">
+    <div class="mx-auto max-w-7xl px-6 lg:px-8">
+      <div class="mx-auto max-w-2xl lg:text-center mb-12">
+        <h2 class="text-base font-semibold leading-7 text-indigo-600">From the Blog</h2>
+        <p class="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+          Latest herdctl articles
+        </p>
+        <p class="mt-4 text-lg leading-8 text-gray-600">
+          Deep dives, tutorials, and announcements about herdctl and autonomous agent fleets.
+        </p>
+      </div>
+      <div class="not-content mx-auto grid max-w-5xl grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+        {posts.map((post) => (
+          <a
+            href={post.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="group no-underline block rounded-lg bg-white shadow-sm ring-1 ring-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+          >
+            {post.image && (
+              <img
+                src={post.image}
+                alt=""
+                class="w-full h-40 object-cover"
+                loading="lazy"
+              />
+            )}
+            <div class="p-5">
+              <time class="text-xs text-gray-500">{post.date}</time>
+              <h3 class="mt-1 text-base font-semibold text-gray-900 m-0 group-hover:text-indigo-600 transition-colors">
+                {post.title}
+              </h3>
+              <p class="mt-2 text-sm text-gray-600 m-0">{post.excerpt}</p>
+            </div>
+          </a>
+        ))}
+      </div>
+      <div class="mt-10 text-center">
+        <a
+          href="https://edspencer.net/herdctl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-sm font-semibold text-indigo-600 hover:text-indigo-500"
+        >
+          View all herdctl articles &rarr;
+        </a>
+      </div>
+    </div>
+  </div>
+)}
