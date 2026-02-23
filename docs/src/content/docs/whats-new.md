@@ -7,6 +7,20 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Tabbed Sidebar with Spotlight Search
+**February 22, 2026** · `@herdctl/web@0.7.0` · `herdctl@1.3.9`
+
+The web dashboard sidebar has been redesigned with two tabs: **Fleet** for browsing your agent hierarchy, and **Chats** for viewing recent conversations across all agents. The Fleet tab now includes search filtering and collapsible agent rows. The Chats tab shows recent conversations with search, inline rename/delete actions, and current-chat highlighting. Press **Cmd+K** (or **Ctrl+K**) to open a Spotlight-style quick picker for instant new chat creation. Agent detail pages now include a Chats tab showing all conversations for that specific agent. Recent session state syncs in real-time across all views when you create, rename, or delete chats.
+
+---
+
+### Architecture Documentation Consolidation
+**February 22, 2026**
+
+The herdctl documentation site now features a comprehensive **Architecture** section with 14 authoritative pages consolidating 65+ scattered PRDs, specs, implementation plans, and handoff documents. Each page (Overview, Configuration, State Management, Runner, Scheduler, Job System, Chat Infrastructure, Discord, Slack, Web Dashboard, CLI, Docker Runtime, Work Sources, HTTP API) is written as factual present-tense documentation verified against source code. The old 5-page Internals section has been replaced with redirects to the new architecture pages. All diagrams have been migrated from Mermaid to D2 for professional-quality rendering with consistent brand colors.
+
+---
+
 ### Chat Session Management Improvements
 **February 22, 2026** · `@herdctl/web@0.6.0` · `@herdctl/core@5.5.0` · `herdctl@1.3.8`
 
