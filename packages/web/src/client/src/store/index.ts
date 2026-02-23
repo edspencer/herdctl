@@ -309,6 +309,18 @@ export function useSidebarSessions() {
 }
 
 /**
+ * Select chat info sidebar state
+ */
+export function useChatInfoSidebar() {
+  return useStore(
+    useShallow((state) => ({
+      chatInfoSidebarOpen: state.chatInfoSidebarOpen,
+      toggleChatInfoSidebar: state.toggleChatInfoSidebar,
+    })),
+  );
+}
+
+/**
  * Select recent sessions across all agents
  */
 export function useRecentSessions() {

@@ -182,6 +182,61 @@ export function registerChatRoutes(
   });
 
   /**
+   * GET /api/chat/:agentName/sessions/:sessionId/sdk-session
+   *
+   * Get the SDK session ID for a web chat session.
+   * Used by the "Continue in Claude Code" feature.
+   *
+   * @returns { sdkSessionId: string | null }
+   */
+  server.get<{
+    Params: { agentName: string; sessionId: string };
+  }>("/api/chat/:agentName/sessions/:sessionId/sdk-session", async (request, reply) => {
+    try {
+      const { agentName, sessionId } = request.params;
+      const sdkSessionId = await chatManager.getSdkSessionId(agentName, sessionId);
+
+      // Check if the agent runs in Docker — sessions created inside containers
+      // can't be resumed from the host because Claude stores conversations
+      // in ~/.claude/ which is container-local.
+      const agents = fleetManager.getAgents();
+      const agent = agents.find((a) => a.qualifiedName === agentName || a.name === agentName);
+      const dockerEnabled = agent?.docker?.enabled ?? false;
+
+      return reply.send({ sdkSessionId, dockerEnabled });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return reply.status(500).send({
+        error: `Failed to get SDK session: ${message}`,
+        statusCode: 500,
+      });
+    }
+  });
+
+  /**
+   * GET /api/chat/:agentName/sessions/:sessionId/usage
+   *
+   * Get token usage for a chat session by reading the Claude Code session file.
+   *
+   * @returns { inputTokens: number, turnCount: number, hasData: boolean }
+   */
+  server.get<{
+    Params: { agentName: string; sessionId: string };
+  }>("/api/chat/:agentName/sessions/:sessionId/usage", async (request, reply) => {
+    try {
+      const { agentName, sessionId } = request.params;
+      const usage = await chatManager.getSessionUsage(agentName, sessionId);
+      return reply.send(usage);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return reply.status(500).send({
+        error: `Failed to get session usage: ${message}`,
+        statusCode: 500,
+      });
+    }
+  });
+
+  /**
    * DELETE /api/chat/:agentName/sessions/:sessionId
    *
    * Delete a chat session.

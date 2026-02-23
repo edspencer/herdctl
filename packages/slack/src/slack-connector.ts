@@ -94,12 +94,21 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
     }
 
     this.status = "connecting";
-    this.logger.debug("Connecting to Slack via Socket Mode...");
+    this.logger.debug("Connecting to Slack via Socket Mode...", {
+      agentName: this.agentName,
+      channelCount: this.channels.size,
+      hasBotToken: !!this.botToken,
+      hasAppToken: !!this.appToken,
+      botTokenPrefix: this.botToken ? `${this.botToken.substring(0, 8)}...` : "missing",
+      appTokenPrefix: this.appToken ? `${this.appToken.substring(0, 8)}...` : "missing",
+    });
 
     try {
       // Dynamically import @slack/bolt
+      this.logger.debug("Importing @slack/bolt...");
       const { App } = await import("@slack/bolt");
 
+      this.logger.debug("Creating Bolt App instance...");
       this.app = new App({
         token: this.botToken,
         appToken: this.appToken,
@@ -107,15 +116,23 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
       });
 
       // Register event handlers
+      this.logger.debug("Registering event handlers...");
       this.registerEventHandlers();
 
-      // Start the app
+      // Start the app (Socket Mode WebSocket connection)
+      this.logger.debug("Starting Socket Mode connection...");
       await this.app.start();
+      this.logger.debug("Socket Mode connection established");
 
       // Get bot info
+      this.logger.debug("Fetching bot identity via auth.test...");
       const authResult = await this.app.client.auth.test();
       this.botUserId = authResult.user_id as string;
       this.botUsername = authResult.user as string;
+      this.logger.debug("Bot identity confirmed", {
+        botUserId: this.botUserId,
+        botUsername: this.botUsername,
+      });
 
       // Set bot presence to active so it appears online (requires users:write scope)
       await this.app.client.users.setPresence({ presence: "auto" }).catch(() => {
@@ -164,12 +181,18 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
       this.status = "error";
       this.lastError = error instanceof Error ? error.message : String(error);
 
+      // Log detailed error info for debugging — the raw error type and shape
+      // can help diagnose issues where @slack/bolt throws non-Error values
       this.logger.error("Failed to connect to Slack", {
         error: this.lastError,
+        errorType: typeof error,
+        errorConstructor: error?.constructor?.name ?? "unknown",
+        errorKeys: error && typeof error === "object" ? Object.keys(error) : [],
+        rawError: error instanceof Error ? undefined : JSON.stringify(error),
       });
 
       throw new SlackConnectionError(`Failed to connect to Slack: ${this.lastError}`, {
-        cause: error instanceof Error ? error : undefined,
+        cause: error instanceof Error ? error : new Error(String(error)),
       });
     }
   }
@@ -184,7 +207,15 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
 
     try {
       if (this.app) {
-        await this.app.stop();
+        // app.stop() can throw if the app is in a bad state (e.g. mid-connect)
+        // — wrap in its own try/catch so we still clean up
+        try {
+          await this.app.stop();
+        } catch (stopError) {
+          this.logger.debug("Error stopping Bolt app (may have been mid-connect)", {
+            error: stopError instanceof Error ? stopError.message : String(stopError),
+          });
+        }
         this.app = null;
       }
 

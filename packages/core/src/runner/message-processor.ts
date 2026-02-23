@@ -188,13 +188,21 @@ function processAssistantMessage(message: SDKMessage): ProcessedMessage {
     | {
         input_tokens?: number;
         output_tokens?: number;
+        cache_creation_input_tokens?: number;
+        cache_read_input_tokens?: number;
       }
     | undefined;
 
   if (usage) {
     output.usage = {};
-    if (usage.input_tokens !== undefined) {
-      output.usage.input_tokens = usage.input_tokens;
+    // Total input includes cache tokens which represent the vast majority
+    // of context when prompt caching is enabled
+    const totalInput =
+      (usage.input_tokens ?? 0) +
+      (usage.cache_creation_input_tokens ?? 0) +
+      (usage.cache_read_input_tokens ?? 0);
+    if (totalInput > 0) {
+      output.usage.input_tokens = totalInput;
     }
     if (usage.output_tokens !== undefined) {
       output.usage.output_tokens = usage.output_tokens;

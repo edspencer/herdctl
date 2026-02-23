@@ -221,11 +221,21 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       // Dynamically import and create chat managers for configured platforms
       await this.initializeChatManagers();
 
-      // Initialize all chat managers
-      for (const [platform, manager] of this.chatManagers) {
-        this.logger.debug(`Initializing ${platform} chat manager...`);
-        await manager.initialize();
-      }
+      // Initialize all chat managers in parallel — platforms are independent
+      // and shouldn't block each other during startup
+      await Promise.allSettled(
+        Array.from(this.chatManagers.entries()).map(async ([platform, manager]) => {
+          this.logger.debug(`Initializing ${platform} chat manager...`);
+          try {
+            await manager.initialize();
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`Failed to initialize ${platform} chat manager: ${errorMessage}`);
+            // Remove failed manager so start() won't attempt to start it
+            this.chatManagers.delete(platform);
+          }
+        }),
+      );
 
       this.status = "initialized";
       this.initializedAt = new Date().toISOString();
@@ -252,11 +262,20 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     try {
       this.startSchedulerAsync(this.config!.agents);
 
-      // Start all chat managers
-      for (const [platform, manager] of this.chatManagers) {
-        this.logger.debug(`Starting ${platform} chat manager...`);
-        await manager.start();
-      }
+      // Start all chat managers in parallel — platforms are independent
+      // and shouldn't block each other (e.g. slow Slack connect shouldn't delay web server)
+      await Promise.allSettled(
+        Array.from(this.chatManagers.entries()).map(async ([platform, manager]) => {
+          this.logger.debug(`Starting ${platform} chat manager...`);
+          try {
+            await manager.start();
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`Failed to start ${platform} chat manager: ${errorMessage}`);
+            // A single platform failure should not prevent the fleet from running
+          }
+        }),
+      );
 
       this.status = "running";
       this.startedAt = new Date().toISOString();
@@ -292,7 +311,13 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       // Stop all chat managers first (graceful disconnect)
       for (const [platform, manager] of this.chatManagers) {
         this.logger.debug(`Stopping ${platform} chat manager...`);
-        await manager.stop();
+        try {
+          await manager.stop();
+        } catch (error) {
+          this.logger.error(
+            `Failed to stop ${platform} chat manager: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
       }
 
       if (this.scheduler) {

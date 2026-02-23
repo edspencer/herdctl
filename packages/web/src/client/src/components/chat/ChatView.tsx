@@ -5,11 +5,12 @@
  * Handles routing between session list and active chat.
  */
 
-import { MessageCircle, SplitSquareHorizontal } from "lucide-react";
+import { Info, MessageCircle, SplitSquareHorizontal } from "lucide-react";
 import { useEffect } from "react";
 import { useNavigate, useParams } from "react-router";
 import { agentChatPath } from "../../lib/paths";
-import { useChatActions, useChatMessages, useChatSessions } from "../../store";
+import { useChatActions, useChatInfoSidebar, useChatMessages, useChatSessions } from "../../store";
+import { ChatInfoSidebar } from "./ChatInfoSidebar";
 import { Composer } from "./Composer";
 import { MessageFeed } from "./MessageFeed";
 
@@ -23,6 +24,7 @@ export function ChatView() {
   const navigate = useNavigate();
   const { chatError, messageGrouping } = useChatMessages();
   const { chatSessions } = useChatSessions();
+  const { chatInfoSidebarOpen, toggleChatInfoSidebar } = useChatInfoSidebar();
   const {
     fetchChatMessages,
     setActiveChatSession,
@@ -64,68 +66,98 @@ export function ChatView() {
     }
   };
 
+  // Find the current session metadata for createdAt
+  const currentSession = chatSessions.find((s) => s.sessionId === sessionId);
+
   return (
-    <div className="flex-1 flex flex-col min-w-0 h-full">
-      {/* Chat content */}
-      {sessionId ? (
-        <>
-          {/* Error banner */}
-          {chatError && (
-            <div className="px-4 pt-4">
-              <div className="max-w-2xl mx-auto">
-                <div className="bg-herd-status-error/10 border border-herd-status-error/20 text-herd-status-error rounded-lg px-3 py-2 text-xs">
-                  {chatError}
+    <div className="flex-1 flex min-w-0 h-full">
+      {/* Main chat column */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Chat content */}
+        {sessionId ? (
+          <>
+            {/* Error banner */}
+            {chatError && (
+              <div className="px-4 pt-4">
+                <div className="max-w-2xl mx-auto">
+                  <div className="bg-herd-status-error/10 border border-herd-status-error/20 text-herd-status-error rounded-lg px-3 py-2 text-xs">
+                    {chatError}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Message grouping toggle */}
-          <div className="flex items-center justify-end px-4 pt-2">
-            <div className="max-w-2xl mx-auto w-full flex justify-end">
+            {/* Header bar with grouping toggle + info sidebar toggle */}
+            <div className="flex items-center justify-end px-4 pt-2">
+              <div className="max-w-2xl mx-auto w-full flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMessageGrouping(messageGrouping === "separate" ? "grouped" : "separate")
+                  }
+                  className="text-[11px] text-herd-muted hover:text-herd-fg transition-colors flex items-center gap-1"
+                  title={`Message display: ${messageGrouping === "separate" ? "separate bubbles per turn" : "grouped into single bubble"}`}
+                >
+                  <SplitSquareHorizontal className="w-3 h-3" />
+                  {messageGrouping === "separate" ? "Separate" : "Grouped"}
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleChatInfoSidebar}
+                  className={`text-[11px] transition-colors hidden lg:flex items-center gap-1 ${
+                    chatInfoSidebarOpen ? "text-herd-fg" : "text-herd-muted hover:text-herd-fg"
+                  }`}
+                  title="Toggle session info"
+                >
+                  <Info className="w-3 h-3" />
+                  Info
+                </button>
+              </div>
+            </div>
+
+            {/* Message feed */}
+            <MessageFeed agentName={qualifiedName} />
+
+            {/* Composer */}
+            <Composer agentName={qualifiedName} sessionId={sessionId} />
+          </>
+        ) : (
+          /* Welcome state when no session is selected */
+          <div className="flex-1 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-4 text-center px-4">
+              <div className="w-16 h-16 rounded-full bg-herd-primary-muted flex items-center justify-center">
+                <MessageCircle className="w-8 h-8 text-herd-primary" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-herd-fg mb-1">
+                  Chat with {qualifiedName}
+                </h2>
+                <p className="text-sm text-herd-muted max-w-sm">
+                  {chatSessions.length > 0
+                    ? "Select a conversation from the sidebar or start a new one."
+                    : "Start a new conversation to chat with this agent."}
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={() =>
-                  setMessageGrouping(messageGrouping === "separate" ? "grouped" : "separate")
-                }
-                className="text-[11px] text-herd-muted hover:text-herd-fg transition-colors flex items-center gap-1"
-                title={`Message display: ${messageGrouping === "separate" ? "separate bubbles per turn" : "grouped into single bubble"}`}
+                onClick={handleStartNewChat}
+                className="bg-herd-primary hover:bg-herd-primary-hover text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
               >
-                <SplitSquareHorizontal className="w-3 h-3" />
-                {messageGrouping === "separate" ? "Separate" : "Grouped"}
+                New Chat
               </button>
             </div>
           </div>
+        )}
+      </div>
 
-          {/* Message feed */}
-          <MessageFeed agentName={qualifiedName} />
-
-          {/* Composer */}
-          <Composer agentName={qualifiedName} sessionId={sessionId} />
-        </>
-      ) : (
-        /* Welcome state when no session is selected */
-        <div className="flex-1 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4 text-center px-4">
-            <div className="w-16 h-16 rounded-full bg-herd-primary-muted flex items-center justify-center">
-              <MessageCircle className="w-8 h-8 text-herd-primary" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-herd-fg mb-1">Chat with {qualifiedName}</h2>
-              <p className="text-sm text-herd-muted max-w-sm">
-                {chatSessions.length > 0
-                  ? "Select a conversation from the sidebar or start a new one."
-                  : "Start a new conversation to chat with this agent."}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={handleStartNewChat}
-              className="bg-herd-primary hover:bg-herd-primary-hover text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
-            >
-              New Chat
-            </button>
-          </div>
+      {/* Right info sidebar — only when session is active and sidebar is open */}
+      {sessionId && chatInfoSidebarOpen && (
+        <div className="hidden lg:block">
+          <ChatInfoSidebar
+            agentName={qualifiedName}
+            sessionId={sessionId}
+            createdAt={currentSession?.createdAt}
+          />
         </div>
       )}
     </div>

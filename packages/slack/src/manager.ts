@@ -204,13 +204,19 @@ export class SlackManager implements IChatManager {
         this.handleError(event.agentName, event.error);
       });
 
-      connectPromises.push(
-        connector.connect().catch((error: unknown) => {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          logger.error(`Failed to connect Slack for agent '${qualifiedName}': ${errorMessage}`);
-          // Don't re-throw - we want to continue connecting other agents
-        }),
-      );
+      // Connect with a timeout so a hanging Slack connection doesn't block startup
+      const connectWithTimeout = Promise.race([
+        connector.connect(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Slack connection timed out after 30s")), 30_000),
+        ),
+      ]).catch((error: unknown) => {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error(`Failed to connect Slack for agent '${qualifiedName}': ${errorMessage}`);
+        // Don't re-throw - we want to continue connecting other agents
+      });
+
+      connectPromises.push(connectWithTimeout);
     }
 
     await Promise.all(connectPromises);

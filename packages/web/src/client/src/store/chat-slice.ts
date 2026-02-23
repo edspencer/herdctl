@@ -49,6 +49,8 @@ export interface ChatState {
   recentSessions: RecentChatSession[];
   /** Loading state for recent sessions fetch */
   recentSessionsLoading: boolean;
+  /** Whether the chat info sidebar is open */
+  chatInfoSidebarOpen: boolean;
 }
 
 export interface ChatActions {
@@ -88,6 +90,8 @@ export interface ChatActions {
   fetchRecentSessions: (limit?: number) => Promise<void>;
   /** Update lastMessageAt for a session in recentSessions (for real-time ordering) */
   touchRecentSession: (sessionId: string, agentName: string) => void;
+  /** Toggle chat info sidebar visibility */
+  toggleChatInfoSidebar: () => void;
 }
 
 export type ChatSlice = ChatState & ChatActions;
@@ -107,6 +111,17 @@ function getStoredMessageGrouping(): "separate" | "grouped" | null {
   return null;
 }
 
+/** Read stored chat info sidebar open state from localStorage */
+function getStoredChatInfoSidebarOpen(): boolean {
+  try {
+    const stored = localStorage.getItem("herdctl:chat_info_sidebar_open");
+    if (stored === "false") return false;
+  } catch {
+    /* ignore storage errors */
+  }
+  return true; // default: open
+}
+
 const initialChatState: ChatState = {
   chatSessions: [],
   chatSessionsLoading: false,
@@ -121,6 +136,7 @@ const initialChatState: ChatState = {
   messageGrouping: getStoredMessageGrouping() ?? "separate",
   recentSessions: [],
   recentSessionsLoading: false,
+  chatInfoSidebarOpen: getStoredChatInfoSidebarOpen(),
 };
 
 // =============================================================================
@@ -472,6 +488,18 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
       const updated = { ...state.recentSessions[idx], lastMessageAt: new Date().toISOString() };
       const recentSessions = [updated, ...state.recentSessions.filter((_, i) => i !== idx)];
       return { recentSessions };
+    });
+  },
+
+  toggleChatInfoSidebar: () => {
+    set((state) => {
+      const newOpen = !state.chatInfoSidebarOpen;
+      try {
+        localStorage.setItem("herdctl:chat_info_sidebar_open", String(newOpen));
+      } catch {
+        /* ignore storage errors */
+      }
+      return { chatInfoSidebarOpen: newOpen };
     });
   },
 });
