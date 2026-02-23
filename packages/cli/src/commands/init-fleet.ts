@@ -8,7 +8,10 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { createLogger } from "@herdctl/core";
 import { updateGitignore } from "./init-utils.js";
+
+const logger = createLogger("cli:init-fleet");
 
 export interface InitFleetOptions {
   name?: string;
@@ -64,8 +67,9 @@ export async function initFleetCommand(options: InitFleetOptions): Promise<void>
 
   // Check if config already exists
   if (fs.existsSync(configPath) && !options.force) {
-    console.error("Error: herdctl.yaml already exists. Use --force to overwrite.");
-    process.exit(1);
+    logger.error("herdctl.yaml already exists. Use --force to overwrite.");
+    process.exitCode = 1;
+    return;
   }
 
   const fleetName = options.name || path.basename(cwd);

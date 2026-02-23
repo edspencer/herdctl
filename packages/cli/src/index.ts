@@ -28,10 +28,13 @@
  */
 
 import { createRequire } from "node:module";
+import { createLogger } from "@herdctl/core";
 import { Command } from "commander";
 
 const require = createRequire(import.meta.url);
 const { version: VERSION } = require("../package.json");
+
+const logger = createLogger("cli");
 
 import {
   agentAddCommand,
@@ -230,7 +233,7 @@ program
         // Let the process.exit call in stopCommand handle this
         return;
       }
-      console.error("Error:", error instanceof Error ? error.message : String(error));
+      logger.error("Error:", { message: error instanceof Error ? error.message : String(error) });
       process.exit(1);
     }
   });

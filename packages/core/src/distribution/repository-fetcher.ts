@@ -216,29 +216,41 @@ async function fetchFromGitHub(source: GitHubFetchSource): Promise<RepositoryFet
       /* ignore cleanup errors */
     });
 
-    const error = err as Error & { code?: string; stderr?: string };
+    const error = err as Error & { code?: number | string; stderr?: string };
     const stderr = error.stderr?.toLowerCase() ?? "";
-    const code = error.code;
+    // Node.js execFile returns exit code as number, but handle string for safety
+    const exitCode = typeof error.code === "number" ? error.code : parseInt(String(error.code), 10);
 
-    // Exit code 128 typically indicates auth failure or repo not found
-    if (code === "128" || stderr.includes("authentication") || stderr.includes("could not read")) {
-      throw new GitHubCloneAuthError(source, error);
-    }
+    // Check specific error patterns FIRST before falling back to generic exit code checks.
+    // Git exit code 128 is used for multiple failure modes (auth, not found, etc.),
+    // so we must check message content to distinguish between them.
 
+    // Check for repository not found errors (specific patterns first)
     if (
-      stderr.includes("not found") ||
+      stderr.includes("repository not found") ||
       stderr.includes("does not exist") ||
-      stderr.includes("repository not found")
+      stderr.includes("not found")
     ) {
       throw new GitHubRepoNotFoundError(source, error);
     }
 
+    // Check for network errors
     if (
       stderr.includes("could not resolve host") ||
       stderr.includes("network") ||
       stderr.includes("connection")
     ) {
       throw new NetworkError(source, error);
+    }
+
+    // Check for authentication errors - either explicit auth messages or
+    // exit code 128 with credential-related messages
+    if (
+      stderr.includes("authentication") ||
+      stderr.includes("could not read") ||
+      exitCode === 128
+    ) {
+      throw new GitHubCloneAuthError(source, error);
     }
 
     // Generic error

@@ -28,6 +28,7 @@ import {
   AgentRemoveError,
   // Fleet config update
   addAgentToFleetConfig,
+  createLogger,
   type DiscoveredAgent,
   // Agent discovery
   discoverAgents,
@@ -62,6 +63,8 @@ import {
   // Repository validation
   validateRepository,
 } from "@herdctl/core";
+
+const logger = createLogger("cli:agent");
 
 // =============================================================================
 // Types
@@ -214,52 +217,52 @@ function printEnvVariables(envResult: EnvScanResult): void {
  */
 function handleKnownError(error: unknown): boolean {
   if (error instanceof SourceParseError) {
-    console.error(`Invalid source: ${error.message}`);
+    logger.error(`Invalid source: ${error.message}`);
     return true;
   }
 
   if (error instanceof GitHubCloneAuthError) {
-    console.error(`Authentication failed: ${error.message}`);
+    logger.error(`Authentication failed: ${error.message}`);
     return true;
   }
 
   if (error instanceof GitHubRepoNotFoundError) {
-    console.error(`Repository not found: ${error.message}`);
+    logger.error(`Repository not found: ${error.message}`);
     return true;
   }
 
   if (error instanceof NetworkError) {
-    console.error(`Network error: ${error.message}`);
+    logger.error(`Network error: ${error.message}`);
     return true;
   }
 
   if (error instanceof LocalPathError) {
-    console.error(`Local path error: ${error.message}`);
+    logger.error(`Local path error: ${error.message}`);
     return true;
   }
 
   if (error instanceof RegistryNotImplementedError) {
-    console.error(`Registry not available: ${error.message}`);
+    logger.error(`Registry not available: ${error.message}`);
     return true;
   }
 
   if (error instanceof RepositoryFetchError) {
-    console.error(`Failed to fetch: ${error.message}`);
+    logger.error(`Failed to fetch: ${error.message}`);
     return true;
   }
 
   if (error instanceof AgentInstallError) {
     if (error.code === AGENT_ALREADY_EXISTS) {
-      console.error(`Installation failed: ${error.message}`);
-      console.error("Use --force to overwrite the existing agent.");
+      logger.error(`Installation failed: ${error.message}`);
+      logger.error("Use --force to overwrite the existing agent.");
     } else {
-      console.error(`Installation failed: ${error.message}`);
+      logger.error(`Installation failed: ${error.message}`);
     }
     return true;
   }
 
   if (error instanceof FleetConfigError) {
-    console.error(`Config update failed: ${error.message}`);
+    logger.error(`Config update failed: ${error.message}`);
     return true;
   }
 
@@ -337,7 +340,7 @@ export async function agentAddCommand(source: string, options: AgentAddOptions):
     if (!validationResult.valid) {
       printValidationErrors(validationResult);
       console.log("");
-      console.error("Validation failed. Cannot install agent.");
+      logger.error("Validation failed. Cannot install agent.");
       process.exitCode = 1;
       return;
     }
@@ -582,7 +585,7 @@ export async function agentListCommand(options: AgentListOptions): Promise<void>
     console.log(`Total: ${result.agents.length} agent${result.agents.length === 1 ? "" : "s"}`);
   } catch (error) {
     if (error instanceof AgentDiscoveryError) {
-      console.error(`Discovery failed: ${error.message}`);
+      logger.error(`Discovery failed: ${error.message}`);
       process.exit(1);
     }
     throw error;
@@ -619,9 +622,8 @@ export async function agentInfoCommand(name: string, options: AgentInfoOptions):
     const info = await getAgentInfo({ name, configPath });
 
     if (!info) {
-      console.error(`Agent '${name}' not found in fleet configuration.`);
-      console.error("");
-      console.error("Run 'herdctl agent list' to see available agents.");
+      logger.error(`Agent '${name}' not found in fleet configuration.`);
+      logger.error("Run 'herdctl agent list' to see available agents.");
       process.exit(1);
     }
 
@@ -634,7 +636,7 @@ export async function agentInfoCommand(name: string, options: AgentInfoOptions):
     printAgentInfo(info);
   } catch (error) {
     if (error instanceof AgentDiscoveryError) {
-      console.error(`Discovery failed: ${error.message}`);
+      logger.error(`Discovery failed: ${error.message}`);
       process.exit(1);
     }
     throw error;
@@ -824,17 +826,16 @@ export async function agentRemoveCommand(name: string, options: AgentRemoveOptio
   } catch (error) {
     if (error instanceof AgentRemoveError) {
       if (error.code === AGENT_NOT_FOUND) {
-        console.error(`Agent '${name}' not found in fleet configuration.`);
-        console.error("");
-        console.error("Run 'herdctl agent list' to see available agents.");
+        logger.error(`Agent '${name}' not found in fleet configuration.`);
+        logger.error("Run 'herdctl agent list' to see available agents.");
       } else {
-        console.error(`Removal failed: ${error.message}`);
+        logger.error(`Removal failed: ${error.message}`);
       }
       process.exit(1);
     }
 
     if (error instanceof AgentDiscoveryError) {
-      console.error(`Discovery failed: ${error.message}`);
+      logger.error(`Discovery failed: ${error.message}`);
       process.exit(1);
     }
 

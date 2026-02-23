@@ -279,7 +279,6 @@ workSources:
 ```bash
 herdctl start                 # Start fleet from ./herdctl.yaml
 herdctl start -c config.yaml  # Start from specific config
-herdctl start --dry-run       # Validate without starting
 ```
 
 ### Status Commands

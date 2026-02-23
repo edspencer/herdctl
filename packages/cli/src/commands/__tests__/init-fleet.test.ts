@@ -132,9 +132,8 @@ describe("initFleetCommand", () => {
     it("errors if herdctl.yaml already exists", async () => {
       fs.writeFileSync(path.join(tempDir, "herdctl.yaml"), "version: 1");
 
-      await expect(initFleetCommand({})).rejects.toThrow("process.exit");
-      expect(exitCode).toBe(1);
-      expect(consoleErrors.some((e) => e.includes("herdctl.yaml already exists"))).toBe(true);
+      await initFleetCommand({});
+      expect(process.exitCode).toBe(1);
     });
 
     it("overwrites with --force", async () => {

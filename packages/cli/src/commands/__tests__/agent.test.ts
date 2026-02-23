@@ -5,6 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock @herdctl/core entirely
 vi.mock("@herdctl/core", () => ({
+  // Logger - mock that routes to console so tests can capture it
+  createLogger: () => ({
+    debug: (...args: unknown[]) => console.debug(...args),
+    info: (...args: unknown[]) => console.log(...args),
+    warn: (...args: unknown[]) => console.warn(...args),
+    error: (...args: unknown[]) => console.error(...args),
+  }),
+
   // Source parsing
   parseSourceSpecifier: vi.fn(),
   stringifySourceSpecifier: vi.fn(),

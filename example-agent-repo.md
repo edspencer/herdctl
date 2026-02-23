@@ -672,7 +672,7 @@ When a user runs `herdctl agent add github:herdctl-examples/website-monitor-agen
 
 ```
 my-project/
-├── fleet.yaml                        # Updated with agent reference
+├── herdctl.yaml                      # Updated with agent reference
 └── agents/
     └── website-monitor/              # Name from agent.yaml
         ├── agent.yaml                # Copied from repo as-is

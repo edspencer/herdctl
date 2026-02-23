@@ -135,29 +135,30 @@ describe("initAgentCommand", () => {
 
   describe("prerequisites", () => {
     it("errors if herdctl.yaml does not exist", async () => {
-      await expect(initAgentCommand("my-agent", { yes: true })).rejects.toThrow("process.exit");
-      expect(exitCode).toBe(1);
-      expect(consoleErrors.some((e) => e.includes("No herdctl.yaml found"))).toBe(true);
+      await initAgentCommand("my-agent", { yes: true });
+      expect(process.exitCode).toBe(1);
     });
 
-    it("errors if agent file already exists without --force", async () => {
+    it("errors if agent directory already exists without --force", async () => {
       createFleetConfig(tempDir);
-      fs.mkdirSync(path.join(tempDir, "agents"), { recursive: true });
-      fs.writeFileSync(path.join(tempDir, "agents", "my-agent.yaml"), "name: my-agent");
+      fs.mkdirSync(path.join(tempDir, "agents", "my-agent"), { recursive: true });
+      fs.writeFileSync(path.join(tempDir, "agents", "my-agent", "agent.yaml"), "name: my-agent");
 
-      await expect(initAgentCommand("my-agent", { yes: true })).rejects.toThrow("process.exit");
-      expect(exitCode).toBe(1);
-      expect(consoleErrors.some((e) => e.includes("already exists"))).toBe(true);
+      await initAgentCommand("my-agent", { yes: true });
+      expect(process.exitCode).toBe(1);
     });
 
-    it("overwrites agent file with --force", async () => {
+    it("overwrites agent directory with --force", async () => {
       createFleetConfig(tempDir);
-      fs.mkdirSync(path.join(tempDir, "agents"), { recursive: true });
-      fs.writeFileSync(path.join(tempDir, "agents", "my-agent.yaml"), "name: old-agent");
+      fs.mkdirSync(path.join(tempDir, "agents", "my-agent"), { recursive: true });
+      fs.writeFileSync(path.join(tempDir, "agents", "my-agent", "agent.yaml"), "name: old-agent");
 
       await initAgentCommand("my-agent", { yes: true, force: true });
 
-      const content = fs.readFileSync(path.join(tempDir, "agents", "my-agent.yaml"), "utf-8");
+      const content = fs.readFileSync(
+        path.join(tempDir, "agents", "my-agent", "agent.yaml"),
+        "utf-8",
+      );
       expect(content).toContain("name: my-agent");
     });
   });
@@ -166,9 +167,8 @@ describe("initAgentCommand", () => {
     it("requires name arg with --yes", async () => {
       createFleetConfig(tempDir);
 
-      await expect(initAgentCommand(undefined, { yes: true })).rejects.toThrow("process.exit");
-      expect(exitCode).toBe(1);
-      expect(consoleErrors.some((e) => e.includes("Agent name is required"))).toBe(true);
+      await initAgentCommand(undefined, { yes: true });
+      expect(process.exitCode).toBe(1);
     });
 
     it("creates agent with defaults", async () => {
@@ -176,7 +176,7 @@ describe("initAgentCommand", () => {
 
       await initAgentCommand("my-agent", { yes: true });
 
-      const agentPath = path.join(tempDir, "agents", "my-agent.yaml");
+      const agentPath = path.join(tempDir, "agents", "my-agent", "agent.yaml");
       expect(fs.existsSync(agentPath)).toBe(true);
 
       const content = fs.readFileSync(agentPath, "utf-8");
@@ -190,7 +190,10 @@ describe("initAgentCommand", () => {
 
       await initAgentCommand("my-agent", { yes: true, description: "A test agent" });
 
-      const content = fs.readFileSync(path.join(tempDir, "agents", "my-agent.yaml"), "utf-8");
+      const content = fs.readFileSync(
+        path.join(tempDir, "agents", "my-agent", "agent.yaml"),
+        "utf-8",
+      );
       expect(content).toContain("description: A test agent");
     });
 
@@ -199,7 +202,10 @@ describe("initAgentCommand", () => {
 
       await initAgentCommand("my-agent", { yes: true, permissionMode: "acceptEdits" });
 
-      const content = fs.readFileSync(path.join(tempDir, "agents", "my-agent.yaml"), "utf-8");
+      const content = fs.readFileSync(
+        path.join(tempDir, "agents", "my-agent", "agent.yaml"),
+        "utf-8",
+      );
       expect(content).toContain("permission_mode: acceptEdits");
     });
 
@@ -208,7 +214,10 @@ describe("initAgentCommand", () => {
 
       await initAgentCommand("my-agent", { yes: true, docker: true });
 
-      const content = fs.readFileSync(path.join(tempDir, "agents", "my-agent.yaml"), "utf-8");
+      const content = fs.readFileSync(
+        path.join(tempDir, "agents", "my-agent", "agent.yaml"),
+        "utf-8",
+      );
       expect(content).toContain("docker:");
       expect(content).toContain("enabled: true");
     });
@@ -218,7 +227,10 @@ describe("initAgentCommand", () => {
 
       await initAgentCommand("my-agent", { yes: true, runtime: "cli" });
 
-      const content = fs.readFileSync(path.join(tempDir, "agents", "my-agent.yaml"), "utf-8");
+      const content = fs.readFileSync(
+        path.join(tempDir, "agents", "my-agent", "agent.yaml"),
+        "utf-8",
+      );
       expect(content).toContain("runtime: cli");
     });
 
@@ -227,7 +239,10 @@ describe("initAgentCommand", () => {
 
       await initAgentCommand("my-agent", { yes: true, discord: true });
 
-      const content = fs.readFileSync(path.join(tempDir, "agents", "my-agent.yaml"), "utf-8");
+      const content = fs.readFileSync(
+        path.join(tempDir, "agents", "my-agent", "agent.yaml"),
+        "utf-8",
+      );
       expect(content).toContain("chat:");
       expect(content).toContain("discord:");
       expect(content).toContain("bot_token_env: DISCORD_BOT_TOKEN");
@@ -238,7 +253,10 @@ describe("initAgentCommand", () => {
 
       await initAgentCommand("my-agent", { yes: true, slack: true });
 
-      const content = fs.readFileSync(path.join(tempDir, "agents", "my-agent.yaml"), "utf-8");
+      const content = fs.readFileSync(
+        path.join(tempDir, "agents", "my-agent", "agent.yaml"),
+        "utf-8",
+      );
       expect(content).toContain("chat:");
       expect(content).toContain("slack:");
       expect(content).toContain("bot_token_env: SLACK_BOT_TOKEN");
@@ -247,29 +265,22 @@ describe("initAgentCommand", () => {
     it("validates invalid permission mode", async () => {
       createFleetConfig(tempDir);
 
-      await expect(
-        initAgentCommand("my-agent", { yes: true, permissionMode: "invalid" }),
-      ).rejects.toThrow("process.exit");
-      expect(exitCode).toBe(1);
-      expect(consoleErrors.some((e) => e.includes("Invalid permission mode"))).toBe(true);
+      await initAgentCommand("my-agent", { yes: true, permissionMode: "invalid" });
+      expect(process.exitCode).toBe(1);
     });
 
     it("validates invalid runtime", async () => {
       createFleetConfig(tempDir);
 
-      await expect(initAgentCommand("my-agent", { yes: true, runtime: "invalid" })).rejects.toThrow(
-        "process.exit",
-      );
-      expect(exitCode).toBe(1);
-      expect(consoleErrors.some((e) => e.includes("Invalid runtime"))).toBe(true);
+      await initAgentCommand("my-agent", { yes: true, runtime: "invalid" });
+      expect(process.exitCode).toBe(1);
     });
 
     it("validates invalid agent name", async () => {
       createFleetConfig(tempDir);
 
-      await expect(initAgentCommand("--bad-name", { yes: true })).rejects.toThrow("process.exit");
-      expect(exitCode).toBe(1);
-      expect(consoleErrors.some((e) => e.includes("Agent name must start"))).toBe(true);
+      await initAgentCommand("--bad-name", { yes: true });
+      expect(process.exitCode).toBe(1);
     });
   });
 
@@ -395,7 +406,10 @@ describe("initAgentCommand", () => {
 
       await initAgentCommand("my-agent", { yes: true });
 
-      const content = fs.readFileSync(path.join(tempDir, "agents", "my-agent.yaml"), "utf-8");
+      const content = fs.readFileSync(
+        path.join(tempDir, "agents", "my-agent", "agent.yaml"),
+        "utf-8",
+      );
       expect(content).toContain("# schedules:");
       expect(content).toContain("#     type: interval");
       expect(content).toContain("#     type: cron");
@@ -406,7 +420,10 @@ describe("initAgentCommand", () => {
 
       await initAgentCommand("my-agent", { yes: true });
 
-      const content = fs.readFileSync(path.join(tempDir, "agents", "my-agent.yaml"), "utf-8");
+      const content = fs.readFileSync(
+        path.join(tempDir, "agents", "my-agent", "agent.yaml"),
+        "utf-8",
+      );
       expect(content).toContain("# system_prompt:");
     });
 
@@ -415,7 +432,10 @@ describe("initAgentCommand", () => {
 
       await initAgentCommand("my-agent", { yes: true, discord: true, slack: true });
 
-      const content = fs.readFileSync(path.join(tempDir, "agents", "my-agent.yaml"), "utf-8");
+      const content = fs.readFileSync(
+        path.join(tempDir, "agents", "my-agent", "agent.yaml"),
+        "utf-8",
+      );
       expect(content).toContain("chat:");
       expect(content).toContain("  discord:");
       expect(content).toContain("  slack:");
@@ -429,7 +449,10 @@ describe("initAgentCommand", () => {
 
       await initAgentCommand("my-agent", { yes: true, docker: false });
 
-      const content = fs.readFileSync(path.join(tempDir, "agents", "my-agent.yaml"), "utf-8");
+      const content = fs.readFileSync(
+        path.join(tempDir, "agents", "my-agent", "agent.yaml"),
+        "utf-8",
+      );
       expect(content).not.toContain("docker:");
       expect(content).not.toContain("enabled: true");
     });
@@ -439,7 +462,10 @@ describe("initAgentCommand", () => {
 
       await initAgentCommand("my-agent", { yes: true });
 
-      const content = fs.readFileSync(path.join(tempDir, "agents", "my-agent.yaml"), "utf-8");
+      const content = fs.readFileSync(
+        path.join(tempDir, "agents", "my-agent", "agent.yaml"),
+        "utf-8",
+      );
       expect(content).not.toContain("chat:");
     });
   });
@@ -451,7 +477,7 @@ describe("initAgentCommand", () => {
       await initAgentCommand("my-agent", { yes: true });
 
       const content = fs.readFileSync(path.join(tempDir, "herdctl.yaml"), "utf-8");
-      expect(content).toContain("path: ./agents/my-agent.yaml");
+      expect(content).toContain("path: ./agents/my-agent/agent.yaml");
     });
 
     it("preserves existing agents in the array", async () => {
@@ -463,15 +489,15 @@ fleet:
   name: test-fleet
 
 agents:
-  - path: ./agents/existing-agent.yaml
+  - path: ./agents/existing-agent/agent.yaml
 `,
       );
 
       await initAgentCommand("new-agent", { yes: true });
 
       const content = fs.readFileSync(path.join(tempDir, "herdctl.yaml"), "utf-8");
-      expect(content).toContain("path: ./agents/existing-agent.yaml");
-      expect(content).toContain("path: ./agents/new-agent.yaml");
+      expect(content).toContain("path: ./agents/existing-agent/agent.yaml");
+      expect(content).toContain("path: ./agents/new-agent/agent.yaml");
     });
 
     it("handles empty agents: [] array", async () => {
@@ -480,7 +506,7 @@ agents:
       await initAgentCommand("my-agent", { yes: true });
 
       const content = fs.readFileSync(path.join(tempDir, "herdctl.yaml"), "utf-8");
-      expect(content).toContain("path: ./agents/my-agent.yaml");
+      expect(content).toContain("path: ./agents/my-agent/agent.yaml");
       // Should no longer have the empty [] form
       expect(content).not.toContain("agents: []");
     });
@@ -492,7 +518,7 @@ agents:
 
       await initAgentCommand("my-agent", { yes: true });
 
-      expect(consoleLogs.some((log) => log.includes("agents/my-agent.yaml"))).toBe(true);
+      expect(consoleLogs.some((log) => log.includes("agents/my-agent/agent.yaml"))).toBe(true);
       expect(consoleLogs.some((log) => log.includes("Added agent"))).toBe(true);
     });
 

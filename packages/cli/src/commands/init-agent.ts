@@ -6,14 +6,17 @@
  * - Docker, runtime
  * - Discord/Slack chat integration
  *
- * Generates agents/<name>.yaml and appends a reference to herdctl.yaml.
+ * Generates agents/<name>/agent.yaml and appends a reference to herdctl.yaml.
  */
 
 import { execSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { addAgentToFleetConfig, PermissionModeSchema } from "@herdctl/core";
+import { addAgentToFleetConfig, createLogger, PermissionModeSchema } from "@herdctl/core";
 import { confirm, input, select } from "@inquirer/prompts";
+import { stringify as stringifyYaml } from "yaml";
+
+const logger = createLogger("cli:init-agent");
 
 export interface InitAgentOptions {
   description?: string;
@@ -50,21 +53,21 @@ interface AgentConfig {
   slack: boolean;
 }
 
-/** Quote a YAML scalar if it contains characters that need escaping */
-function yamlQuote(value: string): string {
-  if (/[:#{}[\],&*?|>!%@`'"\n\r]/.test(value) || value !== value.trim()) {
-    // Use double-quote form with backslash escapes
-    return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
-  }
-  return value;
+/**
+ * Safely format a YAML scalar value using the yaml library.
+ * This handles all special characters including colons, newlines, quotes, etc.
+ */
+function yamlScalar(value: string): string {
+  // Use stringify to get properly quoted/escaped YAML, then trim the trailing newline
+  return stringifyYaml(value).trimEnd();
 }
 
 function generateAgentYaml(config: AgentConfig): string {
   const lines: string[] = [];
 
-  lines.push(`name: ${config.name}`);
+  lines.push(`name: ${yamlScalar(config.name)}`);
   if (config.description) {
-    lines.push(`description: ${yamlQuote(config.description)}`);
+    lines.push(`description: ${yamlScalar(config.description)}`);
   }
   lines.push("");
   lines.push(`permission_mode: ${config.permissionMode}`);
@@ -150,8 +153,9 @@ export async function initAgentCommand(
 
   // Check fleet config exists
   if (!fs.existsSync(configPath)) {
-    console.error("Error: No herdctl.yaml found. Run 'herdctl init fleet' first.");
-    process.exit(1);
+    logger.error("No herdctl.yaml found. Run 'herdctl init fleet' first.");
+    process.exitCode = 1;
+    return;
   }
 
   const dockerAvailable = isDockerAvailable();
@@ -167,16 +171,18 @@ export async function initAgentCommand(
   if (options.yes) {
     // Non-interactive mode
     if (!nameArg) {
-      console.error("Error: Agent name is required with --yes flag.");
-      console.error("Usage: herdctl init agent <name> --yes");
-      process.exit(1);
+      logger.error("Agent name is required with --yes flag.");
+      logger.error("Usage: herdctl init agent <name> --yes");
+      process.exitCode = 1;
+      return;
     }
 
     if (!AGENT_NAME_PATTERN.test(nameArg)) {
-      console.error(
-        "Error: Agent name must start with a letter or number and contain only letters, numbers, hyphens, and underscores.",
+      logger.error(
+        "Agent name must start with a letter or number and contain only letters, numbers, hyphens, and underscores.",
       );
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
 
     agentName = nameArg;
@@ -189,24 +195,27 @@ export async function initAgentCommand(
 
     // Validate permission mode
     if (!PERMISSION_MODES.includes(permissionMode as (typeof PERMISSION_MODES)[number])) {
-      console.error(`Error: Invalid permission mode '${permissionMode}'.`);
-      console.error(`Valid modes: ${PERMISSION_MODES.join(", ")}`);
-      process.exit(1);
+      logger.error(`Invalid permission mode '${permissionMode}'.`);
+      logger.error(`Valid modes: ${PERMISSION_MODES.join(", ")}`);
+      process.exitCode = 1;
+      return;
     }
 
     // Validate runtime
     if (runtime !== "sdk" && runtime !== "cli") {
-      console.error(`Error: Invalid runtime '${runtime}'. Must be 'sdk' or 'cli'.`);
-      process.exit(1);
+      logger.error(`Invalid runtime '${runtime}'. Must be 'sdk' or 'cli'.`);
+      process.exitCode = 1;
+      return;
     }
   } else {
     // Interactive mode
     if (nameArg) {
       if (!AGENT_NAME_PATTERN.test(nameArg)) {
-        console.error(
-          "Error: Agent name must start with a letter or number and contain only letters, numbers, hyphens, and underscores.",
+        logger.error(
+          "Agent name must start with a letter or number and contain only letters, numbers, hyphens, and underscores.",
         );
-        process.exit(1);
+        process.exitCode = 1;
+        return;
       }
       agentName = nameArg;
     } else {
@@ -261,17 +270,17 @@ export async function initAgentCommand(
     });
   }
 
-  // Check if agent file already exists
-  const agentPath = path.join(agentsDir, `${agentName}.yaml`);
-  if (fs.existsSync(agentPath) && !options.force) {
-    console.error(`Error: agents/${agentName}.yaml already exists. Use --force to overwrite.`);
-    process.exit(1);
+  // Check if agent directory already exists
+  const agentDir = path.join(agentsDir, agentName);
+  const agentPath = path.join(agentDir, "agent.yaml");
+  if (fs.existsSync(agentDir) && !options.force) {
+    logger.error(`agents/${agentName}/ already exists. Use --force to overwrite.`);
+    process.exitCode = 1;
+    return;
   }
 
-  // Create agents directory if needed
-  if (!fs.existsSync(agentsDir)) {
-    fs.mkdirSync(agentsDir, { recursive: true });
-  }
+  // Create agent directory (agents/<name>/)
+  fs.mkdirSync(agentDir, { recursive: true });
 
   // Generate and write agent config
   const agentYaml = generateAgentYaml({
@@ -288,7 +297,7 @@ export async function initAgentCommand(
   // Append agent reference to herdctl.yaml
   await addAgentToFleetConfig({
     configPath,
-    agentPath: `./agents/${agentName}.yaml`,
+    agentPath: `./agents/${agentName}/agent.yaml`,
   });
 
   // Print success
@@ -296,7 +305,7 @@ export async function initAgentCommand(
   console.log(`Added agent '${agentName}'`);
   console.log("");
   console.log("Created:");
-  console.log(`  agents/${agentName}.yaml`);
+  console.log(`  agents/${agentName}/agent.yaml`);
   console.log("");
   console.log("Updated:");
   console.log("  herdctl.yaml (added agent reference)");
@@ -304,7 +313,7 @@ export async function initAgentCommand(
   console.log("Next steps:");
   console.log("");
   console.log("  1. Customize your agent:");
-  console.log(`     - agents/${agentName}.yaml`);
+  console.log(`     - agents/${agentName}/agent.yaml`);
   console.log("");
   console.log("  2. Start your fleet:");
   console.log("     $ herdctl start");

@@ -68,7 +68,7 @@ function mockExecFileSuccess(stdout = "", stderr = "") {
   mockExecFileAsync.mockResolvedValue({ stdout, stderr });
 }
 
-function mockExecFileError(error: Error & { code?: string; stderr?: string }) {
+function mockExecFileError(error: Error & { code?: number | string; stderr?: string }) {
   mockExecFileAsync.mockRejectedValue(error);
 }
 
@@ -205,10 +205,10 @@ describe("fetchRepository", () => {
     describe("error handling", () => {
       it("throws GitHubCloneAuthError on authentication failure (exit code 128)", async () => {
         const error = new Error("fatal: could not read Username") as Error & {
-          code?: string;
+          code?: number | string;
           stderr?: string;
         };
-        error.code = "128";
+        error.code = 128;
         error.stderr =
           "fatal: could not read Username for 'https://github.com': terminal prompts disabled";
         mockExecFileError(error);
@@ -220,7 +220,7 @@ describe("fetchRepository", () => {
 
       it("throws GitHubCloneAuthError when stderr contains authentication", async () => {
         const error = new Error("authentication failed") as Error & {
-          code?: string;
+          code?: number | string;
           stderr?: string;
         };
         error.stderr = "authentication required";
@@ -231,7 +231,7 @@ describe("fetchRepository", () => {
 
       it("throws GitHubRepoNotFoundError when repo doesn't exist", async () => {
         const error = new Error("fatal: repository not found") as Error & {
-          code?: string;
+          code?: number | string;
           stderr?: string;
         };
         error.stderr = "fatal: repository 'https://github.com/nonexistent/repo.git/' not found";
@@ -244,7 +244,7 @@ describe("fetchRepository", () => {
 
       it("throws GitHubRepoNotFoundError when stderr contains does not exist", async () => {
         const error = new Error("remote does not exist") as Error & {
-          code?: string;
+          code?: number | string;
           stderr?: string;
         };
         error.stderr = "error: remote does not exist";
@@ -253,9 +253,26 @@ describe("fetchRepository", () => {
         await expect(fetchRepository(source)).rejects.toThrow(GitHubRepoNotFoundError);
       });
 
+      it("throws GitHubRepoNotFoundError (not auth error) when exit code 128 with repo not found message", async () => {
+        // Git exit code 128 is used for multiple failure modes.
+        // When the stderr contains "not found", it should be classified as repo not found,
+        // not as an auth error, even though exit code 128 is often associated with auth failures.
+        const error = new Error("fatal: repository not found") as Error & {
+          code?: number | string;
+          stderr?: string;
+        };
+        error.code = 128;
+        error.stderr = "fatal: repository 'https://github.com/nonexistent/repo.git/' not found";
+        mockExecFileError(error);
+
+        await expect(fetchRepository(source)).rejects.toThrow(GitHubRepoNotFoundError);
+        // Verify it's NOT throwing GitHubCloneAuthError
+        await expect(fetchRepository(source)).rejects.not.toThrow(GitHubCloneAuthError);
+      });
+
       it("throws NetworkError on network failure", async () => {
         const error = new Error("network error") as Error & {
-          code?: string;
+          code?: number | string;
           stderr?: string;
         };
         error.stderr = "fatal: could not resolve host: github.com";
@@ -268,7 +285,7 @@ describe("fetchRepository", () => {
 
       it("throws NetworkError when stderr contains connection issues", async () => {
         const error = new Error("connection failed") as Error & {
-          code?: string;
+          code?: number | string;
           stderr?: string;
         };
         error.stderr = "fatal: unable to access: connection refused";
@@ -279,7 +296,7 @@ describe("fetchRepository", () => {
 
       it("throws RepositoryFetchError for generic git errors", async () => {
         const error = new Error("some other git error") as Error & {
-          code?: string;
+          code?: number | string;
           stderr?: string;
         };
         error.stderr = "fatal: something went wrong";
