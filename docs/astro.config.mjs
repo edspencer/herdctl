@@ -10,6 +10,13 @@ export default defineConfig({
 	markdown: {
 		rehypePlugins: [[rehypeMermaid, { strategy: 'pre-mermaid' }]],
 	},
+	redirects: {
+		'/internals/architecture/': '/architecture/overview/',
+		'/internals/chat-architecture/': '/architecture/chat-infrastructure/',
+		'/internals/runner/': '/architecture/runner/',
+		'/internals/scheduler/': '/architecture/scheduler/',
+		'/internals/state-management/': '/architecture/state-management/',
+	},
 	integrations: [
 		sitemap(),
 		starlight({
@@ -170,14 +177,23 @@ export default defineConfig({
 					],
 				},
 				{
-					label: 'Internals',
+					label: 'Architecture',
 					collapsed: true,
 					items: [
-						{ label: 'Architecture', slug: 'internals/architecture' },
-						{ label: 'Chat Architecture', slug: 'internals/chat-architecture' },
-						{ label: 'Runner', slug: 'internals/runner' },
-						{ label: 'Scheduler', slug: 'internals/scheduler' },
-						{ label: 'State Management', slug: 'internals/state-management' },
+						{ label: 'Overview', slug: 'architecture/overview' },
+						{ label: 'Configuration', slug: 'architecture/configuration' },
+						{ label: 'State Management', slug: 'architecture/state-management' },
+						{ label: 'Scheduler', slug: 'architecture/scheduler' },
+						{ label: 'Runner', slug: 'architecture/runner' },
+						{ label: 'Job System', slug: 'architecture/job-system' },
+						{ label: 'Work Sources', slug: 'architecture/work-sources' },
+						{ label: 'Chat Infrastructure', slug: 'architecture/chat-infrastructure' },
+						{ label: 'Discord', slug: 'architecture/discord' },
+						{ label: 'Slack', slug: 'architecture/slack' },
+						{ label: 'CLI', slug: 'architecture/cli' },
+						{ label: 'HTTP API', slug: 'architecture/http-api' },
+						{ label: 'Web Dashboard', slug: 'architecture/web-dashboard' },
+						{ label: 'Docker Runtime', slug: 'architecture/docker-runtime' },
 					],
 				},
 				{

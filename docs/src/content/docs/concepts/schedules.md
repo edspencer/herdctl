@@ -576,4 +576,4 @@ When a work source is configured, the schedule will:
 - [Work Sources](/concepts/work-sources/) - How agents get tasks
 - [Agents](/concepts/agents/) - What schedules run
 - [Jobs](/concepts/jobs/) - Schedule execution results
-- [State Management](/internals/state-management/) - How schedule state is stored
+- [State Management](/architecture/state-management/) - How schedule state is stored

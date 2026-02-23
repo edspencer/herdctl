@@ -457,5 +457,5 @@ See the [CLI Reference](/cli-reference/#sessions) for complete command options.
 
 - [Jobs](/concepts/jobs/) - Individual executions that use sessions
 - [Agents](/concepts/agents/) - Configure session behavior per agent
-- [State Management](/internals/state-management/) - Session persistence details
+- [State Management](/architecture/state-management/) - Session persistence details
 - [CLI Reference: sessions](/cli-reference/#sessions) - Full command options for session management

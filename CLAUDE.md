@@ -71,10 +71,7 @@ herdctl/
 │   ├── discord/        # @herdctl/discord - Discord bot
 │   └── slack/          # @herdctl/slack - Slack bot
 ├── docs/               # Documentation site (Astro/Starlight) → herdctl.dev
-├── examples/           # Example configurations
-├── tasks/              # PRD drafts and task tracking
-├── SPEC.md             # Full specification document
-└── plan.md             # Implementation plan and PRD tracking
+└── examples/           # Example configurations
 ```
 
 ## Development Commands
@@ -151,15 +148,13 @@ As of December 2025, we use OIDC instead of npm tokens:
 
 | File | Purpose |
 |------|---------|
-| `SPEC.md` | Full project specification |
-| `plan.md` | Implementation plan, PRD tracking |
+| `docs/src/content/docs/architecture/` | Architecture documentation (14 pages) |
 | `packages/core/src/fleet-manager/` | FleetManager orchestration layer |
 | `packages/core/src/config/` | Configuration parsing and validation |
 | `packages/core/src/scheduler/` | Job scheduling |
 | `packages/core/src/state/` | State persistence (.herdctl/) |
 | `packages/core/src/utils/logger.ts` | Centralized logger (`createLogger`) |
 | `packages/web/DESIGN_SYSTEM.md` | Web UI visual design system (colors, typography, components) |
-| `tasks/web-ui-implementation-plan.md` | Web UI phased implementation plan |
 
 ## Quality Gates
 

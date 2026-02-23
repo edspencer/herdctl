@@ -227,7 +227,7 @@ See [Sessions](/concepts/sessions/) for more details on session management and r
 
 ## Job Storage
 
-Jobs are persisted to disk for history and recovery. See [State Management](/internals/state-management/) for details on storage backends and configuration.
+Jobs are persisted to disk for history and recovery. See [State Management](/architecture/state-management/) for details on storage backends and configuration.
 
 ```
 ~/.herdctl/
@@ -246,4 +246,4 @@ Jobs are persisted to disk for history and recovery. See [State Management](/int
 - [Schedules](/concepts/schedules/) - What triggers scheduled jobs
 - [Triggers](/concepts/triggers/) - What triggers event-based jobs
 - [Sessions](/concepts/sessions/) - Job execution context
-- [State Management](/internals/state-management/) - Job storage and persistence
+- [State Management](/architecture/state-management/) - Job storage and persistence
