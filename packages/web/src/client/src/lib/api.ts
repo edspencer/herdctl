@@ -393,6 +393,18 @@ export async function fetchSdkSessionId(
 }
 
 /**
+ * Fetch token usage for a chat session from the Claude Code session file on disk
+ */
+export async function fetchSessionUsage(
+  agentName: string,
+  sessionId: string,
+): Promise<{ inputTokens: number; turnCount: number; hasData: boolean }> {
+  return get<{ inputTokens: number; turnCount: number; hasData: boolean }>(
+    `/api/chat/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}/usage`,
+  );
+}
+
+/**
  * Delete a chat session
  *
  * DELETE /api/chat/:agentName/sessions/:sessionId

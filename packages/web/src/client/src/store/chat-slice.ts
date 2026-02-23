@@ -49,12 +49,6 @@ export interface ChatState {
   recentSessions: RecentChatSession[];
   /** Loading state for recent sessions fetch */
   recentSessionsLoading: boolean;
-  /** Last reported input tokens for current session (best proxy for context usage) */
-  chatSessionLastInputTokens: number;
-  /** Accumulated output tokens for current session */
-  chatSessionTotalOutputTokens: number;
-  /** Whether we have any token data for this session (distinguishes 0 from N/A) */
-  chatSessionHasTokenData: boolean;
   /** Whether the chat info sidebar is open */
   chatInfoSidebarOpen: boolean;
 }
@@ -96,10 +90,6 @@ export interface ChatActions {
   fetchRecentSessions: (limit?: number) => Promise<void>;
   /** Update lastMessageAt for a session in recentSessions (for real-time ordering) */
   touchRecentSession: (sessionId: string, agentName: string) => void;
-  /** Add token usage from a streaming update */
-  addTokenUsage: (inputTokens: number, outputTokens: number) => void;
-  /** Reset token usage counters (when switching sessions) */
-  resetTokenUsage: () => void;
   /** Toggle chat info sidebar visibility */
   toggleChatInfoSidebar: () => void;
 }
@@ -146,9 +136,6 @@ const initialChatState: ChatState = {
   messageGrouping: getStoredMessageGrouping() ?? "separate",
   recentSessions: [],
   recentSessionsLoading: false,
-  chatSessionLastInputTokens: 0,
-  chatSessionTotalOutputTokens: 0,
-  chatSessionHasTokenData: false,
   chatInfoSidebarOpen: getStoredChatInfoSidebarOpen(),
 };
 
@@ -468,9 +455,6 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
       chatStreamingContent: "",
       chatError: null,
       // sidebarSessions intentionally preserved
-      chatSessionLastInputTokens: 0,
-      chatSessionTotalOutputTokens: 0,
-      chatSessionHasTokenData: false,
     });
   },
 
@@ -504,24 +488,6 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
       const updated = { ...state.recentSessions[idx], lastMessageAt: new Date().toISOString() };
       const recentSessions = [updated, ...state.recentSessions.filter((_, i) => i !== idx)];
       return { recentSessions };
-    });
-  },
-
-  addTokenUsage: (inputTokens: number, outputTokens: number) => {
-    set((state) => ({
-      // input_tokens represents the full context sent in this API call,
-      // so the latest value is the best proxy for context window fill
-      chatSessionLastInputTokens: inputTokens,
-      chatSessionTotalOutputTokens: state.chatSessionTotalOutputTokens + outputTokens,
-      chatSessionHasTokenData: true,
-    }));
-  },
-
-  resetTokenUsage: () => {
-    set({
-      chatSessionLastInputTokens: 0,
-      chatSessionTotalOutputTokens: 0,
-      chatSessionHasTokenData: false,
     });
   },
 

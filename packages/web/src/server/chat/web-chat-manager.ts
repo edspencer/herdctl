@@ -6,8 +6,11 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { createInterface } from "node:readline";
 import {
   type ChatConnectorLogger,
   ChatSessionManager,
@@ -116,12 +119,16 @@ export type OnToolCallCallback = (toolCall: ToolCallData) => void | Promise<void
 export type OnBoundaryCallback = () => void | Promise<void>;
 
 /**
- * Callback for receiving token usage updates during streaming
+ * Token usage data for a session
  */
-export type OnUsageUpdateCallback = (usage: {
+export interface SessionUsage {
+  /** Last reported input tokens (best proxy for context window fill) */
   inputTokens: number;
-  outputTokens: number;
-}) => void | Promise<void>;
+  /** Number of API calls (assistant turns) in this session */
+  turnCount: number;
+  /** Whether any usage data was found */
+  hasData: boolean;
+}
 
 // =============================================================================
 // WebChatManager Implementation
@@ -393,7 +400,6 @@ export class WebChatManager {
    * @param onChunk - Callback for streaming response chunks
    * @param onToolCall - Optional callback for tool call results
    * @param onBoundary - Optional callback for message boundary signals
-   * @param onUsageUpdate - Optional callback for token usage updates
    * @returns Result with jobId
    */
   async sendMessage(
@@ -403,7 +409,6 @@ export class WebChatManager {
     onChunk: OnChunkCallback,
     onToolCall?: OnToolCallCallback,
     onBoundary?: OnBoundaryCallback,
-    onUsageUpdate?: OnUsageUpdateCallback,
   ): Promise<SendMessageResult> {
     this.ensureInitialized();
 
@@ -510,21 +515,6 @@ export class WebChatManager {
                   name: block.name,
                   input: block.input,
                   startTime: Date.now(),
-                });
-              }
-            }
-
-            // Extract and forward token usage data
-            if (onUsageUpdate) {
-              const msgWithUsage = sdkMessage as {
-                message?: { usage?: { input_tokens?: number; output_tokens?: number } };
-                usage?: { input_tokens?: number; output_tokens?: number };
-              };
-              const usage = msgWithUsage.message?.usage ?? msgWithUsage.usage;
-              if (usage) {
-                await onUsageUpdate({
-                  inputTokens: usage.input_tokens ?? 0,
-                  outputTokens: usage.output_tokens ?? 0,
                 });
               }
             }
@@ -651,6 +641,63 @@ export class WebChatManager {
       return existing.sessionId;
     }
     return null;
+  }
+
+  /**
+   * Get token usage for a session by reading Claude Code's session JSONL file
+   *
+   * Locates the Claude CLI session file on disk (either native at
+   * ~/.claude/projects/ or Docker at .herdctl/docker-sessions/) and
+   * sums usage from assistant messages.
+   *
+   * @param agentName - Name of the agent
+   * @param sessionId - Web chat session ID
+   * @returns Token usage data, or zeros if not available
+   */
+  async getSessionUsage(agentName: string, sessionId: string): Promise<SessionUsage> {
+    this.ensureInitialized();
+
+    const noData: SessionUsage = { inputTokens: 0, turnCount: 0, hasData: false };
+
+    // Get the SDK session ID that maps to this web session
+    const sdkSessionId = await this.getSdkSessionId(agentName, sessionId);
+    if (!sdkSessionId) {
+      return noData;
+    }
+
+    // Determine if the agent uses Docker to find the right session file location
+    const agents = this.fleetManager!.getAgents();
+    const agent = agents.find((a) => a.qualifiedName === agentName || a.name === agentName);
+    if (!agent) {
+      return noData;
+    }
+
+    const dockerEnabled = agent.docker?.enabled ?? false;
+    let sessionFilePath: string;
+
+    if (dockerEnabled) {
+      // Docker sessions are at .herdctl/docker-sessions/<sdkSessionId>.jsonl
+      sessionFilePath = join(this.stateDir!, "docker-sessions", `${sdkSessionId}.jsonl`);
+    } else {
+      // Native CLI sessions are at ~/.claude/projects/<encoded-workspace>/<sdkSessionId>.jsonl
+      const workDirConfig = agent.working_directory;
+      if (!workDirConfig) {
+        return noData;
+      }
+      // working_directory can be a string or { root: string, ... }
+      const workDir = typeof workDirConfig === "string" ? workDirConfig : workDirConfig.root;
+      const encodedPath = workDir.replace(/[/\\]/g, "-");
+      sessionFilePath = join(
+        homedir(),
+        ".claude",
+        "projects",
+        encodedPath,
+        `${sdkSessionId}.jsonl`,
+      );
+    }
+
+    // Read the session JSONL and extract usage from assistant messages
+    return this.readUsageFromSessionFile(sessionFilePath);
   }
 
   // ===========================================================================
@@ -864,5 +911,88 @@ export class WebChatManager {
     }
 
     this.sessionMetadata.set(agentName, agentSessions);
+  }
+
+  /**
+   * Read token usage from a Claude Code session JSONL file
+   *
+   * Parses the raw SDK messages line by line. For assistant messages,
+   * extracts usage including prompt cache tokens (which represent the
+   * vast majority of context when caching is enabled).
+   */
+  private async readUsageFromSessionFile(filePath: string): Promise<SessionUsage> {
+    const noData: SessionUsage = { inputTokens: 0, turnCount: 0, hasData: false };
+
+    // Check file exists
+    try {
+      await stat(filePath);
+    } catch {
+      return noData;
+    }
+
+    let lastInputTokens = 0;
+    let hasData = false;
+
+    // Claude Code writes multiple JSONL lines per API call (one per content
+    // block: text, tool_use, etc.) with identical usage. Deduplicate by
+    // message ID so each API call is counted once.
+    const seenMessageIds = new Set<string>();
+
+    const fileStream = createReadStream(filePath, { encoding: "utf-8" });
+    const rl = createInterface({ input: fileStream, crlfDelay: Infinity });
+
+    try {
+      for await (const line of rl) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        try {
+          const msg = JSON.parse(trimmed) as {
+            type?: string;
+            message?: {
+              id?: string;
+              usage?: {
+                input_tokens?: number;
+                cache_creation_input_tokens?: number;
+                cache_read_input_tokens?: number;
+              };
+            };
+          };
+
+          // Only assistant messages carry usage data
+          if (msg.type !== "assistant") continue;
+
+          // Skip duplicates of the same API call
+          const messageId = msg.message?.id;
+          if (messageId) {
+            if (seenMessageIds.has(messageId)) continue;
+            seenMessageIds.add(messageId);
+          }
+
+          const usage = msg.message?.usage;
+          if (!usage) continue;
+
+          // Total input = base input + cache tokens (cache tokens represent
+          // the vast majority of context with prompt caching enabled)
+          const inputTokens =
+            (usage.input_tokens ?? 0) +
+            (usage.cache_creation_input_tokens ?? 0) +
+            (usage.cache_read_input_tokens ?? 0);
+
+          if (inputTokens > 0) {
+            lastInputTokens = inputTokens;
+            hasData = true;
+          }
+        } catch {
+          // Skip malformed lines
+        }
+      }
+    } finally {
+      rl.close();
+      fileStream.destroy();
+    }
+
+    // turnCount = number of unique API calls (assistant turns)
+    return { inputTokens: lastInputTokens, turnCount: seenMessageIds.size, hasData };
   }
 }

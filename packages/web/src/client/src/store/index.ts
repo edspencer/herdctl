@@ -309,19 +309,6 @@ export function useSidebarSessions() {
 }
 
 /**
- * Select chat token usage state
- */
-export function useChatTokenUsage() {
-  return useStore(
-    useShallow((state) => ({
-      lastInputTokens: state.chatSessionLastInputTokens,
-      totalOutputTokens: state.chatSessionTotalOutputTokens,
-      hasTokenData: state.chatSessionHasTokenData,
-    })),
-  );
-}
-
-/**
  * Select chat info sidebar state
  */
 export function useChatInfoSidebar() {

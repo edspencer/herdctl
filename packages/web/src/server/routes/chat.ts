@@ -214,6 +214,29 @@ export function registerChatRoutes(
   });
 
   /**
+   * GET /api/chat/:agentName/sessions/:sessionId/usage
+   *
+   * Get token usage for a chat session by reading the Claude Code session file.
+   *
+   * @returns { inputTokens: number, outputTokens: number, hasData: boolean }
+   */
+  server.get<{
+    Params: { agentName: string; sessionId: string };
+  }>("/api/chat/:agentName/sessions/:sessionId/usage", async (request, reply) => {
+    try {
+      const { agentName, sessionId } = request.params;
+      const usage = await chatManager.getSessionUsage(agentName, sessionId);
+      return reply.send(usage);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return reply.status(500).send({
+        error: `Failed to get session usage: ${message}`,
+        statusCode: 500,
+      });
+    }
+  });
+
+  /**
    * DELETE /api/chat/:agentName/sessions/:sessionId
    *
    * Delete a chat session.

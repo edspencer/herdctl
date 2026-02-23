@@ -8,8 +8,8 @@
 
 import { Check, Copy, Terminal } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { fetchSdkSessionId } from "../../lib/api";
-import { useAgent, useChatMessages, useChatTokenUsage } from "../../store";
+import { fetchSdkSessionId, fetchSessionUsage } from "../../lib/api";
+import { useAgent, useChatMessages } from "../../store";
 
 // =============================================================================
 // Types
@@ -179,10 +179,12 @@ function formatTimestamp(iso: string): string {
 export function ChatInfoSidebar({ agentName, sessionId, createdAt }: ChatInfoSidebarProps) {
   const agent = useAgent(agentName);
   const { chatMessages } = useChatMessages();
-  const { lastInputTokens, totalOutputTokens, hasTokenData } = useChatTokenUsage();
   const [sdkSessionId, setSdkSessionId] = useState<string | null>(null);
   const [sdkSessionLoading, setSdkSessionLoading] = useState(false);
   const [dockerEnabled, setDockerEnabled] = useState(false);
+  const [lastInputTokens, setLastInputTokens] = useState(0);
+  const [turnCount, setTurnCount] = useState(0);
+  const [hasTokenData, setHasTokenData] = useState(false);
 
   // Fetch SDK session ID when session changes
   useEffect(() => {
@@ -197,6 +199,21 @@ export function ChatInfoSidebar({ agentName, sessionId, createdAt }: ChatInfoSid
       .catch(() => {})
       .finally(() => setSdkSessionLoading(false));
   }, [agentName, sessionId]);
+
+  // Fetch token usage from disk when session changes or messages update
+  const messageCount = chatMessages.length;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: messageCount triggers re-fetch when new messages arrive
+  useEffect(() => {
+    fetchSessionUsage(agentName, sessionId)
+      .then((usage) => {
+        setLastInputTokens(usage.inputTokens);
+        setTurnCount(usage.turnCount);
+        setHasTokenData(usage.hasData);
+      })
+      .catch(() => {
+        // Silently fail — usage is non-critical
+      });
+  }, [agentName, sessionId, messageCount]);
 
   const workDir = agent?.working_directory;
   const model = agent?.model ?? "unknown";
@@ -238,24 +255,22 @@ export function ChatInfoSidebar({ agentName, sessionId, createdAt }: ChatInfoSid
 
         {/* Token Usage */}
         <div>
-          <SectionHeader>Token Usage</SectionHeader>
+          <SectionHeader>Context</SectionHeader>
           {hasTokenData ? (
             <div className="space-y-2">
+              <ContextProgressBar inputTokens={lastInputTokens} contextWindow={contextWindow} />
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <div className="text-[11px] text-herd-sidebar-muted">Input</div>
+                  <div className="text-[11px] text-herd-sidebar-muted">Tokens</div>
                   <div className="text-sm font-mono text-herd-sidebar-fg">
                     {formatTokens(lastInputTokens)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-herd-sidebar-muted">Output</div>
-                  <div className="text-sm font-mono text-herd-sidebar-fg">
-                    {formatTokens(totalOutputTokens)}
-                  </div>
+                  <div className="text-[11px] text-herd-sidebar-muted">API Calls</div>
+                  <div className="text-sm font-mono text-herd-sidebar-fg">{turnCount}</div>
                 </div>
               </div>
-              <ContextProgressBar inputTokens={lastInputTokens} contextWindow={contextWindow} />
             </div>
           ) : (
             <div className="text-xs text-herd-sidebar-muted">N/A</div>

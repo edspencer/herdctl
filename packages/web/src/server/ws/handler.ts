@@ -225,19 +225,6 @@ export class WebSocketHandler {
             },
           });
         },
-        async (usage) => {
-          // Stream token usage updates to the client
-          this.sendToClient(client, {
-            type: "chat:usage_update",
-            payload: {
-              agentName,
-              sessionId,
-              jobId,
-              inputTokens: usage.inputTokens,
-              outputTokens: usage.outputTokens,
-            },
-          });
-        },
       );
 
       jobId = result.jobId;
