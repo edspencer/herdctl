@@ -3,10 +3,14 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import sitemap from '@astrojs/sitemap';
 import rehypeMermaid from 'rehype-mermaid';
+import tailwindcss from '@tailwindcss/vite';
 
 // https://astro.build/config
 export default defineConfig({
 	site: 'https://herdctl.dev',
+	vite: {
+		plugins: [tailwindcss()],
+	},
 	markdown: {
 		rehypePlugins: [[rehypeMermaid, { strategy: 'pre-mermaid' }]],
 	},
@@ -20,7 +24,7 @@ export default defineConfig({
 	integrations: [
 		sitemap(),
 		starlight({
-			customCss: ['./src/styles/custom.css'],
+			customCss: ['./src/styles/tailwind.css', './src/styles/custom.css'],
 			title: 'herdctl',
 			tagline: 'Autonomous Agent Fleet Management for Claude Code',
 			favicon: '/favicon.ico',
@@ -29,6 +33,29 @@ export default defineConfig({
 				alt: 'herdctl',
 			},
 			head: [
+				// Inter font for custom landing page components
+				{
+					tag: 'link',
+					attrs: {
+						rel: 'preconnect',
+						href: 'https://fonts.googleapis.com',
+					},
+				},
+				{
+					tag: 'link',
+					attrs: {
+						rel: 'preconnect',
+						href: 'https://fonts.gstatic.com',
+						crossorigin: true,
+					},
+				},
+				{
+					tag: 'link',
+					attrs: {
+						rel: 'stylesheet',
+						href: 'https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100..900&display=swap',
+					},
+				},
 				// Mermaid client-side rendering
 				{
 					tag: 'script',

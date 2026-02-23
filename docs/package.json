@@ -12,8 +12,13 @@
   "dependencies": {
     "@astrojs/sitemap": "^3.2.1",
     "@astrojs/starlight": "^0.37.3",
+    "@astrojs/starlight-tailwind": "^4.0.2",
     "astro": "^5.6.1",
     "rehype-mermaid": "^3.0.0",
     "sharp": "^0.34.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.18",
+    "tailwindcss": "^4.0.9"
   }
 }

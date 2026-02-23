@@ -1,3 +1,25 @@
+/*
+ * Hide Starlight's auto-generated hero section on the landing page.
+ * The h1 remains in the DOM for accessibility and SEO (screen readers, crawlers),
+ * but is visually hidden since the page provides its own custom Hero component.
+ */
+[data-has-hero] .hero {
+	display: none;
+}
+
+/* Remove default main padding on landing page so custom components go edge-to-edge */
+[data-has-hero] main {
+	padding: 0;
+}
+
+/*
+ * Remove the content max-width constraint on the landing page so custom
+ * sections (which manage their own max-w-7xl internally) can use the full width.
+ */
+[data-has-hero] .content-panel > .sl-container {
+	max-width: none;
+}
+
 /* Cap the right-hand TOC sidebar at 350px and let the content area fill the rest. */
 @media (min-width: 72rem) {
 	/* Let the main content area expand to fill all remaining space */

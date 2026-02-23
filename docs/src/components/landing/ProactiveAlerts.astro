@@ -1,0 +1,41 @@
+---
+import alertImg from '../../assets/landing/homelab-daily-schedule-herdctl.png';
+---
+
+<div class="bg-gray-50 py-16 sm:py-20">
+  <div class="mx-auto max-w-7xl px-6 lg:px-8">
+    <div class="mx-auto max-w-2xl lg:mx-0 lg:max-w-none lg:grid lg:grid-cols-2 lg:gap-x-16 lg:gap-y-8 items-center">
+      <div>
+        <h2 class="text-base font-semibold leading-7 text-indigo-600">Proactive Alerts</h2>
+        <p class="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+          Agents come to you
+        </p>
+        <p class="mt-6 text-lg leading-8 text-gray-600">
+          Agents don't just wait to be checked on. Configure hooks to post results to Discord or Slack after every
+          run. Get security findings, build failures, or daily summaries delivered straight to your team's
+          channels.
+        </p>
+        <div class="mt-8">
+          <a
+            href="https://edspencer.net/2026/2/22/continuous-security-audit-herdctl"
+            class="text-sm font-semibold leading-6 text-indigo-600 hover:text-indigo-500"
+          >
+            Read about continuous security auditing <span aria-hidden="true">&rarr;</span>
+          </a>
+        </div>
+      </div>
+      <div class="mt-10 lg:mt-0">
+        <img
+          src={alertImg.src}
+          alt="Discord notification from a herdctl agent reporting daily security audit findings including critical firewall issues"
+          width={alertImg.width}
+          height={alertImg.height}
+          class="rounded-xl shadow-xl ring-1 ring-gray-200"
+        />
+        <p class="mt-2 text-sm text-gray-500 italic text-center">
+          A homelab agent reports security findings to Discord every morning
+        </p>
+      </div>
+    </div>
+  </div>
+</div>

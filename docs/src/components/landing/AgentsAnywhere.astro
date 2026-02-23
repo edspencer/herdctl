@@ -1,0 +1,62 @@
+---
+import webImg from '../../assets/landing/web-herdctl.png';
+import slackImg from '../../assets/landing/slack-app.png';
+import discordImg from '../../assets/landing/discord-app.png';
+---
+
+<div class="bg-white py-16 sm:py-20">
+  <div class="mx-auto max-w-7xl px-6 lg:px-8">
+    <div class="mx-auto max-w-2xl lg:text-center mb-10">
+      <h2 class="text-base font-semibold leading-7 text-indigo-600">Talk to Your Agents Anywhere</h2>
+      <p class="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+        Web, Slack, or Discord — wherever your team already works
+      </p>
+      <p class="mt-4 text-lg leading-8 text-gray-600">
+        Chat with your agents through the built-in Web UI, Slack, or Discord. Send a message from your phone and
+        pick up the conversation in your terminal. Every interaction is logged and every session is resumable.
+      </p>
+    </div>
+    <div class="mx-auto max-w-7xl">
+      <figure>
+        <div class="grid grid-cols-1 sm:grid-cols-3 xl:gap-8 gap-6 items-center">
+          <div class="overflow-hidden rounded-xl shadow-lg ring-1 ring-gray-200">
+            <img
+              src={webImg.src}
+              alt="Web UI showing a conversation with a herdctl agent"
+              width={webImg.width}
+              height={webImg.height}
+              class="w-full h-auto"
+            />
+          </div>
+          <div class="overflow-hidden rounded-xl shadow-lg ring-1 ring-gray-200">
+            <img
+              src={slackImg.src}
+              alt="Slack conversation with a herdctl agent"
+              width={slackImg.width}
+              height={slackImg.height}
+              class="w-full h-auto"
+            />
+          </div>
+          <div class="overflow-hidden rounded-xl shadow-lg ring-1 ring-gray-200">
+            <img
+              src={discordImg.src}
+              alt="Discord conversation with a herdctl agent"
+              width={discordImg.width}
+              height={discordImg.height}
+              class="w-full h-auto"
+            />
+          </div>
+        </div>
+        <figcaption class="mt-3 text-sm text-gray-500 text-center italic">The same agent, accessible from Web, Slack, and Discord</figcaption>
+      </figure>
+    </div>
+    <div class="mt-8 flex justify-center">
+      <a
+        href="https://edspencer.net/2026/2/22/herdctl-gains-slack-and-web-connectors"
+        class="text-sm font-semibold leading-6 text-indigo-600 hover:text-indigo-500"
+      >
+        Learn about Slack and Web connectors <span aria-hidden="true">&rarr;</span>
+      </a>
+    </div>
+  </div>
+</div>

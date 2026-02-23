@@ -1,0 +1,36 @@
+---
+import fleetImg from '../../assets/landing/fleet-composition-subteams.png';
+---
+
+<div class="bg-gray-50 py-16 sm:py-20">
+  <div class="mx-auto max-w-7xl px-6 lg:px-8">
+    <div class="mx-auto max-w-2xl lg:text-center mb-10">
+      <h2 class="text-base font-semibold leading-7 text-indigo-600">Composable Fleets</h2>
+      <p class="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+        Scale from one agent to an entire organization
+      </p>
+      <p class="mt-4 text-lg leading-8 text-gray-600">
+        Fleets can contain sub-fleets, so you can organize agents by team, project, or department. A marketing
+        team runs analytics and SEO agents. A legal team runs compliance scanners. A DevOps team runs security
+        audits and infrastructure monitors. Each team owns their fleet — and they all compose into one.
+      </p>
+    </div>
+    <div class="mx-auto max-w-4xl">
+      <img
+        src={fleetImg.src}
+        alt="Fleet composition hierarchy showing sub-fleets organized by team — marketing, legal, and DevOps each with their own specialized agents"
+        width={fleetImg.width}
+        height={fleetImg.height}
+        class="w-full h-auto rounded-xl shadow-lg"
+      />
+    </div>
+    <div class="mt-8 flex justify-center">
+      <a
+        href="https://edspencer.net/2026/2/22/herdctl-composable-fleets"
+        class="text-sm font-semibold leading-6 text-indigo-600 hover:text-indigo-500"
+      >
+        Read more about composable fleets <span aria-hidden="true">&rarr;</span>
+      </a>
+    </div>
+  </div>
+</div>

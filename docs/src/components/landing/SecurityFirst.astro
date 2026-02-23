@@ -1,0 +1,88 @@
+<div class="bg-gray-900 py-16 sm:py-24">
+  <div class="mx-auto max-w-7xl px-6 lg:px-8">
+    <div class="mx-auto max-w-2xl lg:mx-0 lg:max-w-none lg:grid lg:grid-cols-2 lg:gap-x-16 lg:gap-y-8 items-center">
+      <div>
+        <div class="flex items-center gap-2 mb-4">
+          <!-- ShieldIcon -->
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-indigo-400" aria-hidden="true">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+          <h2 class="text-base font-semibold leading-7 text-indigo-400">Security First</h2>
+        </div>
+        <p class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+          Run agents in Docker containers
+        </p>
+        <p class="mt-6 text-lg leading-8 text-gray-300">
+          AI agents are inherently risky - they can be manipulated or confused into doing things they shouldn't.
+          Docker isolation is the gold standard for containing that risk, and herdctl makes it dead simple.
+        </p>
+        <ul class="mt-8 space-y-3 text-base leading-7 text-gray-300">
+          <li class="flex gap-x-3">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-indigo-400 flex-shrink-0 mt-1" aria-hidden="true">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            <span>
+              <strong class="text-white">File system isolation</strong> - agents can't access your real files
+            </span>
+          </li>
+          <li class="flex gap-x-3">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-indigo-400 flex-shrink-0 mt-1" aria-hidden="true">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            <span>
+              <strong class="text-white">Network controls</strong> - whitelist ports, IPs, and hosts
+            </span>
+          </li>
+          <li class="flex gap-x-3">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-indigo-400 flex-shrink-0 mt-1" aria-hidden="true">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            <span>
+              <strong class="text-white">Resource limits</strong> - prevent runaway processes and fork bombs
+            </span>
+          </li>
+          <li class="flex gap-x-3">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-indigo-400 flex-shrink-0 mt-1" aria-hidden="true">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            <span>
+              <strong class="text-white">Process isolation</strong> - agents can't see your system processes
+            </span>
+          </li>
+        </ul>
+        <div class="mt-8">
+          <a
+            href="https://herdctl.dev/security/"
+            class="text-sm font-semibold leading-6 text-indigo-400 hover:text-indigo-300"
+          >
+            Read the full Docker security guide <span aria-hidden="true">&rarr;</span>
+          </a>
+        </div>
+      </div>
+      <div class="mt-10 lg:mt-0">
+        <!-- DockerCodeBlock -->
+        <div class="rounded-xl bg-gray-800 p-6 shadow-xl ring-1 ring-white/10">
+          <div class="flex items-center gap-2 mb-4">
+            <div class="h-3 w-3 rounded-full bg-red-500"></div>
+            <div class="h-3 w-3 rounded-full bg-yellow-500"></div>
+            <div class="h-3 w-3 rounded-full bg-green-500"></div>
+            <span class="ml-2 text-sm text-gray-400">herdctl-agent.yaml</span>
+          </div>
+          <pre class="text-sm text-gray-300 overflow-x-auto"><code><span class="text-indigo-400">name</span><span class="text-gray-500">:</span> my-agent
+
+<span class="text-gray-500"># Enable Docker isolation - that's it!</span>
+<span class="text-indigo-400">docker</span><span class="text-gray-500">:</span>
+  <span class="text-indigo-400">enabled</span><span class="text-gray-500">:</span> <span class="text-green-400">true</span>
+
+<span class="text-gray-500"># Lock down what tools the agent can use</span>
+<span class="text-indigo-400">allowed_tools</span><span class="text-gray-500">:</span>
+  - Read
+  - Glob
+  - Grep
+  - Edit
+  - Write</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

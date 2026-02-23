@@ -1,0 +1,95 @@
+<div class="bg-white py-16 sm:py-20">
+  <div class="mx-auto max-w-7xl px-6 lg:px-8">
+    <div class="mx-auto max-w-2xl lg:text-center mb-12">
+      <h2 class="text-base font-semibold leading-7 text-indigo-600">Simple Configuration</h2>
+      <p class="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+        Your fleet in a few YAML files
+      </p>
+      <p class="mt-4 text-lg leading-8 text-gray-600">
+        One herdctl.yaml defines your fleet. Each agent gets its own directory with a herdctl-agent.yaml. Secrets
+        live in .env.
+      </p>
+    </div>
+    <div class="mx-auto max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <!-- FileSystemView -->
+      <div class="rounded-xl bg-gray-900 p-6 shadow-xl ring-1 ring-white/10">
+        <div class="flex items-center gap-2 mb-4">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="text-yellow-400" aria-hidden="true">
+            <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
+          </svg>
+          <span class="text-sm text-gray-400">Fleet Directory Structure</span>
+        </div>
+        <div class="text-sm font-mono">
+          <div class="text-gray-300">
+            <span class="text-yellow-400">my-fleet/</span>
+          </div>
+          <div class="text-gray-300 pl-4">
+            <span class="text-indigo-400">&boxvr;&horbar; </span>
+            <span class="text-green-400">herdctl.yaml</span>
+            <span class="text-gray-500 ml-4"># Fleet config</span>
+          </div>
+          <div class="text-gray-300 pl-4">
+            <span class="text-indigo-400">&boxvr;&horbar; </span>
+            <span class="text-gray-400">.env</span>
+            <span class="text-gray-500 ml-4"># API keys &amp; secrets</span>
+          </div>
+          <div class="text-gray-300 pl-4">
+            <span class="text-indigo-400">&boxvr;&horbar; </span>
+            <span class="text-yellow-400">agents/</span>
+          </div>
+          <div class="text-gray-300 pl-8">
+            <span class="text-indigo-400">&boxvr;&horbar; </span>
+            <span class="text-yellow-400">pr-reviewer/</span>
+          </div>
+          <div class="text-gray-300 pl-12">
+            <span class="text-indigo-400">&boxur;&horbar; </span>
+            <span class="text-green-400">herdctl-agent.yaml</span>
+          </div>
+          <div class="text-gray-300 pl-8">
+            <span class="text-indigo-400">&boxvr;&horbar; </span>
+            <span class="text-yellow-400">docs-writer/</span>
+          </div>
+          <div class="text-gray-300 pl-12">
+            <span class="text-indigo-400">&boxur;&horbar; </span>
+            <span class="text-green-400">herdctl-agent.yaml</span>
+          </div>
+          <div class="text-gray-300 pl-8">
+            <span class="text-indigo-400">&boxur;&horbar; </span>
+            <span class="text-yellow-400">monitor/</span>
+          </div>
+          <div class="text-gray-300 pl-12">
+            <span class="text-indigo-400">&boxur;&horbar; </span>
+            <span class="text-green-400">herdctl-agent.yaml</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- FleetConfigExample -->
+      <div class="rounded-xl bg-gray-900 p-6 shadow-xl ring-1 ring-white/10">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="h-3 w-3 rounded-full bg-red-500"></div>
+          <div class="h-3 w-3 rounded-full bg-yellow-500"></div>
+          <div class="h-3 w-3 rounded-full bg-green-500"></div>
+          <span class="ml-2 text-sm text-gray-400">herdctl.yaml</span>
+        </div>
+        <pre class="text-sm text-gray-300 overflow-x-auto"><code><span class="text-indigo-400">version</span><span class="text-gray-500">:</span> 1
+
+<span class="text-indigo-400">fleet</span><span class="text-gray-500">:</span>
+  <span class="text-indigo-400">name</span><span class="text-gray-500">:</span> my-dev-fleet
+  <span class="text-indigo-400">description</span><span class="text-gray-500">:</span> Development agents
+
+<span class="text-indigo-400">defaults</span><span class="text-gray-500">:</span>
+  <span class="text-indigo-400">model</span><span class="text-gray-500">:</span> sonnet
+  <span class="text-indigo-400">max_turns</span><span class="text-gray-500">:</span> 50
+
+<span class="text-indigo-400">agents</span><span class="text-gray-500">:</span>
+  - <span class="text-indigo-400">path</span><span class="text-gray-500">:</span> ./agents/pr-reviewer
+  - <span class="text-indigo-400">path</span><span class="text-gray-500">:</span> ./agents/docs-writer
+  - <span class="text-indigo-400">path</span><span class="text-gray-500">:</span> ./agents/monitor
+    <span class="text-indigo-400">overrides</span><span class="text-gray-500">:</span>
+      <span class="text-indigo-400">docker</span><span class="text-gray-500">:</span>
+        <span class="text-indigo-400">enabled</span><span class="text-gray-500">:</span> <span class="text-green-400">true</span></code></pre>
+      </div>
+    </div>
+  </div>
+</div>

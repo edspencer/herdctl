@@ -1,0 +1,21 @@
+---
+import archImg from '../../assets/landing/architecture.png';
+---
+
+<div class="bg-white py-16 sm:py-20">
+  <div class="mx-auto max-w-7xl px-6 lg:px-8">
+    <div class="mx-auto max-w-2xl lg:text-center mb-10">
+      <h2 class="text-base font-semibold leading-7 text-indigo-600">The Big Picture</h2>
+      <p class="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">How herdctl works</p>
+    </div>
+    <div class="mx-auto max-w-4xl">
+      <img
+        src={archImg.src}
+        alt="herdctl architecture showing scheduled triggers and Discord messages flowing into the herdctl fleet manager, which spawns Docker-isolated and native agents"
+        width={archImg.width}
+        height={archImg.height}
+        class="w-full h-auto"
+      />
+    </div>
+  </div>
+</div>

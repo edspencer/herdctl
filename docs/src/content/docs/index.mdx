@@ -1,225 +1,41 @@
 ---
-title: Welcome to herdctl
+title: herdctl - Autonomous Agent Fleet Management
 description: Infrastructure for running Claude Code agents at scale
+template: doc
+tableOfContents: false
+editUrl: false
+lastUpdated: false
+prev: false
+next: false
+hero:
+  title: herdctl
+  tagline: Autonomous Agent Fleet Management for Claude Code
 ---
 
-import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import Hero from '../../components/landing/Hero.astro';
+import AgentsAnywhere from '../../components/landing/AgentsAnywhere.astro';
+import ComposableFleets from '../../components/landing/ComposableFleets.astro';
+import HowItWorks from '../../components/landing/HowItWorks.astro';
+import SimpleConfiguration from '../../components/landing/SimpleConfiguration.astro';
+import SecurityFirst from '../../components/landing/SecurityFirst.astro';
+import VideoSection from '../../components/landing/VideoSection.astro';
+import MonitorEverything from '../../components/landing/MonitorEverything.astro';
+import KeyFeatures from '../../components/landing/KeyFeatures.astro';
+import ProactiveAlerts from '../../components/landing/ProactiveAlerts.astro';
+import UseCases from '../../components/landing/UseCases.astro';
+import CallToAction from '../../components/landing/CallToAction.astro';
 
-## What is herdctl?
-
-**herdctl** is infrastructure for running [Claude Code](https://docs.anthropic.com/en/docs/claude-code) agents. That's all it is.
-
-It lets you run agents **locally or in the cloud**, **isolated in Docker or on bare metal**, using either the **Claude Agents SDK** (Anthropic API billing) or the **Claude Code CLI** (your Claude Max subscription).
-
-Each agent can be triggered on **any number of schedules**, exposed in **any number of Discord or Slack channels** (powered by the shared `@herdctl/chat` infrastructure), and you can run as many of them as you want in a **fleet**.
-
-Every fleet can be monitored via the built-in **[web dashboard](/integrations/web-dashboard/)** — real-time status, live output streaming, agent chat, and schedule controls, all in your browser.
-
-herdctl is not an AI system. It's not trying to solve AI problems. It's a thin orchestration layer for people who are **building and using AI agents built on Claude Code**.
-
-## Intro Video
-
-<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; margin: 1rem 0;">
-  <iframe
-    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"
-    src="https://www.youtube.com/embed/b3MRrpHLu8M"
-    title="herdctl demo"
-    frameborder="0"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-    allowfullscreen>
-  </iframe>
+<div class="landing-page">
+  <Hero />
+  <AgentsAnywhere />
+  <ComposableFleets />
+  <HowItWorks />
+  <SimpleConfiguration />
+  <SecurityFirst />
+  <VideoSection />
+  <MonitorEverything />
+  <KeyFeatures />
+  <ProactiveAlerts />
+  <UseCases />
+  <CallToAction />
 </div>
-
-## Deployment Options
-
-| Where | How | Billing |
-|-------|-----|---------|
-| Local machine | Bare metal | Claude Max or API |
-| Local machine | Docker | Claude Max or API |
-| Cloud server | Bare metal | Claude Max or API |
-| Cloud server | Docker | Claude Max or API |
-
-**Runtime choice**: Use `runtime: cli` to run via the Claude Code CLI (uses your Claude Max subscription), or `runtime: sdk` (default) to use the Claude Agents SDK (billed via Anthropic API).
-
-**Docker isolation**: Enable `docker.enabled: true` for kernel-level isolation with network namespaces, resource limits, and domain whitelisting. Your host system stays protected.
-
-## Triggers
-
-Agents can be triggered by:
-
-- **Schedules** — interval (`every: 30m`) or cron (`cron: "0 9 * * *"`)
-- **Chat** — Discord or Slack messages
-- **Work sources** — GitHub Issues, webhooks (coming soon)
-- **Manual** — `herdctl run agent-name "do something"`
-
-Or any combination. An agent can have multiple schedules, be in multiple Discord or Slack channels, and pull work from GitHub Issues all at once.
-
-## What herdctl is NOT
-
-herdctl is deliberately minimal. It does not:
-
-- Provide its own AI capabilities (it runs Claude Code)
-- Manage prompts or prompt engineering (that's your agent's system prompt)
-- Handle tool development (use MCP servers)
-- Provide a drag-and-drop agent builder (agents are defined in YAML)
-
-If you want to build AI agents on Claude Code and need infrastructure to run them, herdctl is for you. If you want an all-in-one AI platform, look elsewhere.
-
-## Package Architecture
-
-herdctl is a monorepo of npm packages following a **library-first** design. All business logic lives in `@herdctl/core`; everything else is a thin wrapper or connector.
-
-<img src="/diagrams/package-dependencies.svg" alt="Package dependency graph showing CLI, Web, Discord, and Slack packages depending on Chat, which depends on Core" width="100%" />
-
-| Package | Purpose |
-|---------|---------|
-| `@herdctl/core` | Fleet management, config, scheduler, state, runner |
-| `herdctl` | CLI — thin wrapper around FleetManager |
-| `@herdctl/web` | Web dashboard (React + Fastify + WebSocket) |
-| `@herdctl/chat` | Shared chat infrastructure for connectors |
-| `@herdctl/discord` | Discord bot connector |
-| `@herdctl/slack` | Slack bot connector |
-
-## Configuration as Code
-
-Everything in herdctl is configured via YAML files that you can source-control alongside your code.
-
-The agent config is essentially a wrapper around Claude Code's own configuration. Anything you can set in Claude Code or the Claude Agents SDK — tool permissions, MCP servers, permission mode, model, system prompt — you can set here. herdctl adds a few top-level keys for its own features: `runtime`, `docker`, `schedules`, and `chat`.
-
-### Fleet configuration
-
-A fleet is just a list of agent config paths:
-
-```yaml
-# herdctl.yaml
-version: 1
-
-fleet:
-  name: my-fleet
-  description: My agent fleet
-
-defaults:
-  model: sonnet
-  max_turns: 50
-
-agents:
-  - path: ./agents/code-reviewer/herdctl-agent.yaml
-  - path: ./agents/docs-writer/herdctl-agent.yaml
-  - path: ../other-repo/herdctl-agent.yaml
-```
-
-### Agent configuration
-
-Each agent has its own config file. This can live in the same repo as the code the agent works on:
-
-```yaml
-# herdctl-agent.yaml
-name: code-reviewer
-description: Reviews PRs and suggests improvements
-
-# Use CLI runtime to use Claude Max subscription instead of API
-runtime: cli
-
-# Run in Docker for security isolation (safe options only at agent level)
-docker:
-  enabled: true
-  memory: "2g"
-
-# Point to an existing Claude Code project with skills/sub-agents
-working_directory: /path/to/my/project
-
-# Wake up on schedules
-schedules:
-  - name: hourly-review
-    every: 1h
-    prompt: "Check for new PRs and review them"
-
-# Respond to Discord messages
-chat:
-  discord:
-    bot_token_env: REVIEWER_DISCORD_TOKEN
-    guilds:
-      - id: "${DISCORD_GUILD_ID}"
-        channels:
-          - id: "${DISCORD_CHANNEL_ID}"
-            mode: mention
-
-# Standard Claude Code permissions
-allowed_tools:
-  - Read
-  - Glob
-  - Grep
-  - WebFetch
-  - "Bash(git *)"
-  - "Bash(gh *)"
-```
-
-Sensitive Docker options like `env` must be configured at fleet level (see [tiered security model](/configuration/docker/#tiered-security-model)):
-
-```yaml
-# herdctl.yaml (fleet config)
-agents:
-  - path: ./agents/code-reviewer/herdctl-agent.yaml
-    overrides:
-      docker:
-        env:
-          GITHUB_TOKEN: "${GITHUB_TOKEN}"
-```
-
-Because `working_directory` points to your existing Claude Code project, any CLAUDE.md files, skills, sub-agents, and MCP server configs you have there are automatically available to the agent.
-
-### Environment variables
-
-Secrets go in a `.env` file in the same directory as your `herdctl.yaml`. When you run `herdctl start`, it loads these automatically and makes them available for substitution in your agent configs via `${VAR_NAME}` syntax.
-
-```bash
-# .env (add to .gitignore!)
-
-# Each agent needs its own Discord bot token
-REVIEWER_DISCORD_TOKEN=your-reviewer-bot-token
-DOCS_WRITER_DISCORD_TOKEN=your-docs-writer-bot-token
-
-# Shared Discord server info
-DISCORD_GUILD_ID=123456789
-DISCORD_CHANNEL_ID=987654321
-
-# GitHub tokens (can be different per agent if needed)
-GITHUB_TOKEN=ghp_xxxxxxxxxxxx
-
-# For SDK runtime (API billing)
-ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxx
-
-# For CLI runtime with Claude Max
-CLAUDE_CODE_OAUTH_TOKEN=your-oauth-token
-```
-
-This keeps secrets out of source control while letting you route the right credentials to each agent.
-
-## Next Steps
-
-<CardGrid>
-  <LinkCard
-    title="Getting Started"
-    description="Install herdctl and run your first agent"
-    href="/getting-started/"
-  />
-  <LinkCard
-    title="Core Concepts"
-    description="Learn about agents, schedules, jobs, and sessions"
-    href="/concepts/agents/"
-  />
-  <LinkCard
-    title="Web Dashboard"
-    description="Monitor your fleet and chat with agents from the browser"
-    href="/integrations/web-dashboard/"
-  />
-  <LinkCard
-    title="Chat Integrations"
-    description="Connect agents to Discord, Slack, or the web dashboard"
-    href="/integrations/discord/"
-  />
-</CardGrid>
-
----
-
-Built by [Ed Spencer](https://edspencer.net)

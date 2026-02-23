@@ -1,0 +1,189 @@
+<div class="py-16 sm:py-24">
+  <div class="mx-auto max-w-7xl px-6 lg:px-8">
+    <div class="mx-auto max-w-2xl lg:text-center">
+      <p class="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Key Features</p>
+    </div>
+    <div class="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
+      <dl class="grid max-w-xl grid-cols-1 gap-x-8 gap-y-10 lg:max-w-none lg:grid-cols-3">
+        <!-- Schedules for Claude Code -->
+        <div class="flex flex-col">
+          <dt class="flex items-center gap-x-3 text-base font-semibold leading-7 text-gray-900">
+            <div class="h-10 w-10 flex items-center justify-center rounded-lg bg-indigo-600">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            </div>
+            Schedules for Claude Code
+          </dt>
+          <dd class="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-600">
+            <p class="flex-auto">Define agents that wake themselves up on schedules or triggers. Cron expressions, intervals, or one-off jobs - all from YAML config.</p>
+            <div class="mt-4 rounded-lg bg-gray-900 p-4 ring-1 ring-white/10">
+              <div class="flex items-center gap-2 mb-3 pb-2 border-b border-gray-700">
+                <div class="h-2 w-2 rounded-full bg-red-500"></div>
+                <div class="h-2 w-2 rounded-full bg-yellow-500"></div>
+                <div class="h-2 w-2 rounded-full bg-green-500"></div>
+                <span class="ml-1 text-xs text-gray-500">herdctl-agent.yaml</span>
+              </div>
+              <pre class="text-xs text-gray-300 overflow-x-auto"><code><span class="text-indigo-400">schedules</span><span class="text-gray-500">:</span>
+  <span class="text-indigo-400">daily_review</span><span class="text-gray-500">:</span>
+    <span class="text-indigo-400">type</span><span class="text-gray-500">:</span> cron
+    <span class="text-indigo-400">expression</span><span class="text-gray-500">:</span> <span class="text-green-400">"0 9 * * *"</span>
+    <span class="text-indigo-400">prompt</span><span class="text-gray-500">:</span> |
+      Review all open PRs...</code></pre>
+            </div>
+          </dd>
+        </div>
+
+        <!-- Thin Claude Code Wrapper -->
+        <div class="flex flex-col">
+          <dt class="flex items-center gap-x-3 text-base font-semibold leading-7 text-gray-900">
+            <div class="h-10 w-10 flex items-center justify-center rounded-lg bg-indigo-600">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" aria-hidden="true">
+                <polyline points="16 18 22 12 16 6" />
+                <polyline points="8 6 2 12 8 18" />
+              </svg>
+            </div>
+            Thin Claude Code Wrapper
+          </dt>
+          <dd class="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-600">
+            <p class="flex-auto">If Claude Code can do it, your herdctl agent can do it. Same tools, same MCP servers. Lock down permissions per-agent.</p>
+            <div class="mt-4 rounded-lg bg-gray-900 p-4 ring-1 ring-white/10">
+              <div class="flex items-center gap-2 mb-3 pb-2 border-b border-gray-700">
+                <div class="h-2 w-2 rounded-full bg-red-500"></div>
+                <div class="h-2 w-2 rounded-full bg-yellow-500"></div>
+                <div class="h-2 w-2 rounded-full bg-green-500"></div>
+                <span class="ml-1 text-xs text-gray-500">herdctl-agent.yaml</span>
+              </div>
+              <pre class="text-xs text-gray-300 overflow-x-auto"><code><span class="text-indigo-400">allowed_tools</span><span class="text-gray-500">:</span>
+  - Read
+  - Edit
+  - WebSearch
+  - Bash(git)
+  - Bash(ssh)</code></pre>
+            </div>
+          </dd>
+        </div>
+
+        <!-- Connect to Chat -->
+        <div class="flex flex-col">
+          <dt class="flex items-center gap-x-3 text-base font-semibold leading-7 text-gray-900">
+            <div class="h-10 w-10 flex items-center justify-center rounded-lg bg-indigo-600">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" aria-hidden="true">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </div>
+            Connect to Chat
+          </dt>
+          <dd class="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-600">
+            <p class="flex-auto">Connect agents to Discord or Slack. Message your agents from your phone and they continue working.</p>
+            <div class="mt-4 rounded-lg bg-gray-900 p-4 ring-1 ring-white/10">
+              <div class="flex items-center gap-2 mb-3 pb-2 border-b border-gray-700">
+                <div class="h-2 w-2 rounded-full bg-red-500"></div>
+                <div class="h-2 w-2 rounded-full bg-yellow-500"></div>
+                <div class="h-2 w-2 rounded-full bg-green-500"></div>
+                <span class="ml-1 text-xs text-gray-500">herdctl-agent.yaml</span>
+              </div>
+              <pre class="text-xs text-gray-300 overflow-x-auto"><code><span class="text-indigo-400">chat</span><span class="text-gray-500">:</span>
+  <span class="text-indigo-400">slack</span><span class="text-gray-500">:</span>
+    <span class="text-indigo-400">bot_token_env</span><span class="text-gray-500">:</span> SLACK_BOT_TOKEN
+    <span class="text-indigo-400">app_token_env</span><span class="text-gray-500">:</span> SLACK_APP_TOKEN
+    <span class="text-indigo-400">channels</span><span class="text-gray-500">:</span>
+      - <span class="text-green-400">"#dev-agents"</span></code></pre>
+            </div>
+          </dd>
+        </div>
+
+        <!-- Session Continuity -->
+        <div class="flex flex-col">
+          <dt class="flex items-center gap-x-3 text-base font-semibold leading-7 text-gray-900">
+            <div class="h-10 w-10 flex items-center justify-center rounded-lg bg-indigo-600">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" aria-hidden="true">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+            </div>
+            Session Continuity
+          </dt>
+          <dd class="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-600">
+            <p class="flex-auto">Every job creates a real Claude SDK session. Resume that exact session in your terminal with claude --resume. Full context preserved.</p>
+            <div class="mt-4 rounded-lg bg-gray-900 p-4 ring-1 ring-white/10">
+              <div class="flex items-center gap-2 mb-3 pb-2 border-b border-gray-700">
+                <div class="h-2 w-2 rounded-full bg-red-500"></div>
+                <div class="h-2 w-2 rounded-full bg-yellow-500"></div>
+                <div class="h-2 w-2 rounded-full bg-green-500"></div>
+                <span class="ml-1 text-xs text-gray-500">terminal</span>
+              </div>
+              <pre class="text-xs text-gray-300 overflow-x-auto"><code><span class="text-gray-500"># List recent sessions</span>
+<span class="text-green-400">herdctl</span> sessions
+
+<span class="text-gray-500"># Resume in your terminal</span>
+<span class="text-green-400">claude</span> --resume <span class="text-yellow-400">session-id</span></code></pre>
+            </div>
+          </dd>
+        </div>
+
+        <!-- Two Runtimes -->
+        <div class="flex flex-col">
+          <dt class="flex items-center gap-x-3 text-base font-semibold leading-7 text-gray-900">
+            <div class="h-10 w-10 flex items-center justify-center rounded-lg bg-indigo-600">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" aria-hidden="true">
+                <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
+                <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
+                <line x1="6" y1="6" x2="6.01" y2="6" />
+                <line x1="6" y1="18" x2="6.01" y2="18" />
+              </svg>
+            </div>
+            Two Runtimes
+          </dt>
+          <dd class="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-600">
+            <p class="flex-auto">CLI runtime uses your Claude Max subscription (much cheaper). SDK runtime uses API pricing<sup>*</sup>. Choose per-agent.</p>
+            <div class="mt-4 rounded-lg bg-gray-900 p-4 ring-1 ring-white/10">
+              <div class="flex items-center gap-2 mb-3 pb-2 border-b border-gray-700">
+                <div class="h-2 w-2 rounded-full bg-red-500"></div>
+                <div class="h-2 w-2 rounded-full bg-yellow-500"></div>
+                <div class="h-2 w-2 rounded-full bg-green-500"></div>
+                <span class="ml-1 text-xs text-gray-500">herdctl-agent.yaml</span>
+              </div>
+              <pre class="text-xs text-gray-300 overflow-x-auto"><code><span class="text-gray-500"># Use Claude Max tokens</span>
+<span class="text-indigo-400">runtime</span><span class="text-gray-500">:</span> cli
+
+<span class="text-gray-500"># Or use Anthropic API</span>
+<span class="text-indigo-400">runtime</span><span class="text-gray-500">:</span> sdk</code></pre>
+            </div>
+          </dd>
+        </div>
+
+        <!-- Hooks & Automation -->
+        <div class="flex flex-col">
+          <dt class="flex items-center gap-x-3 text-base font-semibold leading-7 text-gray-900">
+            <div class="h-10 w-10 flex items-center justify-center rounded-lg bg-indigo-600">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" aria-hidden="true">
+                <path d="M18 16.98h-5.99c-1.1 0-1.95.68-2.95 1.76C8.07 19.83 6.51 21 5 21c-2.21 0-4-1.79-4-4 0-1.66 1.01-3.08 2.45-3.68" />
+                <path d="M9 11.25V5c0-1.66 1.34-3 3-3s3 1.34 3 3v6.25" />
+                <circle cx="12" cy="18" r="3" />
+              </svg>
+            </div>
+            Hooks &amp; Automation
+          </dt>
+          <dd class="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-600">
+            <p class="flex-auto">Trigger actions on job completion. Post to Discord, run shell scripts, call webhooks - all configurable per-agent.</p>
+            <div class="mt-4 rounded-lg bg-gray-900 p-4 ring-1 ring-white/10">
+              <div class="flex items-center gap-2 mb-3 pb-2 border-b border-gray-700">
+                <div class="h-2 w-2 rounded-full bg-red-500"></div>
+                <div class="h-2 w-2 rounded-full bg-yellow-500"></div>
+                <div class="h-2 w-2 rounded-full bg-green-500"></div>
+                <span class="ml-1 text-xs text-gray-500">herdctl-agent.yaml</span>
+              </div>
+              <pre class="text-xs text-gray-300 overflow-x-auto"><code><span class="text-indigo-400">hooks</span><span class="text-gray-500">:</span>
+  <span class="text-indigo-400">after_run</span><span class="text-gray-500">:</span>
+    - <span class="text-indigo-400">type</span><span class="text-gray-500">:</span> discord
+      <span class="text-indigo-400">channel_id</span><span class="text-gray-500">:</span> <span class="text-green-400">"$&#123;CHANNEL&#125;"</span>
+      <span class="text-indigo-400">when</span><span class="text-gray-500">:</span> <span class="text-green-400">'job.scheduleName'</span></code></pre>
+            </div>
+          </dd>
+        </div>
+      </dl>
+    </div>
+  </div>
+</div>
