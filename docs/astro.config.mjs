@@ -205,6 +205,8 @@ export default defineConfig({
 					label: 'Guides',
 					collapsed: true,
 					items: [
+						{ label: 'Installing Agents', slug: 'guides/installing-agents' },
+						{ label: 'Creating Agents', slug: 'guides/creating-agents' },
 						{ label: 'Discord Chat Quick Start', slug: 'guides/discord-quick-start' },
 						{ label: 'Slack Chat Quick Start', slug: 'guides/slack-quick-start' },
 						{ label: 'Example Projects', slug: 'guides/examples' },
@@ -242,6 +244,13 @@ export default defineConfig({
 				{
 					label: 'CLI Reference',
 					slug: 'cli-reference',
+				},
+				{
+					label: 'Reference',
+					collapsed: true,
+					items: [
+						{ label: 'herdctl.json', slug: 'reference/herdctl-json' },
+					],
 				},
 			],
 		}),

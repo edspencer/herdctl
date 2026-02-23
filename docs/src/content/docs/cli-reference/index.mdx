@@ -357,6 +357,188 @@ The `sessions resume` command is particularly useful for picking up where a Disc
 
 See [Sessions](/concepts/sessions/) for more about session modes and persistence.
 
+### agent
+
+Manage distributable agents — install from GitHub or local paths, list installed agents, and remove agents you no longer need.
+
+#### agent add
+
+Install an agent from GitHub or a local path.
+
+```bash
+herdctl agent add <source> [options]
+```
+
+**Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `source` | Agent source: `github:user/repo[@ref]` or `./local/path` |
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--path <path>` | Install to specific directory (default: `./agents/<name>/`) |
+| `--dry-run` | Show what would be installed without making changes |
+| `--force` | Overwrite existing agent if it exists |
+
+**Examples:**
+
+```bash
+# Install from GitHub
+herdctl agent add github:edspencer/competitive-analysis-agent
+
+# Install specific version
+herdctl agent add github:edspencer/competitive-analysis-agent@v1.0.0
+
+# Install from a branch
+herdctl agent add github:edspencer/competitive-analysis-agent@main
+
+# Install from local directory
+herdctl agent add ./my-local-agent
+
+# Preview installation without making changes
+herdctl agent add github:user/repo --dry-run
+
+# Overwrite existing agent
+herdctl agent add github:user/repo --force
+
+# Install to custom path
+herdctl agent add github:user/repo --path ./agents/my-custom-name
+```
+
+**Output:**
+
+After installation, the command displays:
+- Files installed and their locations
+- Fleet config changes made
+- Required environment variables to configure
+- Next steps for testing the agent
+
+#### agent list
+
+List all installed agents.
+
+```bash
+herdctl agent list [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Output as JSON for scripting |
+
+**Examples:**
+
+```bash
+# List all installed agents
+herdctl agent list
+
+# Output:
+# NAME                  SOURCE                                      VERSION  INSTALLED
+# competitor-tracker    github:user/competitive-analysis-agent      1.0.0    2 days ago
+# content-writer        github:user/content-agent                   0.5.0    1 week ago
+# github-triager        ./agents/custom-triager                     -        3 days ago
+
+# JSON output for scripting
+herdctl agent list --json
+```
+
+#### agent info
+
+Show detailed information about an installed agent.
+
+```bash
+herdctl agent info <name> [options]
+```
+
+**Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `name` | Name of the installed agent |
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Output as JSON for scripting |
+
+**Examples:**
+
+```bash
+# Show agent details
+herdctl agent info competitor-tracker
+
+# Output:
+# Name: competitor-tracker
+# Description: Competitive intelligence for Acme SaaS Platform
+# Source: github:edspencer/competitive-analysis-agent
+# Version: 1.0.0
+# Installed: 2 days ago
+#
+# Files:
+#   ./agents/competitor-tracker/
+#     agent.yaml
+#     CLAUDE.md
+#     knowledge/ (3 files)
+#     workspace/
+#
+# Environment variables:
+#   COMPETITOR_WEBSITES
+#   DISCORD_WEBHOOK_URL
+#   SLACK_CHANNEL
+#
+# Schedules:
+#   daily-competitive-scan (0 8 * * *)
+
+# JSON output
+herdctl agent info competitor-tracker --json
+```
+
+#### agent remove
+
+Remove an installed agent.
+
+```bash
+herdctl agent remove <name> [options]
+```
+
+**Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `name` | Name of the agent to remove |
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--force` | Skip confirmation prompt |
+| `--keep-workspace` | Preserve workspace data while removing agent |
+
+**Examples:**
+
+```bash
+# Remove an agent (prompts for confirmation)
+herdctl agent remove competitor-tracker
+
+# Remove without confirmation
+herdctl agent remove competitor-tracker --force
+
+# Remove but keep workspace data
+herdctl agent remove competitor-tracker --keep-workspace
+```
+
+The removal process:
+1. Removes the agent directory from `./agents/`
+2. Removes the agent reference from `herdctl.yaml`
+3. Lists environment variables that were used (for manual cleanup)
+
+See [Installing Agents](/guides/installing-agents/) for a complete guide to the agent distribution system.
+
 ## Global Options
 
 These options work with all commands:
