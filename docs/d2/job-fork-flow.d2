@@ -1,0 +1,164 @@
+# Job Fork Flow - Shows how forkJob() creates a new job inheriting the session
+# Demonstrates the relationship between original and forked jobs
+
+direction: right
+
+# Outer container - Shared Session (navy for top-level)
+session: {
+  label: "Shared Session\nsession_id: claude-session-xyz789"
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 16
+
+  # Original Job container (logo blue for major component)
+  original: {
+    label: "Original Job"
+    style.fill: "#326CE5"
+    style.stroke: "#2857b8"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 10
+    style.shadow: true
+    style.font-size: 15
+
+    job-id: {
+      label: "id: job-2024-01-19-abc123"
+      style.fill: "#93c5fd"
+      style.stroke: "#60a5fa"
+      style.stroke-width: 2
+      style.font-color: "#1e293b"
+      style.border-radius: 6
+      style.font-size: 13
+      style.bold: true
+    }
+
+    trigger: {
+      label: "trigger_type: manual"
+      style.fill: "#93c5fd"
+      style.stroke: "#60a5fa"
+      style.stroke-width: 2
+      style.font-color: "#1e293b"
+      style.border-radius: 6
+      style.font-size: 13
+      style.bold: true
+    }
+
+    status: {
+      label: "status: completed"
+      style.fill: "#6ee7b7"
+      style.stroke: "#34d399"
+      style.stroke-width: 2
+      style.font-color: "#064e3b"
+      style.border-radius: 6
+      style.font-size: 13
+      style.bold: true
+    }
+
+    forked-from: {
+      label: "forked_from: null"
+      style.fill: "#93c5fd"
+      style.stroke: "#60a5fa"
+      style.stroke-width: 2
+      style.font-color: "#1e293b"
+      style.border-radius: 6
+      style.font-size: 13
+      style.bold: true
+    }
+  }
+
+  # Fork operation (lavender for the transition)
+  fork-op: {
+    label: "forkJob()\ntrigger_type → fork\ninherits session"
+    style.fill: "#c4b5fd"
+    style.stroke: "#a78bfa"
+    style.stroke-width: 2
+    style.font-color: "#2e1065"
+    style.border-radius: 8
+    style.shadow: true
+    style.font-size: 13
+    style.bold: true
+  }
+
+  # Forked Job container (logo blue for major component)
+  forked: {
+    label: "Forked Job"
+    style.fill: "#326CE5"
+    style.stroke: "#2857b8"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 10
+    style.shadow: true
+    style.font-size: 15
+
+    job-id: {
+      label: "id: job-2024-01-19-def456"
+      style.fill: "#93c5fd"
+      style.stroke: "#60a5fa"
+      style.stroke-width: 2
+      style.font-color: "#1e293b"
+      style.border-radius: 6
+      style.font-size: 13
+      style.bold: true
+    }
+
+    trigger: {
+      label: "trigger_type: fork"
+      style.fill: "#fbbf24"
+      style.stroke: "#d97706"
+      style.stroke-width: 2
+      style.font-color: "#451a03"
+      style.border-radius: 6
+      style.font-size: 13
+      style.bold: true
+    }
+
+    status: {
+      label: "status: pending"
+      style.fill: "#fdba74"
+      style.stroke: "#f59e0b"
+      style.stroke-width: 2
+      style.font-color: "#451a03"
+      style.border-radius: 6
+      style.font-size: 13
+      style.bold: true
+    }
+
+    forked-from: {
+      label: "forked_from: job-...-abc123"
+      style.fill: "#22d3ee"
+      style.stroke: "#06b6d4"
+      style.stroke-width: 2
+      style.font-color: "#083344"
+      style.border-radius: 6
+      style.font-size: 13
+      style.bold: true
+    }
+  }
+
+  # Connections
+  original -> fork-op: "parent completes" {
+    style.stroke: "#94a3b8"
+    style.stroke-width: 2
+    style.font-color: "#676C7E"
+    style.italic: true
+  }
+
+  fork-op -> forked: "new job created" {
+    style.stroke: "#94a3b8"
+    style.stroke-width: 2
+    style.font-color: "#676C7E"
+    style.italic: true
+  }
+
+  original -> forked: "forked_from" {
+    style.stroke: "#a78bfa"
+    style.stroke-width: 2
+    style.stroke-dash: 5
+    style.font-color: "#676C7E"
+    style.italic: true
+  }
+}

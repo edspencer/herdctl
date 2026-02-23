@@ -1,0 +1,259 @@
+# WebSocket Event Relay
+# Shows how FleetManager events flow through FleetBridge to WebSocket clients
+
+direction: down
+
+# --- Top-level container: FleetManager ---
+fm: {
+  label: "FleetManager"
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 18
+
+  agent-events: {
+    label: "agent:started\nagent:stopped"
+    style.fill: "#93c5fd"
+    style.stroke: "#60a5fa"
+    style.stroke-width: 2
+    style.font-color: "#1e293b"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+
+  job-events: {
+    label: "job:created\njob:completed\njob:failed\njob:cancelled"
+    style.fill: "#38bdf8"
+    style.stroke: "#0ea5e9"
+    style.stroke-width: 2
+    style.font-color: "#0c4a6e"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+
+  job-output: {
+    label: "job:output\n(high volume)"
+    style.fill: "#fbbf24"
+    style.stroke: "#d97706"
+    style.stroke-width: 2
+    style.font-color: "#451a03"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+
+  schedule-events: {
+    label: "schedule:triggered"
+    style.fill: "#6ee7b7"
+    style.stroke: "#34d399"
+    style.stroke-width: 2
+    style.font-color: "#064e3b"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+
+  chat-events: {
+    label: "chat:response\nchat:tool_call\nchat:complete"
+    style.fill: "#c4b5fd"
+    style.stroke: "#a78bfa"
+    style.stroke-width: 2
+    style.font-color: "#2e1065"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+}
+
+# --- Middle container: FleetBridge ---
+bridge: {
+  label: "FleetBridge"
+  style.fill: "#326CE5"
+  style.stroke: "#2857b8"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 18
+
+  broadcast: {
+    label: "broadcast()\nAll connected clients"
+    style.fill: "#22d3ee"
+    style.stroke: "#06b6d4"
+    style.stroke-width: 2
+    style.font-color: "#083344"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+
+  subscribers: {
+    label: "broadcastToSubscribers()\nFiltered by agentName"
+    style.fill: "#fdba74"
+    style.stroke: "#f59e0b"
+    style.stroke-width: 2
+    style.font-color: "#451a03"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+
+  requesting: {
+    label: "sendToClient()\nRequesting client only"
+    style.fill: "#c4b5fd"
+    style.stroke: "#a78bfa"
+    style.stroke-width: 2
+    style.font-color: "#2e1065"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+}
+
+# --- Bottom container: WebSocket Clients ---
+clients: {
+  label: "WebSocket Clients (/ws)"
+  style.fill: "#2a9d8f"
+  style.stroke: "#21867a"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 18
+
+  all: {
+    label: "All Clients\nReceive fleet status,\nagent & job lifecycle,\nschedule events"
+    style.fill: "#22d3ee"
+    style.stroke: "#06b6d4"
+    style.stroke-width: 2
+    style.font-color: "#083344"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+
+  subscribed: {
+    label: "Subscribed Clients\nReceive job:output\nfor subscribed agents"
+    style.fill: "#fdba74"
+    style.stroke: "#f59e0b"
+    style.stroke-width: 2
+    style.font-color: "#451a03"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+
+  requester: {
+    label: "Requesting Client\nReceive chat:response,\nchat:tool_call,\nchat:complete"
+    style.fill: "#c4b5fd"
+    style.stroke: "#a78bfa"
+    style.stroke-width: 2
+    style.font-color: "#2e1065"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+}
+
+# --- Downward connections: FleetManager -> FleetBridge (dashed, amber) ---
+
+fm.agent-events -> bridge.broadcast: low volume {
+  style.stroke: "#d97706"
+  style.stroke-width: 2
+  style.stroke-dash: 8
+  style.font-color: "#d97706"
+  style.font-size: 10
+  style.italic: true
+}
+
+fm.job-events -> bridge.broadcast: low volume {
+  style.stroke: "#d97706"
+  style.stroke-width: 2
+  style.stroke-dash: 8
+  style.font-color: "#d97706"
+  style.font-size: 10
+  style.italic: true
+}
+
+fm.job-output -> bridge.subscribers: high volume {
+  style.stroke: "#d97706"
+  style.stroke-width: 2
+  style.stroke-dash: 8
+  style.font-color: "#d97706"
+  style.font-size: 10
+  style.italic: true
+}
+
+fm.schedule-events -> bridge.broadcast: low volume {
+  style.stroke: "#d97706"
+  style.stroke-width: 2
+  style.stroke-dash: 8
+  style.font-color: "#d97706"
+  style.font-size: 10
+  style.italic: true
+}
+
+fm.chat-events -> bridge.requesting: targeted {
+  style.stroke: "#d97706"
+  style.stroke-width: 2
+  style.stroke-dash: 8
+  style.font-color: "#d97706"
+  style.font-size: 10
+  style.italic: true
+}
+
+# --- Downward connections: FleetBridge -> Clients (solid, cyan) ---
+
+bridge.broadcast -> clients.all: {
+  style.stroke: "#06b6d4"
+  style.stroke-width: 2
+}
+
+bridge.subscribers -> clients.subscribed: filtered {
+  style.stroke: "#06b6d4"
+  style.stroke-width: 2
+  style.font-color: "#06b6d4"
+  style.font-size: 10
+  style.italic: true
+}
+
+bridge.requesting -> clients.requester: targeted {
+  style.stroke: "#06b6d4"
+  style.stroke-width: 2
+  style.font-color: "#06b6d4"
+  style.font-size: 10
+  style.italic: true
+}
+
+# --- Upward connections: Clients -> FleetBridge (solid, slate) ---
+
+clients.subscribed -> bridge.subscribers: "subscribe { agentName }" {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+  style.font-color: "#94a3b8"
+  style.font-size: 10
+  style.italic: true
+}
+
+clients.requester -> bridge.requesting: "chat:send { agentName, sessionId, message }" {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+  style.font-color: "#94a3b8"
+  style.font-size: 10
+  style.italic: true
+}
+
+# --- Upward connection: FleetBridge -> FleetManager (forwarded chat request) ---
+
+bridge.requesting -> fm.chat-events: "chat:send (forwarded)" {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+  style.font-color: "#94a3b8"
+  style.font-size: 10
+  style.italic: true
+}

@@ -1,0 +1,282 @@
+# CLI Lifecycle Flow - herdctl start command lifecycle
+# Shows the full startup → run → shutdown flow of the CLI
+
+direction: down
+
+# 1. User invokes CLI - slate for user action
+user-start: {
+  label: "herdctl start\nuser invokes CLI"
+  style.fill: "#94a3b8"
+  style.stroke: "#64748b"
+  style.stroke-width: 2
+  style.font-color: "#0f172a"
+  style.border-radius: 8
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+# 2. Setup phase - light blue for setup/config steps
+setup: {
+  label: "Setup\nset log level, register log handler\nbuild config overrides"
+  style.fill: "#93c5fd"
+  style.stroke: "#60a5fa"
+  style.stroke-width: 2
+  style.font-color: "#1e293b"
+  style.border-radius: 8
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+# 3. Create FleetManager - logo blue for core operations
+create-fm: {
+  label: "new FleetManager()\nconfigPath, stateDir, overrides"
+  style.fill: "#326CE5"
+  style.stroke: "#2857b8"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 10
+  style.shadow: true
+  style.font-size: 15
+  style.bold: true
+}
+
+# 4. Register signal handlers - peach for system/signal operations
+register-signals: {
+  label: "Register Signal Handlers\nSIGINT, SIGTERM"
+  style.fill: "#fdba74"
+  style.stroke: "#f59e0b"
+  style.stroke-width: 2
+  style.font-color: "#451a03"
+  style.border-radius: 8
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+# 5. Initialize manager - sky for initialization
+initialize: {
+  label: "manager.initialize()\nload config, validate, setup state"
+  style.fill: "#38bdf8"
+  style.stroke: "#0ea5e9"
+  style.stroke-width: 2
+  style.font-color: "#0c4a6e"
+  style.border-radius: 8
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+# 6. Start fleet - logo blue for core operations
+start-fleet: {
+  label: "manager.start()\nscheduler begins, agents activated"
+  style.fill: "#326CE5"
+  style.stroke: "#2857b8"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 10
+  style.shadow: true
+  style.font-size: 15
+  style.bold: true
+}
+
+# 7. Write PID file - mint for file operations
+write-pid: {
+  label: "Write PID File\n.herdctl/herdctl.pid"
+  style.fill: "#6ee7b7"
+  style.stroke: "#34d399"
+  style.stroke-width: 2
+  style.font-color: "#064e3b"
+  style.border-radius: 8
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+# 8. Display startup status - light blue for info display
+display-status: {
+  label: "Display Startup Status\nagent count, schedules, hierarchy"
+  style.fill: "#93c5fd"
+  style.stroke: "#60a5fa"
+  style.stroke-width: 2
+  style.font-color: "#1e293b"
+  style.border-radius: 8
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+# 9. Stream logs - teal for long-running process
+stream-logs: {
+  label: "Stream Logs\nmanager.streamLogs()\nasync iterator keeps process alive"
+  style.fill: "#2a9d8f"
+  style.stroke: "#21867a"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 10
+  style.shadow: true
+  style.font-size: 15
+  style.bold: true
+}
+
+# 10. Signal received decision - amber diamond
+signal-received: {
+  label: "Signal\nReceived?"
+  shape: diamond
+  style.fill: "#fbbf24"
+  style.stroke: "#d97706"
+  style.stroke-width: 2
+  style.font-color: "#451a03"
+  style.font-size: 14
+  style.bold: true
+}
+
+# 11. Graceful shutdown container - navy for top-level container
+graceful-shutdown: {
+  label: "Graceful Shutdown"
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 18
+
+  stop-fleet: {
+    label: "manager.stop()\nwaitForJobs: true, timeout: 30s\ncancelOnTimeout: true"
+    style.fill: "#fdba74"
+    style.stroke: "#f59e0b"
+    style.stroke-width: 2
+    style.font-color: "#451a03"
+    style.border-radius: 6
+    style.font-size: 13
+    style.bold: true
+  }
+
+  remove-pid: {
+    label: "Remove PID File\nunlink .herdctl/herdctl.pid"
+    style.fill: "#f87171"
+    style.stroke: "#ef4444"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 6
+    style.font-size: 13
+    style.bold: true
+  }
+
+  stop-fleet -> remove-pid: {
+    style.stroke: "#94a3b8"
+    style.stroke-width: 2
+  }
+}
+
+# 12. Exit success - mint
+exit-success: {
+  label: "Exit 0\nclean shutdown"
+  style.fill: "#6ee7b7"
+  style.stroke: "#34d399"
+  style.stroke-width: 2
+  style.font-color: "#064e3b"
+  style.border-radius: 8
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+# 13. Exit error - coral
+exit-error: {
+  label: "Exit 1\nshutdown error"
+  style.fill: "#f87171"
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 8
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+# 14. Startup error - coral for error path
+startup-error: {
+  label: "Config / Init Error\nConfigNotFoundError\nFleetManagerError"
+  style.fill: "#f87171"
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 8
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+# --- Connections ---
+
+# Main happy path - solid gray arrows
+user-start -> setup: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+setup -> create-fm: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+create-fm -> register-signals: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+register-signals -> initialize: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+initialize -> start-fleet: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+start-fleet -> write-pid: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+write-pid -> display-status: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+display-status -> stream-logs: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+
+# Signal/shutdown path - dashed red arrows
+stream-logs -> signal-received: Ctrl+C or SIGTERM {
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+  style.stroke-dash: 8
+}
+signal-received -> graceful-shutdown: yes {
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+  style.stroke-dash: 8
+}
+
+# Shutdown outcomes
+graceful-shutdown -> exit-success: success {
+  style.stroke: "#34d399"
+  style.stroke-width: 2
+}
+graceful-shutdown -> exit-error: error {
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+  style.stroke-dash: 8
+}
+
+# Error path from initialize
+initialize -> startup-error: config error {
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+  style.stroke-dash: 8
+}
+startup-error -> exit-error: {
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+  style.stroke-dash: 8
+}

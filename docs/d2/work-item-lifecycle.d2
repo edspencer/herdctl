@@ -1,0 +1,128 @@
+# Work Item Lifecycle - State Machine Diagram
+# Shows the lifecycle states of a work item and transitions between them
+
+direction: right
+
+# Title
+title: {
+  label: "Work Item Lifecycle"
+  style.fill: "#F7F8FE"
+  style.stroke: "#0D32B2"
+  style.stroke-width: 2
+  style.font-color: "#1e293b"
+  style.font-size: 22
+  style.bold: true
+  near: top-center
+  shape: rectangle
+}
+
+# Initial state - small filled circle (navy)
+start: {
+  label: ""
+  shape: circle
+  width: 24
+  height: 24
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+}
+
+# AVAILABLE state - light blue
+available: {
+  label: "AVAILABLE\n\nWork item exists,\nnot yet claimed"
+  style.fill: "#93c5fd"
+  style.stroke: "#60a5fa"
+  style.stroke-width: 2
+  style.font-color: "#1e293b"
+  style.border-radius: 8
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+# CLAIMED state - amber
+claimed: {
+  label: "CLAIMED\n\nAgent working\non item"
+  style.fill: "#fbbf24"
+  style.stroke: "#d97706"
+  style.stroke-width: 2
+  style.font-color: "#451a03"
+  style.border-radius: 8
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+# COMPLETED state - mint (thicker border for emphasis)
+completed: {
+  label: "COMPLETED\n\nWork finished\nsuccessfully"
+  style.fill: "#6ee7b7"
+  style.stroke: "#34d399"
+  style.stroke-width: 3
+  style.font-color: "#064e3b"
+  style.border-radius: 8
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+# RELEASED state - lavender
+released: {
+  label: "RELEASED\n\nReturned to\navailable pool"
+  style.fill: "#c4b5fd"
+  style.stroke: "#a78bfa"
+  style.stroke-width: 2
+  style.font-color: "#2e1065"
+  style.border-radius: 8
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+# Connections
+
+# start -> available
+start -> available: "fetch()" {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+  style.font-color: "#676C7E"
+  style.font-size: 13
+  style.italic: true
+}
+
+# available -> claimed
+available -> claimed: "claim()" {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+  style.font-color: "#676C7E"
+  style.font-size: 13
+  style.italic: true
+}
+
+# claimed -> completed (happy path)
+claimed -> completed: "complete()" {
+  style.stroke: "#34d399"
+  style.stroke-width: 2
+  style.font-color: "#676C7E"
+  style.font-size: 13
+  style.italic: true
+}
+
+# claimed -> released (agent releases work)
+claimed -> released: "release()" {
+  style.stroke: "#a78bfa"
+  style.stroke-width: 2
+  style.font-color: "#676C7E"
+  style.font-size: 13
+  style.italic: true
+}
+
+# released -> available (re-enters pool, dashed)
+released -> available: "Re-enters\navailable pool" {
+  style.stroke: "#a78bfa"
+  style.stroke-width: 2
+  style.stroke-dash: 8
+  style.font-color: "#676C7E"
+  style.font-size: 13
+  style.italic: true
+}

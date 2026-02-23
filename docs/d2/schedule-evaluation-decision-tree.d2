@@ -1,0 +1,252 @@
+# Schedule Evaluation Decision Tree
+# Shows the step-by-step evaluation logic when the scheduler checks each schedule
+
+direction: down
+
+# Title bar - navy for top-level
+title: {
+  label: "Schedule Evaluation Decision Tree"
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 10
+  style.shadow: true
+  style.font-size: 20
+  style.bold: true
+}
+
+# Entry point - logo blue
+start: {
+  label: "For each schedule\non each tick"
+  style.fill: "#326CE5"
+  style.stroke: "#2857b8"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 10
+  style.font-size: 14
+  style.bold: true
+}
+
+# Decision diamonds - light blue for first two checks
+check-enabled: {
+  label: "Is schedule\nenabled?"
+  shape: diamond
+  style.fill: "#93c5fd"
+  style.stroke: "#60a5fa"
+  style.stroke-width: 2
+  style.font-color: "#1e293b"
+  style.font-size: 13
+  style.bold: true
+}
+
+check-type: {
+  label: "Is type interval\nor cron?"
+  shape: diamond
+  style.fill: "#93c5fd"
+  style.stroke: "#60a5fa"
+  style.stroke-width: 2
+  style.font-color: "#1e293b"
+  style.font-size: 13
+  style.bold: true
+}
+
+# Decision diamonds - sky blue for runtime checks
+check-running: {
+  label: "Is agent already\nrunning this schedule?"
+  shape: diamond
+  style.fill: "#38bdf8"
+  style.stroke: "#0ea5e9"
+  style.stroke-width: 2
+  style.font-color: "#0c4a6e"
+  style.font-size: 13
+  style.bold: true
+}
+
+check-capacity: {
+  label: "Is agent at\nmax concurrency?"
+  shape: diamond
+  style.fill: "#38bdf8"
+  style.stroke: "#0ea5e9"
+  style.stroke-width: 2
+  style.font-color: "#0c4a6e"
+  style.font-size: 13
+  style.bold: true
+}
+
+# Decision diamond - lavender for timing check
+check-due: {
+  label: "Is schedule\ndue now?"
+  shape: diamond
+  style.fill: "#c4b5fd"
+  style.stroke: "#a78bfa"
+  style.stroke-width: 2
+  style.font-color: "#2e1065"
+  style.font-size: 13
+  style.bold: true
+}
+
+# Skip nodes - coral/red for rejection outcomes
+skip-disabled: {
+  label: "Skip\ndisabled"
+  style.fill: "#f87171"
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 8
+  style.font-size: 12
+  style.bold: true
+}
+
+skip-unsupported: {
+  label: "Skip\nunsupported_type"
+  style.fill: "#f87171"
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 8
+  style.font-size: 12
+  style.bold: true
+}
+
+skip-running: {
+  label: "Skip\nalready_running"
+  style.fill: "#f87171"
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 8
+  style.font-size: 12
+  style.bold: true
+}
+
+skip-capacity: {
+  label: "Skip\nat_capacity"
+  style.fill: "#f87171"
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 8
+  style.font-size: 12
+  style.bold: true
+}
+
+skip-not-due: {
+  label: "Skip\nnot_due"
+  style.fill: "#f87171"
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 8
+  style.font-size: 12
+  style.bold: true
+}
+
+# Success terminal node - mint green
+fire-trigger: {
+  label: "Fire trigger"
+  style.fill: "#6ee7b7"
+  style.stroke: "#34d399"
+  style.stroke-width: 2
+  style.font-color: "#064e3b"
+  style.border-radius: 10
+  style.shadow: true
+  style.font-size: 16
+  style.bold: true
+}
+
+# --- Connections ---
+
+# Title to start
+title -> start: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+
+# Start to first decision
+start -> check-enabled: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+
+# Happy path (Yes) - gray arrows flowing left/down
+check-enabled -> check-type: Yes {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+  style.font-color: "#1e293b"
+  style.font-size: 13
+  style.bold: true
+}
+
+check-type -> check-running: Yes {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+  style.font-color: "#1e293b"
+  style.font-size: 13
+  style.bold: true
+}
+
+check-running -> check-capacity: No {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+  style.font-color: "#1e293b"
+  style.font-size: 13
+  style.bold: true
+}
+
+check-capacity -> check-due: No {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+  style.font-color: "#1e293b"
+  style.font-size: 13
+  style.bold: true
+}
+
+check-due -> fire-trigger: Yes {
+  style.stroke: "#34d399"
+  style.stroke-width: 3
+  style.font-color: "#064e3b"
+  style.font-size: 13
+  style.bold: true
+}
+
+# Rejection paths (No/Yes to skip) - red arrows
+check-enabled -> skip-disabled: No {
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+  style.font-color: "#ef4444"
+  style.font-size: 13
+  style.bold: true
+}
+
+check-type -> skip-unsupported: No {
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+  style.font-color: "#ef4444"
+  style.font-size: 13
+  style.bold: true
+}
+
+check-running -> skip-running: Yes {
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+  style.font-color: "#ef4444"
+  style.font-size: 13
+  style.bold: true
+}
+
+check-capacity -> skip-capacity: Yes {
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+  style.font-color: "#ef4444"
+  style.font-size: 13
+  style.bold: true
+}
+
+check-due -> skip-not-due: No {
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+  style.font-color: "#ef4444"
+  style.font-size: 13
+  style.bold: true
+}

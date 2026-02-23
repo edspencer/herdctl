@@ -1,0 +1,365 @@
+# API Route Map — herdctl HTTP API
+# Shows all REST endpoints and WebSocket events grouped by domain
+
+server: herdctl HTTP API {
+  grid-columns: 1
+  grid-gap: 10
+
+  style: {
+    fill: "#1e3a5f"
+    stroke: "#142842"
+    font-color: "#ffffff"
+    border-radius: 12
+    shadow: true
+    font-size: 22
+    bold: true
+  }
+
+  row1: " " {
+    grid-columns: 3
+    grid-gap: 10
+
+    style: {
+      fill: "#1e3a5f"
+      stroke: "#1e3a5f"
+      font-color: "#1e3a5f"
+      border-radius: 0
+    }
+
+    agents: Agents {
+      grid-columns: 2
+      grid-gap: 8
+
+      style: {
+        fill: "#2a9d8f"
+        stroke: "#21867a"
+        font-color: "#ffffff"
+        border-radius: 8
+        font-size: 13
+        bold: true
+      }
+
+      list: "GET /api/agents" {
+        style: {
+          fill: "#6ee7b7"
+          stroke: "#34d399"
+          font-color: "#064e3b"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+      detail: "GET /api/agents/:name" {
+        style: {
+          fill: "#6ee7b7"
+          stroke: "#34d399"
+          font-color: "#064e3b"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+      trigger: "POST /api/agents/:name/trigger" {
+        style: {
+          fill: "#6ee7b7"
+          stroke: "#34d399"
+          font-color: "#064e3b"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+    }
+
+    jobs: Jobs {
+      grid-columns: 2
+      grid-gap: 8
+
+      style: {
+        fill: "#2a9d8f"
+        stroke: "#21867a"
+        font-color: "#ffffff"
+        border-radius: 8
+        font-size: 13
+        bold: true
+      }
+
+      list: "GET /api/jobs" {
+        style: {
+          fill: "#fbbf24"
+          stroke: "#d97706"
+          font-color: "#451a03"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+      detail: "GET /api/jobs/:id" {
+        style: {
+          fill: "#fbbf24"
+          stroke: "#d97706"
+          font-color: "#451a03"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+      cancel: "POST /api/jobs/:id/cancel" {
+        style: {
+          fill: "#fbbf24"
+          stroke: "#d97706"
+          font-color: "#451a03"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+      fork: "POST /api/jobs/:id/fork" {
+        style: {
+          fill: "#fbbf24"
+          stroke: "#d97706"
+          font-color: "#451a03"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+    }
+
+    schedules: Schedules {
+      grid-columns: 2
+      grid-gap: 8
+
+      style: {
+        fill: "#2a9d8f"
+        stroke: "#21867a"
+        font-color: "#ffffff"
+        border-radius: 8
+        font-size: 13
+        bold: true
+      }
+
+      list: "GET /api/schedules" {
+        style: {
+          fill: "#fdba74"
+          stroke: "#f59e0b"
+          font-color: "#451a03"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+      enable: "POST /api/schedules/:agent/:name/enable" {
+        style: {
+          fill: "#fdba74"
+          stroke: "#f59e0b"
+          font-color: "#451a03"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+      disable: "POST /api/schedules/:agent/:name/disable" {
+        style: {
+          fill: "#fdba74"
+          stroke: "#f59e0b"
+          font-color: "#451a03"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+    }
+  }
+
+  row2: " " {
+    grid-columns: 4
+    grid-gap: 10
+
+    style: {
+      fill: "#1e3a5f"
+      stroke: "#1e3a5f"
+      font-color: "#1e3a5f"
+      border-radius: 0
+    }
+
+    fleet: Fleet {
+      style: {
+        fill: "#2a9d8f"
+        stroke: "#21867a"
+        font-color: "#ffffff"
+        border-radius: 8
+        font-size: 13
+        bold: true
+      }
+
+      status: "GET /api/fleet/status" {
+        style: {
+          fill: "#93c5fd"
+          stroke: "#60a5fa"
+          font-color: "#1e293b"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+    }
+
+    system: System {
+      style: {
+        fill: "#2a9d8f"
+        stroke: "#21867a"
+        font-color: "#ffffff"
+        border-radius: 8
+        font-size: 13
+        bold: true
+      }
+
+      health: "GET /api/health" {
+        style: {
+          fill: "#22d3ee"
+          stroke: "#06b6d4"
+          font-color: "#083344"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+      version: "GET /api/version" {
+        style: {
+          fill: "#22d3ee"
+          stroke: "#06b6d4"
+          font-color: "#083344"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+    }
+
+    chat: Chat {
+      grid-columns: 2
+      grid-gap: 8
+
+      style: {
+        fill: "#2a9d8f"
+        stroke: "#21867a"
+        font-color: "#ffffff"
+        border-radius: 8
+        font-size: 13
+        bold: true
+      }
+
+      recent: "GET /api/chat/recent" {
+        style: {
+          fill: "#c4b5fd"
+          stroke: "#a78bfa"
+          font-color: "#2e1065"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+      config: "GET /api/chat/config" {
+        style: {
+          fill: "#c4b5fd"
+          stroke: "#a78bfa"
+          font-color: "#2e1065"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+      create: "POST /api/chat/:agent/sessions" {
+        style: {
+          fill: "#c4b5fd"
+          stroke: "#a78bfa"
+          font-color: "#2e1065"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+      sessions: "GET /api/chat/:agent/sessions" {
+        style: {
+          fill: "#c4b5fd"
+          stroke: "#a78bfa"
+          font-color: "#2e1065"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+      detail: "GET /api/chat/:agent/sessions/:id" {
+        style: {
+          fill: "#c4b5fd"
+          stroke: "#a78bfa"
+          font-color: "#2e1065"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+      delete: "DELETE /api/chat/:agent/sessions/:id" {
+        style: {
+          fill: "#c4b5fd"
+          stroke: "#a78bfa"
+          font-color: "#2e1065"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+      rename: "PATCH /api/chat/:agent/sessions/:id" {
+        style: {
+          fill: "#c4b5fd"
+          stroke: "#a78bfa"
+          font-color: "#2e1065"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+      messages: "POST /api/chat/:agent/sessions/:id/messages" {
+        style: {
+          fill: "#c4b5fd"
+          stroke: "#a78bfa"
+          font-color: "#2e1065"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+    }
+
+    websocket: WebSocket {
+      grid-columns: 2
+      grid-gap: 8
+
+      style: {
+        fill: "#2a9d8f"
+        stroke: "#21867a"
+        font-color: "#ffffff"
+        border-radius: 8
+        font-size: 13
+        bold: true
+      }
+
+      ws: "/ws" {
+        style: {
+          fill: "#38bdf8"
+          stroke: "#0ea5e9"
+          font-color: "#0c4a6e"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+      subscribe: "subscribe / unsubscribe" {
+        style: {
+          fill: "#38bdf8"
+          stroke: "#0ea5e9"
+          font-color: "#0c4a6e"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+      chat-send: "chat:send / chat:response / chat:complete" {
+        style: {
+          fill: "#38bdf8"
+          stroke: "#0ea5e9"
+          font-color: "#0c4a6e"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+      events: "job:output / job:created / agent:updated" {
+        style: {
+          fill: "#38bdf8"
+          stroke: "#0ea5e9"
+          font-color: "#0c4a6e"
+          border-radius: 6
+          font-size: 11
+        }
+      }
+    }
+  }
+}

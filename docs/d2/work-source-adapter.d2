@@ -1,0 +1,276 @@
+# Work Source Adapter - Interface and Implementation Pattern
+# Shows the WorkSourceAdapter interface, its methods, concrete implementations, and external systems
+# Render: d2 --pad=20 work-source-adapter.d2 ../../public/diagrams/work-source-adapter.svg
+
+direction: right
+
+# The main interface container - logo blue as the focal point
+adapter-interface: {
+  label: "WorkSourceAdapter"
+  style.fill: "#326CE5"
+  style.stroke: "#2857b8"
+  style.stroke-width: 3
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 18
+  style.bold: true
+
+  grid-columns: 5
+  grid-gap: 8
+
+  fetch: {
+    label: "fetchAvailableWork()\nDiscover ready items"
+    style.fill: "#93c5fd"
+    style.stroke: "#60a5fa"
+    style.stroke-width: 2
+    style.font-color: "#1e293b"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+
+  claim: {
+    label: "claimWork()\nMark as in-progress"
+    style.fill: "#93c5fd"
+    style.stroke: "#60a5fa"
+    style.stroke-width: 2
+    style.font-color: "#1e293b"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+
+  complete: {
+    label: "completeWork()\nReport outcome"
+    style.fill: "#93c5fd"
+    style.stroke: "#60a5fa"
+    style.stroke-width: 2
+    style.font-color: "#1e293b"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+
+  release: {
+    label: "releaseWork()\nReturn to available"
+    style.fill: "#93c5fd"
+    style.stroke: "#60a5fa"
+    style.stroke-width: 2
+    style.font-color: "#1e293b"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+
+  get: {
+    label: "getWork()\nFetch item by ID"
+    style.fill: "#93c5fd"
+    style.stroke: "#60a5fa"
+    style.stroke-width: 2
+    style.font-color: "#1e293b"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+}
+
+# WorkItem data model - navy for top-level entity
+work-item: {
+  label: "WorkItem\nid, source, title, priority\nlabels, metadata, url"
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 13
+  style.bold: true
+  near: bottom-left
+}
+
+# Implementations container - transparent grouping
+implementations: {
+  label: "Implementations"
+  style.fill: transparent
+  style.stroke: transparent
+  style.stroke-width: 2
+  style.font-size: 8
+
+  # GitHub adapter - mint, the concrete implementation
+  github-adapter: {
+    label: "GitHubWorkSourceAdapter"
+    style.fill: "#6ee7b7"
+    style.stroke: "#34d399"
+    style.stroke-width: 2
+    style.font-color: "#064e3b"
+    style.border-radius: 12
+    style.shadow: true
+    style.font-size: 14
+    style.bold: true
+
+    grid-columns: 1
+    grid-gap: 6
+
+    label-mgmt: {
+      label: "Label Management\nready <-> agent-working"
+      style.fill: "#6ee7b7"
+      style.stroke: "#34d399"
+      style.stroke-width: 2
+      style.font-color: "#064e3b"
+      style.border-radius: 8
+      style.font-size: 11
+      style.bold: true
+    }
+
+    rate-limit: {
+      label: "Rate Limit Handling\nAuto-retry with backoff"
+      style.fill: "#6ee7b7"
+      style.stroke: "#34d399"
+      style.stroke-width: 2
+      style.font-color: "#064e3b"
+      style.border-radius: 8
+      style.font-size: 11
+      style.bold: true
+    }
+
+    priority: {
+      label: "Priority Inference\nLabel keyword matching"
+      style.fill: "#6ee7b7"
+      style.stroke: "#34d399"
+      style.stroke-width: 2
+      style.font-color: "#064e3b"
+      style.border-radius: 8
+      style.font-size: 11
+      style.bold: true
+    }
+  }
+
+  # Linear adapter - slate, future/placeholder
+  linear-adapter: {
+    label: "LinearWorkSourceAdapter\n(future)"
+    style.fill: "#94a3b8"
+    style.stroke: "#64748b"
+    style.stroke-width: 1
+    style.font-color: "#0f172a"
+    style.border-radius: 12
+    style.font-size: 13
+    style.bold: true
+    style.opacity: 0.6
+  }
+
+  # Jira adapter - slate, future/placeholder
+  jira-adapter: {
+    label: "JiraWorkSourceAdapter\n(future)"
+    style.fill: "#94a3b8"
+    style.stroke: "#64748b"
+    style.stroke-width: 1
+    style.font-color: "#0f172a"
+    style.border-radius: 12
+    style.font-size: 13
+    style.bold: true
+    style.opacity: 0.6
+  }
+}
+
+# External systems container - transparent grouping
+external: {
+  label: "External Systems"
+  style.fill: transparent
+  style.stroke: transparent
+  style.stroke-width: 2
+  style.font-size: 8
+
+  # GitHub Issues API - peach, cylinder shape
+  github-api: {
+    label: "GitHub Issues API\nREST v3"
+    shape: cylinder
+    style.fill: "#fdba74"
+    style.stroke: "#f59e0b"
+    style.stroke-width: 2
+    style.font-color: "#451a03"
+    style.font-size: 12
+    style.bold: true
+  }
+
+  # Linear API - slate, future
+  linear-api: {
+    label: "Linear API\n(future)"
+    shape: cylinder
+    style.fill: "#94a3b8"
+    style.stroke: "#64748b"
+    style.stroke-width: 2
+    style.font-color: "#0f172a"
+    style.font-size: 12
+    style.bold: true
+    style.opacity: 0.6
+  }
+
+  # Jira API - slate, future
+  jira-api: {
+    label: "Jira API\n(future)"
+    shape: cylinder
+    style.fill: "#94a3b8"
+    style.stroke: "#64748b"
+    style.stroke-width: 2
+    style.font-color: "#0f172a"
+    style.font-size: 12
+    style.bold: true
+    style.opacity: 0.6
+  }
+}
+
+# --- Connections ---
+
+# Interface returns WorkItem
+adapter-interface -> work-item: returns {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+  style.font-color: "#676C7E"
+  style.italic: true
+}
+
+# Adapters implement the interface (dashed arrows pointing left toward interface)
+adapter-interface <-- implementations.github-adapter: implements {
+  style.stroke: "#2857b8"
+  style.stroke-width: 2
+  style.stroke-dash: 8
+  style.font-color: "#676C7E"
+  style.italic: true
+}
+
+adapter-interface <-- implementations.linear-adapter: implements {
+  style.stroke: "#64748b"
+  style.stroke-width: 1
+  style.stroke-dash: 4
+  style.font-color: "#676C7E"
+  style.italic: true
+  style.opacity: 0.5
+}
+
+adapter-interface <-- implementations.jira-adapter: implements {
+  style.stroke: "#64748b"
+  style.stroke-width: 1
+  style.stroke-dash: 4
+  style.font-color: "#676C7E"
+  style.italic: true
+  style.opacity: 0.5
+}
+
+# Adapters call external APIs (solid arrows pointing right toward APIs)
+implementations.github-adapter -> external.github-api {
+  style.stroke: "#f59e0b"
+  style.stroke-width: 2
+}
+
+implementations.linear-adapter -> external.linear-api {
+  style.stroke: "#64748b"
+  style.stroke-width: 1
+  style.opacity: 0.5
+}
+
+implementations.jira-adapter -> external.jira-api {
+  style.stroke: "#64748b"
+  style.stroke-width: 1
+  style.opacity: 0.5
+}

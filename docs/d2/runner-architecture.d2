@@ -1,0 +1,225 @@
+# Runner Architecture - herdctl execution engine
+# Shows job creation, session validation, runtime factory, SDK adapter, message processing, and error handling
+
+direction: down
+
+# ── Entry point ──────────────────────────────────────────────────────
+runner-options: {
+  label: "RunnerOptions\nagent config + prompt"
+  style.fill: "#94a3b8"
+  style.stroke: "#64748b"
+  style.font-color: "#0f172a"
+  style.border-radius: 8
+  style.font-size: 14
+  style.shadow: true
+}
+
+# ── Job Executor ─────────────────────────────────────────────────────
+job-executor: {
+  label: "JobExecutor\norchestrates full lifecycle"
+  style.fill: "#326CE5"
+  style.stroke: "#2857b8"
+  style.font-color: "#ffffff"
+  style.border-radius: 10
+  style.font-size: 16
+  style.shadow: true
+  style.bold: true
+}
+
+# ── Job Record ───────────────────────────────────────────────────────
+job-record: {
+  label: "Create Job Record\nstatus → running"
+  style.fill: "#93c5fd"
+  style.stroke: "#60a5fa"
+  style.font-color: "#1e293b"
+  style.border-radius: 8
+  style.font-size: 14
+  style.shadow: true
+}
+
+# ── Session Validation ───────────────────────────────────────────────
+session-validation: {
+  label: "Session Validation\nresume / fork / fresh"
+  style.fill: "#38bdf8"
+  style.stroke: "#0ea5e9"
+  style.font-color: "#0c4a6e"
+  style.border-radius: 8
+  style.font-size: 14
+  style.shadow: true
+}
+
+# ── Runtime components (flat, no container) ──────────────────────────
+runtime-factory: {
+  label: "RuntimeFactory"
+  style.fill: "#c4b5fd"
+  style.stroke: "#a78bfa"
+  style.font-color: "#2e1065"
+  style.border-radius: 6
+  style.font-size: 13
+}
+
+sdk-runtime: {
+  label: "SDKRuntime\nquery() via Agent SDK"
+  style.fill: "#6ee7b7"
+  style.stroke: "#34d399"
+  style.font-color: "#064e3b"
+  style.border-radius: 6
+  style.font-size: 13
+}
+
+cli-runtime: {
+  label: "CLIRuntime\nspawns claude CLI"
+  style.fill: "#a3e635"
+  style.stroke: "#84cc16"
+  style.font-color: "#1a2e05"
+  style.border-radius: 6
+  style.font-size: 13
+}
+
+container-runner: {
+  label: "ContainerRunner\n(Docker decorator)"
+  style.fill: "#fb923c"
+  style.stroke: "#f97316"
+  style.font-color: "#431407"
+  style.border-radius: 6
+  style.font-size: 13
+}
+
+# ── SDK Adapter ──────────────────────────────────────────────────────
+sdk-adapter: {
+  label: "SDK Adapter\ntoSDKOptions()\nconfig → SDK query options"
+  style.fill: "#fdba74"
+  style.stroke: "#f59e0b"
+  style.font-color: "#451a03"
+  style.border-radius: 8
+  style.font-size: 14
+  style.shadow: true
+}
+
+# ── Claude Agent SDK ─────────────────────────────────────────────────
+claude-sdk: {
+  label: "Claude Agent SDK\nquery() → AsyncIterable"
+  style.fill: "#fbbf24"
+  style.stroke: "#d97706"
+  style.font-color: "#451a03"
+  style.border-radius: 8
+  style.font-size: 14
+  style.shadow: true
+  style.bold: true
+}
+
+# ── Message Processor ────────────────────────────────────────────────
+message-processor: {
+  label: "Message Processor\nprocessSDKMessage()\nSDK msg → JobOutput"
+  style.fill: "#f8fafc"
+  style.stroke: "#cbd5e1"
+  style.font-color: "#1e293b"
+  style.border-radius: 8
+  style.font-size: 14
+  style.shadow: true
+}
+
+# ── Terminal Detection ───────────────────────────────────────────────
+terminal-detection: {
+  label: "Terminal Detection\nisTerminalMessage()\nresult / error / end"
+  style.fill: "#22d3ee"
+  style.stroke: "#06b6d4"
+  style.font-color: "#083344"
+  style.border-radius: 8
+  style.font-size: 14
+  style.shadow: true
+}
+
+# ── JSONL Output ─────────────────────────────────────────────────────
+jsonl-output: {
+  label: "JSONL Output\n.herdctl/jobs/ID.jsonl\nappend per message"
+  style.fill: "#6ee7b7"
+  style.stroke: "#34d399"
+  style.font-color: "#064e3b"
+  style.border-radius: 8
+  style.font-size: 14
+  style.shadow: true
+}
+
+# ── Error Handler ────────────────────────────────────────────────────
+error-handler: {
+  label: "Error Handler\nclassifyError()\nwrapError()"
+  style.fill: "#f87171"
+  style.stroke: "#ef4444"
+  style.font-color: "#ffffff"
+  style.border-radius: 8
+  style.font-size: 14
+  style.shadow: true
+}
+
+# ── Runner Result ────────────────────────────────────────────────────
+runner-result: {
+  label: "RunnerResult\nsuccess · jobId · sessionId\nsummary · errorDetails"
+  style.fill: "#326CE5"
+  style.stroke: "#2857b8"
+  style.font-color: "#ffffff"
+  style.border-radius: 10
+  style.font-size: 14
+  style.shadow: true
+  style.bold: true
+}
+
+# ══ CONNECTIONS ══════════════════════════════════════════════════════
+
+# Main flow (top to bottom)
+runner-options -> job-executor
+job-executor -> job-record
+job-record -> session-validation
+session-validation -> runtime-factory
+
+# Factory dispatches to runtimes
+runtime-factory -> sdk-runtime: sdk {
+  style.stroke: "#a78bfa"
+}
+runtime-factory -> cli-runtime: cli {
+  style.stroke: "#a78bfa"
+}
+
+# ContainerRunner wraps both runtimes (dashed)
+container-runner -> sdk-runtime: wraps {
+  style.stroke: "#f97316"
+  style.stroke-dash: 4
+}
+container-runner -> cli-runtime: wraps {
+  style.stroke: "#f97316"
+  style.stroke-dash: 4
+}
+
+# SDK path
+sdk-runtime -> sdk-adapter
+sdk-adapter -> claude-sdk
+
+# Claude SDK streams to Message Processor
+claude-sdk -> message-processor: "AsyncIterable<SDKMessage>" {
+  style.stroke: "#d97706"
+  style.stroke-width: 2
+}
+
+# CLI path to Message Processor
+cli-runtime -> message-processor: "session file watcher" {
+  style.stroke: "#84cc16"
+}
+
+# Message processing flow
+message-processor -> terminal-detection
+message-processor -> jsonl-output: write
+
+# Terminal detection loop
+terminal-detection -> message-processor: not terminal {
+  style.stroke: "#06b6d4"
+  style.stroke-dash: 3
+}
+
+# Terminal → Error Handler
+terminal-detection -> error-handler: terminal {
+  style.stroke: "#ef4444"
+}
+
+# Final outputs → RunnerResult
+error-handler -> runner-result
+jsonl-output -> runner-result

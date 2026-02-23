@@ -1,0 +1,216 @@
+# Job Status State Machine
+# Shows the lifecycle of a job from creation through terminal states
+
+direction: right
+
+title: {
+  label: "Job Status State Machine"
+  shape: rectangle
+  style.fill: "#F7F8FE"
+  style.stroke: "#0D32B2"
+  style.stroke-width: 2
+  style.font-color: "#1e293b"
+  style.font-size: 22
+  style.bold: true
+  near: top-center
+}
+
+# Initial state - small filled circle
+start: {
+  label: ""
+  shape: circle
+  width: 24
+  height: 24
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+}
+
+# PENDING state - light blue (secondary: Light blue)
+pending: {
+  label: "PENDING\n \nJob record created,\nawaiting execution"
+  style.fill: "#93c5fd"
+  style.stroke: "#60a5fa"
+  style.stroke-width: 2
+  style.font-color: "#1e293b"
+  style.border-radius: 8
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+# RUNNING state - logo blue (major component)
+running: {
+  label: "RUNNING\n \nAgent actively\nexecuting job"
+  style.fill: "#326CE5"
+  style.stroke: "#2857b8"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 8
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+# COMPLETED state - mint (terminal: success)
+completed: {
+  label: "COMPLETED\n \nexit_reason: success"
+  style.fill: "#6ee7b7"
+  style.stroke: "#34d399"
+  style.stroke-width: 3
+  style.font-color: "#064e3b"
+  style.border-radius: 8
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+# FAILED state - coral (terminal: failure)
+failed: {
+  label: "FAILED\n \nexit_reason:\nerror | timeout | max_turns"
+  style.fill: "#f87171"
+  style.stroke: "#ef4444"
+  style.stroke-width: 3
+  style.font-color: "#ffffff"
+  style.border-radius: 8
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+# CANCELLED state - amber (terminal: cancelled)
+cancelled: {
+  label: "CANCELLED\n \nexit_reason: cancelled"
+  style.fill: "#fbbf24"
+  style.stroke: "#d97706"
+  style.stroke-width: 3
+  style.font-color: "#451a03"
+  style.border-radius: 8
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+# Legend container - navy for top-level grouping
+legend: {
+  label: "Exit Reasons"
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 16
+
+  success: {
+    label: "success -- agent completed its work"
+    style.fill: "#6ee7b7"
+    style.stroke: "#34d399"
+    style.stroke-width: 2
+    style.font-color: "#064e3b"
+    style.border-radius: 6
+    style.font-size: 12
+    style.bold: true
+  }
+
+  error: {
+    label: "error -- unrecoverable SDK/API failure"
+    style.fill: "#f87171"
+    style.stroke: "#ef4444"
+    style.stroke-width: 2
+    style.font-color: "#ffffff"
+    style.border-radius: 6
+    style.font-size: 12
+    style.bold: true
+  }
+
+  timeout: {
+    label: "timeout -- time limit or network timeout"
+    style.fill: "#fdba74"
+    style.stroke: "#f59e0b"
+    style.stroke-width: 2
+    style.font-color: "#451a03"
+    style.border-radius: 6
+    style.font-size: 12
+    style.bold: true
+  }
+
+  cancelled: {
+    label: "cancelled -- user or system shutdown"
+    style.fill: "#fbbf24"
+    style.stroke: "#d97706"
+    style.stroke-width: 2
+    style.font-color: "#451a03"
+    style.border-radius: 6
+    style.font-size: 12
+    style.bold: true
+  }
+
+  max_turns: {
+    label: "max_turns -- conversation turn limit reached"
+    style.fill: "#c4b5fd"
+    style.stroke: "#a78bfa"
+    style.stroke-width: 2
+    style.font-color: "#2e1065"
+    style.border-radius: 6
+    style.font-size: 12
+    style.bold: true
+  }
+}
+
+# Transitions
+
+# Initial transition: start -> pending
+start -> pending: "createJob()" {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+  style.font-color: "#676C7E"
+  style.font-size: 13
+  style.italic: true
+}
+
+# Pending -> Running: job picked up
+pending -> running: "Runner picks up job" {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+  style.font-color: "#676C7E"
+  style.font-size: 13
+  style.italic: true
+}
+
+# Running -> Completed: success
+running -> completed: "Execution succeeds" {
+  style.stroke: "#34d399"
+  style.stroke-width: 2
+  style.font-color: "#676C7E"
+  style.font-size: 13
+  style.italic: true
+}
+
+# Running -> Failed: error/timeout/max_turns
+running -> failed: "Error thrown /\ntimeout / max turns" {
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+  style.font-color: "#676C7E"
+  style.font-size: 13
+  style.italic: true
+}
+
+# Running -> Cancelled: cancel during execution
+running -> cancelled: "Cancel requested\nor fleet shutdown" {
+  style.stroke: "#d97706"
+  style.stroke-width: 2
+  style.font-color: "#676C7E"
+  style.font-size: 13
+  style.italic: true
+}
+
+# Pending -> Cancelled: cancel before execution (dashed)
+pending -> cancelled: "Cancel before\nexecution starts" {
+  style.stroke: "#d97706"
+  style.stroke-width: 2
+  style.stroke-dash: 8
+  style.font-color: "#676C7E"
+  style.font-size: 13
+  style.italic: true
+}

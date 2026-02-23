@@ -1,0 +1,193 @@
+# ContainerRunner Decorator Pattern
+# Shows how ContainerRunner wraps base runtimes via the decorator pattern,
+# presenting the same RuntimeInterface to callers while adding Docker isolation.
+
+direction: down
+
+# ── Caller ───────────────────────────────────────────────────────────
+caller: {
+  label: "JobExecutor\ncalls execute()\nDocker layer is invisible"
+  style.fill: "#94a3b8"
+  style.stroke: "#64748b"
+  style.font-color: "#0f172a"
+  style.border-radius: 8
+  style.font-size: 14
+  style.shadow: true
+  style.bold: true
+}
+
+# ── RuntimeInterface ─────────────────────────────────────────────────
+runtime-interface: {
+  label: "«interface» RuntimeInterface\nexecute(options) → AsyncIterable<SDKMessage>"
+  style.fill: "#326CE5"
+  style.stroke: "#2857b8"
+  style.font-color: "#ffffff"
+  style.border-radius: 10
+  style.font-size: 14
+  style.shadow: true
+  style.bold: true
+}
+
+# ── RuntimeFactory ───────────────────────────────────────────────────
+runtime-factory: {
+  label: "RuntimeFactory.create(agent)\ncomposes runtime based on config"
+  style.fill: "#c4b5fd"
+  style.stroke: "#a78bfa"
+  style.font-color: "#2e1065"
+  style.border-radius: 8
+  style.font-size: 14
+  style.shadow: true
+  style.bold: true
+}
+
+# ── Decision: docker.enabled? ────────────────────────────────────────
+docker-decision: {
+  label: "docker.enabled?"
+  shape: diamond
+  style.fill: "#f8fafc"
+  style.stroke: "#64748b"
+  style.font-color: "#1e293b"
+  style.font-size: 13
+  style.bold: true
+}
+
+# ── Base runtimes (no Docker) ────────────────────────────────────────
+sdk-runtime: {
+  label: "SDKRuntime\nquery() via Agent SDK"
+  style.fill: "#6ee7b7"
+  style.stroke: "#34d399"
+  style.font-color: "#064e3b"
+  style.border-radius: 8
+  style.font-size: 13
+  style.bold: true
+}
+
+cli-runtime: {
+  label: "CLIRuntime\nspawns claude CLI"
+  style.fill: "#93c5fd"
+  style.stroke: "#60a5fa"
+  style.font-color: "#1e293b"
+  style.border-radius: 8
+  style.font-size: 13
+  style.bold: true
+}
+
+# ── ContainerRunner decorator steps ──────────────────────────────────
+container-runner: {
+  label: "ContainerRunner (Decorator)\nimplements RuntimeInterface"
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 16
+
+  step-1: {
+    label: "1. Build mounts & env\nbuildContainerMounts()\nbuildContainerEnv()"
+    style.fill: "#fbbf24"
+    style.stroke: "#d97706"
+    style.font-color: "#451a03"
+    style.border-radius: 8
+    style.font-size: 12
+    style.bold: true
+  }
+
+  step-2: {
+    label: "2. Get or create container\nContainerManager\nephemeral or persistent"
+    style.fill: "#fdba74"
+    style.stroke: "#f59e0b"
+    style.font-color: "#451a03"
+    style.border-radius: 8
+    style.font-size: 12
+    style.bold: true
+  }
+
+  step-3: {
+    label: "3. Start MCP HTTP bridges\nfor injected MCP servers\n(SDK runtime only)"
+    style.fill: "#fb923c"
+    style.stroke: "#f97316"
+    style.font-color: "#431407"
+    style.border-radius: 8
+    style.font-size: 12
+    style.bold: true
+  }
+
+  step-4: {
+    label: "4. docker exec\ndelegate to inner runtime\ninside container"
+    style.fill: "#f87171"
+    style.stroke: "#ef4444"
+    style.font-color: "#ffffff"
+    style.border-radius: 8
+    style.font-size: 12
+    style.bold: true
+  }
+
+  step-5: {
+    label: "5. Stream output\nJSONL stdout (SDK)\nsession watcher (CLI)"
+    style.fill: "#c4b5fd"
+    style.stroke: "#a78bfa"
+    style.font-color: "#2e1065"
+    style.border-radius: 8
+    style.font-size: 12
+    style.bold: true
+  }
+
+  step-6: {
+    label: "6. Cleanup\nstop ephemeral container\nclose MCP bridges"
+    style.fill: "#6ee7b7"
+    style.stroke: "#34d399"
+    style.font-color: "#064e3b"
+    style.border-radius: 8
+    style.font-size: 12
+    style.bold: true
+  }
+
+  step-1 -> step-2
+  step-2 -> step-3
+  step-3 -> step-4
+  step-4 -> step-5
+  step-5 -> step-6
+}
+
+# ── Output ───────────────────────────────────────────────────────────
+output: {
+  label: "AsyncIterable<SDKMessage>\nstreamed back to JobExecutor"
+  style.fill: "#22d3ee"
+  style.stroke: "#06b6d4"
+  style.font-color: "#083344"
+  style.border-radius: 8
+  style.font-size: 13
+  style.shadow: true
+}
+
+# ══ CONNECTIONS ══════════════════════════════════════════════════════
+
+# Caller → Interface → Factory
+caller -> runtime-interface: execute(options)
+runtime-interface -> runtime-factory
+
+# Factory decision
+runtime-factory -> docker-decision
+
+# No Docker: use base runtimes directly
+docker-decision -> sdk-runtime: "false\nruntime = sdk" {
+  style.stroke: "#34d399"
+  style.stroke-width: 2
+}
+docker-decision -> cli-runtime: "false\nruntime = cli" {
+  style.stroke: "#60a5fa"
+  style.stroke-width: 2
+}
+
+# Docker enabled: wrap with ContainerRunner
+docker-decision -> container-runner: "true\nwraps base runtime" {
+  style.stroke: "#f97316"
+  style.stroke-width: 2
+  style.bold: true
+}
+
+# Base runtimes and ContainerRunner both produce output
+sdk-runtime -> output
+cli-runtime -> output
+container-runner -> output

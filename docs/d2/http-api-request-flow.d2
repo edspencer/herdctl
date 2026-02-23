@@ -1,0 +1,246 @@
+# HTTP API Request Flow
+# Shows how HTTP and WebSocket requests flow through the Fastify server
+# to FleetManager and back to the client.
+#
+# Two parallel paths: HTTP (solid slate) and WebSocket (dashed cyan).
+# All nodes flat at top level. Bidirectional arrows instead of backward
+# edges to keep dagre layout clean.
+
+direction: down
+
+# ── Client ──────────────────────────────────────────────────────────
+client: {
+  label: "Client\nBrowser / API Consumer"
+  style.fill: "#475569"
+  style.stroke: "#334155"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 20
+  style.font-size: 14
+  style.bold: true
+  style.shadow: true
+}
+
+# ── Middleware ──────────────────────────────────────────────────────
+middleware: {
+  label: "Middleware"
+  style.fill: "#2a9d8f"
+  style.stroke: "#21867a"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 10
+  style.font-size: 13
+
+  grid-rows: 1
+  grid-gap: 8
+
+  cors: {
+    label: "CORS"
+    style.fill: "#f8fafc"
+    style.stroke: "#cbd5e1"
+    style.stroke-width: 2
+    style.font-color: "#1e293b"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+
+  static: {
+    label: "Static Serving\n(React SPA)"
+    style.fill: "#f8fafc"
+    style.stroke: "#cbd5e1"
+    style.stroke-width: 2
+    style.font-color: "#1e293b"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+
+  spa-fallback: {
+    label: "SPA Fallback\n(index.html)"
+    style.fill: "#f8fafc"
+    style.stroke: "#cbd5e1"
+    style.stroke-width: 2
+    style.font-color: "#1e293b"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+}
+
+# ── WebSocket Endpoint ──────────────────────────────────────────────
+ws-endpoint: {
+  label: "WebSocket (/ws)\nsubscribe · ping · chat:send"
+  style.fill: "#38bdf8"
+  style.stroke: "#0ea5e9"
+  style.stroke-width: 2
+  style.font-color: "#0c4a6e"
+  style.border-radius: 10
+  style.font-size: 13
+  style.bold: true
+  style.shadow: true
+}
+
+# ── Route Handlers ──────────────────────────────────────────────────
+routes: {
+  label: "Route Handlers (/api/*)"
+  style.fill: "#2a9d8f"
+  style.stroke: "#21867a"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 10
+  style.font-size: 13
+
+  grid-columns: 3
+  grid-rows: 2
+  grid-gap: 8
+
+  fleet: {
+    label: "Fleet\nstatus"
+    style.fill: "#93c5fd"
+    style.stroke: "#60a5fa"
+    style.stroke-width: 2
+    style.font-color: "#1e293b"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+
+  jobs: {
+    label: "Jobs\nlist, cancel, fork"
+    style.fill: "#fbbf24"
+    style.stroke: "#d97706"
+    style.stroke-width: 2
+    style.font-color: "#451a03"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+
+  chat: {
+    label: "Chat\nsessions, messages"
+    style.fill: "#c4b5fd"
+    style.stroke: "#a78bfa"
+    style.stroke-width: 2
+    style.font-color: "#2e1065"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+
+  agents: {
+    label: "Agents\nlist, detail"
+    style.fill: "#6ee7b7"
+    style.stroke: "#34d399"
+    style.stroke-width: 2
+    style.font-color: "#064e3b"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+
+  schedules: {
+    label: "Schedules\nenable, disable"
+    style.fill: "#fdba74"
+    style.stroke: "#f59e0b"
+    style.stroke-width: 2
+    style.font-color: "#451a03"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+
+  system: {
+    label: "System\nhealth, version"
+    style.fill: "#22d3ee"
+    style.stroke: "#06b6d4"
+    style.stroke-width: 2
+    style.font-color: "#083344"
+    style.border-radius: 8
+    style.font-size: 11
+    style.bold: true
+  }
+}
+
+# ── FleetBridge ─────────────────────────────────────────────────────
+fleet-bridge: {
+  label: "FleetBridge\nEvent Relay & Translation"
+  style.fill: "#326CE5"
+  style.stroke: "#2857b8"
+  style.stroke-width: 3
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 16
+  style.bold: true
+}
+
+# ── FleetManager ────────────────────────────────────────────────────
+fleet-manager: {
+  label: "FleetManager\nBusiness Logic"
+  style.fill: "#326CE5"
+  style.stroke: "#2857b8"
+  style.stroke-width: 3
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 16
+  style.bold: true
+}
+
+# ══ CONNECTIONS ═════════════════════════════════════════════════════
+
+# ── HTTP path (solid, slate) ────────────────────────────────────────
+client -> middleware: "HTTP request" {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+  style.font-size: 11
+  style.font-color: "#64748b"
+}
+
+middleware -> routes {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+
+routes -> fleet-manager: "REST calls\nFleetManager methods" {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+  style.font-size: 11
+  style.font-color: "#64748b"
+}
+
+fleet-manager -> client: "JSON response" {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+  style.stroke-dash: 5
+  style.font-size: 11
+  style.font-color: "#64748b"
+}
+
+# ── WebSocket path (dashed, cyan) ──────────────────────────────────
+# Bidirectional: client ↔ ws-endpoint ↔ fleet-bridge
+client -> ws-endpoint: "WebSocket connection" {
+  style.stroke: "#06b6d4"
+  style.stroke-width: 2
+  style.stroke-dash: 6
+  style.font-size: 11
+  style.font-color: "#06b6d4"
+}
+
+ws-endpoint <-> fleet-bridge: "messages ↓  broadcasts ↑" {
+  style.stroke: "#06b6d4"
+  style.stroke-width: 2
+  style.stroke-dash: 6
+  style.font-size: 11
+  style.font-color: "#06b6d4"
+}
+
+# ── FleetBridge ↔ FleetManager (dashed, amber) ─────────────────────
+fleet-bridge <-> fleet-manager: "subscribes to events\nemits agent:* · job:* · schedule:*" {
+  style.stroke: "#d97706"
+  style.stroke-width: 2
+  style.stroke-dash: 6
+  style.font-size: 11
+  style.font-color: "#d97706"
+}

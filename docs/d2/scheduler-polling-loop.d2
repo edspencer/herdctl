@@ -1,0 +1,355 @@
+# Scheduler Polling Loop
+# Shows the full tick-based polling loop: tick -> iterate agents -> evaluate schedules -> trigger or skip
+
+direction: down
+
+# --- Top-level tick entry ---
+
+tick: {
+  label: "Scheduler Tick\nfires every 1s (configurable)"
+  style.fill: "#326CE5"
+  style.stroke: "#2857b8"
+  style.stroke-width: 3
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 16
+  style.bold: true
+}
+
+# --- Iteration nodes (navy) ---
+
+iterate-agents: {
+  label: "For each agent\nin fleet"
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 10
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+iterate-schedules: {
+  label: "For each schedule\non agent"
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 10
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+# --- Schedule Evaluation Pipeline container (navy) ---
+
+checks: {
+  label: "Schedule Evaluation Pipeline"
+  style.fill: "#1e3a5f"
+  style.stroke: "#142842"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 12
+  style.shadow: true
+  style.font-size: 16
+
+  # Decision diamonds - light blue for config checks
+  check-enabled: {
+    label: "Enabled?"
+    shape: diamond
+    style.fill: "#93c5fd"
+    style.stroke: "#60a5fa"
+    style.stroke-width: 2
+    style.font-color: "#1e293b"
+    style.font-size: 13
+    style.bold: true
+  }
+
+  check-type: {
+    label: "Type is\ninterval or cron?"
+    shape: diamond
+    style.fill: "#93c5fd"
+    style.stroke: "#60a5fa"
+    style.stroke-width: 2
+    style.font-color: "#1e293b"
+    style.font-size: 13
+    style.bold: true
+  }
+
+  # Decision diamonds - sky blue for runtime checks
+  check-running: {
+    label: "Already\nrunning?"
+    shape: diamond
+    style.fill: "#38bdf8"
+    style.stroke: "#0ea5e9"
+    style.stroke-width: 2
+    style.font-color: "#0c4a6e"
+    style.font-size: 13
+    style.bold: true
+  }
+
+  check-capacity: {
+    label: "At max\nconcurrency?"
+    shape: diamond
+    style.fill: "#38bdf8"
+    style.stroke: "#0ea5e9"
+    style.stroke-width: 2
+    style.font-color: "#0c4a6e"
+    style.font-size: 13
+    style.bold: true
+  }
+
+  # Decision diamond - lavender for timing check
+  check-due: {
+    label: "Schedule\ndue now?"
+    shape: diamond
+    style.fill: "#c4b5fd"
+    style.stroke: "#a78bfa"
+    style.stroke-width: 2
+    style.font-color: "#2e1065"
+    style.font-size: 13
+    style.bold: true
+  }
+
+  # Happy path through pipeline
+  check-enabled -> check-type: yes {
+    style.stroke: "#94a3b8"
+    style.stroke-width: 2
+  }
+
+  check-type -> check-running: yes {
+    style.stroke: "#94a3b8"
+    style.stroke-width: 2
+  }
+
+  check-running -> check-capacity: no {
+    style.stroke: "#94a3b8"
+    style.stroke-width: 2
+  }
+
+  check-capacity -> check-due: no {
+    style.stroke: "#94a3b8"
+    style.stroke-width: 2
+  }
+}
+
+# --- Skip outcome (coral) ---
+
+skip: {
+  label: "Skip\nwith reason"
+  style.fill: "#f87171"
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 8
+  style.shadow: true
+  style.font-size: 13
+  style.bold: true
+}
+
+# --- Skip Reasons list (coral container with peach items) ---
+
+skip-reasons: {
+  label: "Skip Reasons"
+  style.fill: "#f87171"
+  style.stroke: "#ef4444"
+  style.stroke-width: 1
+  style.font-color: "#ffffff"
+  style.border-radius: 8
+  style.font-size: 12
+
+  grid-columns: 1
+  grid-gap: 4
+
+  r1: {
+    label: "disabled"
+    style.fill: "#fdba74"
+    style.stroke: "#f59e0b"
+    style.stroke-width: 2
+    style.font-color: "#451a03"
+    style.border-radius: 4
+    style.font-size: 11
+    style.bold: true
+  }
+
+  r2: {
+    label: "unsupported_type"
+    style.fill: "#fdba74"
+    style.stroke: "#f59e0b"
+    style.stroke-width: 2
+    style.font-color: "#451a03"
+    style.border-radius: 4
+    style.font-size: 11
+    style.bold: true
+  }
+
+  r3: {
+    label: "already_running"
+    style.fill: "#fdba74"
+    style.stroke: "#f59e0b"
+    style.stroke-width: 2
+    style.font-color: "#451a03"
+    style.border-radius: 4
+    style.font-size: 11
+    style.bold: true
+  }
+
+  r4: {
+    label: "at_capacity"
+    style.fill: "#fdba74"
+    style.stroke: "#f59e0b"
+    style.stroke-width: 2
+    style.font-color: "#451a03"
+    style.border-radius: 4
+    style.font-size: 11
+    style.bold: true
+  }
+
+  r5: {
+    label: "not_due"
+    style.fill: "#fdba74"
+    style.stroke: "#f59e0b"
+    style.stroke-width: 2
+    style.font-color: "#451a03"
+    style.border-radius: 4
+    style.font-size: 11
+    style.bold: true
+  }
+}
+
+# --- Success path nodes ---
+
+trigger: {
+  label: "Fire Trigger\nonTrigger(info)"
+  style.fill: "#6ee7b7"
+  style.stroke: "#34d399"
+  style.stroke-width: 2
+  style.font-color: "#064e3b"
+  style.border-radius: 10
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+fleet-manager: {
+  label: "FleetManager\nreceives trigger callback"
+  style.fill: "#326CE5"
+  style.stroke: "#2857b8"
+  style.stroke-width: 2
+  style.font-color: "#ffffff"
+  style.border-radius: 10
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+create-job: {
+  label: "Create Job\nupdate state, execute agent"
+  style.fill: "#fbbf24"
+  style.stroke: "#d97706"
+  style.stroke-width: 2
+  style.font-color: "#451a03"
+  style.border-radius: 8
+  style.shadow: true
+  style.font-size: 13
+  style.bold: true
+}
+
+# --- Sleep node (slate) ---
+
+sleep: {
+  label: "Sleep\ncheckInterval ms"
+  style.fill: "#94a3b8"
+  style.stroke: "#64748b"
+  style.stroke-width: 2
+  style.font-color: "#0f172a"
+  style.border-radius: 10
+  style.shadow: true
+  style.font-size: 14
+  style.bold: true
+}
+
+# --- Connections: main flow ---
+
+tick -> iterate-agents: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+
+iterate-agents -> iterate-schedules: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+
+iterate-schedules -> checks.check-enabled: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
+
+# --- Loop back: all agents processed -> sleep -> next tick ---
+
+iterate-agents -> sleep: all agents\nprocessed {
+  style.stroke: "#64748b"
+  style.stroke-width: 2
+  style.stroke-dash: 8
+}
+
+sleep -> tick: next tick {
+  style.stroke: "#326CE5"
+  style.stroke-width: 2
+  style.stroke-dash: 10
+}
+
+# --- Rejection paths from decisions to skip (red) ---
+
+checks.check-enabled -> skip: disabled {
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+}
+
+checks.check-type -> skip: unsupported {
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+}
+
+checks.check-running -> skip: yes {
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+}
+
+checks.check-capacity -> skip: yes {
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+}
+
+checks.check-due -> skip: not due {
+  style.stroke: "#ef4444"
+  style.stroke-width: 2
+}
+
+# --- Skip to skip-reasons (dashed, detail link) ---
+
+skip -> skip-reasons: {
+  style.stroke: "#64748b"
+  style.stroke-width: 1
+  style.stroke-dash: 4
+}
+
+# --- Success path: due -> fire trigger -> FleetManager -> create job ---
+
+checks.check-due -> trigger: "yes — due!" {
+  style.stroke: "#34d399"
+  style.stroke-width: 3
+}
+
+trigger -> fleet-manager: {
+  style.stroke: "#34d399"
+  style.stroke-width: 2
+}
+
+fleet-manager -> create-job: {
+  style.stroke: "#94a3b8"
+  style.stroke-width: 2
+}
