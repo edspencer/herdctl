@@ -115,6 +115,14 @@ export type OnToolCallCallback = (toolCall: ToolCallData) => void | Promise<void
  */
 export type OnBoundaryCallback = () => void | Promise<void>;
 
+/**
+ * Callback for receiving token usage updates during streaming
+ */
+export type OnUsageUpdateCallback = (usage: {
+  inputTokens: number;
+  outputTokens: number;
+}) => void | Promise<void>;
+
 // =============================================================================
 // WebChatManager Implementation
 // =============================================================================
@@ -384,6 +392,8 @@ export class WebChatManager {
    * @param message - User message text
    * @param onChunk - Callback for streaming response chunks
    * @param onToolCall - Optional callback for tool call results
+   * @param onBoundary - Optional callback for message boundary signals
+   * @param onUsageUpdate - Optional callback for token usage updates
    * @returns Result with jobId
    */
   async sendMessage(
@@ -393,6 +403,7 @@ export class WebChatManager {
     onChunk: OnChunkCallback,
     onToolCall?: OnToolCallCallback,
     onBoundary?: OnBoundaryCallback,
+    onUsageUpdate?: OnUsageUpdateCallback,
   ): Promise<SendMessageResult> {
     this.ensureInitialized();
 
@@ -502,6 +513,21 @@ export class WebChatManager {
                 });
               }
             }
+
+            // Extract and forward token usage data
+            if (onUsageUpdate) {
+              const msgWithUsage = sdkMessage as {
+                message?: { usage?: { input_tokens?: number; output_tokens?: number } };
+                usage?: { input_tokens?: number; output_tokens?: number };
+              };
+              const usage = msgWithUsage.message?.usage ?? msgWithUsage.usage;
+              if (usage) {
+                await onUsageUpdate({
+                  inputTokens: usage.input_tokens ?? 0,
+                  outputTokens: usage.output_tokens ?? 0,
+                });
+              }
+            }
           }
 
           // Send tool results to client
@@ -604,6 +630,27 @@ export class WebChatManager {
         error: errorMessage,
       };
     }
+  }
+
+  /**
+   * Get the SDK session ID for a web chat session
+   *
+   * Used by the "Continue in Claude Code" feature to construct
+   * a `claude --resume <sdkSessionId>` command.
+   *
+   * @param agentName - Name of the agent
+   * @param sessionId - Web chat session ID
+   * @returns SDK session ID, or null if not available
+   */
+  async getSdkSessionId(agentName: string, sessionId: string): Promise<string | null> {
+    this.ensureInitialized();
+    const sessionManager = this.sessionManagers.get(agentName);
+    if (!sessionManager) return null;
+    const existing = await sessionManager.getSession(sessionId);
+    if (existing && existing.sessionId !== sessionId) {
+      return existing.sessionId;
+    }
+    return null;
   }
 
   // ===========================================================================

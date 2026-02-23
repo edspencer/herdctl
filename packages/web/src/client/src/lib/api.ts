@@ -379,6 +379,20 @@ export async function fetchChatSession(
 }
 
 /**
+ * Fetch the SDK session ID for a web chat session
+ *
+ * GET /api/chat/:agentName/sessions/:sessionId/sdk-session
+ */
+export async function fetchSdkSessionId(
+  agentName: string,
+  sessionId: string,
+): Promise<{ sdkSessionId: string | null; dockerEnabled: boolean }> {
+  return get<{ sdkSessionId: string | null; dockerEnabled: boolean }>(
+    `/api/chat/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}/sdk-session`,
+  );
+}
+
+/**
  * Delete a chat session
  *
  * DELETE /api/chat/:agentName/sessions/:sessionId

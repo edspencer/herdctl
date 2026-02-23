@@ -303,6 +303,17 @@ export interface ChatMessageBoundaryMessage {
   };
 }
 
+export interface ChatUsageUpdateMessage {
+  type: "chat:usage_update";
+  payload: {
+    agentName: string;
+    sessionId: string;
+    jobId: string;
+    inputTokens: number;
+    outputTokens: number;
+  };
+}
+
 export type ServerMessage =
   | FleetStatusMessage
   | AgentUpdatedMessage
@@ -317,6 +328,7 @@ export type ServerMessage =
   | ChatCompleteMessage
   | ChatToolCallMessage
   | ChatMessageBoundaryMessage
+  | ChatUsageUpdateMessage
   | ChatErrorMessage;
 
 // =============================================================================

@@ -252,10 +252,17 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     try {
       this.startSchedulerAsync(this.config!.agents);
 
-      // Start all chat managers
+      // Start all chat managers — failures are logged but don't prevent the fleet from running
       for (const [platform, manager] of this.chatManagers) {
         this.logger.debug(`Starting ${platform} chat manager...`);
-        await manager.start();
+        try {
+          await manager.start();
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          this.logger.error(`Failed to start ${platform} chat manager: ${errorMessage}`);
+          // Continue starting other chat managers — a single platform failure
+          // should not prevent the fleet from running
+        }
       }
 
       this.status = "running";

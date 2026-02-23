@@ -63,6 +63,7 @@ export function useWebSocket() {
   const updateScheduleFromWS = useStore((state) => state.updateScheduleFromWS);
   const addToast = useStore((state) => state.addToast);
   const touchRecentSession = useStore((state) => state.touchRecentSession);
+  const addTokenUsage = useStore((state) => state.addTokenUsage);
 
   useEffect(() => {
     // Message handler that dispatches to store
@@ -165,6 +166,14 @@ export function useWebSocket() {
           break;
         }
 
+        case "chat:usage_update": {
+          const { sessionId, inputTokens, outputTokens } = message.payload;
+          if (sessionId === useStore.getState().activeChatSessionId) {
+            addTokenUsage(inputTokens, outputTokens);
+          }
+          break;
+        }
+
         case "chat:error": {
           const { sessionId } = message.payload;
           if (sessionId === useStore.getState().activeChatSessionId) {
@@ -237,6 +246,7 @@ export function useWebSocket() {
   }, [
     addJob,
     addToast,
+    addTokenUsage,
     addToolCallMessage,
     appendOutput,
     appendStreamingChunk,

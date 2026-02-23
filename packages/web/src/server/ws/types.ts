@@ -260,6 +260,28 @@ export interface ChatMessageBoundaryMessage {
 }
 
 /**
+ * Chat usage update message
+ *
+ * Server sends this during streaming to report token usage per assistant turn.
+ * Client accumulates these for session totals and context window tracking.
+ */
+export interface ChatUsageUpdateMessage {
+  type: "chat:usage_update";
+  payload: {
+    /** Name of the agent */
+    agentName: string;
+    /** Session ID for the chat conversation */
+    sessionId: string;
+    /** Job ID for tracking the execution */
+    jobId: string;
+    /** Input tokens used in this API call (represents full context sent) */
+    inputTokens: number;
+    /** Output tokens generated in this turn */
+    outputTokens: number;
+  };
+}
+
+/**
  * Chat error message
  *
  * Server sends this when a chat error occurs.
@@ -293,6 +315,7 @@ export type ServerMessage =
   | ChatCompleteMessage
   | ChatToolCallMessage
   | ChatMessageBoundaryMessage
+  | ChatUsageUpdateMessage
   | ChatErrorMessage;
 
 // =============================================================================
