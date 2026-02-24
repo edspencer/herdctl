@@ -10,6 +10,7 @@ import {
   renameChatSession as apiRenameChatSession,
   fetchChatSession,
   fetchChatSessions,
+  fetchSessionByPath,
 } from "../lib/api";
 import type { ChatMessage, ChatSession, ChatToolCall, RecentChatSession } from "../lib/types";
 
@@ -88,6 +89,8 @@ export interface ChatActions {
   touchRecentSession: (sessionId: string, agentName: string) => void;
   /** Toggle chat info sidebar visibility */
   toggleChatInfoSidebar: () => void;
+  /** Fetch messages for an ad hoc session by path (for unattributed sessions) */
+  fetchAdhocChatMessages: (encodedPath: string, sessionId: string) => Promise<void>;
 }
 
 export type ChatSlice = ChatState & ChatActions;
@@ -423,5 +426,30 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
       }
       return { chatInfoSidebarOpen: newOpen };
     });
+  },
+
+  fetchAdhocChatMessages: async (encodedPath: string, sessionId: string) => {
+    set({
+      chatMessagesLoading: true,
+      chatError: null,
+      chatStreaming: false,
+      chatStreamingContent: "",
+    });
+
+    try {
+      const response = await fetchSessionByPath(encodedPath, sessionId);
+      set({
+        chatMessages: response.messages,
+        chatMessagesLoading: false,
+        activeChatSessionId: sessionId,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to fetch ad hoc chat messages";
+      set({
+        chatMessagesLoading: false,
+        chatError: message,
+      });
+    }
   },
 });

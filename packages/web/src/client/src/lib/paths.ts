@@ -30,3 +30,8 @@ export function allChatsPath(): string {
 export function readOnlySessionPath(encodedPath: string, sessionId: string): string {
   return `/chats/${encodeURIComponent(encodedPath)}/${encodeURIComponent(sessionId)}`;
 }
+
+/** Route path for ad hoc chat sessions (unattributed sessions that can be resumed interactively). */
+export function adhocChatPath(encodedPath: string, sessionId: string): string {
+  return `/adhoc/${encodeURIComponent(encodedPath)}/chat/${encodeURIComponent(sessionId)}`;
+}

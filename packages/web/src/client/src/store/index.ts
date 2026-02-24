@@ -286,6 +286,7 @@ export function useChatActions() {
     useShallow((state) => ({
       fetchChatSessions: state.fetchChatSessions,
       fetchChatMessages: state.fetchChatMessages,
+      fetchAdhocChatMessages: state.fetchAdhocChatMessages,
       renameChatSession: state.renameChatSession,
       setActiveChatSession: state.setActiveChatSession,
       appendStreamingChunk: state.appendStreamingChunk,

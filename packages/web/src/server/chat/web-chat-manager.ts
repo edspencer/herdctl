@@ -16,7 +16,9 @@ import {
   extractToolUseBlocks,
   type FleetManager,
   getToolInputSummary,
+  JobExecutor,
   type ResolvedAgent,
+  RuntimeFactory,
   type SessionDiscoveryService,
   SessionMetadataStore,
   type WebConfig,
@@ -400,6 +402,192 @@ export class WebChatManager {
         error: errorMessage,
       };
     }
+  }
+
+  // ===========================================================================
+  // Ad Hoc Session Methods (for unattributed sessions)
+  // ===========================================================================
+
+  /**
+   * Build a minimal synthetic agent for ad hoc execution
+   *
+   * Ad hoc sessions bypass FleetManager.trigger() and use RuntimeFactory + JobExecutor directly.
+   * This creates a minimal ResolvedAgent with CLI runtime for resuming unattributed sessions.
+   */
+  private buildAdhocAgent(workingDirectory: string, sessionId: string): ResolvedAgent {
+    const shortId = sessionId.slice(0, 8);
+    return {
+      name: `adhoc-${shortId}`,
+      qualifiedName: `__adhoc__.${shortId}`,
+      configPath: "",
+      fleetPath: [],
+      working_directory: workingDirectory,
+      runtime: "cli",
+      permission_mode: "default",
+    } as ResolvedAgent;
+  }
+
+  /**
+   * Send a message to an ad hoc session (not attributed to any fleet agent)
+   *
+   * Uses RuntimeFactory + JobExecutor directly, bypassing FleetManager.trigger().
+   * The CLI runtime executes `claude --resume <sessionId>` in the session's working directory.
+   *
+   * @param workingDirectory - Working directory where the session exists
+   * @param sessionId - Session ID to resume
+   * @param message - User message text
+   * @param onChunk - Callback for streaming response chunks
+   * @param onToolCall - Optional callback for tool call results
+   * @param onBoundary - Optional callback for message boundary signals
+   * @returns Result with jobId and sessionId
+   */
+  async sendAdhocMessage(
+    workingDirectory: string,
+    sessionId: string,
+    message: string,
+    onChunk: OnChunkCallback,
+    onToolCall?: OnToolCallCallback,
+    onBoundary?: OnBoundaryCallback,
+  ): Promise<SendMessageResult> {
+    this.ensureInitialized();
+
+    const agent = this.buildAdhocAgent(workingDirectory, sessionId);
+    const runtime = RuntimeFactory.create(agent, { stateDir: this.stateDir! });
+    const executor = new JobExecutor(runtime, { logger });
+
+    let assistantContent = "";
+    const pendingToolUses = new Map<string, { name: string; input?: unknown; startTime: number }>();
+
+    try {
+      const result = await executor.execute({
+        agent,
+        prompt: message,
+        stateDir: this.stateDir!,
+        triggerType: "web",
+        resume: sessionId,
+        onMessage: async (sdkMessage) => {
+          // Extract text content from assistant messages
+          if (sdkMessage.type === "assistant") {
+            const castMessage = sdkMessage as Parameters<typeof extractMessageContent>[0];
+            const content = extractMessageContent(castMessage);
+            if (content) {
+              // If we already have accumulated assistant content, this is a new
+              // assistant turn. Flush the previous content and signal a boundary.
+              if (assistantContent && onBoundary) {
+                assistantContent = "";
+                await onBoundary();
+              }
+              assistantContent += content;
+              await onChunk(content);
+            }
+
+            // Track tool_use blocks for pairing with results later
+            const toolUseBlocks = extractToolUseBlocks(castMessage);
+            for (const block of toolUseBlocks) {
+              if (block.id) {
+                pendingToolUses.set(block.id, {
+                  name: block.name,
+                  input: block.input,
+                  startTime: Date.now(),
+                });
+              }
+            }
+          }
+
+          // Send tool results to client
+          if (sdkMessage.type === "user" && this.toolResults && onToolCall) {
+            const userMessage = sdkMessage as {
+              type: string;
+              message?: { content?: unknown };
+              tool_use_result?: unknown;
+            };
+            const toolResultsList = extractToolResults(userMessage);
+
+            // Flush accumulated assistant text before tool calls
+            if (toolResultsList.length > 0 && assistantContent) {
+              assistantContent = "";
+            }
+
+            for (const toolResult of toolResultsList) {
+              const toolUse = toolResult.toolUseId
+                ? pendingToolUses.get(toolResult.toolUseId)
+                : undefined;
+              if (toolResult.toolUseId) {
+                pendingToolUses.delete(toolResult.toolUseId);
+              }
+
+              const toolName = toolUse?.name ?? "Tool";
+              const durationMs = toolUse ? Date.now() - toolUse.startTime : undefined;
+              const inputSummary = toolUse
+                ? getToolInputSummary(toolUse.name, toolUse.input)
+                : undefined;
+
+              const toolCallData: ToolCallData = {
+                toolName,
+                inputSummary,
+                output: toolResult.output,
+                isError: toolResult.isError,
+                durationMs,
+              };
+
+              await onToolCall(toolCallData);
+            }
+          }
+        },
+      });
+
+      return {
+        jobId: result.jobId,
+        sessionId: result.sessionId,
+        success: result.success,
+        error: result.error?.message,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to send ad hoc message`, {
+        workingDirectory,
+        sessionId,
+        error: errorMessage,
+      });
+
+      return {
+        jobId: "",
+        success: false,
+        error: errorMessage,
+      };
+    }
+  }
+
+  /**
+   * Get messages for an ad hoc session by working directory
+   *
+   * @param workingDirectory - Working directory where the session exists
+   * @param sessionId - Session ID
+   * @returns Array of chat messages
+   */
+  async getAdhocSessionMessages(
+    workingDirectory: string,
+    sessionId: string,
+  ): Promise<ChatMessage[]> {
+    this.ensureInitialized();
+    const coreMessages = await this.discoveryService!.getSessionMessages(
+      workingDirectory,
+      sessionId,
+    );
+    return coreMessages.map((m) => this.transformCoreMessage(m));
+  }
+
+  /**
+   * Get usage data for an ad hoc session by working directory
+   *
+   * @param workingDirectory - Working directory where the session exists
+   * @param sessionId - Session ID
+   * @returns Session usage data
+   */
+  async getAdhocSessionUsage(workingDirectory: string, sessionId: string): Promise<SessionUsage> {
+    this.ensureInitialized();
+    const usage = await this.discoveryService!.getSessionUsage(workingDirectory, sessionId);
+    return this.transformCoreUsage(usage);
   }
 
   // ===========================================================================

@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { getAgentAvatar } from "../../lib/avatar";
 import { formatRelativeTime } from "../../lib/format";
-import { agentChatPath, readOnlySessionPath } from "../../lib/paths";
+import { adhocChatPath, agentChatPath, readOnlySessionPath } from "../../lib/paths";
 import type { RecentChatSession } from "../../lib/types";
 import { OriginBadge } from "../ui/OriginBadge";
 
@@ -47,13 +47,15 @@ export function RecentConversationRow({
 
   const conversationName = session.customName || session.preview || "New conversation";
 
-  // Route to agent chat if attributed, or read-only viewer if unattributed
+  // Route to agent chat if attributed, ad hoc chat if unattributed+resumable, or read-only otherwise
   const sessionPath =
     session.agentName && session.agentName.length > 0
       ? agentChatPath(session.agentName, session.sessionId)
-      : session.encodedPath
-        ? readOnlySessionPath(session.encodedPath, session.sessionId)
-        : null;
+      : session.encodedPath && session.resumable
+        ? adhocChatPath(session.encodedPath, session.sessionId)
+        : session.encodedPath
+          ? readOnlySessionPath(session.encodedPath, session.sessionId)
+          : null;
 
   const startEditing = () => {
     setIsEditing(true);

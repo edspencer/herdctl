@@ -6,7 +6,7 @@
  */
 
 import { useNavigate } from "react-router";
-import { agentChatPath, readOnlySessionPath } from "../../lib/paths";
+import { adhocChatPath, agentChatPath, readOnlySessionPath } from "../../lib/paths";
 import type { DiscoveredSession } from "../../lib/types";
 import { OriginBadge } from "../ui/OriginBadge";
 
@@ -67,6 +67,8 @@ export function SessionRow({ session, agentName, encodedPath }: SessionRowProps)
   const handleClick = () => {
     if (agentName) {
       navigate(agentChatPath(agentName, session.sessionId));
+    } else if (session.resumable) {
+      navigate(adhocChatPath(encodedPath, session.sessionId));
     } else {
       navigate(readOnlySessionPath(encodedPath, session.sessionId));
     }

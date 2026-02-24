@@ -10,7 +10,7 @@ import { AlertTriangle, ArrowLeft, Check, Clipboard, FolderOpen } from "lucide-r
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { type ChatSessionDetailResponse, fetchSessionByPath } from "../../lib/api";
-import { allChatsPath } from "../../lib/paths";
+import { adhocChatPath, allChatsPath } from "../../lib/paths";
 import type { ChatMessage } from "../../lib/types";
 import { MessageBubble } from "../chat/MessageBubble";
 
@@ -205,6 +205,17 @@ export function ReadOnlySessionView() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Continue conversation button */}
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => navigate(adhocChatPath(encodedPath!, sessionId!))}
+            className="bg-herd-primary hover:bg-herd-primary-hover text-white rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+          >
+            Continue conversation
+          </button>
         </div>
 
         {/* Metadata row */}

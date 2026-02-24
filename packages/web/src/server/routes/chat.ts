@@ -236,6 +236,37 @@ export function registerChatRoutes(
   });
 
   /**
+   * GET /api/chat/sessions/by-path/:encodedPath/:sessionId/usage
+   *
+   * Get token usage for an ad hoc session by its encoded directory path.
+   *
+   * @returns { inputTokens: number, turnCount: number, hasData: boolean }
+   */
+  server.get("/api/chat/sessions/by-path/:encodedPath/:sessionId/usage", async (request, reply) => {
+    const { encodedPath, sessionId } = request.params as { encodedPath: string; sessionId: string };
+
+    try {
+      const groups = await chatManager.getAllSessionGroups();
+      const group = groups.find((g) => g.encodedPath === encodedPath);
+
+      if (!group) {
+        return reply.status(404).send({ error: `Directory not found: ${encodedPath}` });
+      }
+
+      const usage = await chatManager.getAdhocSessionUsage(group.workingDirectory, sessionId);
+      return reply.send(usage);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error("Failed to get ad hoc session usage", {
+        error: message,
+        encodedPath,
+        sessionId,
+      });
+      return reply.status(500).send({ error: `Failed to get session usage: ${message}` });
+    }
+  });
+
+  /**
    * GET /api/chat/:agentName/sessions
    *
    * List all chat sessions for an agent.

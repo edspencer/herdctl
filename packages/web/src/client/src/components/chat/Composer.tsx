@@ -26,13 +26,17 @@ interface ComposerProps {
   agentName: string;
   /** Session ID for sending messages. Undefined for new chats. */
   sessionId?: string;
+  /** Whether this is an ad hoc session (unattributed) */
+  isAdhoc?: boolean;
+  /** Working directory for ad hoc sessions (required when isAdhoc is true) */
+  workingDirectory?: string;
 }
 
 // =============================================================================
 // Component
 // =============================================================================
 
-export function Composer({ agentName, sessionId }: ComposerProps) {
+export function Composer({ agentName, sessionId, isAdhoc, workingDirectory }: ComposerProps) {
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { chatStreaming } = useChatMessages();
@@ -72,7 +76,12 @@ export function Composer({ agentName, sessionId }: ComposerProps) {
     // the sessionId in the chat:complete message
     const wsClient = (window as unknown as { __herdWsClient?: WebSocketClient }).__herdWsClient;
     if (wsClient) {
-      const payload: { agentName: string; message: string; sessionId?: string } = {
+      const payload: {
+        agentName: string;
+        message: string;
+        sessionId?: string;
+        workingDirectory?: string;
+      } = {
         agentName,
         message,
       };
@@ -80,12 +89,16 @@ export function Composer({ agentName, sessionId }: ComposerProps) {
       if (sessionId) {
         payload.sessionId = sessionId;
       }
+      // Include workingDirectory for ad hoc sessions
+      if (isAdhoc && workingDirectory) {
+        payload.workingDirectory = workingDirectory;
+      }
       wsClient.send({
         type: "chat:send",
         payload,
       });
     }
-  }, [canSend, value, addUserMessage, agentName, sessionId]);
+  }, [canSend, value, addUserMessage, agentName, sessionId, isAdhoc, workingDirectory]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -110,7 +123,7 @@ export function Composer({ agentName, sessionId }: ComposerProps) {
             value={value}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
-            placeholder={`Send a message to ${agentName}...`}
+            placeholder={isAdhoc ? "Send a message..." : `Send a message to ${agentName}...`}
             rows={1}
             className="flex-1 bg-herd-input-bg border border-herd-border rounded-lg px-3 py-2.5 text-base text-herd-fg placeholder:text-herd-muted focus:outline-none focus:border-herd-primary/60 transition-colors resize-none"
             style={{ minHeight: "42px", maxHeight: "200px" }}
