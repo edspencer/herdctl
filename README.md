@@ -184,16 +184,6 @@ A CTO agent could:
 
 This is future capability—agents that create, modify, and delete other agents will need proper access control and permissioning. But the architecture supports it. An agent is just a YAML file and a prompt. Another agent can write YAML files.
 
-### Two Categories of Agents
-
-Every herdctl agent has a workspace directory. This creates two natural categories:
-
-**Standalone agents** have their own dedicated workspace for storing data. The price checker keeps price history in its folder. The hurricane tracker stores weather data. These agents don't need an existing codebase—they create their own working environment.
-
-**Project-embedded agents** run inside an existing Claude Code project—one that already has a `CLAUDE.md`, local skills, sub-agents, and project-specific configuration. When you point a herdctl agent at an existing project, it operates exactly as if you ran `claude` in that directory. Your instructions are honored. Your slash commands work. Your MCP servers are available.
-
-This means you can add autonomous capabilities to any existing Claude Code project. Your current codebase, with all its context, becomes accessible to scheduled jobs, chat interfaces, and webhook triggers.
-
 ## Scheduled Agents
 
 Agents can run on fixed intervals or cron schedules:
@@ -459,54 +449,6 @@ Every hook receives comprehensive job data:
 }
 ```
 
-## Self-Evolving Agents (Coming Soon)
-
-The next frontier: agents that modify their own behavior.
-
-### Dynamic Schedules
-
-Imagine an agent that says: "This situation needs closer monitoring. Wake me in 37 minutes instead of the usual 4 hours."
-
-```json
-// metadata.json
-{
-  "requestedNextRun": "2024-01-15T10:37:00Z",
-  "reason": "Storm trajectory update expected"
-}
-```
-
-herdctl will read this and adjust the next trigger accordingly.
-
-### Persistent Context
-
-Agents can maintain a `context.md` file in their workspace—a persistent memory that survives across jobs:
-
-```markdown
-# Agent Context
-
-## Learned Preferences
-- User prefers concise summaries
-- Always include links to source data
-- Escalate price drops > 20%
-
-## Current State
-- Monitoring: Sony WH-1000XM5
-- Target price: $279
-- Best seen: $299 at Amazon (2024-01-14)
-```
-
-Each job reads this context, acts on it, and can update it for future runs.
-
-### Self-Modification
-
-Advanced agents could:
-- Update their own `CLAUDE.md` instructions
-- Write new slash command skills
-- Modify their YAML configuration
-- Commit and push changes to GitHub
-
-An agent that improves itself over time, learning from each interaction.
-
 ## Tools & MCP Configuration
 
 Each agent can have its own tool permissions and MCP server configuration:
@@ -720,17 +662,6 @@ herdctl job <id>          # Show job details
 herdctl fork <job-id>     # Fork a job with new instructions
 ```
 
-## Roadmap
-
-We're building toward a future where AI agents are first-class participants in your development workflow:
-
-- **More Chat Integrations**: WhatsApp, iMessage, Telegram
-- **Dynamic Scheduling**: Agents request their own next run time
-- **Persistent Agent Memory**: Context files that survive across jobs
-- **Agent Self-Modification**: Update own configs, write skills
-- **Agent-to-Agent Communication**: Agents that delegate to other agents
-- **Marketplace**: Share and discover agent configurations
-
 ## Documentation
 
 Full documentation at [herdctl.dev](https://herdctl.dev):
@@ -741,27 +672,9 @@ Full documentation at [herdctl.dev](https://herdctl.dev):
 - [Library Reference](https://herdctl.dev/library-reference/fleet-manager/)
 - [Guides & Recipes](https://herdctl.dev/guides/recipes/)
 
-## Development
+## Contributing
 
-```bash
-# Clone the repo
-git clone https://github.com/edspencer/herdctl
-cd herdctl
-
-# Install dependencies
-pnpm install
-
-# Build all packages
-pnpm build
-
-# Run tests
-pnpm test
-
-# Type check
-pnpm typecheck
-```
-
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
 ## Community
 
