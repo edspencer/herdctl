@@ -16,6 +16,14 @@ Each agent operates independently with:
 - **Permissions**: Exactly which tools the agent can use
 - **Schedules**: When and how to invoke (multiple allowed per agent)
 
+## Standalone vs. Project-Embedded Agents
+
+Every herdctl agent has a workspace directory. This creates two natural categories depending on how that workspace is used.
+
+**Standalone agents** have their own dedicated workspace for storing data. A price checker keeps price history in its folder. A hurricane tracker stores weather data. These agents do not need an existing codebase — they create their own working environment from scratch and use their workspace primarily for data persistence.
+
+**Project-embedded agents** run inside an existing Claude Code project — one that already has a `CLAUDE.md`, local skills, sub-agents, and project-specific configuration. When you point a herdctl agent at an existing project directory, it operates exactly as if you ran `claude` in that directory. Your instructions are honored, your slash commands work, and your MCP servers are available. This means you can add autonomous capabilities (scheduled jobs, chat interfaces, webhook triggers) to any existing Claude Code project without changing how that project is set up.
+
 ## Key Properties
 
 | Property | Required | Description |

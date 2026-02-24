@@ -152,6 +152,10 @@ export default defineConfig({
 					slug: 'whats-new',
 				},
 				{
+					label: 'Roadmap',
+					slug: 'roadmap',
+				},
+				{
 					label: 'Security',
 					slug: 'security',
 				},
