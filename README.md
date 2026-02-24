@@ -82,6 +82,23 @@ Your agents are now running. Check their status:
 herdctl status
 ```
 
+## Web Dashboard
+
+<div align="center">
+  <img src="docs/src/assets/screenshots/fleet-overview.png" alt="herdctl web dashboard" width="800">
+  <p><em>Fleet overview showing agents, status, and recent jobs</em></p>
+</div>
+
+The web dashboard gives you a browser-based control panel for your fleet. Enable it with `herdctl start --web` or `web.enabled: true` in your config.
+
+- **Fleet overview** — real-time status of all agents and recent jobs
+- **Agent detail** — live output streaming, schedule controls, job history
+- **Interactive chat** — message any agent directly from the browser
+- **Schedule management** — trigger, enable, and disable schedules
+- **Job management** — cancel, fork, and inspect jobs
+
+See the [web dashboard documentation](https://herdctl.dev/integrations/web-dashboard/) for full details.
+
 ## Packages
 
 | Package | Description |
