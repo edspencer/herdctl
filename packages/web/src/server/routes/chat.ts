@@ -5,9 +5,11 @@
  * Actual message streaming happens via WebSocket.
  */
 
-import type { FleetManager } from "@herdctl/core";
+import { createLogger, type FleetManager, type SessionDiscoveryService } from "@herdctl/core";
 import type { FastifyInstance } from "fastify";
 import type { WebChatManager } from "../chat/index.js";
+
+const logger = createLogger("ChatRoutes");
 
 /**
  * Register chat-related routes
@@ -15,41 +17,32 @@ import type { WebChatManager } from "../chat/index.js";
  * @param server - Fastify instance
  * @param fleetManager - FleetManager instance
  * @param chatManager - WebChatManager instance
+ * @param discoveryService - SessionDiscoveryService for direct session access
  */
 export function registerChatRoutes(
   server: FastifyInstance,
   fleetManager: FleetManager,
   chatManager: WebChatManager,
+  discoveryService: SessionDiscoveryService,
 ): void {
   /**
    * GET /api/chat/recent
    *
    * Returns recent chat sessions across all agents, sorted by lastMessageAt descending.
    *
-   * @param limit - Optional limit (default: 100, max: 500)
-   * @returns { sessions: WebChatSession[] }
+   * @param limit - Optional limit (default: 100)
+   * @returns { sessions: DiscoveredSession[] }
    */
-  server.get<{
-    Querystring: { limit?: string };
-  }>("/api/chat/recent", async (request, reply) => {
+  server.get("/api/chat/recent", async (request, reply) => {
+    const { limit = 100 } = request.query as { limit?: number };
     try {
-      // Parse and clamp the limit parameter
-      let limit = 100;
-      if (request.query.limit) {
-        const parsedLimit = parseInt(request.query.limit, 10);
-        if (!Number.isNaN(parsedLimit) && parsedLimit > 0) {
-          limit = Math.min(parsedLimit, 500);
-        }
-      }
-
       const sessions = await chatManager.listAllRecentSessions(limit);
-
-      return reply.send({ sessions });
+      return { sessions };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      logger.error("Failed to list recent sessions", { error: message });
       return reply.status(500).send({
         error: `Failed to list recent sessions: ${message}`,
-        statusCode: 500,
       });
     }
   });
@@ -70,46 +63,83 @@ export function registerChatRoutes(
         tool_results: webConfig?.tool_results ?? true,
       });
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error("Failed to read config", { error: message });
       return reply.status(500).send({
-        error: error instanceof Error ? error.message : "Failed to read config",
+        error: `Failed to read config: ${message}`,
       });
     }
   });
 
   /**
-   * POST /api/chat/:agentName/sessions
+   * GET /api/chat/all
    *
-   * Create a new chat session for an agent.
+   * Returns all sessions grouped by working directory.
    *
-   * @returns { sessionId, createdAt }
+   * @param limit - Maximum number of directory groups (default: 20)
+   * @param sessionsPerGroup - Maximum sessions per group (default: 10)
+   * @returns { groups: DirectoryGroup[], totalGroups: number }
    */
-  server.post<{
-    Params: { agentName: string };
-  }>("/api/chat/:agentName/sessions", async (request, reply) => {
+  server.get("/api/chat/all", async (request, reply) => {
+    const { limit = 20, sessionsPerGroup = 10 } = request.query as {
+      limit?: number;
+      sessionsPerGroup?: number;
+    };
     try {
-      const { agentName } = request.params;
+      const groups = await chatManager.getAllSessionGroups();
 
-      // Verify agent exists
-      try {
-        await fleetManager.getAgentInfoByName(agentName);
-      } catch {
-        return reply.status(404).send({
-          error: `Agent not found: ${agentName}`,
-          statusCode: 404,
-        });
-      }
+      // Apply pagination
+      const limitedGroups = groups.slice(0, limit).map((group) => ({
+        ...group,
+        sessions: group.sessions.slice(0, sessionsPerGroup),
+      }));
 
-      const session = await chatManager.createSession(agentName);
-
-      return reply.status(201).send({
-        sessionId: session.sessionId,
-        createdAt: session.createdAt,
-      });
+      return {
+        groups: limitedGroups,
+        totalGroups: groups.length,
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      logger.error("Failed to get all session groups", { error: message });
       return reply.status(500).send({
-        error: `Failed to create session: ${message}`,
-        statusCode: 500,
+        error: `Failed to get all session groups: ${message}`,
+      });
+    }
+  });
+
+  /**
+   * GET /api/chat/all/:encodedPath
+   *
+   * Expand a single directory group to get more sessions.
+   *
+   * @param encodedPath - URL-encoded path identifier for the directory
+   * @param limit - Maximum sessions to return (default: 50)
+   * @param offset - Number of sessions to skip (default: 0)
+   * @returns { group: DirectoryGroup }
+   */
+  server.get("/api/chat/all/:encodedPath", async (request, reply) => {
+    const { encodedPath } = request.params as { encodedPath: string };
+    const { limit = 50, offset = 0 } = request.query as { limit?: number; offset?: number };
+
+    try {
+      const groups = await chatManager.getAllSessionGroups();
+      const group = groups.find((g) => g.encodedPath === encodedPath);
+
+      if (!group) {
+        return reply.status(404).send({ error: `Directory not found: ${encodedPath}` });
+      }
+
+      return {
+        group: {
+          ...group,
+          sessions: group.sessions.slice(offset, offset + limit),
+        },
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error("Failed to get directory group", { error: message, encodedPath });
+      return reply.status(500).send({
+        error: `Failed to get directory group: ${message}`,
       });
     }
   });
@@ -119,32 +149,26 @@ export function registerChatRoutes(
    *
    * List all chat sessions for an agent.
    *
-   * @returns { sessions: [{ sessionId, createdAt, lastMessageAt, messageCount, preview }] }
+   * @returns { sessions: DiscoveredSession[] }
    */
-  server.get<{
-    Params: { agentName: string };
-  }>("/api/chat/:agentName/sessions", async (request, reply) => {
+  server.get("/api/chat/:agentName/sessions", async (request, reply) => {
+    const { agentName } = request.params as { agentName: string };
+
+    // Validate agent exists
     try {
-      const { agentName } = request.params;
+      await fleetManager.getAgentInfoByName(agentName);
+    } catch {
+      return reply.status(404).send({ error: `Agent not found: ${agentName}` });
+    }
 
-      // Verify agent exists
-      try {
-        await fleetManager.getAgentInfoByName(agentName);
-      } catch {
-        return reply.status(404).send({
-          error: `Agent not found: ${agentName}`,
-          statusCode: 404,
-        });
-      }
-
+    try {
       const sessions = await chatManager.listSessions(agentName);
-
-      return reply.send({ sessions });
+      return { sessions };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      logger.error("Failed to list sessions", { error: message, agentName });
       return reply.status(500).send({
         error: `Failed to list sessions: ${message}`,
-        statusCode: 500,
       });
     }
   });
@@ -152,118 +176,55 @@ export function registerChatRoutes(
   /**
    * GET /api/chat/:agentName/sessions/:sessionId
    *
-   * Get session details with message history.
+   * Get messages for a session.
    *
-   * @returns { sessionId, messages, createdAt, lastMessageAt }
+   * @returns { messages: ChatMessage[] }
    */
-  server.get<{
-    Params: { agentName: string; sessionId: string };
-  }>("/api/chat/:agentName/sessions/:sessionId", async (request, reply) => {
+  server.get("/api/chat/:agentName/sessions/:sessionId", async (request, reply) => {
+    const { agentName, sessionId } = request.params as { agentName: string; sessionId: string };
+
+    // Validate agent exists
     try {
-      const { agentName, sessionId } = request.params;
-
-      const session = await chatManager.getSession(agentName, sessionId);
-
-      if (!session) {
-        return reply.status(404).send({
-          error: `Session not found: ${sessionId}`,
-          statusCode: 404,
-        });
-      }
-
-      return reply.send(session);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return reply.status(500).send({
-        error: `Failed to get session: ${message}`,
-        statusCode: 500,
-      });
+      await fleetManager.getAgentInfoByName(agentName);
+    } catch {
+      return reply.status(404).send({ error: `Agent not found: ${agentName}` });
     }
-  });
 
-  /**
-   * GET /api/chat/:agentName/sessions/:sessionId/sdk-session
-   *
-   * Get the SDK session ID for a web chat session.
-   * Used by the "Continue in Claude Code" feature.
-   *
-   * @returns { sdkSessionId: string | null }
-   */
-  server.get<{
-    Params: { agentName: string; sessionId: string };
-  }>("/api/chat/:agentName/sessions/:sessionId/sdk-session", async (request, reply) => {
     try {
-      const { agentName, sessionId } = request.params;
-      const sdkSessionId = await chatManager.getSdkSessionId(agentName, sessionId);
-
-      // Check if the agent runs in Docker — sessions created inside containers
-      // can't be resumed from the host because Claude stores conversations
-      // in ~/.claude/ which is container-local.
-      const agents = fleetManager.getAgents();
-      const agent = agents.find((a) => a.qualifiedName === agentName || a.name === agentName);
-      const dockerEnabled = agent?.docker?.enabled ?? false;
-
-      return reply.send({ sdkSessionId, dockerEnabled });
+      const messages = await chatManager.getSessionMessages(agentName, sessionId);
+      return { messages };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return reply.status(500).send({
-        error: `Failed to get SDK session: ${message}`,
-        statusCode: 500,
-      });
+      logger.error("Failed to get session messages", { error: message, agentName, sessionId });
+      return reply.status(404).send({ error: `Session not found: ${sessionId}` });
     }
   });
 
   /**
    * GET /api/chat/:agentName/sessions/:sessionId/usage
    *
-   * Get token usage for a chat session by reading the Claude Code session file.
+   * Get token usage for a chat session.
    *
    * @returns { inputTokens: number, turnCount: number, hasData: boolean }
    */
-  server.get<{
-    Params: { agentName: string; sessionId: string };
-  }>("/api/chat/:agentName/sessions/:sessionId/usage", async (request, reply) => {
+  server.get("/api/chat/:agentName/sessions/:sessionId/usage", async (request, reply) => {
+    const { agentName, sessionId } = request.params as { agentName: string; sessionId: string };
+
+    // Validate agent exists
     try {
-      const { agentName, sessionId } = request.params;
+      await fleetManager.getAgentInfoByName(agentName);
+    } catch {
+      return reply.status(404).send({ error: `Agent not found: ${agentName}` });
+    }
+
+    try {
       const usage = await chatManager.getSessionUsage(agentName, sessionId);
-      return reply.send(usage);
+      return usage;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      logger.error("Failed to get session usage", { error: message, agentName, sessionId });
       return reply.status(500).send({
         error: `Failed to get session usage: ${message}`,
-        statusCode: 500,
-      });
-    }
-  });
-
-  /**
-   * DELETE /api/chat/:agentName/sessions/:sessionId
-   *
-   * Delete a chat session.
-   *
-   * @returns { deleted: true }
-   */
-  server.delete<{
-    Params: { agentName: string; sessionId: string };
-  }>("/api/chat/:agentName/sessions/:sessionId", async (request, reply) => {
-    try {
-      const { agentName, sessionId } = request.params;
-
-      const deleted = await chatManager.deleteSession(agentName, sessionId);
-
-      if (!deleted) {
-        return reply.status(404).send({
-          error: `Session not found: ${sessionId}`,
-          statusCode: 404,
-        });
-      }
-
-      return reply.send({ deleted: true });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return reply.status(500).send({
-        error: `Failed to delete session: ${message}`,
-        statusCode: 500,
       });
     }
   });
@@ -271,106 +232,86 @@ export function registerChatRoutes(
   /**
    * PATCH /api/chat/:agentName/sessions/:sessionId
    *
-   * Update a chat session (currently supports renaming via customName).
+   * Rename a chat session with a custom name.
    *
-   * Request body: { name: string }
-   * @returns { renamed: true }
+   * Request body: { customName: string }
+   * @returns { success: true }
    */
-  server.patch<{
-    Params: { agentName: string; sessionId: string };
-    Body: { name: string };
-  }>("/api/chat/:agentName/sessions/:sessionId", async (request, reply) => {
+  server.patch("/api/chat/:agentName/sessions/:sessionId", async (request, reply) => {
+    const { agentName, sessionId } = request.params as { agentName: string; sessionId: string };
+    const { customName } = request.body as { customName?: string };
+
+    // Validate agent exists
     try {
-      const { agentName, sessionId } = request.params;
-      const { name } = request.body;
+      await fleetManager.getAgentInfoByName(agentName);
+    } catch {
+      return reply.status(404).send({ error: `Agent not found: ${agentName}` });
+    }
 
-      if (!name || typeof name !== "string") {
-        return reply.status(400).send({
-          error: "Name is required",
-          statusCode: 400,
-        });
-      }
+    if (!customName || typeof customName !== "string") {
+      return reply.status(400).send({ error: "customName is required" });
+    }
 
-      const renamed = await chatManager.renameSession(agentName, sessionId, name);
-
-      if (!renamed) {
-        return reply.status(404).send({
-          error: `Session not found: ${sessionId}`,
-          statusCode: 404,
-        });
-      }
-
-      return reply.send({ renamed: true });
+    try {
+      await chatManager.renameSession(agentName, sessionId, customName);
+      return { success: true };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      logger.error("Failed to rename session", { error: message, agentName, sessionId });
       return reply.status(500).send({
         error: `Failed to rename session: ${message}`,
-        statusCode: 500,
       });
     }
   });
 
   /**
-   * POST /api/chat/:agentName/sessions/:sessionId/messages
+   * POST /api/chat/:agentName/messages
    *
-   * Send a message in a chat session. The actual response streams via WebSocket.
+   * Send a message to an agent. Creates a new session if sessionId is not provided.
+   * The actual response can also stream via WebSocket for real-time updates.
    *
-   * Request body: { message: string }
-   * @returns { jobId }
+   * Request body: { message: string, sessionId?: string }
+   * @returns { jobId, sessionId, success, response, error? }
    */
-  server.post<{
-    Params: { agentName: string; sessionId: string };
-    Body: { message: string };
-  }>("/api/chat/:agentName/sessions/:sessionId/messages", async (request, reply) => {
+  server.post("/api/chat/:agentName/messages", async (request, reply) => {
+    const { agentName } = request.params as { agentName: string };
+    const { message, sessionId } = request.body as { message: string; sessionId?: string };
+
+    // Validate agent exists
     try {
-      const { agentName, sessionId } = request.params;
-      const { message } = request.body;
+      await fleetManager.getAgentInfoByName(agentName);
+    } catch {
+      return reply.status(404).send({ error: `Agent not found: ${agentName}` });
+    }
 
-      if (!message || typeof message !== "string") {
-        return reply.status(400).send({
-          error: "Message is required",
-          statusCode: 400,
-        });
-      }
+    if (!message || typeof message !== "string") {
+      return reply.status(400).send({ error: "message is required" });
+    }
 
-      // Verify session exists
-      const session = await chatManager.getSession(agentName, sessionId);
-      if (!session) {
-        return reply.status(404).send({
-          error: `Session not found: ${sessionId}`,
-          statusCode: 404,
-        });
-      }
+    try {
+      // Collect response chunks into full response
+      let fullResponse = "";
+      const result = await chatManager.sendMessage(
+        agentName,
+        sessionId ?? null,
+        message,
+        async (chunk) => {
+          fullResponse += chunk;
+        },
+      );
 
-      // Note: This endpoint just validates and returns immediately.
-      // The actual message sending should be done via WebSocket (chat:send)
-      // to enable streaming responses.
-      //
-      // However, we provide this REST endpoint for clients that want a simpler
-      // request/response pattern without streaming.
-      // In that case, we collect all chunks and return when complete.
-
-      let response = "";
-      const result = await chatManager.sendMessage(agentName, sessionId, message, (chunk) => {
-        response += chunk;
-      });
-
-      if (!result.success) {
-        return reply.status(500).send({
-          error: result.error ?? "Failed to send message",
-          statusCode: 500,
-        });
-      }
-
-      return reply.send({
+      return {
         jobId: result.jobId,
-        response,
-      });
+        sessionId: result.sessionId,
+        success: result.success,
+        response: fullResponse,
+        error: result.error,
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      logger.error("Failed to send message", { error: message, agentName, sessionId });
       return reply.status(500).send({
         error: `Failed to send message: ${message}`,
-        statusCode: 500,
       });
     }
   });

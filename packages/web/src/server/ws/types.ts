@@ -71,8 +71,8 @@ export interface ChatSendMessage {
   payload: {
     /** Qualified name of the agent to chat with (e.g., "herdctl.security-auditor") */
     agentName: string;
-    /** Session ID for the chat conversation */
-    sessionId: string;
+    /** Session ID for the chat conversation (omit for new chat) */
+    sessionId?: string;
     /** User message content */
     message: string;
   };
@@ -205,10 +205,14 @@ export interface ChatCompleteMessage {
   payload: {
     /** Name of the agent */
     agentName: string;
-    /** Session ID for the chat conversation */
+    /** Session ID for the chat conversation (SDK session ID — crucial for new chats) */
     sessionId: string;
     /** Job ID for tracking the execution */
     jobId: string;
+    /** Whether the chat completed successfully */
+    success: boolean;
+    /** Error message if failed */
+    error?: string;
   };
 }
 
@@ -351,7 +355,7 @@ export function isChatSendMessage(data: unknown): data is ChatSendMessage {
 
   return (
     typeof payload.agentName === "string" &&
-    typeof payload.sessionId === "string" &&
+    (payload.sessionId === undefined || typeof payload.sessionId === "string") &&
     typeof payload.message === "string"
   );
 }

@@ -2,22 +2,23 @@
  * Web Chat Manager for @herdctl/web
  *
  * Manages chat sessions for the web platform using @herdctl/chat infrastructure.
- * Each web session maps to a unique conversation thread with an agent.
+ * Delegates read operations to SessionDiscoveryService from @herdctl/core.
  */
 
-import { randomUUID } from "node:crypto";
-import { createReadStream } from "node:fs";
-import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { dirname, join } from "node:path";
-import { createInterface } from "node:readline";
 import { type ChatConnectorLogger, ChatSessionManager, extractMessageContent } from "@herdctl/chat";
 import {
+  type ChatMessage as CoreChatMessage,
+  type SessionUsage as CoreSessionUsage,
   createLogger,
+  type DirectoryGroup,
+  type DiscoveredSession,
   extractToolResults,
   extractToolUseBlocks,
   type FleetManager,
   getToolInputSummary,
+  type ResolvedAgent,
+  type SessionDiscoveryService,
+  SessionMetadataStore,
   type WebConfig,
 } from "@herdctl/core";
 
@@ -26,26 +27,6 @@ const logger = createLogger("web:chat");
 // =============================================================================
 // Types
 // =============================================================================
-
-/**
- * Information about a web chat session
- */
-export interface WebChatSession {
-  /** Unique session identifier */
-  sessionId: string;
-  /** Agent this session is for */
-  agentName: string;
-  /** ISO timestamp when the session was created */
-  createdAt: string;
-  /** ISO timestamp of the last message */
-  lastMessageAt: string;
-  /** Number of messages in this session */
-  messageCount: number;
-  /** Preview of the last message */
-  preview?: string;
-  /** Custom name set by user (takes precedence over preview) */
-  customName?: string;
-}
 
 /**
  * A single chat message
@@ -58,21 +39,7 @@ export interface ChatMessage {
   /** ISO timestamp of the message */
   timestamp: string;
   /** Tool call data (only when role is "tool") */
-  toolCall?: {
-    toolName: string;
-    inputSummary?: string;
-    output: string;
-    isError: boolean;
-    durationMs?: number;
-  };
-}
-
-/**
- * Session details with full message history
- */
-export interface WebChatSessionDetails extends WebChatSession {
-  /** All messages in this session */
-  messages: ChatMessage[];
+  toolCall?: ToolCallData;
 }
 
 /**
@@ -81,6 +48,8 @@ export interface WebChatSessionDetails extends WebChatSession {
 export interface SendMessageResult {
   /** Job ID for tracking the execution */
   jobId: string;
+  /** SDK session ID (important for new chats to return to caller) */
+  sessionId?: string;
   /** Whether the message was queued successfully */
   success: boolean;
   /** Error message if failed */
@@ -130,6 +99,9 @@ export interface SessionUsage {
   hasData: boolean;
 }
 
+// Re-export types from core for API consumers
+export type { DirectoryGroup, DiscoveredSession };
+
 // =============================================================================
 // WebChatManager Implementation
 // =============================================================================
@@ -137,21 +109,20 @@ export interface SessionUsage {
 /**
  * WebChatManager manages chat sessions for the web platform
  *
- * Uses ChatSessionManager from @herdctl/chat for per-agent session management.
- * Message history is stored in JSON files at `.herdctl/web/chat-history/<agent>/<session>.json`
+ * Delegates read operations (listing sessions, getting messages, usage) to
+ * SessionDiscoveryService from @herdctl/core. Uses ChatSessionManager from
+ * @herdctl/chat for session attribution.
  */
 export class WebChatManager {
   private fleetManager: FleetManager | null = null;
   private stateDir: string | null = null;
-  private sessionExpiryHours: number = 24;
+  private discoveryService: SessionDiscoveryService | null = null;
+  private metadataStore: SessionMetadataStore | null = null;
   private toolResults: boolean = true;
   private initialized: boolean = false;
 
-  /** Per-agent session managers */
+  /** Per-agent session managers for attribution */
   private sessionManagers: Map<string, ChatSessionManager> = new Map();
-
-  /** In-memory session metadata cache (agentName -> sessionId -> metadata) */
-  private sessionMetadata: Map<string, Map<string, WebChatSession>> = new Map();
 
   /**
    * Initialize the WebChatManager
@@ -159,252 +130,143 @@ export class WebChatManager {
    * @param fleetManager - FleetManager instance for triggering jobs
    * @param stateDir - State directory (e.g., ".herdctl")
    * @param config - Web configuration from fleet config
+   * @param discoveryService - Session discovery service for reading sessions
    */
-  async initialize(fleetManager: FleetManager, stateDir: string, config: WebConfig): Promise<void> {
+  initialize(
+    fleetManager: FleetManager,
+    stateDir: string,
+    config: WebConfig,
+    discoveryService: SessionDiscoveryService,
+  ): void {
     if (this.initialized) {
       return;
     }
 
     this.fleetManager = fleetManager;
     this.stateDir = stateDir;
-    this.sessionExpiryHours = config.session_expiry_hours ?? 24;
     this.toolResults = config.tool_results ?? true;
+    this.discoveryService = discoveryService;
+    this.metadataStore = new SessionMetadataStore(stateDir);
 
-    // Get fleet config to find all agents
-    const fleetConfig = await fleetManager.getConfig();
-    if (!fleetConfig) {
-      logger.warn("No fleet config available, chat manager initialized without agents");
-      this.initialized = true;
-      return;
+    // Create session managers for each agent (for attribution)
+    const agents = fleetManager.getAgents();
+    for (const agent of agents) {
+      this.createSessionManagerForAgent(agent.qualifiedName);
     }
-
-    // Create session managers for each agent
-    for (const agent of fleetConfig.agents) {
-      await this.createSessionManagerForAgent(agent.qualifiedName);
-    }
-
-    // Ensure chat history directories exist
-    await this.ensureChatHistoryDir();
 
     this.initialized = true;
     logger.info(`Web chat manager initialized with ${this.sessionManagers.size} agent(s)`);
   }
 
   /**
-   * Create a new chat session for an agent
+   * List sessions for an agent
    *
    * @param agentName - Name of the agent
-   * @returns Session info with sessionId and createdAt
+   * @returns Array of discovered sessions
    */
-  async createSession(agentName: string): Promise<WebChatSession> {
+  async listSessions(agentName: string): Promise<DiscoveredSession[]> {
     this.ensureInitialized();
-
-    // Ensure we have a session manager for this agent
-    let sessionManager = this.sessionManagers.get(agentName);
-    if (!sessionManager) {
-      sessionManager = await this.createSessionManagerForAgent(agentName);
-    }
-
-    // Generate a unique session UUID for the web session
-    const sessionId = randomUUID();
-    const now = new Date().toISOString();
-
-    // Create session metadata
-    const session: WebChatSession = {
-      sessionId,
-      agentName,
-      createdAt: now,
-      lastMessageAt: now,
-      messageCount: 0,
-    };
-
-    // Store in metadata cache
-    let agentSessions = this.sessionMetadata.get(agentName);
-    if (!agentSessions) {
-      agentSessions = new Map();
-      this.sessionMetadata.set(agentName, agentSessions);
-    }
-    agentSessions.set(sessionId, session);
-
-    // Initialize empty message history file
-    await this.saveMessageHistory(agentName, sessionId, []);
-
-    // Register in ChatSessionManager using sessionId as the channelId
-    // (For web, each session is its own "channel")
-    await sessionManager.setSession(sessionId, sessionId);
-
-    logger.info(`Created web chat session`, { agentName, sessionId });
-
-    return session;
+    const agent = this.getAgentConfig(agentName);
+    const workDir = this.getWorkingDirectory(agent);
+    const dockerEnabled = agent.docker?.enabled ?? false;
+    return this.discoveryService!.getAgentSessions(agentName, workDir, dockerEnabled);
   }
 
   /**
    * List recent sessions across all agents
    *
    * @param limit - Maximum number of sessions to return (default: 100)
-   * @returns Array of session summaries sorted by lastMessageAt descending
+   * @returns Array of discovered sessions sorted by mtime descending
    */
-  async listAllRecentSessions(limit = 100): Promise<WebChatSession[]> {
+  async listAllRecentSessions(limit: number = 100): Promise<DiscoveredSession[]> {
     this.ensureInitialized();
-
-    const allSessions: WebChatSession[] = [];
-
-    // Iterate all agent session metadata maps
-    for (const [agentName] of this.sessionMetadata) {
-      // Ensure sessions are loaded from disk for this agent
-      await this.loadSessionsFromDisk(agentName);
-
-      const sessionsMap = this.sessionMetadata.get(agentName);
-      if (sessionsMap) {
-        for (const session of sessionsMap.values()) {
-          allSessions.push(session);
-        }
-      }
-    }
-
-    // Sort by lastMessageAt descending (most recent first)
-    allSessions.sort(
-      (a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime(),
-    );
-
-    // Return top N sessions
-    return allSessions.slice(0, limit);
+    const agents = this.fleetManager!.getAgents();
+    const agentList = agents.map((a) => ({
+      name: a.qualifiedName,
+      workingDirectory: this.getWorkingDirectoryFromResolved(a),
+      dockerEnabled: a.docker?.enabled ?? false,
+    }));
+    const groups = await this.discoveryService!.getAllSessions(agentList);
+    // Flatten all sessions, sort by mtime desc, take limit
+    const all = groups.flatMap((g) => g.sessions);
+    all.sort((a, b) => b.mtime.localeCompare(a.mtime));
+    return all.slice(0, limit);
   }
 
   /**
-   * List all sessions for an agent
+   * Get all session groups for the /api/chat/all endpoint
    *
-   * @param agentName - Name of the agent
-   * @returns Array of session summaries
+   * @returns Array of directory groups with sessions
    */
-  async listSessions(agentName: string): Promise<WebChatSession[]> {
+  async getAllSessionGroups(): Promise<DirectoryGroup[]> {
     this.ensureInitialized();
-
-    // Load sessions from disk if not in cache
-    await this.loadSessionsFromDisk(agentName);
-
-    const agentSessions = this.sessionMetadata.get(agentName);
-    if (!agentSessions) {
-      return [];
-    }
-
-    // Return sessions sorted by lastMessageAt (most recent first)
-    const sessions = Array.from(agentSessions.values());
-    sessions.sort(
-      (a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime(),
-    );
-
-    return sessions;
+    const agents = this.fleetManager!.getAgents();
+    const agentList = agents.map((a) => ({
+      name: a.qualifiedName,
+      workingDirectory: this.getWorkingDirectoryFromResolved(a),
+      dockerEnabled: a.docker?.enabled ?? false,
+    }));
+    return this.discoveryService!.getAllSessions(agentList);
   }
 
   /**
-   * Get session details with message history
+   * Get messages for a session
    *
    * @param agentName - Name of the agent
-   * @param sessionId - Session ID
-   * @returns Session details with messages, or null if not found
+   * @param sessionId - Session ID (SDK session ID)
+   * @returns Array of chat messages
    */
-  async getSession(agentName: string, sessionId: string): Promise<WebChatSessionDetails | null> {
+  async getSessionMessages(agentName: string, sessionId: string): Promise<ChatMessage[]> {
     this.ensureInitialized();
-
-    // Load sessions from disk if not in cache
-    await this.loadSessionsFromDisk(agentName);
-
-    const agentSessions = this.sessionMetadata.get(agentName);
-    const session = agentSessions?.get(sessionId);
-
-    if (!session) {
-      return null;
-    }
-
-    // Load message history
-    const messages = await this.loadMessageHistory(agentName, sessionId);
-
-    return {
-      ...session,
-      messages,
-    };
+    const agent = this.getAgentConfig(agentName);
+    const workDir = this.getWorkingDirectory(agent);
+    const coreMessages = await this.discoveryService!.getSessionMessages(workDir, sessionId);
+    // Transform core ChatMessage to web ChatMessage (same shape, just type cast)
+    return coreMessages.map((m) => this.transformCoreMessage(m));
   }
 
   /**
-   * Delete a session
+   * Get usage data for a session
    *
    * @param agentName - Name of the agent
-   * @param sessionId - Session ID
-   * @returns true if deleted, false if not found
+   * @param sessionId - Session ID (SDK session ID)
+   * @returns Session usage data
    */
-  async deleteSession(agentName: string, sessionId: string): Promise<boolean> {
+  async getSessionUsage(agentName: string, sessionId: string): Promise<SessionUsage> {
     this.ensureInitialized();
-
-    const agentSessions = this.sessionMetadata.get(agentName);
-    if (!agentSessions?.has(sessionId)) {
-      return false;
-    }
-
-    // Remove from metadata cache
-    agentSessions.delete(sessionId);
-
-    // Delete message history file
-    await this.deleteMessageHistory(agentName, sessionId);
-
-    // Clear from ChatSessionManager
-    const sessionManager = this.sessionManagers.get(agentName);
-    if (sessionManager) {
-      await sessionManager.clearSession(sessionId);
-    }
-
-    logger.info(`Deleted web chat session`, { agentName, sessionId });
-
-    return true;
+    const agent = this.getAgentConfig(agentName);
+    const workDir = this.getWorkingDirectory(agent);
+    const usage = await this.discoveryService!.getSessionUsage(workDir, sessionId);
+    return this.transformCoreUsage(usage);
   }
 
   /**
    * Rename a session with a custom name
    *
    * @param agentName - Name of the agent
-   * @param sessionId - Session ID
-   * @param customName - New custom name for the session
-   * @returns true if renamed, false if not found
+   * @param sessionId - Session ID (SDK session ID)
+   * @param name - New custom name for the session
    */
-  async renameSession(agentName: string, sessionId: string, customName: string): Promise<boolean> {
+  async renameSession(agentName: string, sessionId: string, name: string): Promise<void> {
     this.ensureInitialized();
-
-    // Load sessions from disk if not in cache
-    await this.loadSessionsFromDisk(agentName);
-
-    const agentSessions = this.sessionMetadata.get(agentName);
-    const session = agentSessions?.get(sessionId);
-
-    if (!session) {
-      return false;
-    }
-
-    // Update custom name in metadata
-    session.customName = customName;
-
-    // Persist to disk by re-saving the message history with updated metadata
-    const messages = await this.loadMessageHistory(agentName, sessionId);
-    await this.saveMessageHistoryWithMetadata(agentName, sessionId, messages, session);
-
-    logger.info(`Renamed web chat session`, { agentName, sessionId, customName });
-
-    return true;
+    await this.metadataStore!.setCustomName(agentName, sessionId, name);
+    logger.info(`Renamed session`, { agentName, sessionId, customName: name });
   }
 
   /**
    * Send a message and trigger agent execution
    *
    * @param agentName - Name of the agent
-   * @param sessionId - Session ID
+   * @param sessionId - Session ID (SDK session ID), or null for new chat
    * @param message - User message text
    * @param onChunk - Callback for streaming response chunks
    * @param onToolCall - Optional callback for tool call results
    * @param onBoundary - Optional callback for message boundary signals
-   * @returns Result with jobId
+   * @returns Result with jobId and sessionId
    */
   async sendMessage(
     agentName: string,
-    sessionId: string,
+    sessionId: string | null,
     message: string,
     onChunk: OnChunkCallback,
     onToolCall?: OnToolCallCallback,
@@ -420,53 +282,7 @@ export class WebChatManager {
       };
     }
 
-    // Load sessions from disk if not in cache
-    await this.loadSessionsFromDisk(agentName);
-
-    const agentSessions = this.sessionMetadata.get(agentName);
-    const session = agentSessions?.get(sessionId);
-
-    if (!session) {
-      return {
-        jobId: "",
-        success: false,
-        error: `Session not found: ${sessionId}`,
-      };
-    }
-
-    // Get existing SDK session ID for conversation continuity
-    const sessionManager = this.sessionManagers.get(agentName);
-    let existingSdkSessionId: string | undefined;
-
-    if (sessionManager) {
-      const existingSession = await sessionManager.getSession(sessionId);
-      if (existingSession && existingSession.sessionId !== sessionId) {
-        // The session manager stores the SDK session ID, not our web session ID
-        existingSdkSessionId = existingSession.sessionId;
-        logger.debug(`Resuming SDK session`, {
-          agentName,
-          sessionId,
-          sdkSessionId: existingSdkSessionId,
-        });
-      }
-    }
-
-    // Load message history and add user message
-    const messages = await this.loadMessageHistory(agentName, sessionId);
-    const userMessage: ChatMessage = {
-      role: "user",
-      content: message,
-      timestamp: new Date().toISOString(),
-    };
-    messages.push(userMessage);
-    await this.saveMessageHistory(agentName, sessionId, messages);
-
-    // Update session metadata
-    session.lastMessageAt = userMessage.timestamp;
-    session.messageCount = messages.length;
-    session.preview = message.substring(0, 100);
-
-    // Accumulate assistant response
+    // Accumulate assistant response for boundary detection
     let assistantContent = "";
 
     try {
@@ -477,13 +293,12 @@ export class WebChatManager {
       >();
 
       // Trigger job via FleetManager
+      // If sessionId is null, this is a new chat - pass null to resume
+      // If sessionId is provided, it's already the SDK session ID - use it directly
       const result = await this.fleetManager.trigger(agentName, undefined, {
         triggerType: "web",
         prompt: message,
-        // Use null (not undefined) when no SDK session exists for this web chat.
-        // undefined means "use agent-level fallback session" which would cross-contaminate
-        // conversations by resuming a different chat's session context.
-        resume: existingSdkSessionId ?? null,
+        resume: sessionId,
         onMessage: async (sdkMessage) => {
           // Extract text content from assistant messages
           if (sdkMessage.type === "assistant") {
@@ -491,14 +306,8 @@ export class WebChatManager {
             const content = extractMessageContent(castMessage);
             if (content) {
               // If we already have accumulated assistant content, this is a new
-              // assistant turn. Flush the previous content as a separate message
-              // and signal a boundary to the client.
+              // assistant turn. Flush the previous content and signal a boundary.
               if (assistantContent && onBoundary) {
-                messages.push({
-                  role: "assistant",
-                  content: assistantContent,
-                  timestamp: new Date().toISOString(),
-                });
                 assistantContent = "";
                 await onBoundary();
               }
@@ -529,14 +338,9 @@ export class WebChatManager {
             };
             const toolResultsList = extractToolResults(userMessage);
 
-            // Flush accumulated assistant text as its own message before tool calls
-            // so that text before and after tools doesn't merge into one bubble
+            // Flush accumulated assistant text before tool calls
+            // so that text before and after tools doesn't merge
             if (toolResultsList.length > 0 && assistantContent) {
-              messages.push({
-                role: "assistant",
-                content: assistantContent,
-                timestamp: new Date().toISOString(),
-              });
               assistantContent = "";
             }
 
@@ -563,50 +367,26 @@ export class WebChatManager {
                 durationMs,
               };
 
-              // Persist tool call message to history
-              messages.push({
-                role: "tool",
-                content: toolResult.output,
-                timestamp: new Date().toISOString(),
-                toolCall: toolCallData,
-              });
-
               await onToolCall(toolCallData);
             }
           }
         },
       });
 
-      // Store assistant message if we got any content
-      if (assistantContent) {
-        const assistantMessage: ChatMessage = {
-          role: "assistant",
-          content: assistantContent,
-          timestamp: new Date().toISOString(),
-        };
-        messages.push(assistantMessage);
-
-        // Update session metadata
-        session.lastMessageAt = assistantMessage.timestamp;
-        session.preview = assistantContent.substring(0, 100);
-      }
-
-      // Always save history (captures tool call messages even if no assistant text)
-      session.messageCount = messages.length;
-      await this.saveMessageHistory(agentName, sessionId, messages);
-
-      // Store SDK session ID for future conversation continuity
+      // Store attribution for this session
+      const sessionManager = this.sessionManagers.get(agentName);
       if (sessionManager && result.sessionId && result.success) {
-        await sessionManager.setSession(sessionId, result.sessionId);
-        logger.debug(`Stored SDK session`, {
+        // channelId = sessionId = SDK session ID (they're the same now)
+        await sessionManager.setSession(result.sessionId, result.sessionId);
+        logger.debug(`Stored session attribution`, {
           agentName,
-          sessionId,
           sdkSessionId: result.sessionId,
         });
       }
 
       return {
         jobId: result.jobId,
+        sessionId: result.sessionId,
         success: result.success,
         error: result.error?.message,
       };
@@ -620,84 +400,6 @@ export class WebChatManager {
         error: errorMessage,
       };
     }
-  }
-
-  /**
-   * Get the SDK session ID for a web chat session
-   *
-   * Used by the "Continue in Claude Code" feature to construct
-   * a `claude --resume <sdkSessionId>` command.
-   *
-   * @param agentName - Name of the agent
-   * @param sessionId - Web chat session ID
-   * @returns SDK session ID, or null if not available
-   */
-  async getSdkSessionId(agentName: string, sessionId: string): Promise<string | null> {
-    this.ensureInitialized();
-    const sessionManager = this.sessionManagers.get(agentName);
-    if (!sessionManager) return null;
-    const existing = await sessionManager.getSession(sessionId);
-    if (existing && existing.sessionId !== sessionId) {
-      return existing.sessionId;
-    }
-    return null;
-  }
-
-  /**
-   * Get token usage for a session by reading Claude Code's session JSONL file
-   *
-   * Locates the Claude CLI session file on disk (either native at
-   * ~/.claude/projects/ or Docker at .herdctl/docker-sessions/) and
-   * sums usage from assistant messages.
-   *
-   * @param agentName - Name of the agent
-   * @param sessionId - Web chat session ID
-   * @returns Token usage data, or zeros if not available
-   */
-  async getSessionUsage(agentName: string, sessionId: string): Promise<SessionUsage> {
-    this.ensureInitialized();
-
-    const noData: SessionUsage = { inputTokens: 0, turnCount: 0, hasData: false };
-
-    // Get the SDK session ID that maps to this web session
-    const sdkSessionId = await this.getSdkSessionId(agentName, sessionId);
-    if (!sdkSessionId) {
-      return noData;
-    }
-
-    // Determine if the agent uses Docker to find the right session file location
-    const agents = this.fleetManager!.getAgents();
-    const agent = agents.find((a) => a.qualifiedName === agentName || a.name === agentName);
-    if (!agent) {
-      return noData;
-    }
-
-    const dockerEnabled = agent.docker?.enabled ?? false;
-    let sessionFilePath: string;
-
-    if (dockerEnabled) {
-      // Docker sessions are at .herdctl/docker-sessions/<sdkSessionId>.jsonl
-      sessionFilePath = join(this.stateDir!, "docker-sessions", `${sdkSessionId}.jsonl`);
-    } else {
-      // Native CLI sessions are at ~/.claude/projects/<encoded-workspace>/<sdkSessionId>.jsonl
-      const workDirConfig = agent.working_directory;
-      if (!workDirConfig) {
-        return noData;
-      }
-      // working_directory can be a string or { root: string, ... }
-      const workDir = typeof workDirConfig === "string" ? workDirConfig : workDirConfig.root;
-      const encodedPath = workDir.replace(/[/\\]/g, "-");
-      sessionFilePath = join(
-        homedir(),
-        ".claude",
-        "projects",
-        encodedPath,
-        `${sdkSessionId}.jsonl`,
-      );
-    }
-
-    // Read the session JSONL and extract usage from assistant messages
-    return this.readUsageFromSessionFile(sessionFilePath);
   }
 
   // ===========================================================================
@@ -714,9 +416,9 @@ export class WebChatManager {
   }
 
   /**
-   * Create a session manager for an agent
+   * Create a session manager for an agent (for attribution)
    */
-  private async createSessionManagerForAgent(agentName: string): Promise<ChatSessionManager> {
+  private createSessionManagerForAgent(agentName: string): ChatSessionManager {
     const chatLogger: ChatConnectorLogger = {
       debug: (msg: string, data?: Record<string, unknown>) =>
         logger.debug(`[${agentName}] ${msg}${data ? ` ${JSON.stringify(data)}` : ""}`),
@@ -732,7 +434,7 @@ export class WebChatManager {
       platform: "web",
       agentName,
       stateDir: this.stateDir!,
-      sessionExpiryHours: this.sessionExpiryHours,
+      sessionExpiryHours: 24, // Default expiry for attribution
       logger: chatLogger,
     });
 
@@ -743,258 +445,68 @@ export class WebChatManager {
   }
 
   /**
-   * Get the chat history directory path
+   * Get agent configuration by name
    */
-  private getChatHistoryDir(agentName: string): string {
-    return join(this.stateDir!, "web", "chat-history", agentName);
-  }
-
-  /**
-   * Get the message history file path for a session
-   */
-  private getMessageHistoryPath(agentName: string, sessionId: string): string {
-    return join(this.getChatHistoryDir(agentName), `${sessionId}.json`);
-  }
-
-  /**
-   * Ensure chat history directories exist
-   */
-  private async ensureChatHistoryDir(): Promise<void> {
-    const baseDir = join(this.stateDir!, "web", "chat-history");
-    await mkdir(baseDir, { recursive: true });
-  }
-
-  /**
-   * Load message history from disk
-   */
-  private async loadMessageHistory(agentName: string, sessionId: string): Promise<ChatMessage[]> {
-    const filePath = this.getMessageHistoryPath(agentName, sessionId);
-
-    try {
-      const content = await readFile(filePath, "utf-8");
-      const data = JSON.parse(content) as { messages: ChatMessage[] };
-      return data.messages ?? [];
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code === "ENOENT") {
-        return [];
-      }
-      logger.warn(`Failed to load message history`, {
-        agentName,
-        sessionId,
-        error: (error as Error).message,
-      });
-      return [];
+  private getAgentConfig(agentName: string): ResolvedAgent {
+    const agents = this.fleetManager!.getAgents();
+    const agent = agents.find((a) => a.qualifiedName === agentName || a.name === agentName);
+    if (!agent) {
+      throw new Error(`Agent not found: ${agentName}`);
     }
+    return agent;
   }
 
   /**
-   * Save message history to disk with optional metadata
+   * Get working directory from agent config
    */
-  private async saveMessageHistoryWithMetadata(
-    agentName: string,
-    sessionId: string,
-    messages: ChatMessage[],
-    session?: WebChatSession,
-  ): Promise<void> {
-    const filePath = this.getMessageHistoryPath(agentName, sessionId);
-    const dir = dirname(filePath);
+  private getWorkingDirectory(agent: ResolvedAgent): string {
+    const workDir = agent.working_directory;
+    if (typeof workDir === "string") return workDir;
+    if (workDir?.root) return workDir.root;
+    throw new Error(`Agent ${agent.qualifiedName} has no working directory`);
+  }
 
-    await mkdir(dir, { recursive: true });
+  /**
+   * Get working directory with fallback for agents without one
+   */
+  private getWorkingDirectoryFromResolved(agent: ResolvedAgent): string {
+    const workDir = agent.working_directory;
+    if (typeof workDir === "string") return workDir;
+    if (workDir?.root) return workDir.root;
+    return "/tmp/unknown"; // fallback for agents without working directory
+  }
 
-    const data = {
-      sessionId,
-      agentName,
-      messages,
-      updatedAt: new Date().toISOString(),
-      customName: session?.customName,
+  /**
+   * Transform core ChatMessage to web ChatMessage
+   */
+  private transformCoreMessage(msg: CoreChatMessage): ChatMessage {
+    const result: ChatMessage = {
+      role: msg.role,
+      content: msg.content,
+      timestamp: msg.timestamp,
     };
 
-    await writeFile(filePath, JSON.stringify(data, null, 2), "utf-8");
+    if (msg.toolCall) {
+      result.toolCall = {
+        toolName: msg.toolCall.toolName,
+        inputSummary: msg.toolCall.inputSummary,
+        output: msg.toolCall.output,
+        isError: msg.toolCall.isError,
+        durationMs: msg.toolCall.durationMs,
+      };
+    }
+
+    return result;
   }
 
   /**
-   * Save message history to disk
+   * Transform core SessionUsage to web SessionUsage
    */
-  private async saveMessageHistory(
-    agentName: string,
-    sessionId: string,
-    messages: ChatMessage[],
-  ): Promise<void> {
-    // Get session metadata to preserve customName if it exists
-    const agentSessions = this.sessionMetadata.get(agentName);
-    const session = agentSessions?.get(sessionId);
-    await this.saveMessageHistoryWithMetadata(agentName, sessionId, messages, session);
-  }
-
-  /**
-   * Delete message history file
-   */
-  private async deleteMessageHistory(agentName: string, sessionId: string): Promise<void> {
-    const filePath = this.getMessageHistoryPath(agentName, sessionId);
-
-    try {
-      await unlink(filePath);
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code !== "ENOENT") {
-        logger.warn(`Failed to delete message history`, {
-          agentName,
-          sessionId,
-          error: (error as Error).message,
-        });
-      }
-    }
-  }
-
-  /**
-   * Load sessions from disk into metadata cache
-   */
-  private async loadSessionsFromDisk(agentName: string): Promise<void> {
-    // Skip if already loaded
-    if (this.sessionMetadata.has(agentName)) {
-      return;
-    }
-
-    const dir = this.getChatHistoryDir(agentName);
-    const agentSessions = new Map<string, WebChatSession>();
-
-    try {
-      const { readdir } = await import("node:fs/promises");
-      const files = await readdir(dir);
-
-      for (const file of files) {
-        if (!file.endsWith(".json")) continue;
-
-        const sessionId = file.slice(0, -5); // Remove .json
-        const filePath = join(dir, file);
-
-        try {
-          const content = await readFile(filePath, "utf-8");
-          const data = JSON.parse(content) as {
-            sessionId: string;
-            agentName: string;
-            messages: ChatMessage[];
-            updatedAt: string;
-            customName?: string;
-          };
-
-          const messages = data.messages ?? [];
-          const lastMessage = messages[messages.length - 1];
-          const firstMessage = messages[0];
-
-          agentSessions.set(sessionId, {
-            sessionId,
-            agentName,
-            createdAt: firstMessage?.timestamp ?? data.updatedAt,
-            lastMessageAt: lastMessage?.timestamp ?? data.updatedAt,
-            messageCount: messages.length,
-            preview: lastMessage?.content?.substring(0, 100),
-            customName: data.customName,
-          });
-        } catch (error) {
-          logger.warn(`Failed to load session file`, {
-            agentName,
-            sessionId,
-            error: (error as Error).message,
-          });
-        }
-      }
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code !== "ENOENT") {
-        logger.warn(`Failed to read chat history directory`, {
-          agentName,
-          error: (error as Error).message,
-        });
-      }
-    }
-
-    this.sessionMetadata.set(agentName, agentSessions);
-  }
-
-  /**
-   * Read token usage from a Claude Code session JSONL file
-   *
-   * Parses the raw SDK messages line by line. For assistant messages,
-   * extracts usage including prompt cache tokens (which represent the
-   * vast majority of context when caching is enabled).
-   */
-  private async readUsageFromSessionFile(filePath: string): Promise<SessionUsage> {
-    const noData: SessionUsage = { inputTokens: 0, turnCount: 0, hasData: false };
-
-    // Check file exists
-    try {
-      await stat(filePath);
-    } catch {
-      return noData;
-    }
-
-    let lastInputTokens = 0;
-    let hasData = false;
-
-    // Claude Code writes multiple JSONL lines per API call (one per content
-    // block: text, tool_use, etc.) with identical usage. Deduplicate by
-    // message ID so each API call is counted once.
-    const seenMessageIds = new Set<string>();
-
-    const fileStream = createReadStream(filePath, { encoding: "utf-8" });
-    const rl = createInterface({ input: fileStream, crlfDelay: Infinity });
-
-    try {
-      for await (const line of rl) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-
-        try {
-          const msg = JSON.parse(trimmed) as {
-            type?: string;
-            message?: {
-              id?: string;
-              usage?: {
-                input_tokens?: number;
-                cache_creation_input_tokens?: number;
-                cache_read_input_tokens?: number;
-              };
-            };
-          };
-
-          // Only assistant messages carry usage data
-          if (msg.type !== "assistant") continue;
-
-          // Skip duplicates of the same API call
-          const messageId = msg.message?.id;
-          if (messageId) {
-            if (seenMessageIds.has(messageId)) continue;
-            seenMessageIds.add(messageId);
-          }
-
-          const usage = msg.message?.usage;
-          if (!usage) continue;
-
-          // Total input = base input + cache tokens (cache tokens represent
-          // the vast majority of context with prompt caching enabled)
-          const inputTokens =
-            (usage.input_tokens ?? 0) +
-            (usage.cache_creation_input_tokens ?? 0) +
-            (usage.cache_read_input_tokens ?? 0);
-
-          if (inputTokens > 0) {
-            lastInputTokens = inputTokens;
-            hasData = true;
-          }
-        } catch {
-          // Skip malformed lines
-        }
-      }
-    } catch {
-      return noData;
-    } finally {
-      rl.close();
-      fileStream.destroy();
-    }
-
-    // turnCount = number of unique API calls (assistant turns)
-    return { inputTokens: lastInputTokens, turnCount: seenMessageIds.size, hasData };
+  private transformCoreUsage(usage: CoreSessionUsage): SessionUsage {
+    return {
+      inputTokens: usage.inputTokens,
+      turnCount: usage.turnCount,
+      hasData: usage.hasData,
+    };
   }
 }
