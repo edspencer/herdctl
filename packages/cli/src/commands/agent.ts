@@ -28,6 +28,8 @@ import {
   AgentRemoveError,
   // Fleet config update
   addAgentToFleetConfig,
+  ConfigError,
+  ConfigNotFoundError,
   createLogger,
   type DiscoveredAgent,
   // Agent discovery
@@ -47,10 +49,13 @@ import {
   isGitHubSource,
   isLocalSource,
   LocalPathError,
+  // Config loader for fleet-of-fleets support
+  loadConfig,
   NetworkError,
   // Source parsing
   parseSourceSpecifier,
   RepositoryFetchError,
+  type ResolvedAgent,
   removeAgent,
   SourceParseError,
   type SourceSpecifier,
@@ -61,6 +66,7 @@ import {
   // Repository validation
   validateRepository,
 } from "@herdctl/core";
+import { parse as parseYaml } from "yaml";
 
 const logger = createLogger("cli:agent");
 
@@ -497,10 +503,161 @@ function getSourceDescription(agent: DiscoveredAgent): string {
 }
 
 /**
+ * Maximum number of agents before switching to summary mode.
+ * When total agents exceed this threshold, fleet-level counts are shown
+ * instead of individual agent names to avoid overwhelming output.
+ */
+export const TREE_AGENT_THRESHOLD = 200;
+
+/**
+ * Tree node representing a fleet or agent in the hierarchy
+ */
+export interface FleetTreeNode {
+  name: string;
+  description?: string;
+  agents: string[];
+  children: FleetTreeNode[];
+}
+
+/**
+ * Build a tree structure from a flat array of resolved agents.
+ *
+ * Groups agents by their fleetPath hierarchy. Root-level agents (empty fleetPath)
+ * go directly under the root node. Sub-fleet agents are nested under their
+ * respective fleet nodes.
+ */
+export function buildFleetTree(
+  agents: ResolvedAgent[],
+  rootName: string,
+  rootDescription?: string,
+): FleetTreeNode {
+  const root: FleetTreeNode = {
+    name: rootName,
+    description: rootDescription,
+    agents: [],
+    children: [],
+  };
+
+  for (const agent of agents) {
+    if (agent.fleetPath.length === 0) {
+      // Root-level agent
+      root.agents.push(agent.name);
+    } else {
+      // Walk/create the tree path for this agent
+      let current = root;
+      for (const fleetName of agent.fleetPath) {
+        let child = current.children.find((c) => c.name === fleetName);
+        if (!child) {
+          child = { name: fleetName, agents: [], children: [] };
+          current.children.push(child);
+        }
+        current = child;
+      }
+      current.agents.push(agent.name);
+    }
+  }
+
+  return root;
+}
+
+/**
+ * Render a fleet tree with box-drawing characters.
+ *
+ * Uses standard Unicode box-drawing characters for the tree structure:
+ * - Connector for intermediate items
+ * - End connector for last items
+ * - Vertical bar for continuing branches
+ *
+ * @param node - The tree node to render
+ * @param prefix - Current indentation prefix
+ * @param isLast - Whether this node is the last child of its parent
+ * @param isRoot - Whether this is the root node
+ * @param summaryMode - When true, show agent counts instead of names
+ */
+export function renderFleetTree(
+  node: FleetTreeNode,
+  prefix: string = "",
+  isLast: boolean = true,
+  isRoot: boolean = true,
+  summaryMode: boolean = false,
+): string[] {
+  const lines: string[] = [];
+
+  // Render this node's header
+  if (isRoot) {
+    const desc = node.description ? ` (${node.description})` : "";
+    lines.push(`${node.name}${desc}`);
+  } else {
+    const connector = isLast ? "\u2514\u2500\u2500 " : "\u251C\u2500\u2500 ";
+    lines.push(`${prefix}${connector}${node.name}`);
+  }
+
+  // Determine the prefix for children
+  const childPrefix = isRoot ? "" : prefix + (isLast ? "    " : "\u2502   ");
+
+  // Collect all items to render (agents + child fleets)
+  const allItems: Array<{ type: "agent"; name: string } | { type: "fleet"; node: FleetTreeNode }> =
+    [];
+
+  // Add child fleets first
+  for (const child of node.children) {
+    allItems.push({ type: "fleet", node: child });
+  }
+
+  // Add agents (or summary)
+  if (summaryMode && node.agents.length > 0) {
+    allItems.push({ type: "agent", name: `(${node.agents.length} agents)` });
+  } else {
+    for (const agentName of node.agents) {
+      allItems.push({ type: "agent", name: agentName });
+    }
+  }
+
+  // Render each item
+  for (let i = 0; i < allItems.length; i++) {
+    const item = allItems[i];
+    const itemIsLast = i === allItems.length - 1;
+
+    if (item.type === "agent") {
+      const connector = itemIsLast ? "\u2514\u2500\u2500 " : "\u251C\u2500\u2500 ";
+      lines.push(`${childPrefix}${connector}${item.name}`);
+    } else {
+      const subLines = renderFleetTree(item.node, childPrefix, itemIsLast, false, summaryMode);
+      lines.push(...subLines);
+    }
+  }
+
+  return lines;
+}
+
+/**
+ * Check if the fleet config at the given path has sub-fleets defined.
+ * Reads the YAML file and checks for a non-empty fleets array.
+ */
+function configHasSubFleets(configPath: string): boolean {
+  try {
+    const content = fs.readFileSync(configPath, "utf-8");
+    const parsed = parseYaml(content);
+    return (
+      parsed !== null &&
+      typeof parsed === "object" &&
+      Array.isArray((parsed as Record<string, unknown>).fleets) &&
+      ((parsed as Record<string, unknown>).fleets as unknown[]).length > 0
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
  * List all agents in the fleet
  *
- * Discovers agents from the fleet configuration and displays them in a table
- * showing name, source, version, installation date, and status.
+ * Discovers agents from the fleet configuration and displays them.
+ * When sub-fleets exist, displays a tree view showing agents grouped by fleet hierarchy.
+ * When no sub-fleets exist, displays a flat table (original behavior).
+ *
+ * If total agents across the hierarchy exceed 200, shows fleet-level summary counts
+ * instead of individual agent names.
  *
  * @param options - Command options
  */
@@ -508,66 +665,123 @@ export async function agentListCommand(options: AgentListOptions): Promise<void>
   const cwd = process.cwd();
   const configPath = path.join(cwd, "herdctl.yaml");
 
-  try {
-    const result = await discoverAgents({ configPath });
+  // Check if this fleet has sub-fleets for the tree view
+  const hasSubFleets = configHasSubFleets(configPath);
 
-    if (options.json) {
-      console.log(JSON.stringify(result.agents, null, 2));
-      return;
-    }
+  if (hasSubFleets) {
+    // Use loadConfig for full fleet-of-fleets resolution
+    try {
+      const resolvedConfig = await loadConfig(configPath);
+      const allAgents = resolvedConfig.agents;
 
-    if (result.agents.length === 0) {
-      console.log("No agents found in fleet configuration.");
+      if (options.json) {
+        // Output the full resolved agents with fleet hierarchy info
+        const jsonOutput = allAgents.map((a) => ({
+          name: a.name,
+          qualifiedName: a.qualifiedName,
+          fleetPath: a.fleetPath,
+          configPath: a.configPath,
+          description: a.description,
+        }));
+        console.log(JSON.stringify(jsonOutput, null, 2));
+        return;
+      }
+
+      if (allAgents.length === 0) {
+        console.log("No agents found across fleet hierarchy.");
+        console.log("");
+        console.log("To add an agent, run:");
+        console.log("  herdctl agent add <source>     Install from GitHub or local path");
+        console.log("  herdctl init agent <name>      Create a new agent manually");
+        return;
+      }
+
+      // Build and render the tree
+      const rootName = resolvedConfig.fleet.fleet?.name ?? "fleet";
+      const rootDescription = resolvedConfig.fleet.fleet?.description;
+      const tree = buildFleetTree(allAgents, rootName, rootDescription);
+      const summaryMode = allAgents.length > TREE_AGENT_THRESHOLD;
+      const treeLines = renderFleetTree(tree, "", true, true, summaryMode);
+
       console.log("");
-      console.log("To add an agent, run:");
-      console.log("  herdctl agent add <source>     Install from GitHub or local path");
-      console.log("  herdctl init agent <name>      Create a new agent manually");
-      return;
+      for (const line of treeLines) {
+        console.log(line);
+      }
+
+      console.log("");
+      console.log(
+        `Total: ${allAgents.length} agent${allAgents.length === 1 ? "" : "s"} across fleet hierarchy`,
+      );
+    } catch (error) {
+      if (error instanceof ConfigNotFoundError || error instanceof ConfigError) {
+        logger.error(`Config error: ${error.message}`);
+        process.exit(1);
+      }
+      throw error;
     }
+  } else {
+    // Original flat table behavior when no sub-fleets
+    try {
+      const result = await discoverAgents({ configPath });
 
-    // Print table header
-    console.log("");
-    console.log("Agents in fleet:");
-    console.log("");
+      if (options.json) {
+        console.log(JSON.stringify(result.agents, null, 2));
+        return;
+      }
 
-    // Calculate column widths
-    const nameWidth = Math.max(4, ...result.agents.map((a) => a.name.length));
-    const sourceWidth = Math.max(6, ...result.agents.map((a) => getSourceDescription(a).length));
-    const versionWidth = Math.max(7, ...result.agents.map((a) => (a.version ?? "-").length));
-    const dateWidth = 12;
-    const statusWidth = 9;
+      if (result.agents.length === 0) {
+        console.log("No agents found in fleet configuration.");
+        console.log("");
+        console.log("To add an agent, run:");
+        console.log("  herdctl agent add <source>     Install from GitHub or local path");
+        console.log("  herdctl init agent <name>      Create a new agent manually");
+        return;
+      }
 
-    // Print header row
-    const header = [
-      "Name".padEnd(nameWidth),
-      "Source".padEnd(sourceWidth),
-      "Version".padEnd(versionWidth),
-      "Installed".padEnd(dateWidth),
-      "Status".padEnd(statusWidth),
-    ].join("  ");
-    console.log(header);
-    console.log("-".repeat(header.length));
+      // Print table header
+      console.log("");
+      console.log("Agents in fleet:");
+      console.log("");
 
-    // Print each agent
-    for (const agent of result.agents) {
-      const row = [
-        agent.name.padEnd(nameWidth),
-        getSourceDescription(agent).padEnd(sourceWidth),
-        (agent.version ?? "-").padEnd(versionWidth),
-        formatDate(agent.metadata?.installed_at).padEnd(dateWidth),
-        (agent.installed ? "installed" : "manual").padEnd(statusWidth),
+      // Calculate column widths
+      const nameWidth = Math.max(4, ...result.agents.map((a) => a.name.length));
+      const sourceWidth = Math.max(6, ...result.agents.map((a) => getSourceDescription(a).length));
+      const versionWidth = Math.max(7, ...result.agents.map((a) => (a.version ?? "-").length));
+      const dateWidth = 12;
+      const statusWidth = 9;
+
+      // Print header row
+      const header = [
+        "Name".padEnd(nameWidth),
+        "Source".padEnd(sourceWidth),
+        "Version".padEnd(versionWidth),
+        "Installed".padEnd(dateWidth),
+        "Status".padEnd(statusWidth),
       ].join("  ");
-      console.log(row);
-    }
+      console.log(header);
+      console.log("-".repeat(header.length));
 
-    console.log("");
-    console.log(`Total: ${result.agents.length} agent${result.agents.length === 1 ? "" : "s"}`);
-  } catch (error) {
-    if (error instanceof AgentDiscoveryError) {
-      logger.error(`Discovery failed: ${error.message}`);
-      process.exit(1);
+      // Print each agent
+      for (const agent of result.agents) {
+        const row = [
+          agent.name.padEnd(nameWidth),
+          getSourceDescription(agent).padEnd(sourceWidth),
+          (agent.version ?? "-").padEnd(versionWidth),
+          formatDate(agent.metadata?.installed_at).padEnd(dateWidth),
+          (agent.installed ? "installed" : "manual").padEnd(statusWidth),
+        ].join("  ");
+        console.log(row);
+      }
+
+      console.log("");
+      console.log(`Total: ${result.agents.length} agent${result.agents.length === 1 ? "" : "s"}`);
+    } catch (error) {
+      if (error instanceof AgentDiscoveryError) {
+        logger.error(`Discovery failed: ${error.message}`);
+        process.exit(1);
+      }
+      throw error;
     }
-    throw error;
   }
 }
 

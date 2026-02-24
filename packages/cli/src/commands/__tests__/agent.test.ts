@@ -124,6 +124,25 @@ vi.mock("@herdctl/core", () => ({
     }
   },
   AGENT_NOT_FOUND: "AGENT_NOT_FOUND",
+
+  // Config loader (for fleet-of-fleets support)
+  loadConfig: vi.fn(),
+  ConfigError: class ConfigError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = "ConfigError";
+    }
+  },
+  ConfigNotFoundError: class ConfigNotFoundError extends Error {
+    searchedPaths: string[];
+    startDirectory: string;
+    constructor(startDirectory: string, searchedPaths: string[] = []) {
+      super(`No herdctl configuration file found from '${startDirectory}'`);
+      this.name = "ConfigNotFoundError";
+      this.startDirectory = startDirectory;
+      this.searchedPaths = searchedPaths;
+    }
+  },
 }));
 
 import {
@@ -133,6 +152,8 @@ import {
   AgentInstallError,
   AgentRemoveError,
   addAgentToFleetConfig,
+  ConfigError,
+  ConfigNotFoundError,
   discoverAgents,
   FleetConfigError,
   fetchRepository,
@@ -143,6 +164,7 @@ import {
   isGitHubSource,
   isLocalSource,
   LocalPathError,
+  loadConfig,
   NetworkError,
   parseSourceSpecifier,
   RepositoryFetchError,
@@ -158,6 +180,9 @@ import {
   agentInfoCommand,
   agentListCommand,
   agentRemoveCommand,
+  buildFleetTree,
+  renderFleetTree,
+  TREE_AGENT_THRESHOLD,
 } from "../agent.js";
 
 const mockedParseSourceSpecifier = vi.mocked(parseSourceSpecifier);
@@ -172,6 +197,7 @@ const mockedScanEnvVariables = vi.mocked(scanEnvVariables);
 const mockedRemoveAgent = vi.mocked(removeAgent);
 const mockedDiscoverAgents = vi.mocked(discoverAgents);
 const mockedGetAgentInfo = vi.mocked(getAgentInfo);
+const mockedLoadConfig = vi.mocked(loadConfig);
 
 function createTempDir(): string {
   const baseDir = path.join(
@@ -1465,5 +1491,373 @@ describe("agentRemoveCommand", () => {
 
       expect(mockedRemoveAgent).toHaveBeenCalled();
     });
+  });
+});
+
+// =============================================================================
+// Fleet Tree View Tests
+// =============================================================================
+
+describe("buildFleetTree", () => {
+  it("groups root-level agents under root node", () => {
+    const agents = [
+      { name: "agent-a", fleetPath: [], qualifiedName: "agent-a" },
+      { name: "agent-b", fleetPath: [], qualifiedName: "agent-b" },
+    ] as unknown as import("@herdctl/core").ResolvedAgent[];
+
+    const tree = buildFleetTree(agents, "my-fleet", "My Fleet");
+
+    expect(tree.name).toBe("my-fleet");
+    expect(tree.description).toBe("My Fleet");
+    expect(tree.agents).toEqual(["agent-a", "agent-b"]);
+    expect(tree.children).toHaveLength(0);
+  });
+
+  it("creates child nodes for sub-fleet agents", () => {
+    const agents = [
+      { name: "engineer", fleetPath: ["herdctl"], qualifiedName: "herdctl.engineer" },
+      { name: "tester", fleetPath: ["herdctl"], qualifiedName: "herdctl.tester" },
+      { name: "agent-one", fleetPath: ["personal"], qualifiedName: "personal.agent-one" },
+    ] as unknown as import("@herdctl/core").ResolvedAgent[];
+
+    const tree = buildFleetTree(agents, "global");
+
+    expect(tree.agents).toHaveLength(0);
+    expect(tree.children).toHaveLength(2);
+
+    const herdctl = tree.children.find((c) => c.name === "herdctl");
+    expect(herdctl).toBeDefined();
+    expect(herdctl!.agents).toEqual(["engineer", "tester"]);
+
+    const personal = tree.children.find((c) => c.name === "personal");
+    expect(personal).toBeDefined();
+    expect(personal!.agents).toEqual(["agent-one"]);
+  });
+
+  it("handles nested fleet paths (multi-level)", () => {
+    const agents = [
+      {
+        name: "deep-agent",
+        fleetPath: ["level1", "level2"],
+        qualifiedName: "level1.level2.deep-agent",
+      },
+    ] as unknown as import("@herdctl/core").ResolvedAgent[];
+
+    const tree = buildFleetTree(agents, "root");
+
+    expect(tree.children).toHaveLength(1);
+    expect(tree.children[0].name).toBe("level1");
+    expect(tree.children[0].children).toHaveLength(1);
+    expect(tree.children[0].children[0].name).toBe("level2");
+    expect(tree.children[0].children[0].agents).toEqual(["deep-agent"]);
+  });
+
+  it("handles mix of root and sub-fleet agents", () => {
+    const agents = [
+      { name: "root-agent", fleetPath: [], qualifiedName: "root-agent" },
+      { name: "sub-agent", fleetPath: ["sub"], qualifiedName: "sub.sub-agent" },
+    ] as unknown as import("@herdctl/core").ResolvedAgent[];
+
+    const tree = buildFleetTree(agents, "root");
+
+    expect(tree.agents).toEqual(["root-agent"]);
+    expect(tree.children).toHaveLength(1);
+    expect(tree.children[0].name).toBe("sub");
+    expect(tree.children[0].agents).toEqual(["sub-agent"]);
+  });
+});
+
+describe("renderFleetTree", () => {
+  it("renders a simple tree with box-drawing characters", () => {
+    const tree = buildFleetTree(
+      [
+        { name: "agent-one", fleetPath: ["personal"], qualifiedName: "personal.agent-one" },
+        { name: "agent-two", fleetPath: ["personal"], qualifiedName: "personal.agent-two" },
+        { name: "engineer", fleetPath: ["herdctl"], qualifiedName: "herdctl.engineer" },
+      ] as unknown as import("@herdctl/core").ResolvedAgent[],
+      "global",
+      "Fleet of Fleets",
+    );
+
+    const lines = renderFleetTree(tree);
+
+    // Root line
+    expect(lines[0]).toBe("global (Fleet of Fleets)");
+    // Should contain sub-fleet names
+    expect(lines.some((l) => l.includes("personal"))).toBe(true);
+    expect(lines.some((l) => l.includes("herdctl"))).toBe(true);
+    // Should contain agent names
+    expect(lines.some((l) => l.includes("agent-one"))).toBe(true);
+    expect(lines.some((l) => l.includes("agent-two"))).toBe(true);
+    expect(lines.some((l) => l.includes("engineer"))).toBe(true);
+    // Should use box-drawing characters
+    expect(
+      lines.some((l) => l.includes("\u251C\u2500\u2500") || l.includes("\u2514\u2500\u2500")),
+    ).toBe(true);
+  });
+
+  it("uses end connector for last items", () => {
+    const tree = buildFleetTree(
+      [
+        { name: "only-agent", fleetPath: ["sub"], qualifiedName: "sub.only-agent" },
+      ] as unknown as import("@herdctl/core").ResolvedAgent[],
+      "root",
+    );
+
+    const lines = renderFleetTree(tree);
+
+    // The sub-fleet should use end connector since it's the last child
+    expect(lines[1]).toContain("\u2514\u2500\u2500 sub");
+    // The only agent should also use end connector
+    expect(lines[2]).toContain("\u2514\u2500\u2500 only-agent");
+  });
+
+  it("shows agent counts in summary mode", () => {
+    const tree = buildFleetTree(
+      [
+        { name: "a1", fleetPath: ["sub"], qualifiedName: "sub.a1" },
+        { name: "a2", fleetPath: ["sub"], qualifiedName: "sub.a2" },
+        { name: "a3", fleetPath: ["sub"], qualifiedName: "sub.a3" },
+      ] as unknown as import("@herdctl/core").ResolvedAgent[],
+      "root",
+    );
+
+    const lines = renderFleetTree(tree, "", true, true, true);
+
+    // Should show count instead of individual names
+    expect(lines.some((l) => l.includes("(3 agents)"))).toBe(true);
+    // Should NOT show individual agent names
+    expect(lines.some((l) => l.includes("a1"))).toBe(false);
+    expect(lines.some((l) => l.includes("a2"))).toBe(false);
+  });
+
+  it("renders root-level agents", () => {
+    const tree = buildFleetTree(
+      [
+        { name: "root-agent", fleetPath: [], qualifiedName: "root-agent" },
+      ] as unknown as import("@herdctl/core").ResolvedAgent[],
+      "fleet",
+    );
+
+    const lines = renderFleetTree(tree);
+
+    expect(lines[0]).toBe("fleet");
+    expect(lines[1]).toContain("root-agent");
+  });
+});
+
+describe("agentListCommand with sub-fleets (tree view)", () => {
+  let tempDir: string;
+  let originalCwd: string;
+  let consoleLogs: string[];
+  let consoleErrors: string[];
+  let originalConsoleLog: typeof console.log;
+  let originalConsoleError: typeof console.error;
+  let originalProcessExit: typeof process.exit;
+  let exitCode: number | undefined;
+
+  beforeEach(() => {
+    tempDir = createTempDir();
+    originalCwd = process.cwd();
+    process.chdir(tempDir);
+
+    consoleLogs = [];
+    consoleErrors = [];
+    originalConsoleLog = console.log;
+    originalConsoleError = console.error;
+    console.log = (...args: unknown[]) => consoleLogs.push(args.join(" "));
+    console.error = (...args: unknown[]) => consoleErrors.push(args.join(" "));
+
+    exitCode = undefined;
+    originalProcessExit = process.exit;
+    process.exit = ((code?: number) => {
+      exitCode = code ?? 0;
+      throw new Error(`process.exit(${code})`);
+    }) as never;
+
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    process.chdir(originalCwd);
+    cleanupTempDir(tempDir);
+    console.log = originalConsoleLog;
+    console.error = originalConsoleError;
+    process.exit = originalProcessExit;
+  });
+
+  /** Create a fleet config with sub-fleets */
+  function createFleetConfigWithSubFleets(dir: string): void {
+    fs.writeFileSync(
+      path.join(dir, "herdctl.yaml"),
+      `version: 1
+
+fleet:
+  name: global
+  description: Fleet of Fleets
+
+fleets:
+  - path: ./sub/herdctl.yaml
+`,
+      "utf-8",
+    );
+  }
+
+  it("renders tree view when sub-fleets exist", async () => {
+    createFleetConfigWithSubFleets(tempDir);
+
+    mockedLoadConfig.mockResolvedValue({
+      fleet: {
+        version: 1,
+        fleet: { name: "global", description: "Fleet of Fleets" },
+        fleets: [{ path: "./sub/herdctl.yaml" }],
+        agents: [],
+      },
+      agents: [
+        {
+          name: "engineer",
+          fleetPath: ["herdctl"],
+          qualifiedName: "herdctl.engineer",
+          configPath: "/path/to/herdctl/agents/engineer/agent.yaml",
+        },
+        {
+          name: "tester",
+          fleetPath: ["herdctl"],
+          qualifiedName: "herdctl.tester",
+          configPath: "/path/to/herdctl/agents/tester/agent.yaml",
+        },
+      ] as unknown as import("@herdctl/core").ResolvedAgent[],
+      configPath: path.join(tempDir, "herdctl.yaml"),
+      configDir: tempDir,
+    });
+
+    await agentListCommand({});
+
+    expect(mockedLoadConfig).toHaveBeenCalled();
+    // Should show tree with fleet name
+    expect(consoleLogs.some((log) => log.includes("global"))).toBe(true);
+    expect(consoleLogs.some((log) => log.includes("Fleet of Fleets"))).toBe(true);
+    // Should show sub-fleet and agents
+    expect(consoleLogs.some((log) => log.includes("herdctl"))).toBe(true);
+    expect(consoleLogs.some((log) => log.includes("engineer"))).toBe(true);
+    expect(consoleLogs.some((log) => log.includes("tester"))).toBe(true);
+    // Should show total
+    expect(consoleLogs.some((log) => log.includes("Total: 2 agents across fleet hierarchy"))).toBe(
+      true,
+    );
+  });
+
+  it("outputs JSON with fleet hierarchy info when --json is used", async () => {
+    createFleetConfigWithSubFleets(tempDir);
+
+    mockedLoadConfig.mockResolvedValue({
+      fleet: {
+        version: 1,
+        fleet: { name: "global" },
+        fleets: [{ path: "./sub/herdctl.yaml" }],
+        agents: [],
+      },
+      agents: [
+        {
+          name: "engineer",
+          fleetPath: ["herdctl"],
+          qualifiedName: "herdctl.engineer",
+          configPath: "/path/to/engineer/agent.yaml",
+          description: "Engineering agent",
+        },
+      ] as unknown as import("@herdctl/core").ResolvedAgent[],
+      configPath: path.join(tempDir, "herdctl.yaml"),
+      configDir: tempDir,
+    });
+
+    await agentListCommand({ json: true });
+
+    const output = consoleLogs.join("\n");
+    const parsed = JSON.parse(output);
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].name).toBe("engineer");
+    expect(parsed[0].qualifiedName).toBe("herdctl.engineer");
+    expect(parsed[0].fleetPath).toEqual(["herdctl"]);
+  });
+
+  it("shows helpful message when no agents across hierarchy", async () => {
+    createFleetConfigWithSubFleets(tempDir);
+
+    mockedLoadConfig.mockResolvedValue({
+      fleet: {
+        version: 1,
+        fleet: { name: "global" },
+        fleets: [{ path: "./sub/herdctl.yaml" }],
+        agents: [],
+      },
+      agents: [],
+      configPath: path.join(tempDir, "herdctl.yaml"),
+      configDir: tempDir,
+    });
+
+    await agentListCommand({});
+
+    expect(consoleLogs.some((log) => log.includes("No agents found across fleet hierarchy"))).toBe(
+      true,
+    );
+    expect(consoleLogs.some((log) => log.includes("herdctl agent add"))).toBe(true);
+  });
+
+  it("handles ConfigError gracefully", async () => {
+    createFleetConfigWithSubFleets(tempDir);
+
+    mockedLoadConfig.mockRejectedValue(new ConfigError("Bad config"));
+
+    await expect(agentListCommand({})).rejects.toThrow("process.exit");
+
+    expect(exitCode).toBe(1);
+    expect(consoleErrors.some((e) => e.includes("Config error"))).toBe(true);
+  });
+
+  it("handles ConfigNotFoundError gracefully", async () => {
+    createFleetConfigWithSubFleets(tempDir);
+
+    mockedLoadConfig.mockRejectedValue(new ConfigNotFoundError("/some/path", []));
+
+    await expect(agentListCommand({})).rejects.toThrow("process.exit");
+
+    expect(exitCode).toBe(1);
+    expect(consoleErrors.some((e) => e.includes("Config error"))).toBe(true);
+  });
+
+  it("falls back to flat table when no sub-fleets in config", async () => {
+    // Create a config WITHOUT fleets
+    fs.writeFileSync(
+      path.join(tempDir, "herdctl.yaml"),
+      `version: 1
+
+fleet:
+  name: simple-fleet
+
+agents: []
+`,
+      "utf-8",
+    );
+
+    mockedDiscoverAgents.mockResolvedValue({
+      agents: [
+        {
+          name: "simple-agent",
+          installed: false,
+          path: "/path/to/agents/simple-agent",
+          configPath: "./agents/simple-agent/agent.yaml",
+        },
+      ],
+    });
+
+    await agentListCommand({});
+
+    // Should use discoverAgents, NOT loadConfig
+    expect(mockedDiscoverAgents).toHaveBeenCalled();
+    expect(mockedLoadConfig).not.toHaveBeenCalled();
+    // Should show flat table
+    expect(consoleLogs.some((log) => log.includes("Agents in fleet:"))).toBe(true);
+    expect(consoleLogs.some((log) => log.includes("simple-agent"))).toBe(true);
   });
 });
