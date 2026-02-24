@@ -1,3 +1,7 @@
+---
+globs: packages/**
+---
+
 # Changesets and Release Workflow
 
 **ALWAYS create a changeset when modifying any npm package code.** Without a changeset, changes won't be released to npm, making the work pointless.

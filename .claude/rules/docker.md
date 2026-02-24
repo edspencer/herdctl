@@ -1,3 +1,7 @@
+---
+globs: Dockerfile,docker-compose*,packages/core/src/runner/**
+---
+
 # Docker Network Requirements
 
 **NEVER suggest `network: none` for Docker containers running Claude Code agents.**

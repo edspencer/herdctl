@@ -1,3 +1,7 @@
+---
+globs: docs/**
+---
+
 # Diagrams
 
 We use two diagramming tools at different quality tiers.

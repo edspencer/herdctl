@@ -1,3 +1,7 @@
+---
+globs: packages/web/**
+---
+
 # Web UI Design System
 
 **When working on `packages/web/` (the @herdctl/web dashboard), you MUST read and follow `packages/web/DESIGN_SYSTEM.md` before writing any UI code.**
