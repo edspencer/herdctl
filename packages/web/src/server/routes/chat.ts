@@ -145,6 +145,46 @@ export function registerChatRoutes(
   });
 
   /**
+   * GET /api/chat/sessions/by-path/:encodedPath/:sessionId
+   *
+   * Get messages for a session by its encoded directory path.
+   * Used for sessions not attributed to any fleet agent (read-only view).
+   *
+   * @returns { messages: ChatMessage[], metadata: SessionMetadata }
+   */
+  server.get("/api/chat/sessions/by-path/:encodedPath/:sessionId", async (request, reply) => {
+    const { encodedPath, sessionId } = request.params as { encodedPath: string; sessionId: string };
+
+    try {
+      // Look up the working directory from the groups
+      const groups = await chatManager.getAllSessionGroups();
+      const group = groups.find((g) => g.encodedPath === encodedPath);
+
+      if (!group) {
+        return reply.status(404).send({ error: `Directory not found: ${encodedPath}` });
+      }
+
+      const [messages, metadata] = await Promise.all([
+        discoveryService.getSessionMessages(group.workingDirectory, sessionId),
+        discoveryService.getSessionMetadata(group.workingDirectory, sessionId),
+      ]);
+
+      return reply.send({
+        messages,
+        metadata: {
+          gitBranch: metadata.gitBranch,
+          claudeCodeVersion: metadata.claudeCodeVersion,
+          preview: metadata.firstMessagePreview,
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error("Failed to get session by path", { error: message, encodedPath, sessionId });
+      return reply.status(404).send({ error: `Session not found: ${sessionId}` });
+    }
+  });
+
+  /**
    * GET /api/chat/:agentName/sessions
    *
    * List all chat sessions for an agent.

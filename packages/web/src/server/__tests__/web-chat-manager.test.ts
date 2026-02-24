@@ -33,7 +33,10 @@ vi.mock("@herdctl/core", async () => {
       error: vi.fn(),
     })),
     SessionDiscoveryService: vi.fn(),
-    SessionMetadataStore: vi.fn().mockImplementation(() => mockStore.metadataStore),
+    // biome-ignore lint/complexity/useArrowFunction: must use regular function for constructor mock
+    SessionMetadataStore: vi.fn().mockImplementation(function () {
+      return mockStore.metadataStore;
+    }),
   };
 });
 
@@ -42,7 +45,10 @@ vi.mock("@herdctl/chat", async () => {
   const actual = await vi.importActual("@herdctl/chat");
   return {
     ...actual,
-    ChatSessionManager: vi.fn().mockImplementation(() => mockStore.sessionManager),
+    // biome-ignore lint/complexity/useArrowFunction: must use regular function for constructor mock
+    ChatSessionManager: vi.fn().mockImplementation(function () {
+      return mockStore.sessionManager;
+    }),
     extractMessageContent: vi.fn((msg) => {
       // Simple implementation for testing
       const content = msg?.message?.content;

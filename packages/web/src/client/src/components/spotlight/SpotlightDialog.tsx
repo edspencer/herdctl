@@ -14,12 +14,12 @@
  * - Focus trap: Tab/Shift+Tab cycle within dialog, focus restored on close
  */
 
-import { Search } from "lucide-react";
+import { MessagesSquare, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 import { getAgentAvatar } from "../../lib/avatar";
-import { agentChatPath } from "../../lib/paths";
+import { agentChatPath, allChatsPath } from "../../lib/paths";
 import type { AgentInfo } from "../../lib/types";
 import { useFleet, useRecentSessions, useSpotlightOpen, useUIActions } from "../../store";
 
@@ -180,6 +180,20 @@ export function SpotlightDialog() {
     [navigate, setSpotlightOpen],
   );
 
+  // Handle All Chats navigation
+  const handleAllChats = useCallback(() => {
+    previousFocusRef.current = null;
+    setSpotlightOpen(false);
+    navigate(allChatsPath());
+  }, [navigate, setSpotlightOpen]);
+
+  // Check if query matches "all chats" or "chats" for showing the All Chats option prominently
+  const showAllChatsOption = useMemo(() => {
+    if (!query.trim()) return true;
+    const lowerQuery = query.toLowerCase();
+    return "all chats".includes(lowerQuery) || "chats".includes(lowerQuery);
+  }, [query]);
+
   // ---------------------------------------------------------------------------
   // 6.2 — Focus trap: cycle Tab/Shift+Tab within dialog
   // ---------------------------------------------------------------------------
@@ -319,6 +333,25 @@ export function SpotlightDialog() {
             ))
           )}
         </div>
+
+        {/* All Chats navigation option */}
+        {showAllChatsOption && (
+          <div className="border-t border-herd-border">
+            <button
+              type="button"
+              onClick={handleAllChats}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-herd-hover transition-colors"
+            >
+              <div className="w-8 h-8 rounded bg-herd-hover flex items-center justify-center flex-shrink-0">
+                <MessagesSquare className="w-4 h-4 text-herd-muted" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm text-herd-fg">All Chats</div>
+                <div className="text-xs text-herd-muted">Browse all sessions on this machine</div>
+              </div>
+            </button>
+          </div>
+        )}
 
         {/* Keyboard hints */}
         <div className="px-4 py-2 border-t border-herd-border flex items-center gap-4 text-[11px] text-herd-muted">

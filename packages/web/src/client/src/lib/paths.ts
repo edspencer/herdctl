@@ -20,3 +20,13 @@ export function agentChatPath(qualifiedName: string, sessionId?: string): string
   const base = `/agents/${encodeURIComponent(qualifiedName)}/chat`;
   return sessionId ? `${base}/${encodeURIComponent(sessionId)}` : base;
 }
+
+/** Route path for the All Chats page. */
+export function allChatsPath(): string {
+  return "/chats";
+}
+
+/** Route path for viewing a read-only session by encoded path (for unattributed sessions). */
+export function readOnlySessionPath(encodedPath: string, sessionId: string): string {
+  return `/chats/${encodeURIComponent(encodedPath)}/${encodeURIComponent(sessionId)}`;
+}

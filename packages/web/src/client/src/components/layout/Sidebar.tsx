@@ -11,7 +11,15 @@
  * a flat agent list with no fleet grouping — identical to the pre-composition UI.
  */
 
-import { Briefcase, Calendar, ChevronRight, LayoutDashboard, Pencil, Plus } from "lucide-react";
+import {
+  Briefcase,
+  Calendar,
+  ChevronRight,
+  LayoutDashboard,
+  MessagesSquare,
+  Pencil,
+  Plus,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { getAgentAvatar } from "../../lib/avatar";
@@ -826,6 +834,13 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
             icon={<Calendar className="w-4 h-4" />}
             label="Schedules"
             isActive={location.pathname === "/schedules"}
+            onNavigate={onNavigate}
+          />
+          <NavItem
+            to="/chats"
+            icon={<MessagesSquare className="w-4 h-4" />}
+            label="All Chats"
+            isActive={location.pathname === "/chats" || location.pathname.startsWith("/chats/")}
             onNavigate={onNavigate}
           />
         </div>

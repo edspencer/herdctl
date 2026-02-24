@@ -441,3 +441,49 @@ export interface ChatSendMessage {
     message: string;
   };
 }
+
+// =============================================================================
+// All Chats Types
+// =============================================================================
+
+/**
+ * A chat session discovered on the machine, potentially without a fleet agent association.
+ * Used by the "All Chats" page to display sessions grouped by working directory.
+ */
+export interface DiscoveredSession {
+  sessionId: string;
+  workingDirectory: string;
+  mtime: string;
+  origin: SessionOrigin;
+  agentName: string | undefined;
+  resumable: boolean;
+  customName: string | undefined;
+  preview: string | undefined;
+}
+
+/**
+ * A group of sessions sharing the same working directory.
+ * The API returns sessions grouped this way for efficient display.
+ */
+export interface DirectoryGroup {
+  workingDirectory: string;
+  encodedPath: string;
+  agentName: string | undefined;
+  sessionCount: number;
+  sessions: DiscoveredSession[];
+}
+
+/**
+ * Response from GET /api/chat/all
+ */
+export interface AllChatsResponse {
+  groups: DirectoryGroup[];
+  totalGroups: number;
+}
+
+/**
+ * Response from GET /api/chat/all/:encodedPath (expanded group)
+ */
+export interface DirectoryGroupExpanded {
+  group: DirectoryGroup;
+}

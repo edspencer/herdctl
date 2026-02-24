@@ -9,7 +9,7 @@ import { MessageSquare, Pencil, Plus, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { formatRelativeTime } from "../../lib/format";
-import { agentChatPath } from "../../lib/paths";
+import { agentChatPath, allChatsPath } from "../../lib/paths";
 import type { AgentInfo, ChatSession } from "../../lib/types";
 import { useChatActions, useChatSessions } from "../../store";
 import { OriginBadge } from "../ui/OriginBadge";
@@ -250,6 +250,16 @@ export function AgentChats({ agent }: AgentChatsProps) {
       <p className="text-[11px] text-herd-muted text-center pt-2">
         {chatSessions.length} {chatSessions.length === 1 ? "conversation" : "conversations"}
       </p>
+
+      {/* All Chats discovery link */}
+      <div className="mt-4 text-center">
+        <Link
+          to={allChatsPath()}
+          className="text-xs text-herd-muted hover:text-herd-fg transition-colors"
+        >
+          View all sessions across this machine
+        </Link>
+      </div>
     </div>
   );
 }

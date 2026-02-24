@@ -7,9 +7,11 @@
 
 import type {
   AgentInfo,
+  AllChatsResponse,
   CancelJobResult,
   ChatMessage,
   ChatSession,
+  DirectoryGroupExpanded,
   FleetStatus,
   ForkJobResult,
   JobSummary,
@@ -394,4 +396,52 @@ export async function renameChatSession(
 export async function fetchRecentSessions(limit = 100): Promise<RecentChatSession[]> {
   const response = await get<{ sessions: RecentChatSession[] }>("/api/chat/recent", { limit });
   return response.sessions;
+}
+
+// =============================================================================
+// All Chats API Functions
+// =============================================================================
+
+/**
+ * Fetch all chat sessions grouped by working directory
+ *
+ * GET /api/chat/all
+ */
+export async function fetchAllSessions(params?: {
+  limit?: number;
+  sessionsPerGroup?: number;
+}): Promise<AllChatsResponse> {
+  return get<AllChatsResponse>(
+    "/api/chat/all",
+    params as Record<string, string | number | undefined>,
+  );
+}
+
+/**
+ * Fetch expanded sessions for a specific directory group
+ *
+ * GET /api/chat/all/:encodedPath
+ */
+export async function fetchDirectoryGroupSessions(
+  encodedPath: string,
+  params?: { limit?: number; offset?: number },
+): Promise<DirectoryGroupExpanded> {
+  return get<DirectoryGroupExpanded>(
+    `/api/chat/all/${encodeURIComponent(encodedPath)}`,
+    params as Record<string, string | number | undefined>,
+  );
+}
+
+/**
+ * Fetch messages for a session by its encoded path (for unattributed sessions)
+ *
+ * GET /api/chat/sessions/by-path/:encodedPath/:sessionId
+ */
+export async function fetchSessionByPath(
+  encodedPath: string,
+  sessionId: string,
+): Promise<ChatSessionDetailResponse> {
+  return get<ChatSessionDetailResponse>(
+    `/api/chat/sessions/by-path/${encodeURIComponent(encodedPath)}/${encodeURIComponent(sessionId)}`,
+  );
 }
