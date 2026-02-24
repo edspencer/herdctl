@@ -81,6 +81,8 @@ export interface AgentAddOptions {
   dryRun?: boolean;
   /** Overwrite existing agent directory */
   force?: boolean;
+  /** Path to config file or directory */
+  config?: string;
 }
 
 export interface AgentRemoveOptions {
@@ -88,6 +90,8 @@ export interface AgentRemoveOptions {
   force?: boolean;
   /** Preserve workspace directory contents */
   keepWorkspace?: boolean;
+  /** Path to config file or directory */
+  config?: string;
 }
 
 // =============================================================================
@@ -275,7 +279,7 @@ function handleKnownError(error: unknown): boolean {
  */
 export async function agentAddCommand(source: string, options: AgentAddOptions): Promise<void> {
   const cwd = process.cwd();
-  const configPath = path.join(cwd, "herdctl.yaml");
+  const configPath = options.config ? path.resolve(options.config) : path.join(cwd, "herdctl.yaml");
   const { dryRun, force, path: customPath } = options;
 
   // Determine target base directory
@@ -456,6 +460,8 @@ async function listFilesRecursive(dir: string, relativePath: string = ""): Promi
 export interface AgentListOptions {
   /** Output as JSON for scripting */
   json?: boolean;
+  /** Path to config file or directory */
+  config?: string;
 }
 
 /**
@@ -663,7 +669,7 @@ function configHasSubFleets(configPath: string): boolean {
  */
 export async function agentListCommand(options: AgentListOptions): Promise<void> {
   const cwd = process.cwd();
-  const configPath = path.join(cwd, "herdctl.yaml");
+  const configPath = options.config ? path.resolve(options.config) : path.join(cwd, "herdctl.yaml");
 
   // Check if this fleet has sub-fleets for the tree view
   const hasSubFleets = configHasSubFleets(configPath);
@@ -792,6 +798,8 @@ export async function agentListCommand(options: AgentListOptions): Promise<void>
 export interface AgentInfoOptions {
   /** Output as JSON for scripting */
   json?: boolean;
+  /** Path to config file or directory */
+  config?: string;
 }
 
 /**
@@ -809,7 +817,7 @@ export interface AgentInfoOptions {
  */
 export async function agentInfoCommand(name: string, options: AgentInfoOptions): Promise<void> {
   const cwd = process.cwd();
-  const configPath = path.join(cwd, "herdctl.yaml");
+  const configPath = options.config ? path.resolve(options.config) : path.join(cwd, "herdctl.yaml");
 
   try {
     const info = await getAgentInfo({ name, configPath });
@@ -964,7 +972,7 @@ function formatScheduleDescription(config: unknown): string {
  */
 export async function agentRemoveCommand(name: string, options: AgentRemoveOptions): Promise<void> {
   const cwd = process.cwd();
-  const configPath = path.join(cwd, "herdctl.yaml");
+  const configPath = options.config ? path.resolve(options.config) : path.join(cwd, "herdctl.yaml");
   const { keepWorkspace = false } = options;
 
   try {

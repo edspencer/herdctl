@@ -126,7 +126,10 @@ initCmd
   });
 
 // Agent management command group
-const agentCmd = program.command("agent").description("Manage installed agents");
+const agentCmd = program
+  .command("agent")
+  .description("Manage installed agents")
+  .option("-c, --config <path>", "Path to config file or directory");
 
 agentCmd
   .command("add <source>")
@@ -134,9 +137,10 @@ agentCmd
   .option("--path <path>", "Override installation directory")
   .option("--dry-run", "Preview changes without installing")
   .option("-f, --force", "Overwrite existing agent directory")
-  .action(async (source, options) => {
+  .action(async (source, options, command) => {
     try {
-      await agentAddCommand(source, options);
+      const parentOpts = command.parent?.opts() ?? {};
+      await agentAddCommand(source, { ...options, config: parentOpts.config });
     } catch (error) {
       if (error instanceof Error && error.message.includes("User force closed")) {
         console.log("\nAborted.");
@@ -150,9 +154,10 @@ agentCmd
   .command("list")
   .description("List all agents in the fleet")
   .option("--json", "Output as JSON for scripting")
-  .action(async (options) => {
+  .action(async (options, command) => {
     try {
-      await agentListCommand(options);
+      const parentOpts = command.parent?.opts() ?? {};
+      await agentListCommand({ ...options, config: parentOpts.config });
     } catch (error) {
       if (error instanceof Error && error.message.includes("User force closed")) {
         console.log("\nAborted.");
@@ -166,9 +171,10 @@ agentCmd
   .command("info <name>")
   .description("Show detailed information about an agent")
   .option("--json", "Output as JSON for scripting")
-  .action(async (name, options) => {
+  .action(async (name, options, command) => {
     try {
-      await agentInfoCommand(name, options);
+      const parentOpts = command.parent?.opts() ?? {};
+      await agentInfoCommand(name, { ...options, config: parentOpts.config });
     } catch (error) {
       if (error instanceof Error && error.message.includes("User force closed")) {
         console.log("\nAborted.");
@@ -183,9 +189,10 @@ agentCmd
   .description("Remove an installed agent from the fleet")
   .option("-f, --force", "Skip confirmation (reserved for future use)")
   .option("--keep-workspace", "Preserve the workspace directory")
-  .action(async (name, options) => {
+  .action(async (name, options, command) => {
     try {
-      await agentRemoveCommand(name, options);
+      const parentOpts = command.parent?.opts() ?? {};
+      await agentRemoveCommand(name, { ...options, config: parentOpts.config });
     } catch (error) {
       if (error instanceof Error && error.message.includes("User force closed")) {
         console.log("\nAborted.");
