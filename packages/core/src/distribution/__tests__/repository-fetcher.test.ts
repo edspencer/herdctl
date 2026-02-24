@@ -54,8 +54,6 @@ import {
   type LocalFetchSource,
   LocalPathError,
   NetworkError,
-  type RegistryFetchSource,
-  RegistryNotImplementedError,
   RepositoryFetchError,
   type RepositoryFetchResult,
 } from "../repository-fetcher.js";
@@ -430,28 +428,6 @@ describe("fetchRepository", () => {
   });
 
   // ===========================================================================
-  // Registry Source Tests
-  // ===========================================================================
-
-  describe("Registry source", () => {
-    const source: RegistryFetchSource = {
-      type: "registry",
-      name: "competitive-analysis",
-    };
-
-    it("throws RegistryNotImplementedError", async () => {
-      await expect(fetchRepository(source)).rejects.toThrow(RegistryNotImplementedError);
-      await expect(fetchRepository(source)).rejects.toThrow(/not yet implemented/);
-      await expect(fetchRepository(source)).rejects.toThrow(/competitive-analysis/);
-    });
-
-    it("suggests using GitHub or local source", async () => {
-      await expect(fetchRepository(source)).rejects.toThrow(/GitHub source/);
-      await expect(fetchRepository(source)).rejects.toThrow(/local path/);
-    });
-  });
-
-  // ===========================================================================
   // RepositoryFetchResult Type Tests
   // ===========================================================================
 
@@ -551,14 +527,6 @@ describe("fetchRepository", () => {
 
       expect(error).toBeInstanceOf(RepositoryFetchError);
       expect(error.name).toBe("LocalPathError");
-    });
-
-    it("RegistryNotImplementedError extends RepositoryFetchError", () => {
-      const source: RegistryFetchSource = { type: "registry", name: "test" };
-      const error = new RegistryNotImplementedError(source);
-
-      expect(error).toBeInstanceOf(RepositoryFetchError);
-      expect(error.name).toBe("RegistryNotImplementedError");
     });
   });
 });

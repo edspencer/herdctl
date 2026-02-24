@@ -12,7 +12,7 @@ describe("SourceTypeSchema", () => {
   it("accepts valid source types", () => {
     expect(SourceTypeSchema.parse("github")).toBe("github");
     expect(SourceTypeSchema.parse("local")).toBe("local");
-    expect(SourceTypeSchema.parse("registry")).toBe("registry");
+    expect(() => SourceTypeSchema.parse("registry")).toThrow();
   });
 
   it("rejects invalid source types", () => {
@@ -99,15 +99,13 @@ describe("InstallationSourceSchema", () => {
     });
   });
 
-  it("accepts registry source type", () => {
-    const result = InstallationSourceSchema.parse({
-      type: "registry",
-      version: "2.0.0",
-    });
-    expect(result).toEqual({
-      type: "registry",
-      version: "2.0.0",
-    });
+  it("rejects registry source type", () => {
+    expect(() =>
+      InstallationSourceSchema.parse({
+        type: "registry",
+        version: "2.0.0",
+      }),
+    ).toThrow();
   });
 
   it("rejects source without type", () => {
@@ -206,21 +204,6 @@ describe("InstallationMetadataSchema", () => {
       const result = InstallationMetadataSchema.parse(metadata);
       expect(result.source.type).toBe("local");
       expect(result.source.url).toBe("./agents/my-custom-agent");
-    });
-
-    it("accepts registry source with version", () => {
-      const metadata = {
-        source: {
-          type: "registry",
-          version: "1.2.3",
-        },
-        installed_at: "2024-01-15T10:30:00Z",
-        installed_by: "herdctl@1.0.0",
-      };
-
-      const result = InstallationMetadataSchema.parse(metadata);
-      expect(result.source.type).toBe("registry");
-      expect(result.source.version).toBe("1.2.3");
     });
   });
 
@@ -373,8 +356,8 @@ describe("InstallationMetadataSchema", () => {
     });
 
     it("correctly infers SourceType union", () => {
-      const types: SourceType[] = ["github", "local", "registry"];
-      expect(types).toHaveLength(3);
+      const types: SourceType[] = ["github", "local"];
+      expect(types).toHaveLength(2);
     });
   });
 });

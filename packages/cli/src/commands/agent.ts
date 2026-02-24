@@ -46,12 +46,10 @@ import {
   installAgentFiles,
   isGitHubSource,
   isLocalSource,
-  isRegistrySource,
   LocalPathError,
   NetworkError,
   // Source parsing
   parseSourceSpecifier,
-  RegistryNotImplementedError,
   RepositoryFetchError,
   removeAgent,
   SourceParseError,
@@ -110,13 +108,6 @@ function toFetchSource(specifier: SourceSpecifier): FetchSource {
     };
   }
 
-  if (isRegistrySource(specifier)) {
-    return {
-      type: "registry",
-      name: specifier.name,
-    };
-  }
-
   // TypeScript exhaustiveness check
   const _exhaustive: never = specifier;
   throw new Error(`Unknown source type: ${(_exhaustive as SourceSpecifier).type}`);
@@ -138,13 +129,6 @@ function toInstallationSource(specifier: SourceSpecifier): InstallationSource {
     return {
       type: "local",
       url: specifier.path,
-    };
-  }
-
-  if (isRegistrySource(specifier)) {
-    return {
-      type: "registry",
-      url: specifier.name,
     };
   }
 
@@ -238,11 +222,6 @@ function handleKnownError(error: unknown): boolean {
 
   if (error instanceof LocalPathError) {
     logger.error(`Local path error: ${error.message}`);
-    return true;
-  }
-
-  if (error instanceof RegistryNotImplementedError) {
-    logger.error(`Registry not available: ${error.message}`);
     return true;
   }
 

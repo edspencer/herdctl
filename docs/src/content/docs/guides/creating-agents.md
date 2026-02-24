@@ -22,7 +22,7 @@ my-agent/
 ```
 my-agent/
   agent.yaml           # Required: herdctl agent configuration
-  herdctl.json         # Optional: metadata for registry listing
+  herdctl.json         # Optional: agent metadata and requirements
   CLAUDE.md            # Optional: agent instructions for Claude
   README.md            # Recommended: documentation
   LICENSE              # Recommended: license file

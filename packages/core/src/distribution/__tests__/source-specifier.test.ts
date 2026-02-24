@@ -10,10 +10,8 @@ import {
   type GitHubSource,
   isGitHubSource,
   isLocalSource,
-  isRegistrySource,
   type LocalSource,
   parseSourceSpecifier,
-  type RegistrySource,
   SourceParseError,
   type SourceSpecifier,
   stringifySourceSpecifier,
@@ -358,110 +356,92 @@ describe("parseSourceSpecifier - Local sources", () => {
 });
 
 // =============================================================================
-// Registry Source Tests
+// GitHub Shorthand Tests
 // =============================================================================
 
-describe("parseSourceSpecifier - Registry sources", () => {
-  describe("valid bare names", () => {
-    it("should parse simple bare name", () => {
-      const result = parseSourceSpecifier("competitive-analysis");
+describe("parseSourceSpecifier - GitHub shorthand", () => {
+  describe("valid owner/repo shorthand", () => {
+    it("should parse owner/repo as GitHub source", () => {
+      const result = parseSourceSpecifier("user/repo");
 
-      expect(result.type).toBe("registry");
-      expect(isRegistrySource(result)).toBe(true);
-      if (isRegistrySource(result)) {
-        expect(result.name).toBe("competitive-analysis");
+      expect(result.type).toBe("github");
+      expect(isGitHubSource(result)).toBe(true);
+      if (isGitHubSource(result)) {
+        expect(result.owner).toBe("user");
+        expect(result.repo).toBe("repo");
+        expect(result.ref).toBeUndefined();
       }
     });
 
-    it("should parse bare name with underscores", () => {
-      const result = parseSourceSpecifier("website_monitor");
+    it("should parse owner/repo with ref", () => {
+      const result = parseSourceSpecifier("user/repo@v1.0.0");
 
-      expect(result.type).toBe("registry");
-      if (isRegistrySource(result)) {
-        expect(result.name).toBe("website_monitor");
+      expect(result.type).toBe("github");
+      if (isGitHubSource(result)) {
+        expect(result.owner).toBe("user");
+        expect(result.repo).toBe("repo");
+        expect(result.ref).toBe("v1.0.0");
       }
     });
 
-    it("should parse bare name with mixed case", () => {
-      const result = parseSourceSpecifier("MyAgent");
+    it("should parse owner/repo with branch ref", () => {
+      const result = parseSourceSpecifier("user/repo@main");
 
-      expect(result.type).toBe("registry");
-      if (isRegistrySource(result)) {
-        expect(result.name).toBe("MyAgent");
+      expect(result.type).toBe("github");
+      if (isGitHubSource(result)) {
+        expect(result.owner).toBe("user");
+        expect(result.repo).toBe("repo");
+        expect(result.ref).toBe("main");
       }
     });
 
-    it("should parse bare name starting with number", () => {
-      const result = parseSourceSpecifier("1password-agent");
+    it("should parse org/repo with hyphens", () => {
+      const result = parseSourceSpecifier("herdctl-examples/website-monitor-agent");
 
-      expect(result.type).toBe("registry");
-      if (isRegistrySource(result)) {
-        expect(result.name).toBe("1password-agent");
+      expect(result.type).toBe("github");
+      if (isGitHubSource(result)) {
+        expect(result.owner).toBe("herdctl-examples");
+        expect(result.repo).toBe("website-monitor-agent");
       }
     });
 
-    it("should parse single character name", () => {
-      const result = parseSourceSpecifier("a");
+    it("should parse owner/repo with underscores", () => {
+      const result = parseSourceSpecifier("my_org/my_repo");
 
-      expect(result.type).toBe("registry");
-      if (isRegistrySource(result)) {
-        expect(result.name).toBe("a");
+      expect(result.type).toBe("github");
+      if (isGitHubSource(result)) {
+        expect(result.owner).toBe("my_org");
+        expect(result.repo).toBe("my_repo");
       }
     });
 
-    it("should parse single digit name", () => {
-      const result = parseSourceSpecifier("1");
+    it("should be equivalent to github: prefix form", () => {
+      const shorthand = parseSourceSpecifier("user/repo@v1.0.0");
+      const explicit = parseSourceSpecifier("github:user/repo@v1.0.0");
 
-      expect(result.type).toBe("registry");
-      if (isRegistrySource(result)) {
-        expect(result.name).toBe("1");
-      }
-    });
-
-    it("should parse name with mixed hyphens and underscores", () => {
-      const result = parseSourceSpecifier("my-agent_v2");
-
-      expect(result.type).toBe("registry");
-      if (isRegistrySource(result)) {
-        expect(result.name).toBe("my-agent_v2");
-      }
+      expect(shorthand).toEqual(explicit);
     });
   });
 
-  describe("invalid registry names", () => {
-    it("should throw for name starting with hyphen", () => {
-      expect(() => parseSourceSpecifier("-invalid-name")).toThrow(SourceParseError);
-      expect(() => parseSourceSpecifier("-invalid-name")).toThrow(
-        "must start with a letter or number",
+  describe("unrecognized bare names", () => {
+    it("should throw for bare name without slash", () => {
+      expect(() => parseSourceSpecifier("competitive-analysis")).toThrow(SourceParseError);
+      expect(() => parseSourceSpecifier("competitive-analysis")).toThrow(
+        "Unrecognized source format",
       );
     });
 
-    it("should throw for name starting with underscore", () => {
-      expect(() => parseSourceSpecifier("_invalid-name")).toThrow(SourceParseError);
-      expect(() => parseSourceSpecifier("_invalid-name")).toThrow(
-        "must start with a letter or number",
-      );
+    it("should throw for single word", () => {
+      expect(() => parseSourceSpecifier("myagent")).toThrow(SourceParseError);
+      expect(() => parseSourceSpecifier("myagent")).toThrow("Unrecognized source format");
     });
 
-    it("should throw for name containing spaces", () => {
-      expect(() => parseSourceSpecifier("invalid name")).toThrow(SourceParseError);
-    });
-
-    it("should throw for name containing dots", () => {
-      expect(() => parseSourceSpecifier("invalid.name")).toThrow(SourceParseError);
-    });
-
-    it("should throw for name containing special characters", () => {
+    it("should throw for name with special characters", () => {
       expect(() => parseSourceSpecifier("invalid!name")).toThrow(SourceParseError);
       expect(() => parseSourceSpecifier("invalid@name")).toThrow(SourceParseError);
-      expect(() => parseSourceSpecifier("invalid#name")).toThrow(SourceParseError);
-      expect(() => parseSourceSpecifier("invalid$name")).toThrow(SourceParseError);
-      expect(() => parseSourceSpecifier("invalid%name")).toThrow(SourceParseError);
     });
 
-    it("should throw for name containing slashes", () => {
-      // Note: forward slash triggers local path detection or github detection
-      // This tests a case that doesn't match either pattern
+    it("should throw for backslash-separated names", () => {
       expect(() => parseSourceSpecifier("invalid\\name")).toThrow(SourceParseError);
     });
   });
@@ -520,13 +500,13 @@ describe("Type guards", () => {
       expect(isGitHubSource(specifier)).toBe(true);
     });
 
-    it("should return false for local source", () => {
-      const specifier = parseSourceSpecifier("./local/path");
-      expect(isGitHubSource(specifier)).toBe(false);
+    it("should return true for GitHub shorthand", () => {
+      const specifier = parseSourceSpecifier("user/repo");
+      expect(isGitHubSource(specifier)).toBe(true);
     });
 
-    it("should return false for registry source", () => {
-      const specifier = parseSourceSpecifier("my-agent");
+    it("should return false for local source", () => {
+      const specifier = parseSourceSpecifier("./local/path");
       expect(isGitHubSource(specifier)).toBe(false);
     });
   });
@@ -542,26 +522,9 @@ describe("Type guards", () => {
       expect(isLocalSource(specifier)).toBe(false);
     });
 
-    it("should return false for registry source", () => {
-      const specifier = parseSourceSpecifier("my-agent");
+    it("should return false for GitHub shorthand", () => {
+      const specifier = parseSourceSpecifier("user/repo");
       expect(isLocalSource(specifier)).toBe(false);
-    });
-  });
-
-  describe("isRegistrySource", () => {
-    it("should return true for registry source", () => {
-      const specifier = parseSourceSpecifier("my-agent");
-      expect(isRegistrySource(specifier)).toBe(true);
-    });
-
-    it("should return false for GitHub source", () => {
-      const specifier = parseSourceSpecifier("github:user/repo");
-      expect(isRegistrySource(specifier)).toBe(false);
-    });
-
-    it("should return false for local source", () => {
-      const specifier = parseSourceSpecifier("./local/path");
-      expect(isRegistrySource(specifier)).toBe(false);
     });
   });
 });
@@ -616,17 +579,6 @@ describe("stringifySourceSpecifier", () => {
     });
   });
 
-  describe("Registry sources", () => {
-    it("should stringify registry source", () => {
-      const specifier: RegistrySource = {
-        type: "registry",
-        name: "competitive-analysis",
-      };
-
-      expect(stringifySourceSpecifier(specifier)).toBe("competitive-analysis");
-    });
-  });
-
   describe("Round-trip", () => {
     it("should round-trip GitHub source", () => {
       const original = "github:user/repo@v1.0.0";
@@ -636,12 +588,12 @@ describe("stringifySourceSpecifier", () => {
       expect(stringified).toBe(original);
     });
 
-    it("should round-trip registry source", () => {
-      const original = "competitive-analysis";
-      const parsed = parseSourceSpecifier(original);
+    it("should round-trip GitHub shorthand via explicit form", () => {
+      const parsed = parseSourceSpecifier("user/repo@v1.0.0");
       const stringified = stringifySourceSpecifier(parsed);
 
-      expect(stringified).toBe(original);
+      // Shorthand round-trips to the explicit github: form
+      expect(stringified).toBe("github:user/repo@v1.0.0");
     });
 
     // Note: Local paths don't round-trip exactly because they're resolved to absolute
@@ -698,19 +650,6 @@ describe("SourceSpecifier types", () => {
     expect(_path).toBe("/some/path");
   });
 
-  it("should have correct type structure for RegistrySource", () => {
-    const specifier: RegistrySource = {
-      type: "registry",
-      name: "my-agent",
-    };
-
-    const _type: "registry" = specifier.type;
-    const _name: string = specifier.name;
-
-    expect(_type).toBe("registry");
-    expect(_name).toBe("my-agent");
-  });
-
   it("should allow discrimination via type field", () => {
     const specifier: SourceSpecifier = parseSourceSpecifier("github:user/repo");
 
@@ -723,10 +662,6 @@ describe("SourceSpecifier types", () => {
       case "local":
         // TypeScript knows specifier.path exists here
         expect(specifier.path).toBeDefined();
-        break;
-      case "registry":
-        // TypeScript knows specifier.name exists here
-        expect(specifier.name).toBeDefined();
         break;
     }
   });

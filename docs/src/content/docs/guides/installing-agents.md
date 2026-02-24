@@ -19,6 +19,12 @@ You can install agents from two sources:
 The most common way to install an agent is from a GitHub repository:
 
 ```bash
+herdctl agent add user/repo
+```
+
+You can also use the explicit `github:` prefix, which is equivalent:
+
+```bash
 herdctl agent add github:user/repo
 ```
 

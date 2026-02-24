@@ -19,9 +19,8 @@ import { z } from "zod";
  *
  * - `github`: Installed from a GitHub repository
  * - `local`: Installed from a local filesystem path
- * - `registry`: Installed from the herdctl registry (future)
  */
-export const SourceTypeSchema = z.enum(["github", "local", "registry"]);
+export const SourceTypeSchema = z.enum(["github", "local"]);
 
 /** Union type of valid source types */
 export type SourceType = z.infer<typeof SourceTypeSchema>;
@@ -42,7 +41,7 @@ export type SourceType = z.infer<typeof SourceTypeSchema>;
  */
 export const InstallationSourceSchema = z
   .object({
-    /** The type of source (github, local, registry) */
+    /** The type of source (github or local) */
     type: SourceTypeSchema,
 
     /** The original source URL or path */

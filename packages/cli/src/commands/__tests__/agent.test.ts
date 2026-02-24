@@ -26,8 +26,6 @@ vi.mock("@herdctl/core", () => ({
   },
   isGitHubSource: vi.fn(),
   isLocalSource: vi.fn(),
-  isRegistrySource: vi.fn(),
-
   // Repository fetching
   fetchRepository: vi.fn(),
   RepositoryFetchError: class RepositoryFetchError extends Error {
@@ -72,15 +70,6 @@ vi.mock("@herdctl/core", () => ({
       this.source = source;
     }
   },
-  RegistryNotImplementedError: class RegistryNotImplementedError extends Error {
-    source: unknown;
-    constructor(source: unknown) {
-      super("Registry not implemented");
-      this.name = "RegistryNotImplementedError";
-      this.source = source;
-    }
-  },
-
   // Repository validation
   validateRepository: vi.fn(),
 
@@ -153,11 +142,9 @@ import {
   installAgentFiles,
   isGitHubSource,
   isLocalSource,
-  isRegistrySource,
   LocalPathError,
   NetworkError,
   parseSourceSpecifier,
-  RegistryNotImplementedError,
   RepositoryFetchError,
   removeAgent,
   SourceParseError,
@@ -177,7 +164,6 @@ const mockedParseSourceSpecifier = vi.mocked(parseSourceSpecifier);
 const mockedStringifySourceSpecifier = vi.mocked(stringifySourceSpecifier);
 const mockedIsGitHubSource = vi.mocked(isGitHubSource);
 const mockedIsLocalSource = vi.mocked(isLocalSource);
-const mockedIsRegistrySource = vi.mocked(isRegistrySource);
 const mockedFetchRepository = vi.mocked(fetchRepository);
 const mockedValidateRepository = vi.mocked(validateRepository);
 const mockedInstallAgentFiles = vi.mocked(installAgentFiles);
@@ -289,7 +275,6 @@ describe("agentAddCommand", () => {
     mockedStringifySourceSpecifier.mockReturnValue("github:user/repo@v1.0.0");
     mockedIsGitHubSource.mockReturnValue(true);
     mockedIsLocalSource.mockReturnValue(false);
-    mockedIsRegistrySource.mockReturnValue(false);
 
     mockedFetchRepository.mockResolvedValue({
       path: fetchedRepoDir,
@@ -346,7 +331,6 @@ describe("agentAddCommand", () => {
     mockedStringifySourceSpecifier.mockReturnValue(fetchedRepoDir);
     mockedIsGitHubSource.mockReturnValue(false);
     mockedIsLocalSource.mockReturnValue(true);
-    mockedIsRegistrySource.mockReturnValue(false);
 
     mockedFetchRepository.mockResolvedValue({
       path: fetchedRepoDir,
@@ -480,7 +464,6 @@ describe("agentAddCommand", () => {
       mockedStringifySourceSpecifier.mockReturnValue("github:user/repo");
       mockedIsGitHubSource.mockReturnValue(true);
       mockedIsLocalSource.mockReturnValue(false);
-      mockedIsRegistrySource.mockReturnValue(false);
 
       mockedFetchRepository.mockRejectedValue(
         new RepositoryFetchError("Clone failed", { type: "github", owner: "user", repo: "repo" }),
@@ -502,7 +485,6 @@ describe("agentAddCommand", () => {
       mockedStringifySourceSpecifier.mockReturnValue("github:user/private-repo");
       mockedIsGitHubSource.mockReturnValue(true);
       mockedIsLocalSource.mockReturnValue(false);
-      mockedIsRegistrySource.mockReturnValue(false);
 
       mockedFetchRepository.mockRejectedValue(
         new GitHubCloneAuthError({ type: "github", owner: "user", repo: "private-repo" }),
@@ -524,7 +506,6 @@ describe("agentAddCommand", () => {
       mockedStringifySourceSpecifier.mockReturnValue("github:user/nonexistent");
       mockedIsGitHubSource.mockReturnValue(true);
       mockedIsLocalSource.mockReturnValue(false);
-      mockedIsRegistrySource.mockReturnValue(false);
 
       mockedFetchRepository.mockRejectedValue(
         new GitHubRepoNotFoundError({ type: "github", owner: "user", repo: "nonexistent" }),
@@ -548,7 +529,6 @@ describe("agentAddCommand", () => {
       mockedStringifySourceSpecifier.mockReturnValue("github:user/repo");
       mockedIsGitHubSource.mockReturnValue(true);
       mockedIsLocalSource.mockReturnValue(false);
-      mockedIsRegistrySource.mockReturnValue(false);
 
       mockedFetchRepository.mockResolvedValue({
         path: fetchedRepoDir,
@@ -590,7 +570,6 @@ describe("agentAddCommand", () => {
       mockedStringifySourceSpecifier.mockReturnValue("github:user/repo");
       mockedIsGitHubSource.mockReturnValue(true);
       mockedIsLocalSource.mockReturnValue(false);
-      mockedIsRegistrySource.mockReturnValue(false);
 
       mockedFetchRepository.mockResolvedValue({
         path: fetchedRepoDir,
@@ -655,7 +634,6 @@ describe("agentAddCommand", () => {
       mockedStringifySourceSpecifier.mockReturnValue("github:user/repo");
       mockedIsGitHubSource.mockReturnValue(true);
       mockedIsLocalSource.mockReturnValue(false);
-      mockedIsRegistrySource.mockReturnValue(false);
 
       mockedFetchRepository.mockResolvedValue({
         path: fetchedRepoDir,

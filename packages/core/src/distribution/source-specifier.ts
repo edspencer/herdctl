@@ -4,28 +4,28 @@
  * Parses source strings into structured specifier objects for agent distribution.
  *
  * Supported formats:
- * - `github:user/repo` → GitHub source
+ * - `github:user/repo` → GitHub source (explicit prefix)
  * - `github:user/repo@v1.0.0` → GitHub source with tag/branch/commit ref
+ * - `user/repo` → GitHub source (shorthand, equivalent to `github:user/repo`)
+ * - `user/repo@v1.0.0` → GitHub source shorthand with ref
  * - `./local/path` or `../path` or `/absolute/path` → Local source
- * - `bare-name` → Registry source (bare names without prefix)
  *
  * @example
  * ```typescript
  * const specifier = parseSourceSpecifier("github:user/repo@v1.0.0");
  * // { type: 'github', owner: 'user', repo: 'repo', ref: 'v1.0.0' }
  *
+ * const shorthand = parseSourceSpecifier("user/repo");
+ * // { type: 'github', owner: 'user', repo: 'repo' }
+ *
  * const local = parseSourceSpecifier("./my-agents/custom");
  * // { type: 'local', path: '/resolved/absolute/path/my-agents/custom' }
- *
- * const registry = parseSourceSpecifier("competitive-analysis");
- * // { type: 'registry', name: 'competitive-analysis' }
  * ```
  */
 
 import * as path from "path";
 
 import { FleetManagerError } from "../fleet-manager/errors.js";
-import { AGENT_NAME_PATTERN } from "./agent-repo-metadata.js";
 
 // =============================================================================
 // Types
@@ -56,19 +56,9 @@ export interface LocalSource {
 }
 
 /**
- * Registry source specifier.
- * References an agent by name in the herdctl registry.
- */
-export interface RegistrySource {
-  type: "registry";
-  /** Agent name in the registry */
-  name: string;
-}
-
-/**
  * Union type for all source specifier variants.
  */
-export type SourceSpecifier = GitHubSource | LocalSource | RegistrySource;
+export type SourceSpecifier = GitHubSource | LocalSource;
 
 // =============================================================================
 // Error Class
@@ -225,28 +215,6 @@ function parseLocalSource(pathStr: string): LocalSource {
 }
 
 /**
- * Validates and parses a registry source specifier (bare name).
- *
- * @param name - The bare agent name
- * @param source - Original source string for error context
- * @returns Parsed RegistrySource
- * @throws SourceParseError if the name is invalid
- */
-function parseRegistrySource(name: string, source: string): RegistrySource {
-  if (!AGENT_NAME_PATTERN.test(name)) {
-    throw new SourceParseError(
-      `Invalid registry agent name "${name}". Agent names must start with a letter or number and contain only letters, numbers, underscores, and hyphens.`,
-      source,
-    );
-  }
-
-  return {
-    type: "registry",
-    name,
-  };
-}
-
-/**
  * Determines if a source string represents a local path.
  *
  * @param source - The source string to check
@@ -282,9 +250,9 @@ function isLocalPath(source: string): boolean {
  * parseSourceSpecifier("./local/path")
  * // { type: 'local', path: '/resolved/absolute/path' }
  *
- * // Registry sources
- * parseSourceSpecifier("competitive-analysis")
- * // { type: 'registry', name: 'competitive-analysis' }
+ * // GitHub shorthand
+ * parseSourceSpecifier("user/repo")
+ * // { type: 'github', owner: 'user', repo: 'repo' }
  * ```
  */
 export function parseSourceSpecifier(source: string): SourceSpecifier {
@@ -309,8 +277,17 @@ export function parseSourceSpecifier(source: string): SourceSpecifier {
     return parseLocalSource(trimmed);
   }
 
-  // Otherwise, treat as registry source (bare name)
-  return parseRegistrySource(trimmed, source);
+  // Check for GitHub shorthand (owner/repo or owner/repo@ref)
+  // A bare string containing "/" that isn't a local path is treated as GitHub shorthand
+  const slashCount = (trimmed.match(/\//g) || []).length;
+  if (slashCount === 1) {
+    return parseGitHubSource(trimmed, source);
+  }
+
+  throw new SourceParseError(
+    `Unrecognized source format "${source}". Use "owner/repo", "github:owner/repo", or a local path (./path, ../path, /path).`,
+    source,
+  );
 }
 
 // =============================================================================
@@ -329,13 +306,6 @@ export function isGitHubSource(specifier: SourceSpecifier): specifier is GitHubS
  */
 export function isLocalSource(specifier: SourceSpecifier): specifier is LocalSource {
   return specifier.type === "local";
-}
-
-/**
- * Type guard for RegistrySource.
- */
-export function isRegistrySource(specifier: SourceSpecifier): specifier is RegistrySource {
-  return specifier.type === "registry";
 }
 
 // =============================================================================
@@ -365,7 +335,5 @@ export function stringifySourceSpecifier(specifier: SourceSpecifier): string {
     }
     case "local":
       return specifier.path;
-    case "registry":
-      return specifier.name;
   }
 }

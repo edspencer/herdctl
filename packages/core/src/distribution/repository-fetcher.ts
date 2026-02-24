@@ -39,17 +39,9 @@ export interface LocalFetchSource {
 }
 
 /**
- * Registry source specifier (not yet implemented)
- */
-export interface RegistryFetchSource {
-  type: "registry";
-  name: string;
-}
-
-/**
  * Union of all fetch source types
  */
-export type FetchSource = GitHubFetchSource | LocalFetchSource | RegistryFetchSource;
+export type FetchSource = GitHubFetchSource | LocalFetchSource;
 
 /**
  * Result of fetching a repository
@@ -138,21 +130,6 @@ export class LocalPathError extends RepositoryFetchError {
   constructor(source: LocalFetchSource, reason: string, cause?: Error) {
     super(`Local source error for "${source.path}": ${reason}`, source, cause);
     this.name = "LocalPathError";
-  }
-}
-
-/**
- * Error when registry source is used (not yet implemented)
- */
-export class RegistryNotImplementedError extends RepositoryFetchError {
-  constructor(source: RegistryFetchSource) {
-    super(
-      `Registry source is not yet implemented. ` +
-        `Agent "${source.name}" cannot be fetched from the registry at this time. ` +
-        `Use a GitHub source (github:owner/repo) or local path instead.`,
-      source,
-    );
-    this.name = "RegistryNotImplementedError";
   }
 }
 
@@ -320,13 +297,12 @@ async function fetchFromLocal(source: LocalFetchSource): Promise<RepositoryFetch
  * Clones or copies the repository to a temporary directory and returns
  * the path along with a cleanup function.
  *
- * @param source - The source specifier (GitHub, local, or registry)
+ * @param source - The source specifier (GitHub or local)
  * @returns The path to the fetched repository and a cleanup function
  * @throws {GitHubCloneAuthError} When GitHub authentication fails
  * @throws {GitHubRepoNotFoundError} When the GitHub repository doesn't exist
  * @throws {NetworkError} When a network operation fails
  * @throws {LocalPathError} When the local path is invalid
- * @throws {RegistryNotImplementedError} When registry source is used
  *
  * @example
  * ```typescript
@@ -353,9 +329,6 @@ export async function fetchRepository(source: FetchSource): Promise<RepositoryFe
 
     case "local":
       return fetchFromLocal(source);
-
-    case "registry":
-      throw new RegistryNotImplementedError(source);
 
     default: {
       // Exhaustive check
