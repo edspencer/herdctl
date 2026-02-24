@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { getAgentAvatar } from "../../lib/avatar";
 import { formatRelativeTime } from "../../lib/format";
-import { agentChatPath } from "../../lib/paths";
+import { agentChatPath, readOnlySessionPath } from "../../lib/paths";
 import type { RecentChatSession } from "../../lib/types";
 import { OriginBadge } from "../ui/OriginBadge";
 
@@ -46,6 +46,14 @@ export function RecentConversationRow({
   }, [isEditing]);
 
   const conversationName = session.customName || session.preview || "New conversation";
+
+  // Route to agent chat if attributed, or read-only viewer if unattributed
+  const sessionPath =
+    session.agentName && session.agentName.length > 0
+      ? agentChatPath(session.agentName, session.sessionId)
+      : session.encodedPath
+        ? readOnlySessionPath(session.encodedPath, session.sessionId)
+        : null;
 
   const startEditing = () => {
     setIsEditing(true);
@@ -113,33 +121,38 @@ export function RecentConversationRow({
       />
 
       {/* Content area with navigation link */}
-      <Link
-        to={agentChatPath(session.agentName, session.sessionId)}
-        onClick={onNavigate}
-        className="flex-1 min-w-0 flex flex-col"
-      >
-        {/* Conversation name (primary) */}
-        <span className="truncate">{conversationName}</span>
-        {/* Agent name (secondary) */}
-        <span className="text-[11px] text-herd-sidebar-muted truncate">{session.agentName}</span>
-      </Link>
+      {sessionPath ? (
+        <Link to={sessionPath} onClick={onNavigate} className="flex-1 min-w-0 flex flex-col">
+          <span className="truncate">{conversationName}</span>
+          <span className="text-[11px] text-herd-sidebar-muted truncate">
+            {session.agentName || "Unattributed"}
+          </span>
+        </Link>
+      ) : (
+        <div className="flex-1 min-w-0 flex flex-col opacity-60">
+          <span className="truncate">{conversationName}</span>
+          <span className="text-[11px] text-herd-sidebar-muted truncate">Unattributed</span>
+        </div>
+      )}
 
       {/* Origin badge */}
       <OriginBadge origin={session.origin} className="flex-shrink-0" />
 
-      {/* Rename button */}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          startEditing();
-        }}
-        className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-herd-sidebar-active rounded"
-        title="Rename chat"
-      >
-        <Pencil className="w-3 h-3 text-herd-sidebar-muted hover:text-herd-sidebar-fg" />
-      </button>
+      {/* Rename button (only for attributed sessions) */}
+      {session.agentName && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            startEditing();
+          }}
+          className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-herd-sidebar-active rounded"
+          title="Rename chat"
+        >
+          <Pencil className="w-3 h-3 text-herd-sidebar-muted hover:text-herd-sidebar-fg" />
+        </button>
+      )}
 
       {/* Timestamp */}
       <span className="flex-shrink-0 text-herd-sidebar-muted/60 text-[10px]">

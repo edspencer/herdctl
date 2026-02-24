@@ -25,6 +25,57 @@ export function registerChatRoutes(
   chatManager: WebChatManager,
   discoveryService: SessionDiscoveryService,
 ): void {
+  /** Transform a DiscoveredSession into the ChatSession shape the frontend expects */
+  function toFrontendSession(session: {
+    sessionId: string;
+    mtime: string;
+    origin: string;
+    resumable: boolean;
+    customName?: string;
+    preview?: string;
+  }): {
+    sessionId: string;
+    createdAt: string;
+    lastMessageAt: string;
+    messageCount: number;
+    preview: string;
+    customName?: string;
+    origin: string;
+    resumable: boolean;
+  } {
+    return {
+      sessionId: session.sessionId,
+      createdAt: session.mtime,
+      lastMessageAt: session.mtime,
+      messageCount: 0,
+      preview: session.preview ?? "",
+      customName: session.customName,
+      origin: session.origin,
+      resumable: session.resumable,
+    };
+  }
+
+  /** Transform a DiscoveredSession into the RecentChatSession shape (includes agentName) */
+  function toRecentFrontendSession(session: {
+    sessionId: string;
+    mtime: string;
+    origin: string;
+    resumable: boolean;
+    customName?: string;
+    preview?: string;
+    agentName?: string;
+    workingDirectory: string;
+  }): ReturnType<typeof toFrontendSession> & { agentName: string; encodedPath?: string } {
+    return {
+      ...toFrontendSession(session),
+      agentName: session.agentName ?? "",
+      // Include encodedPath for unattributed sessions so frontend can route to read-only view
+      ...(!session.agentName
+        ? { encodedPath: session.workingDirectory.replace(/[/\\]/g, "-") }
+        : {}),
+    };
+  }
+
   /**
    * GET /api/chat/recent
    *
@@ -37,7 +88,7 @@ export function registerChatRoutes(
     const { limit = 100 } = request.query as { limit?: number };
     try {
       const sessions = await chatManager.listAllRecentSessions(limit);
-      return { sessions };
+      return { sessions: sessions.map(toRecentFrontendSession) };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.error("Failed to list recent sessions", { error: message });
@@ -203,7 +254,7 @@ export function registerChatRoutes(
 
     try {
       const sessions = await chatManager.listSessions(agentName);
-      return { sessions };
+      return { sessions: sessions.map(toFrontendSession) };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.error("Failed to list sessions", { error: message, agentName });

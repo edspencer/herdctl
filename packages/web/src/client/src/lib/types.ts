@@ -378,6 +378,8 @@ export interface ChatSession {
  */
 export interface RecentChatSession extends ChatSession {
   agentName: string;
+  /** Encoded working directory path (for routing unattributed sessions to read-only view) */
+  encodedPath?: string;
 }
 
 export interface ChatToolCall {
