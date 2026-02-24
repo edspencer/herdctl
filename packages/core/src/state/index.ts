@@ -84,6 +84,21 @@ export {
   type SessionAttribution,
   type SessionOrigin,
 } from "./session-attribution.js";
+// Re-export session discovery functions
+export {
+  type DirectoryGroup,
+  type DiscoveredSession,
+  type SessionDiscoveryOptions,
+  SessionDiscoveryService,
+} from "./session-discovery.js";
+// Re-export session metadata functions
+export {
+  type SessionMetadataEntry,
+  SessionMetadataEntrySchema,
+  type SessionMetadataFile,
+  SessionMetadataFileSchema,
+  SessionMetadataStore,
+} from "./session-metadata.js";
 // Re-export session validation functions
 export {
   cliSessionFileExists,
