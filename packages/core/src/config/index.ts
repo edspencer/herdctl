@@ -60,6 +60,8 @@ export {
 } from "./parser.js";
 // Schema exports
 export {
+  // Agent name validation pattern
+  AGENT_NAME_PATTERN,
   type AgentChat,
   type AgentChatDiscord,
   AgentChatDiscordSchema,

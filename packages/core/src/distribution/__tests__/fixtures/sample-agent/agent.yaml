@@ -1,0 +1,16 @@
+name: sample-agent
+description: "A sample agent for integration testing"
+runtime: cli
+permission_mode: default
+
+schedules:
+  heartbeat:
+    type: interval
+    interval: 5m
+    prompt: |
+      Check status of ${WEBSITES} and report to ${DISCORD_WEBHOOK_URL}
+
+# Docker enabled must be a literal boolean for schema validation.
+# Env var syntax cannot be used in boolean fields - only in strings.
+docker:
+  enabled: false

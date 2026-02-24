@@ -4,7 +4,9 @@
  * herdctl - Autonomous Agent Fleet Management for Claude Code
  *
  * Commands (PRD 6):
- * - herdctl init              Initialize a new herdctl project
+ * - herdctl init              Initialize fleet or agent (interactive selector)
+ * - herdctl init fleet        Create a new herdctl.yaml fleet configuration
+ * - herdctl init agent [name] Add a new agent to the fleet
  * - herdctl start [agent]     Start all agents or a specific agent
  * - herdctl stop [agent]      Stop all agents or a specific agent
  * - herdctl status [agent]    Show fleet or agent status
@@ -26,14 +28,25 @@
  */
 
 import { createRequire } from "node:module";
+import { createLogger } from "@herdctl/core";
 import { Command } from "commander";
 
 const require = createRequire(import.meta.url);
 const { version: VERSION } = require("../package.json");
 
+const logger = createLogger("cli");
+
+import {
+  agentAddCommand,
+  agentInfoCommand,
+  agentListCommand,
+  agentRemoveCommand,
+} from "./commands/agent.js";
 import { cancelCommand } from "./commands/cancel.js";
 import { configShowCommand, configValidateCommand } from "./commands/config.js";
-import { initCommand } from "./commands/init.js";
+import { initRouterAction } from "./commands/init.js";
+import { initAgentCommand } from "./commands/init-agent.js";
+import { initFleetCommand } from "./commands/init-fleet.js";
 import { jobCommand } from "./commands/job.js";
 import { jobsCommand } from "./commands/jobs.js";
 import { logsCommand } from "./commands/logs.js";
@@ -50,16 +63,136 @@ program
   .description("Autonomous Agent Fleet Management for Claude Code")
   .version(VERSION);
 
-program
+// Init command group
+const initCmd = program
   .command("init")
-  .description("Initialize a new herdctl project")
-  .option("-n, --name <name>", "Fleet name")
-  .option("-e, --example <template>", "Use example template (simple, quickstart, github)")
+  .description("Initialize a new fleet or add an agent")
   .option("-y, --yes", "Accept all defaults without prompting")
+  .option("-f, --force", "Overwrite existing files")
+  .action(async (options) => {
+    try {
+      await initRouterAction(options);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("User force closed")) {
+        console.log("\nAborted.");
+        process.exit(0);
+      }
+      throw error;
+    }
+  });
+
+initCmd
+  .command("fleet")
+  .description("Create a new herdctl.yaml fleet configuration")
+  .option("-n, --name <name>", "Fleet name")
   .option("-f, --force", "Overwrite existing configuration")
   .action(async (options) => {
     try {
-      await initCommand(options);
+      await initFleetCommand(options);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("User force closed")) {
+        console.log("\nAborted.");
+        process.exit(0);
+      }
+      throw error;
+    }
+  });
+
+initCmd
+  .command("agent [name]")
+  .description("Add a new agent to the fleet")
+  .option("-d, --description <desc>", "Agent description")
+  .option(
+    "--permission-mode <mode>",
+    "Permission mode (default, acceptEdits, bypassPermissions, plan, delegate, dontAsk)",
+  )
+  .option("--docker", "Enable Docker isolation")
+  .option("--no-docker", "Disable Docker isolation")
+  .option("--runtime <runtime>", "Runtime backend (sdk or cli)")
+  .option("--discord", "Add Discord chat integration")
+  .option("--slack", "Add Slack chat integration")
+  .option("-y, --yes", "Skip all prompts, use defaults")
+  .option("-f, --force", "Overwrite existing agent file")
+  .action(async (name, options) => {
+    try {
+      await initAgentCommand(name, options);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("User force closed")) {
+        console.log("\nAborted.");
+        process.exit(0);
+      }
+      throw error;
+    }
+  });
+
+// Agent management command group
+const agentCmd = program
+  .command("agent")
+  .description("Manage installed agents")
+  .option("-c, --config <path>", "Path to config file or directory");
+
+agentCmd
+  .command("add <source>")
+  .description("Install an agent from GitHub or a local path")
+  .option("--path <path>", "Override installation directory")
+  .option("--dry-run", "Preview changes without installing")
+  .option("-f, --force", "Overwrite existing agent directory")
+  .action(async (source, options, command) => {
+    try {
+      const parentOpts = command.parent?.opts() ?? {};
+      await agentAddCommand(source, { ...options, config: parentOpts.config });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("User force closed")) {
+        console.log("\nAborted.");
+        process.exit(0);
+      }
+      throw error;
+    }
+  });
+
+agentCmd
+  .command("list")
+  .description("List all agents in the fleet")
+  .option("--json", "Output as JSON for scripting")
+  .action(async (options, command) => {
+    try {
+      const parentOpts = command.parent?.opts() ?? {};
+      await agentListCommand({ ...options, config: parentOpts.config });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("User force closed")) {
+        console.log("\nAborted.");
+        process.exit(0);
+      }
+      throw error;
+    }
+  });
+
+agentCmd
+  .command("info <name>")
+  .description("Show detailed information about an agent")
+  .option("--json", "Output as JSON for scripting")
+  .action(async (name, options, command) => {
+    try {
+      const parentOpts = command.parent?.opts() ?? {};
+      await agentInfoCommand(name, { ...options, config: parentOpts.config });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("User force closed")) {
+        console.log("\nAborted.");
+        process.exit(0);
+      }
+      throw error;
+    }
+  });
+
+agentCmd
+  .command("remove <name>")
+  .description("Remove an installed agent from the fleet")
+  .option("-f, --force", "Skip confirmation (reserved for future use)")
+  .option("--keep-workspace", "Preserve the workspace directory")
+  .action(async (name, options, command) => {
+    try {
+      const parentOpts = command.parent?.opts() ?? {};
+      await agentRemoveCommand(name, { ...options, config: parentOpts.config });
     } catch (error) {
       if (error instanceof Error && error.message.includes("User force closed")) {
         console.log("\nAborted.");
@@ -107,7 +240,7 @@ program
         // Let the process.exit call in stopCommand handle this
         return;
       }
-      console.error("Error:", error instanceof Error ? error.message : String(error));
+      logger.error("Error:", { message: error instanceof Error ? error.message : String(error) });
       process.exit(1);
     }
   });

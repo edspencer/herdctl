@@ -22,8 +22,14 @@
     "@changesets/cli": "^2.29.8",
     "@types/node": "^20",
     "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "turbo": "^2",
     "typescript": "^5"
   },
-  "packageManager": "pnpm@9.0.0"
+  "packageManager": "pnpm@9.0.0",
+  "lint-staged": {
+    "packages/**/*.{ts,tsx,js,jsx,json}": [
+      "biome check --fix --no-errors-on-unmatched"
+    ]
+  }
 }

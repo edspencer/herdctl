@@ -1,0 +1,15 @@
+{
+  "name": "sample-agent",
+  "version": "1.0.0",
+  "description": "A sample agent for integration testing",
+  "author": "herdctl-tests",
+  "license": "MIT",
+  "keywords": ["test"],
+  "requires": {
+    "herdctl": ">=0.1.0",
+    "runtime": "cli",
+    "env": ["WEBSITES", "DISCORD_WEBHOOK_URL"]
+  },
+  "category": "operations",
+  "tags": ["test"]
+}

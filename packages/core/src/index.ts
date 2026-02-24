@@ -20,13 +20,14 @@ export { VERSION };
 
 // Config exports (PRD 1)
 export * from "./config/index.js";
+// Distribution exports (Agent Distribution System)
+export * from "./distribution/index.js";
 // Fleet Manager exports (PRD 7)
 export * from "./fleet-manager/index.js";
 // Hooks exports (Execution Hooks System)
 export * from "./hooks/index.js";
 // Runner exports (PRD 4)
 export * from "./runner/index.js";
-
 // Scheduler exports (PRD 6)
 export * from "./scheduler/index.js";
 // State exports (PRD 2)
