@@ -33,7 +33,7 @@ vi.mock("@herdctl/core", async () => {
       error: vi.fn(),
     })),
     SessionDiscoveryService: vi.fn(),
-    SessionMetadataStore: vi.fn(() => mockStore.metadataStore),
+    SessionMetadataStore: vi.fn().mockImplementation(() => mockStore.metadataStore),
   };
 });
 
@@ -42,7 +42,7 @@ vi.mock("@herdctl/chat", async () => {
   const actual = await vi.importActual("@herdctl/chat");
   return {
     ...actual,
-    ChatSessionManager: vi.fn(() => mockStore.sessionManager),
+    ChatSessionManager: vi.fn().mockImplementation(() => mockStore.sessionManager),
     extractMessageContent: vi.fn((msg) => {
       // Simple implementation for testing
       const content = msg?.message?.content;
@@ -60,7 +60,7 @@ vi.mock("@herdctl/chat", async () => {
 
 import { ChatSessionManager } from "@herdctl/chat";
 // Import after mocks are set up
-import { type DirectoryGroup, type DiscoveredSession, SessionMetadataStore } from "@herdctl/core";
+import type { DirectoryGroup, DiscoveredSession } from "@herdctl/core";
 import { WebChatManager } from "../chat/web-chat-manager.js";
 
 // =============================================================================

@@ -11,20 +11,20 @@
  * Uses herd-* design tokens for styling.
  */
 
-import { Pencil, Trash2, X } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { getAgentAvatar } from "../../lib/avatar";
 import { formatRelativeTime } from "../../lib/format";
 import { agentChatPath } from "../../lib/paths";
 import type { RecentChatSession } from "../../lib/types";
+import { OriginBadge } from "../ui/OriginBadge";
 
 interface RecentConversationRowProps {
   session: RecentChatSession;
   isActive: boolean;
   onNavigate?: () => void;
   onRename: (agentName: string, sessionId: string, name: string) => void;
-  onDelete: (agentName: string, sessionId: string) => Promise<void>;
 }
 
 export function RecentConversationRow({
@@ -32,12 +32,9 @@ export function RecentConversationRow({
   isActive,
   onNavigate,
   onRename,
-  onDelete,
 }: RecentConversationRowProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Auto-focus input when entering edit mode
@@ -66,27 +63,6 @@ export function RecentConversationRow({
   const handleCancel = () => {
     setIsEditing(false);
     setEditValue("");
-  };
-
-  const handleDeleteClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setConfirmDelete(true);
-  };
-
-  const handleConfirmDelete = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDeleting(true);
-    setConfirmDelete(false);
-    await onDelete(session.agentName, session.sessionId);
-    setIsDeleting(false);
-  };
-
-  const handleCancelDelete = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setConfirmDelete(false);
   };
 
   // Edit mode rendering
@@ -122,7 +98,7 @@ export function RecentConversationRow({
   return (
     <div
       className={`group flex items-center gap-2 px-3 py-2 rounded text-sm transition-colors ${
-        isDeleting ? "opacity-50" : ""
+        !session.resumable ? "opacity-60" : ""
       } ${
         isActive
           ? "text-herd-sidebar-fg bg-herd-sidebar-active"
@@ -148,50 +124,22 @@ export function RecentConversationRow({
         <span className="text-[11px] text-herd-sidebar-muted truncate">{session.agentName}</span>
       </Link>
 
-      {/* Action buttons or confirm delete */}
-      {confirmDelete ? (
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <button
-            type="button"
-            onClick={handleCancelDelete}
-            className="p-0.5 hover:bg-herd-sidebar-active rounded"
-            title="Cancel delete"
-          >
-            <X className="w-3 h-3 text-herd-sidebar-muted hover:text-herd-sidebar-fg" />
-          </button>
-          <button
-            type="button"
-            onClick={handleConfirmDelete}
-            className="p-0.5 hover:bg-herd-sidebar-active rounded"
-            title="Confirm delete"
-          >
-            <Trash2 className="w-3 h-3 text-herd-status-error" />
-          </button>
-        </div>
-      ) : (
-        <>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              startEditing();
-            }}
-            className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-herd-sidebar-active rounded"
-            title="Rename chat"
-          >
-            <Pencil className="w-3 h-3 text-herd-sidebar-muted hover:text-herd-sidebar-fg" />
-          </button>
-          <button
-            type="button"
-            onClick={handleDeleteClick}
-            className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-herd-sidebar-active rounded"
-            title="Delete chat"
-          >
-            <Trash2 className="w-3 h-3 text-herd-sidebar-muted hover:text-herd-status-error" />
-          </button>
-        </>
-      )}
+      {/* Origin badge */}
+      <OriginBadge origin={session.origin} className="flex-shrink-0" />
+
+      {/* Rename button */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          startEditing();
+        }}
+        className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-herd-sidebar-active rounded"
+        title="Rename chat"
+      >
+        <Pencil className="w-3 h-3 text-herd-sidebar-muted hover:text-herd-sidebar-fg" />
+      </button>
 
       {/* Timestamp */}
       <span className="flex-shrink-0 text-herd-sidebar-muted/60 text-[10px]">

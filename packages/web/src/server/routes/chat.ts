@@ -176,23 +176,38 @@ export function registerChatRoutes(
   /**
    * GET /api/chat/:agentName/sessions/:sessionId
    *
-   * Get messages for a session.
+   * Get messages and metadata for a session.
    *
-   * @returns { messages: ChatMessage[] }
+   * @returns { messages: ChatMessage[], metadata: SessionMetadata }
    */
   server.get("/api/chat/:agentName/sessions/:sessionId", async (request, reply) => {
     const { agentName, sessionId } = request.params as { agentName: string; sessionId: string };
 
-    // Validate agent exists
+    // Validate agent exists and get config
+    let agentConfig: Awaited<ReturnType<typeof fleetManager.getAgentInfoByName>>;
     try {
-      await fleetManager.getAgentInfoByName(agentName);
+      agentConfig = await fleetManager.getAgentInfoByName(agentName);
     } catch {
       return reply.status(404).send({ error: `Agent not found: ${agentName}` });
     }
 
+    // Get working directory from agent config
+    const workingDirectory = agentConfig.working_directory ?? "/tmp/unknown";
+
     try {
-      const messages = await chatManager.getSessionMessages(agentName, sessionId);
-      return { messages };
+      const [messages, metadata] = await Promise.all([
+        chatManager.getSessionMessages(agentName, sessionId),
+        discoveryService.getSessionMetadata(workingDirectory, sessionId),
+      ]);
+
+      return reply.send({
+        messages,
+        metadata: {
+          gitBranch: metadata.gitBranch,
+          claudeCodeVersion: metadata.claudeCodeVersion,
+          preview: metadata.firstMessagePreview,
+        },
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.error("Failed to get session messages", { error: message, agentName, sessionId });

@@ -6,10 +6,12 @@
  * live token usage stats, and session metadata.
  */
 
-import { Check, Copy, Terminal } from "lucide-react";
+import { Check, Copy, GitBranch, Terminal } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { fetchSdkSessionId, fetchSessionUsage } from "../../lib/api";
+import { fetchChatSession, fetchSessionUsage } from "../../lib/api";
+import type { SessionOrigin } from "../../lib/types";
 import { useAgent, useChatMessages } from "../../store";
+import { OriginBadge } from "../ui/OriginBadge";
 
 // =============================================================================
 // Types
@@ -19,6 +21,8 @@ interface ChatInfoSidebarProps {
   agentName: string;
   sessionId: string;
   createdAt?: string;
+  origin?: SessionOrigin;
+  resumable?: boolean;
 }
 
 // =============================================================================
@@ -176,28 +180,40 @@ function formatTimestamp(iso: string): string {
 // Main Component
 // =============================================================================
 
-export function ChatInfoSidebar({ agentName, sessionId, createdAt }: ChatInfoSidebarProps) {
+export function ChatInfoSidebar({
+  agentName,
+  sessionId,
+  createdAt,
+  origin,
+  resumable = true,
+}: ChatInfoSidebarProps) {
   const agent = useAgent(agentName);
   const { chatMessages } = useChatMessages();
-  const [sdkSessionId, setSdkSessionId] = useState<string | null>(null);
-  const [sdkSessionLoading, setSdkSessionLoading] = useState(false);
-  const [dockerEnabled, setDockerEnabled] = useState(false);
   const [lastInputTokens, setLastInputTokens] = useState(0);
   const [turnCount, setTurnCount] = useState(0);
   const [hasTokenData, setHasTokenData] = useState(false);
+  const [metadata, setMetadata] = useState<{
+    gitBranch?: string;
+    claudeCodeVersion?: string;
+    model?: string;
+  }>({});
 
-  // Fetch SDK session ID when session changes
+  // Fetch session metadata (git branch, Claude Code version) when session changes
   useEffect(() => {
-    setSdkSessionId(null);
-    setDockerEnabled(false);
-    setSdkSessionLoading(true);
-    fetchSdkSessionId(agentName, sessionId)
+    setMetadata({});
+    fetchChatSession(agentName, sessionId)
       .then((res) => {
-        setSdkSessionId(res.sdkSessionId);
-        setDockerEnabled(res.dockerEnabled ?? false);
+        if (res.metadata) {
+          setMetadata({
+            gitBranch: res.metadata.gitBranch,
+            claudeCodeVersion: res.metadata.claudeCodeVersion,
+            model: res.metadata.model,
+          });
+        }
       })
-      .catch(() => {})
-      .finally(() => setSdkSessionLoading(false));
+      .catch(() => {
+        // Silently fail — metadata is non-critical
+      });
   }, [agentName, sessionId]);
 
   // Fetch token usage from disk when session changes or messages update
@@ -216,20 +232,29 @@ export function ChatInfoSidebar({ agentName, sessionId, createdAt }: ChatInfoSid
   }, [agentName, sessionId, messageCount]);
 
   const workDir = agent?.working_directory;
-  const model = agent?.model ?? "unknown";
+  // Use metadata model if available, fall back to agent model
+  const model = metadata.model ?? agent?.model ?? "unknown";
 
   // Default context window: 200k for all current Claude models
   const contextWindow = 200_000;
 
-  // Build "Continue in Claude Code" command (only for non-Docker agents)
-  const resumeCommand =
-    sdkSessionId && !dockerEnabled
-      ? `${workDir ? `cd '${workDir}' && ` : ""}claude --resume ${sdkSessionId}`
-      : null;
+  // Build "Continue in Claude Code" command
+  // The sessionId IS the SDK session ID now (Milestone 5 change)
+  // Only show for resumable sessions
+  const resumeCommand = resumable
+    ? `${workDir ? `cd '${workDir}' && ` : ""}claude --resume ${sessionId}`
+    : null;
 
   return (
     <div className="w-[220px] h-full border-l border-herd-sidebar-border bg-herd-sidebar overflow-y-auto">
       <div className="p-3 space-y-4">
+        {/* Origin Badge at top */}
+        {origin && (
+          <div className="flex items-center gap-2">
+            <OriginBadge origin={origin} showLabel />
+          </div>
+        )}
+
         {/* Session Actions */}
         <div>
           <SectionHeader>Actions</SectionHeader>
@@ -242,11 +267,9 @@ export function ChatInfoSidebar({ agentName, sessionId, createdAt }: ChatInfoSid
               />
             ) : (
               <div className="px-2 py-1.5 text-xs text-herd-sidebar-muted">
-                {sdkSessionLoading
-                  ? "Loading..."
-                  : dockerEnabled
-                    ? "Docker session (host resume N/A)"
-                    : "No SDK session yet"}
+                {!resumable
+                  ? "Docker session (cannot resume from web)"
+                  : "Session ID not available"}
               </div>
             )}
             <CopyAction text={sessionId} label="Copy Session ID" />
@@ -283,6 +306,20 @@ export function ChatInfoSidebar({ agentName, sessionId, createdAt }: ChatInfoSid
           <div className="space-y-1.5">
             <InfoRow label="Messages" value={String(chatMessages.length)} />
             <InfoRow label="Model" value={model} mono />
+            {metadata.gitBranch && (
+              <div className="flex items-center gap-1.5">
+                <GitBranch className="w-3 h-3 text-herd-sidebar-muted shrink-0" />
+                <span
+                  className="text-xs font-mono text-herd-sidebar-fg truncate"
+                  title={metadata.gitBranch}
+                >
+                  {metadata.gitBranch}
+                </span>
+              </div>
+            )}
+            {metadata.claudeCodeVersion && (
+              <InfoRow label="Claude Code" value={metadata.claudeCodeVersion} mono />
+            )}
             {workDir && <InfoRow label="Directory" value={workDir} mono truncate />}
             {createdAt && <InfoRow label="Created" value={formatTimestamp(createdAt)} />}
           </div>

@@ -359,6 +359,8 @@ export type ActiveView = "dashboard" | "agents" | "jobs" | "schedules" | "settin
 // Chat Types
 // =============================================================================
 
+export type SessionOrigin = "web" | "discord" | "slack" | "schedule" | "native";
+
 export interface ChatSession {
   sessionId: string;
   createdAt: string;
@@ -366,6 +368,8 @@ export interface ChatSession {
   messageCount: number;
   preview: string;
   customName?: string;
+  origin: SessionOrigin;
+  resumable: boolean;
 }
 
 /**
@@ -411,6 +415,8 @@ export interface ChatCompleteMessage {
     agentName: string;
     sessionId: string;
     jobId: string;
+    success: boolean;
+    error?: string;
   };
 }
 
@@ -431,7 +437,7 @@ export interface ChatSendMessage {
   type: "chat:send";
   payload: {
     agentName: string;
-    sessionId: string;
+    sessionId?: string;
     message: string;
   };
 }

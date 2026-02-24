@@ -146,17 +146,6 @@ async function patch<T>(path: string, body: unknown): Promise<T> {
   return handleResponse<T>(response);
 }
 
-async function del<T>(path: string): Promise<T> {
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: "DELETE",
-    headers: {
-      Accept: "application/json",
-    },
-  });
-
-  return handleResponse<T>(response);
-}
-
 // =============================================================================
 // API Functions
 // =============================================================================
@@ -312,21 +301,17 @@ export async function disableSchedule(
 // =============================================================================
 
 /**
- * Chat session response from create/fetch
- */
-export interface ChatSessionResponse {
-  sessionId: string;
-  createdAt: string;
-}
-
-/**
  * Full chat session detail response
  */
 export interface ChatSessionDetailResponse {
   sessionId: string;
   messages: ChatMessage[];
-  createdAt: string;
-  lastMessageAt: string;
+  metadata?: {
+    gitBranch?: string;
+    claudeCodeVersion?: string;
+    model?: string;
+    preview?: string;
+  };
 }
 
 /**
@@ -344,15 +329,6 @@ export interface ChatConfigResponse {
  */
 export async function fetchChatConfig(): Promise<ChatConfigResponse> {
   return get<ChatConfigResponse>("/api/chat/config");
-}
-
-/**
- * Create a new chat session for an agent
- *
- * POST /api/chat/:agentName/sessions
- */
-export async function createChatSession(agentName: string): Promise<ChatSessionResponse> {
-  return post<ChatSessionResponse>(`/api/chat/${encodeURIComponent(agentName)}/sessions`, {});
 }
 
 /**
@@ -379,20 +355,6 @@ export async function fetchChatSession(
 }
 
 /**
- * Fetch the SDK session ID for a web chat session
- *
- * GET /api/chat/:agentName/sessions/:sessionId/sdk-session
- */
-export async function fetchSdkSessionId(
-  agentName: string,
-  sessionId: string,
-): Promise<{ sdkSessionId: string | null; dockerEnabled: boolean }> {
-  return get<{ sdkSessionId: string | null; dockerEnabled: boolean }>(
-    `/api/chat/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}/sdk-session`,
-  );
-}
-
-/**
  * Fetch token usage for a chat session from the Claude Code session file on disk
  */
 export async function fetchSessionUsage(
@@ -405,31 +367,20 @@ export async function fetchSessionUsage(
 }
 
 /**
- * Delete a chat session
- *
- * DELETE /api/chat/:agentName/sessions/:sessionId
- */
-export async function deleteChatSession(agentName: string, sessionId: string): Promise<void> {
-  await del<{ deleted: boolean }>(
-    `/api/chat/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`,
-  );
-}
-
-/**
  * Rename a chat session with a custom name
  *
  * @param agentName - Agent name
  * @param sessionId - Session ID
- * @param name - New custom name for the session
+ * @param customName - New custom name for the session
  */
 export async function renameChatSession(
   agentName: string,
   sessionId: string,
-  name: string,
+  customName: string,
 ): Promise<void> {
   await patch<{ renamed: boolean }>(
     `/api/chat/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`,
-    { name },
+    { customName },
   );
 }
 

@@ -24,8 +24,8 @@ import { useChatActions, useChatMessages } from "../../store";
 interface ComposerProps {
   /** Agent name for placeholder text */
   agentName: string;
-  /** Session ID for sending messages */
-  sessionId: string;
+  /** Session ID for sending messages. Undefined for new chats. */
+  sessionId?: string;
 }
 
 // =============================================================================
@@ -68,15 +68,21 @@ export function Composer({ agentName, sessionId }: ComposerProps) {
     addUserMessage(message);
 
     // Send via WebSocket
+    // For new chats (no sessionId), the server will create a session and return
+    // the sessionId in the chat:complete message
     const wsClient = (window as unknown as { __herdWsClient?: WebSocketClient }).__herdWsClient;
     if (wsClient) {
+      const payload: { agentName: string; message: string; sessionId?: string } = {
+        agentName,
+        message,
+      };
+      // Only include sessionId if it exists (omit for new chats)
+      if (sessionId) {
+        payload.sessionId = sessionId;
+      }
       wsClient.send({
         type: "chat:send",
-        payload: {
-          agentName,
-          sessionId,
-          message,
-        },
+        payload,
       });
     }
   }, [canSend, value, addUserMessage, agentName, sessionId]);
