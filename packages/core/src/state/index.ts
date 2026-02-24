@@ -55,6 +55,16 @@ export {
   readJobOutput,
   readJobOutputAll,
 } from "./job-output.js";
+// Re-export JSONL parser functions
+export {
+  type ChatMessage,
+  type ChatToolCall,
+  extractSessionMetadata,
+  extractSessionUsage,
+  parseSessionMessages,
+  type SessionMetadata,
+  type SessionUsage,
+} from "./jsonl-parser.js";
 // Re-export schemas
 export * from "./schemas/index.js";
 // Re-export session functions
