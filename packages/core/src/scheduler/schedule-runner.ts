@@ -301,12 +301,13 @@ export async function runSchedule(options: RunScheduleOptions): Promise<Schedule
       triggerMetadata.workItemTitle = workItem.title;
     }
 
-    // Step 5: Get existing session for conversation continuity
-    // This prevents unexpected logouts by resuming the agent's session
-    // Session expiry is validated using the agent's session.timeout config (default: 24h)
-    // By default, sessions are resumed unless explicitly disabled via resume_session: false
+    // Step 5: Optionally resume an existing session (opt-in via resume_session: true).
+    // Default is false — each schedule run starts a fresh session. Note that --resume
+    // causes Claude Code to mark the session as isSidechain: true, which means it gets
+    // filtered from UI session discovery. Only enable resume if you need it and understand
+    // that the resumed session won't appear in the dashboard.
     let sessionId: string | undefined;
-    if (schedule.resume_session !== false) {
+    if (schedule.resume_session === true) {
       try {
         const sessionsDir = join(stateDir, "sessions");
         // Use session timeout config for expiry validation to prevent resuming stale sessions

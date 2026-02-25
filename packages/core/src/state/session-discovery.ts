@@ -16,6 +16,7 @@ import {
   extractLastSummary,
   extractSessionMetadata,
   extractSessionUsage,
+  isSidechainSession,
   parseSessionMessages,
   type SessionMetadata,
   type SessionUsage,
@@ -347,6 +348,16 @@ export class SessionDiscoveryService {
     const autoNameUpdates: Array<{ sessionId: string; autoName: string; mtime: string }> = [];
 
     for (const { sessionId, mtime } of filesToEnrich) {
+      // Filter out sidechain (sub-agent) sessions. Claude Code marks sessions
+      // as sidechain when they're Task tool sub-agents or when --resume is used.
+      // These are mostly prompt-cache warmup sessions ("Warmup" + single response)
+      // that clutter the UI with no useful content. We check only the first JSONL
+      // line so this is O(1) per file.
+      const filePath = getCliSessionFile(workingDirectory, sessionId);
+      if (await isSidechainSession(filePath)) {
+        continue;
+      }
+
       const attribution = attributionIndex.getAttribute(sessionId);
       const customName = await this.sessionMetadataStore.getCustomName(agentName, sessionId);
       const mtimeStr = mtime.toISOString();
@@ -530,6 +541,12 @@ export class SessionDiscoveryService {
       for (const { sessionId, mtime } of dir.sessionFiles) {
         // Skip sessions not in the selected set when limit is active
         if (selectedSessionIds && !selectedSessionIds.has(sessionId)) {
+          continue;
+        }
+
+        // Filter out sidechain (sub-agent) sessions — see comment in getAgentSessions()
+        const filePath = getCliSessionFile(dir.decodedPath, sessionId);
+        if (await isSidechainSession(filePath)) {
           continue;
         }
 

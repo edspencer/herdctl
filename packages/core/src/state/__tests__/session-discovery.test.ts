@@ -17,6 +17,7 @@ vi.mock("../jsonl-parser.js", () => ({
   extractLastSummary: vi.fn(),
   extractSessionMetadata: vi.fn(),
   extractSessionUsage: vi.fn(),
+  isSidechainSession: vi.fn().mockResolvedValue(false),
   parseSessionMessages: vi.fn(),
 }));
 
@@ -38,6 +39,7 @@ import {
   extractLastSummary,
   extractSessionMetadata,
   extractSessionUsage,
+  isSidechainSession,
   parseSessionMessages,
 } from "../jsonl-parser.js";
 // Import after mocks
@@ -48,6 +50,7 @@ const mockBuildAttributionIndex = vi.mocked(buildAttributionIndex);
 const mockExtractLastSummary = vi.mocked(extractLastSummary);
 const mockExtractSessionMetadata = vi.mocked(extractSessionMetadata);
 const mockExtractSessionUsage = vi.mocked(extractSessionUsage);
+const mockIsSidechainSession = vi.mocked(isSidechainSession);
 const mockParseSessionMessages = vi.mocked(parseSessionMessages);
 
 // =============================================================================
@@ -678,6 +681,7 @@ describe("SessionDiscoveryService", () => {
         firstMessageAt: "2024-01-15T10:00:00Z",
         lastMessageAt: "2024-01-15T11:00:00Z",
         summary: undefined,
+        isSidechain: false,
       };
       mockExtractSessionMetadata.mockResolvedValue(mockMetadata);
 
@@ -705,6 +709,7 @@ describe("SessionDiscoveryService", () => {
         firstMessageAt: "2024-01-15T10:00:00Z",
         lastMessageAt: "2024-01-15T10:00:00Z",
         summary: undefined,
+        isSidechain: false,
       };
       mockExtractSessionMetadata.mockResolvedValue(mockMetadata);
 

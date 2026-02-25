@@ -9,6 +9,7 @@ import {
   extractLastSummary,
   extractSessionMetadata,
   extractSessionUsage,
+  isSidechainSession,
   parseSessionMessages,
 } from "../jsonl-parser.js";
 
@@ -373,5 +374,39 @@ describe("extractSessionMetadata - summary field", () => {
     const meta = await extractSessionMetadata(fixture("simple-session.jsonl"));
 
     expect(meta.summary).toBeUndefined();
+  });
+});
+
+// =============================================================================
+// isSidechainSession
+// =============================================================================
+
+describe("isSidechainSession", () => {
+  it("returns true for sidechain session", async () => {
+    expect(await isSidechainSession(fixture("sidechain-session.jsonl"))).toBe(true);
+  });
+
+  it("returns false for normal session", async () => {
+    expect(await isSidechainSession(fixture("simple-session.jsonl"))).toBe(false);
+  });
+
+  it("returns false for nonexistent file", async () => {
+    expect(await isSidechainSession(fixture("does-not-exist.jsonl"))).toBe(false);
+  });
+});
+
+// =============================================================================
+// extractSessionMetadata - isSidechain field
+// =============================================================================
+
+describe("extractSessionMetadata - isSidechain field", () => {
+  it("sets isSidechain true for sidechain sessions", async () => {
+    const meta = await extractSessionMetadata(fixture("sidechain-session.jsonl"));
+    expect(meta.isSidechain).toBe(true);
+  });
+
+  it("sets isSidechain false for normal sessions", async () => {
+    const meta = await extractSessionMetadata(fixture("simple-session.jsonl"));
+    expect(meta.isSidechain).toBe(false);
   });
 });

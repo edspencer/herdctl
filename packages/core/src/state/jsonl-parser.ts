@@ -55,6 +55,8 @@ export interface SessionMetadata {
   lastMessageAt: string | undefined;
   /** Auto-generated session summary from Claude Code (extracted from type: "summary" entries) */
   summary: string | undefined;
+  /** Whether this session is a sidechain (sub-agent) session */
+  isSidechain: boolean;
 }
 
 /**
@@ -335,6 +337,7 @@ export async function extractSessionMetadata(sessionFilePath: string): Promise<S
     firstMessageAt: undefined,
     lastMessageAt: undefined,
     summary: undefined,
+    isSidechain: false,
   };
 
   if (!rl) return metadata;
@@ -383,6 +386,9 @@ export async function extractSessionMetadata(sessionFilePath: string): Promise<S
       if (!foundFirstUser) {
         foundFirstUser = true;
 
+        if (parsed.isSidechain === true) {
+          metadata.isSidechain = true;
+        }
         if (typeof parsed.gitBranch === "string") {
           metadata.gitBranch = parsed.gitBranch;
         }
@@ -493,6 +499,46 @@ export async function extractSessionUsage(sessionFilePath: string): Promise<Sess
     turnCount: seenIds.size,
     hasData,
   };
+}
+
+// =============================================================================
+// isSidechainSession
+// =============================================================================
+
+/**
+ * Check if a session file represents a sidechain (sub-agent) session.
+ *
+ * Claude Code sets `isSidechain: true` on the first JSONL entry when:
+ * - The session is a Task tool sub-agent (most common — prompt-cache warmups)
+ * - The `--resume` flag was used to start the session
+ *
+ * These sessions are typically noise (a single "Warmup" message + response)
+ * and are filtered out of UI-facing session discovery to avoid clutter.
+ *
+ * Reads only the first line of the JSONL file for efficiency — O(1) per file.
+ *
+ * @param sessionFilePath - Absolute path to the .jsonl file
+ * @returns true if the session is a sidechain session
+ */
+export async function isSidechainSession(sessionFilePath: string): Promise<boolean> {
+  const rl = await createLineReader(sessionFilePath);
+  if (!rl) return false;
+
+  for await (const line of rl) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+
+    try {
+      const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+      rl.close();
+      return parsed.isSidechain === true;
+    } catch {
+      rl.close();
+      return false;
+    }
+  }
+
+  return false;
 }
 
 // =============================================================================

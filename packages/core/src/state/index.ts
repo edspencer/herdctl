@@ -62,6 +62,7 @@ export {
   extractLastSummary,
   extractSessionMetadata,
   extractSessionUsage,
+  isSidechainSession,
   parseSessionMessages,
   type SessionMetadata,
   type SessionUsage,

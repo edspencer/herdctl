@@ -470,8 +470,12 @@ export const ScheduleSchema = z
     outputToFile: z.boolean().optional(),
     /** When false, schedule will not auto-trigger but can still be manually triggered (default: true) */
     enabled: z.boolean().optional().default(true),
-    /** When false, start a fresh session instead of resuming (default: true - resumes existing session) */
-    resume_session: z.boolean().optional().default(true),
+    /**
+     * When true, resume existing session instead of starting fresh (default: false).
+     * Note: --resume causes Claude Code to mark sessions as isSidechain: true, which
+     * excludes them from UI session discovery. Use only when session continuity is needed.
+     */
+    resume_session: z.boolean().optional().default(false),
   })
   .transform((val) => {
     // Accept `expression` as backward-compat alias for `cron`
