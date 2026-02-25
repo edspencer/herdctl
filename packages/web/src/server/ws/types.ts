@@ -65,16 +65,20 @@ export interface PingMessage {
  *
  * Client sends this to send a message to an agent in a chat session.
  * The response streams back via `chat:response` messages.
+ *
+ * For ad hoc sessions (agentName === "__adhoc__"), workingDirectory is required.
  */
 export interface ChatSendMessage {
   type: "chat:send";
   payload: {
-    /** Qualified name of the agent to chat with (e.g., "herdctl.security-auditor") */
+    /** Qualified name of the agent to chat with (e.g., "herdctl.security-auditor") or "__adhoc__" for ad hoc sessions */
     agentName: string;
-    /** Session ID for the chat conversation */
-    sessionId: string;
+    /** Session ID for the chat conversation (omit for new chat) */
+    sessionId?: string;
     /** User message content */
     message: string;
+    /** Working directory for ad hoc sessions (required when agentName is "__adhoc__") */
+    workingDirectory?: string;
   };
 }
 
@@ -205,10 +209,14 @@ export interface ChatCompleteMessage {
   payload: {
     /** Name of the agent */
     agentName: string;
-    /** Session ID for the chat conversation */
+    /** Session ID for the chat conversation (SDK session ID — crucial for new chats) */
     sessionId: string;
     /** Job ID for tracking the execution */
     jobId: string;
+    /** Whether the chat completed successfully */
+    success: boolean;
+    /** Error message if failed */
+    error?: string;
   };
 }
 
@@ -351,8 +359,9 @@ export function isChatSendMessage(data: unknown): data is ChatSendMessage {
 
   return (
     typeof payload.agentName === "string" &&
-    typeof payload.sessionId === "string" &&
-    typeof payload.message === "string"
+    (payload.sessionId === undefined || typeof payload.sessionId === "string") &&
+    typeof payload.message === "string" &&
+    (payload.workingDirectory === undefined || typeof payload.workingDirectory === "string")
   );
 }
 

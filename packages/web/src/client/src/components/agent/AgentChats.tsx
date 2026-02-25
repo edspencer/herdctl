@@ -5,13 +5,14 @@
  * delete (two-step confirm), and new chat creation.
  */
 
-import { MessageSquare, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { MessageSquare, Pencil, Plus, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { formatRelativeTime } from "../../lib/format";
-import { agentChatPath } from "../../lib/paths";
+import { agentChatPath, allChatsPath } from "../../lib/paths";
 import type { AgentInfo, ChatSession } from "../../lib/types";
 import { useChatActions, useChatSessions } from "../../store";
+import { OriginBadge } from "../ui/OriginBadge";
 
 // =============================================================================
 // Types
@@ -30,14 +31,11 @@ interface ChatRowProps {
   agentName: string;
   isActive: boolean;
   onRename: (sessionId: string, name: string) => void;
-  onDelete: (sessionId: string) => Promise<void>;
 }
 
-function ChatRow({ session, agentName, isActive, onRename, onDelete }: ChatRowProps) {
+function ChatRow({ session, agentName, isActive, onRename }: ChatRowProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -67,27 +65,6 @@ function ChatRow({ session, agentName, isActive, onRename, onDelete }: ChatRowPr
     setEditValue("");
   };
 
-  const handleDeleteClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setConfirmDelete(true);
-  };
-
-  const handleConfirmDelete = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDeleting(true);
-    setConfirmDelete(false);
-    await onDelete(session.sessionId);
-    setIsDeleting(false);
-  };
-
-  const handleCancelDelete = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setConfirmDelete(false);
-  };
-
   if (isEditing) {
     return (
       <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-herd-hover">
@@ -115,7 +92,7 @@ function ChatRow({ session, agentName, isActive, onRename, onDelete }: ChatRowPr
   return (
     <div
       className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-        isDeleting ? "opacity-50" : ""
+        !session.resumable ? "opacity-60" : ""
       } ${
         isActive
           ? "text-herd-fg bg-herd-hover"
@@ -134,50 +111,22 @@ function ChatRow({ session, agentName, isActive, onRename, onDelete }: ChatRowPr
         </span>
       </Link>
 
-      {/* Action buttons or confirm delete */}
-      {confirmDelete ? (
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <button
-            type="button"
-            onClick={handleCancelDelete}
-            className="p-1 hover:bg-herd-border rounded"
-            title="Cancel delete"
-          >
-            <X className="w-3.5 h-3.5 text-herd-muted hover:text-herd-fg" />
-          </button>
-          <button
-            type="button"
-            onClick={handleConfirmDelete}
-            className="p-1 hover:bg-herd-border rounded"
-            title="Confirm delete"
-          >
-            <Trash2 className="w-3.5 h-3.5 text-herd-status-error" />
-          </button>
-        </div>
-      ) : (
-        <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              startEditing();
-            }}
-            className="p-1 hover:bg-herd-border rounded"
-            title="Rename chat"
-          >
-            <Pencil className="w-3.5 h-3.5 text-herd-muted hover:text-herd-fg" />
-          </button>
-          <button
-            type="button"
-            onClick={handleDeleteClick}
-            className="p-1 hover:bg-herd-border rounded"
-            title="Delete chat"
-          >
-            <Trash2 className="w-3.5 h-3.5 text-herd-muted hover:text-herd-status-error" />
-          </button>
-        </div>
-      )}
+      {/* Origin badge */}
+      <OriginBadge origin={session.origin} className="flex-shrink-0" />
+
+      {/* Rename button */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          startEditing();
+        }}
+        className="p-1 hover:bg-herd-border rounded opacity-0 group-hover:opacity-100 transition-opacity"
+        title="Rename chat"
+      >
+        <Pencil className="w-3.5 h-3.5 text-herd-muted hover:text-herd-fg" />
+      </button>
     </div>
   );
 }
@@ -189,8 +138,7 @@ function ChatRow({ session, agentName, isActive, onRename, onDelete }: ChatRowPr
 export function AgentChats({ agent }: AgentChatsProps) {
   const navigate = useNavigate();
   const { chatSessions, chatSessionsLoading } = useChatSessions();
-  const { fetchChatSessions, createChatSession, renameChatSession, deleteChatSession } =
-    useChatActions();
+  const { fetchChatSessions, renameChatSession } = useChatActions();
   const [searchQuery, setSearchQuery] = useState("");
 
   // Fetch sessions on mount
@@ -217,20 +165,10 @@ export function AgentChats({ agent }: AgentChatsProps) {
     [renameChatSession, fetchChatSessions, agent.qualifiedName],
   );
 
-  const handleDelete = useCallback(
-    async (sessionId: string) => {
-      await deleteChatSession(agent.qualifiedName, sessionId);
-      fetchChatSessions(agent.qualifiedName);
-    },
-    [deleteChatSession, fetchChatSessions, agent.qualifiedName],
-  );
-
-  const handleNewChat = useCallback(async () => {
-    const sessionId = await createChatSession(agent.qualifiedName);
-    if (sessionId) {
-      navigate(agentChatPath(agent.qualifiedName, sessionId));
-    }
-  }, [createChatSession, navigate, agent.qualifiedName]);
+  // Navigate to new chat (session is created on first message)
+  const handleNewChat = useCallback(() => {
+    navigate(agentChatPath(agent.qualifiedName));
+  }, [navigate, agent.qualifiedName]);
 
   // Loading state
   if (chatSessionsLoading) {
@@ -303,7 +241,6 @@ export function AgentChats({ agent }: AgentChatsProps) {
               agentName={agent.qualifiedName}
               isActive={false}
               onRename={handleRename}
-              onDelete={handleDelete}
             />
           ))
         )}
@@ -313,6 +250,16 @@ export function AgentChats({ agent }: AgentChatsProps) {
       <p className="text-[11px] text-herd-muted text-center pt-2">
         {chatSessions.length} {chatSessions.length === 1 ? "conversation" : "conversations"}
       </p>
+
+      {/* All Chats discovery link */}
+      <div className="mt-4 text-center">
+        <Link
+          to={allChatsPath()}
+          className="text-xs text-herd-muted hover:text-herd-fg transition-colors"
+        >
+          View all sessions across this machine
+        </Link>
+      </div>
     </div>
   );
 }

@@ -6,6 +6,7 @@
 
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
+import { type AllChatsSlice, createAllChatsSlice } from "./all-chats-slice";
 import { type ChatSlice, createChatSlice } from "./chat-slice";
 import { createFleetSlice, type FleetSlice } from "./fleet-slice";
 import { createJobsSlice, type JobsSlice } from "./jobs-slice";
@@ -24,7 +25,8 @@ export type AppStore = FleetSlice &
   JobsSlice &
   ChatSlice &
   ScheduleSlice &
-  ToastSlice;
+  ToastSlice &
+  AllChatsSlice;
 
 // =============================================================================
 // Store
@@ -38,12 +40,18 @@ export const useStore = create<AppStore>()((...args) => ({
   ...createChatSlice(...args),
   ...createScheduleSlice(...args),
   ...createToastSlice(...args),
+  ...createAllChatsSlice(...args),
 }));
 
 // =============================================================================
 // Re-exports
 // =============================================================================
 
+export type {
+  AllChatsActions,
+  AllChatsSlice,
+  AllChatsState,
+} from "./all-chats-slice";
 export type {
   ChatActions,
   ChatSlice,
@@ -278,8 +286,7 @@ export function useChatActions() {
     useShallow((state) => ({
       fetchChatSessions: state.fetchChatSessions,
       fetchChatMessages: state.fetchChatMessages,
-      createChatSession: state.createChatSession,
-      deleteChatSession: state.deleteChatSession,
+      fetchAdhocChatMessages: state.fetchAdhocChatMessages,
       renameChatSession: state.renameChatSession,
       setActiveChatSession: state.setActiveChatSession,
       appendStreamingChunk: state.appendStreamingChunk,
@@ -400,6 +407,68 @@ export function useToastActions() {
     useShallow((state) => ({
       addToast: state.addToast,
       removeToast: state.removeToast,
+    })),
+  );
+}
+
+// =============================================================================
+// All Chats Selector Hooks
+// =============================================================================
+
+/**
+ * Select all chats groups
+ */
+export function useAllChatsGroups() {
+  return useStore((state) => state.allChatsGroups);
+}
+
+/**
+ * Select all chats total groups count
+ */
+export function useAllChatsTotalGroups() {
+  return useStore((state) => state.allChatsTotalGroups);
+}
+
+/**
+ * Select all chats loading state
+ */
+export function useAllChatsLoading() {
+  return useStore((state) => state.allChatsLoading);
+}
+
+/**
+ * Select all chats error state
+ */
+export function useAllChatsError() {
+  return useStore((state) => state.allChatsError);
+}
+
+/**
+ * Select all chats search query
+ */
+export function useAllChatsSearchQuery() {
+  return useStore((state) => state.allChatsSearchQuery);
+}
+
+/**
+ * Select all chats expanded groups
+ */
+export function useAllChatsExpandedGroups() {
+  return useStore((state) => state.allChatsExpandedGroups);
+}
+
+/**
+ * Select all chats actions
+ */
+export function useAllChatsActions() {
+  return useStore(
+    useShallow((state) => ({
+      fetchAllChats: state.fetchAllChats,
+      setAllChatsSearchQuery: state.setAllChatsSearchQuery,
+      toggleAllChatsGroup: state.toggleAllChatsGroup,
+      expandAllChatsGroups: state.expandAllChatsGroups,
+      collapseAllChatsGroups: state.collapseAllChatsGroups,
+      loadMoreGroupSessions: state.loadMoreGroupSessions,
     })),
   );
 }

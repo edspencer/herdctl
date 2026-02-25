@@ -14,12 +14,8 @@ import {
   type ChatConnectorLogger,
   ChatSessionManager,
   extractMessageContent,
-  extractToolResults,
-  extractToolUseBlocks,
-  getToolInputSummary,
   StreamingResponder,
   splitMessage,
-  TOOL_EMOJIS,
 } from "@herdctl/chat";
 import type {
   ChatManagerConnectorState,
@@ -29,7 +25,14 @@ import type {
   ResolvedAgent,
   TriggerOptions,
 } from "@herdctl/core";
-import { createFileSenderDef, type FileSenderContext } from "@herdctl/core";
+import {
+  createFileSenderDef,
+  extractToolResults,
+  extractToolUseBlocks,
+  type FileSenderContext,
+  getToolInputSummary,
+  TOOL_EMOJIS,
+} from "@herdctl/core";
 import { markdownToMrkdwn } from "./formatting.js";
 import { SlackConnector } from "./slack-connector.js";
 import type { SlackConnectorEventMap, SlackMessageEvent } from "./types.js";

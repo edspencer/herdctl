@@ -132,8 +132,11 @@ export function useWebSocket() {
 
         case "chat:complete": {
           const { sessionId } = message.payload;
-          if (sessionId === useStore.getState().activeChatSessionId) {
-            completeStreaming();
+          const state = useStore.getState();
+          // For new chats, activeChatSessionId is null until we receive the sessionId
+          // Pass sessionId to completeStreaming so it can set activeChatSessionId
+          if (sessionId === state.activeChatSessionId || state.activeChatSessionId === null) {
+            completeStreaming(sessionId);
           }
           touchRecentSession(message.payload.sessionId, message.payload.agentName);
           break;

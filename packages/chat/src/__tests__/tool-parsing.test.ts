@@ -2,16 +2,16 @@
  * Tests for tool parsing utilities
  */
 
-import { describe, expect, it } from "vitest";
 import {
   extractToolResultContent,
   extractToolResults,
   extractToolUseBlocks,
   getToolInputSummary,
   TOOL_EMOJIS,
-} from "../tool-parsing.js";
+} from "@herdctl/core";
+import { describe, expect, it } from "vitest";
 
-describe("tool-parsing", () => {
+describe("tool-parsing (re-export from @herdctl/core)", () => {
   // ===========================================================================
   // extractToolUseBlocks
   // ===========================================================================

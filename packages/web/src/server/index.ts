@@ -18,6 +18,7 @@ import {
   type FleetManagerContext,
   type IChatManager,
   listJobs,
+  SessionDiscoveryService,
 } from "@herdctl/core";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { WebChatManager } from "./chat/index.js";
@@ -111,21 +112,38 @@ export async function createWebServer(
   const fleetBridge = new FleetBridge(fleetManager, wsHandler);
   const chatManager = new WebChatManager();
 
+  // Create session discovery service for reading Claude Code sessions
+  // Requires stateDir - use empty string as fallback if not provided
+  // (chat routes will handle the case gracefully)
+  const discoveryService = new SessionDiscoveryService({
+    stateDir: config.stateDir ?? "",
+    // claudeHomePath defaults to ~/.claude
+  });
+
   // Initialize chat manager if state directory is provided
   if (config.stateDir) {
-    await chatManager.initialize(fleetManager, config.stateDir, {
-      enabled: true,
-      port: config.port,
-      host: config.host,
-      session_expiry_hours: config.sessionExpiryHours ?? 24,
-      open_browser: false,
-      tool_results: config.toolResults ?? true,
-      message_grouping: config.messageGrouping ?? "separate",
-    });
+    chatManager.initialize(
+      fleetManager,
+      config.stateDir,
+      {
+        enabled: true,
+        port: config.port,
+        host: config.host,
+        session_expiry_hours: config.sessionExpiryHours ?? 24,
+        open_browser: false,
+        tool_results: config.toolResults ?? true,
+        message_grouping: config.messageGrouping ?? "separate",
+      },
+      discoveryService,
+    );
 
     // Wire up chat manager to WebSocket handler
     wsHandler.setChatManager(chatManager);
   }
+
+  // Note: discoveryService is always created for use by chat routes, but chatManager
+  // is only initialized when stateDir is provided. Chat routes delegate to chatManager
+  // for most operations, which will fail gracefully if not initialized.
 
   // Register WebSocket route at /ws
   server.get("/ws", { websocket: true }, (socket, _request) => {
@@ -158,7 +176,7 @@ export async function createWebServer(
   registerAgentRoutes(server, fleetManager);
   registerJobRoutes(server, fleetManager, listJobs);
   registerScheduleRoutes(server, fleetManager);
-  registerChatRoutes(server, fleetManager, chatManager);
+  registerChatRoutes(server, fleetManager, chatManager, discoveryService);
 
   // Health check endpoint
   server.get("/api/health", async (_request, reply) => {
@@ -491,11 +509,11 @@ export class WebManager implements IChatManager {
 // Re-export chat types for consumers
 export {
   type ChatMessage,
+  type DirectoryGroup,
+  type DiscoveredSession,
   type OnChunkCallback,
   type SendMessageResult,
   WebChatManager,
-  type WebChatSession,
-  type WebChatSessionDetails,
 } from "./chat/index.js";
 // Re-export WebSocket types for consumers
 export {

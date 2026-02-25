@@ -20,7 +20,7 @@ import {
   setLogHandler,
   shouldLog,
 } from "@herdctl/core";
-
+import { getBanner } from "../utils/banner.js";
 import {
   colorize,
   colors,
@@ -204,6 +204,7 @@ export async function startCommand(options: StartOptions): Promise<void> {
     };
   }
 
+  console.log(getBanner());
   console.log("Starting fleet...");
 
   // Create FleetManager (uses global log handler automatically)

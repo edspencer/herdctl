@@ -7,9 +7,11 @@
 
 import type {
   AgentInfo,
+  AllChatsResponse,
   CancelJobResult,
   ChatMessage,
   ChatSession,
+  DirectoryGroupExpanded,
   FleetStatus,
   ForkJobResult,
   JobSummary,
@@ -141,17 +143,6 @@ async function patch<T>(path: string, body: unknown): Promise<T> {
       Accept: "application/json",
     },
     body: JSON.stringify(body),
-  });
-
-  return handleResponse<T>(response);
-}
-
-async function del<T>(path: string): Promise<T> {
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: "DELETE",
-    headers: {
-      Accept: "application/json",
-    },
   });
 
   return handleResponse<T>(response);
@@ -312,21 +303,17 @@ export async function disableSchedule(
 // =============================================================================
 
 /**
- * Chat session response from create/fetch
- */
-export interface ChatSessionResponse {
-  sessionId: string;
-  createdAt: string;
-}
-
-/**
  * Full chat session detail response
  */
 export interface ChatSessionDetailResponse {
   sessionId: string;
   messages: ChatMessage[];
-  createdAt: string;
-  lastMessageAt: string;
+  metadata?: {
+    gitBranch?: string;
+    claudeCodeVersion?: string;
+    model?: string;
+    preview?: string;
+  };
 }
 
 /**
@@ -347,21 +334,18 @@ export async function fetchChatConfig(): Promise<ChatConfigResponse> {
 }
 
 /**
- * Create a new chat session for an agent
- *
- * POST /api/chat/:agentName/sessions
- */
-export async function createChatSession(agentName: string): Promise<ChatSessionResponse> {
-  return post<ChatSessionResponse>(`/api/chat/${encodeURIComponent(agentName)}/sessions`, {});
-}
-
-/**
  * Fetch all chat sessions for an agent
  *
  * GET /api/chat/:agentName/sessions
  */
-export async function fetchChatSessions(agentName: string): Promise<{ sessions: ChatSession[] }> {
-  return get<{ sessions: ChatSession[] }>(`/api/chat/${encodeURIComponent(agentName)}/sessions`);
+export async function fetchChatSessions(
+  agentName: string,
+  options?: { limit?: number },
+): Promise<{ sessions: ChatSession[] }> {
+  const params = options?.limit ? `?limit=${options.limit}` : "";
+  return get<{ sessions: ChatSession[] }>(
+    `/api/chat/${encodeURIComponent(agentName)}/sessions${params}`,
+  );
 }
 
 /**
@@ -379,20 +363,6 @@ export async function fetchChatSession(
 }
 
 /**
- * Fetch the SDK session ID for a web chat session
- *
- * GET /api/chat/:agentName/sessions/:sessionId/sdk-session
- */
-export async function fetchSdkSessionId(
-  agentName: string,
-  sessionId: string,
-): Promise<{ sdkSessionId: string | null; dockerEnabled: boolean }> {
-  return get<{ sdkSessionId: string | null; dockerEnabled: boolean }>(
-    `/api/chat/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}/sdk-session`,
-  );
-}
-
-/**
  * Fetch token usage for a chat session from the Claude Code session file on disk
  */
 export async function fetchSessionUsage(
@@ -405,31 +375,20 @@ export async function fetchSessionUsage(
 }
 
 /**
- * Delete a chat session
- *
- * DELETE /api/chat/:agentName/sessions/:sessionId
- */
-export async function deleteChatSession(agentName: string, sessionId: string): Promise<void> {
-  await del<{ deleted: boolean }>(
-    `/api/chat/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`,
-  );
-}
-
-/**
  * Rename a chat session with a custom name
  *
  * @param agentName - Agent name
  * @param sessionId - Session ID
- * @param name - New custom name for the session
+ * @param customName - New custom name for the session
  */
 export async function renameChatSession(
   agentName: string,
   sessionId: string,
-  name: string,
+  customName: string,
 ): Promise<void> {
   await patch<{ renamed: boolean }>(
     `/api/chat/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`,
-    { name },
+    { customName },
   );
 }
 
@@ -443,4 +402,52 @@ export async function renameChatSession(
 export async function fetchRecentSessions(limit = 100): Promise<RecentChatSession[]> {
   const response = await get<{ sessions: RecentChatSession[] }>("/api/chat/recent", { limit });
   return response.sessions;
+}
+
+// =============================================================================
+// All Chats API Functions
+// =============================================================================
+
+/**
+ * Fetch all chat sessions grouped by working directory
+ *
+ * GET /api/chat/all
+ */
+export async function fetchAllSessions(params?: {
+  limit?: number;
+  sessionsPerGroup?: number;
+}): Promise<AllChatsResponse> {
+  return get<AllChatsResponse>(
+    "/api/chat/all",
+    params as Record<string, string | number | undefined>,
+  );
+}
+
+/**
+ * Fetch expanded sessions for a specific directory group
+ *
+ * GET /api/chat/all/:encodedPath
+ */
+export async function fetchDirectoryGroupSessions(
+  encodedPath: string,
+  params?: { limit?: number; offset?: number },
+): Promise<DirectoryGroupExpanded> {
+  return get<DirectoryGroupExpanded>(
+    `/api/chat/all/${encodeURIComponent(encodedPath)}`,
+    params as Record<string, string | number | undefined>,
+  );
+}
+
+/**
+ * Fetch messages for a session by its encoded path (for unattributed sessions)
+ *
+ * GET /api/chat/sessions/by-path/:encodedPath/:sessionId
+ */
+export async function fetchSessionByPath(
+  encodedPath: string,
+  sessionId: string,
+): Promise<ChatSessionDetailResponse> {
+  return get<ChatSessionDetailResponse>(
+    `/api/chat/sessions/by-path/${encodeURIComponent(encodedPath)}/${encodeURIComponent(sessionId)}`,
+  );
 }

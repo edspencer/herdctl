@@ -544,7 +544,7 @@ describe("mergeAgentConfig", () => {
             type: "interval",
             interval: "5m",
             enabled: true,
-            resume_session: true,
+            resume_session: false,
           },
         },
       };

@@ -16,10 +16,9 @@ import {
   Calendar,
   ChevronRight,
   LayoutDashboard,
+  MessagesSquare,
   Pencil,
   Plus,
-  Trash2,
-  X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
@@ -28,6 +27,7 @@ import { formatRelativeTime } from "../../lib/format";
 import { agentChatPath, agentPath, agentTabPath } from "../../lib/paths";
 import type { AgentInfo, ChatSession, ConnectionStatus } from "../../lib/types";
 import { useChatActions, useFleet, useSidebarSessions, useSidebarTab } from "../../store";
+import { OriginBadge } from "../ui/OriginBadge";
 import { RecentConversationsList } from "./RecentConversationsList";
 import { SidebarSearch } from "./SidebarSearch";
 import { SidebarTabs } from "./SidebarTabs";
@@ -241,7 +241,6 @@ interface AgentRowProps {
   onNavigate?: () => void;
   onNewChat: (qualifiedName: string) => void;
   onRenameSession: (agentQualifiedName: string, sessionId: string, name: string) => void;
-  onDeleteSession: (agentQualifiedName: string, sessionId: string) => Promise<void>;
   indent?: number;
 }
 
@@ -255,14 +254,11 @@ function AgentRow({
   onNavigate,
   onNewChat,
   onRenameSession,
-  onDeleteSession,
   indent = 0,
 }: AgentRowProps) {
   const paddingLeft = indent > 0 ? `${indent * 8}px` : undefined;
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Auto-focus input when entering edit mode
@@ -275,7 +271,7 @@ function AgentRow({
 
   const startEditing = (session: ChatSession) => {
     setEditingSessionId(session.sessionId);
-    setEditValue(session.customName || session.preview || "New conversation");
+    setEditValue(session.customName || session.autoName || session.preview || "New conversation");
   };
 
   const handleSave = (sessionId: string) => {
@@ -289,27 +285,6 @@ function AgentRow({
   const handleCancel = () => {
     setEditingSessionId(null);
     setEditValue("");
-  };
-
-  const handleDeleteClick = (e: React.MouseEvent, sessionId: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setConfirmDeleteId(sessionId);
-  };
-
-  const handleConfirmDelete = async (e: React.MouseEvent, sessionId: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDeletingId(sessionId);
-    setConfirmDeleteId(null);
-    await onDeleteSession(agent.qualifiedName, sessionId);
-    setDeletingId(null);
-  };
-
-  const handleCancelDelete = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setConfirmDeleteId(null);
   };
 
   return (
@@ -396,70 +371,40 @@ function AgentRow({
                 );
               }
 
-              const isConfirmingDelete = confirmDeleteId === session.sessionId;
-              const isDeleting = deletingId === session.sessionId;
-
               return (
                 <div
                   key={session.sessionId}
                   className={`group flex items-center gap-2 px-3 py-2 rounded text-sm transition-colors ${
-                    isDeleting ? "opacity-50" : ""
+                    !session.resumable ? "opacity-60" : ""
                   } ${
                     isSessionActive
                       ? "text-herd-sidebar-fg bg-herd-sidebar-active"
                       : "text-herd-sidebar-muted hover:bg-herd-sidebar-hover hover:text-herd-sidebar-fg"
                   }`}
                 >
+                  <OriginBadge origin={session.origin} className="flex-shrink-0" />
                   <Link
                     to={agentChatPath(agent.qualifiedName, session.sessionId)}
                     onClick={onNavigate}
                     className="flex-1 truncate min-w-0"
                   >
-                    {session.customName || session.preview || "New conversation"}
+                    {session.customName ||
+                      session.autoName ||
+                      session.preview ||
+                      "New conversation"}
                   </Link>
-                  {isConfirmingDelete ? (
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <button
-                        type="button"
-                        onClick={handleCancelDelete}
-                        className="p-0.5 hover:bg-herd-sidebar-active rounded"
-                        title="Cancel delete"
-                      >
-                        <X className="w-3 h-3 text-herd-sidebar-muted hover:text-herd-sidebar-fg" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => handleConfirmDelete(e, session.sessionId)}
-                        className="p-0.5 hover:bg-herd-sidebar-active rounded"
-                        title="Confirm delete"
-                      >
-                        <Trash2 className="w-3 h-3 text-herd-status-error" />
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          startEditing(session);
-                        }}
-                        className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-herd-sidebar-active rounded"
-                        title="Rename chat"
-                      >
-                        <Pencil className="w-3 h-3 text-herd-sidebar-muted hover:text-herd-sidebar-fg" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => handleDeleteClick(e, session.sessionId)}
-                        className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-herd-sidebar-active rounded"
-                        title="Delete chat"
-                      >
-                        <Trash2 className="w-3 h-3 text-herd-sidebar-muted hover:text-herd-status-error" />
-                      </button>
-                    </>
-                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      startEditing(session);
+                    }}
+                    className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-herd-sidebar-active rounded"
+                    title="Rename chat"
+                  >
+                    <Pencil className="w-3 h-3 text-herd-sidebar-muted hover:text-herd-sidebar-fg" />
+                  </button>
                   <span className="flex-shrink-0 text-herd-sidebar-muted/60 text-[10px]">
                     {formatRelativeTime(session.lastMessageAt)}
                   </span>
@@ -482,7 +427,6 @@ interface FleetSectionProps {
   onNavigate?: () => void;
   onNewChat: (qualifiedName: string) => void;
   onRenameSession: (qualifiedName: string, sessionId: string, name: string) => void;
-  onDeleteSession: (qualifiedName: string, sessionId: string) => Promise<void>;
   depth?: number;
   expandedFleets: Set<string>;
   toggleFleet: (fleetKey: string) => void;
@@ -499,7 +443,6 @@ function FleetSection({
   onNavigate,
   onNewChat,
   onRenameSession,
-  onDeleteSession,
   depth = 0,
   expandedFleets,
   toggleFleet,
@@ -542,7 +485,6 @@ function FleetSection({
               onNavigate={onNavigate}
               onNewChat={onNewChat}
               onRenameSession={onRenameSession}
-              onDeleteSession={onDeleteSession}
               indent={depth + 1}
             />
           ))}
@@ -560,7 +502,6 @@ function FleetSection({
               onNavigate={onNavigate}
               onNewChat={onNewChat}
               onRenameSession={onRenameSession}
-              onDeleteSession={onDeleteSession}
               depth={depth + 1}
               expandedFleets={expandedFleets}
               toggleFleet={toggleFleet}
@@ -610,8 +551,7 @@ interface SidebarProps {
 export function Sidebar({ onNavigate }: SidebarProps = {}) {
   const { agents, connectionStatus, fleetStatus } = useFleet();
   const { sidebarSessions } = useSidebarSessions();
-  const { createChatSession, fetchSidebarSessions, renameChatSession, deleteChatSession } =
-    useChatActions();
+  const { fetchSidebarSessions, renameChatSession } = useChatActions();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -752,16 +692,13 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
     return match ? match[1] : null;
   }, [location.pathname]);
 
-  // Handle new chat creation
+  // Handle new chat navigation (no session creation - session is created on first message)
   const handleNewChat = useCallback(
-    async (qualifiedName: string) => {
-      const sessionId = await createChatSession(qualifiedName);
-      if (sessionId) {
-        navigate(agentChatPath(qualifiedName, sessionId));
-        onNavigate?.();
-      }
+    (qualifiedName: string) => {
+      navigate(agentChatPath(qualifiedName));
+      onNavigate?.();
     },
-    [createChatSession, navigate, onNavigate],
+    [navigate, onNavigate],
   );
 
   // Handle chat session rename
@@ -770,19 +707,6 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
       await renameChatSession(qualifiedName, sessionId, name);
     },
     [renameChatSession],
-  );
-
-  // Handle chat session delete
-  const handleDeleteSession = useCallback(
-    async (qualifiedName: string, sessionId: string) => {
-      await deleteChatSession(qualifiedName, sessionId);
-      // Navigate away if we deleted the active session
-      if (sessionId === activeSessionId) {
-        navigate(agentChatPath(qualifiedName));
-        onNavigate?.();
-      }
-    },
-    [deleteChatSession, activeSessionId, navigate, onNavigate],
   );
 
   // Count stats
@@ -845,7 +769,6 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
                         onNavigate={onNavigate}
                         onNewChat={handleNewChat}
                         onRenameSession={handleRenameSession}
-                        onDeleteSession={handleDeleteSession}
                         expandedFleets={expandedFleets}
                         toggleFleet={toggleFleet}
                       />
@@ -869,7 +792,6 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
                       onNavigate={onNavigate}
                       onNewChat={handleNewChat}
                       onRenameSession={handleRenameSession}
-                      onDeleteSession={handleDeleteSession}
                     />
                   ))}
                 </div>
@@ -915,6 +837,13 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
             icon={<Calendar className="w-4 h-4" />}
             label="Schedules"
             isActive={location.pathname === "/schedules"}
+            onNavigate={onNavigate}
+          />
+          <NavItem
+            to="/chats"
+            icon={<MessagesSquare className="w-4 h-4" />}
+            label="All Chats"
+            isActive={location.pathname === "/chats" || location.pathname.startsWith("/chats/")}
             onNavigate={onNavigate}
           />
         </div>

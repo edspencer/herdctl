@@ -48,7 +48,7 @@ packages/web/
         agents.ts                    # GET /api/agents, GET /api/agents/:name
         jobs.ts                      # GET /api/jobs, POST /api/jobs/:id/cancel|fork
         schedules.ts                 # GET /api/schedules, POST enable/disable/trigger
-        chat.ts                      # Chat session CRUD, recent sessions, config
+        chat.ts                      # Chat session CRUD, discovery endpoints, ad hoc sessions
       ws/
         handler.ts                   # WebSocketHandler: client management, message routing
         fleet-bridge.ts              # FleetBridge: FleetManager events -> WebSocket broadcast
@@ -63,7 +63,8 @@ packages/web/
           layout/                    # Shell: AppLayout, Sidebar, Header, tabs, search
           dashboard/                 # Fleet overview: AgentCard, RecentJobs, FleetDashboard
           agent/                     # Agent detail: tabs, output, jobs, config, chats
-          chat/                      # Chat interface: ChatView, MessageFeed, Composer
+          all-chats/                 # All Chats page: AllChatsPage, DirectoryGroup, SessionRow, ReadOnlySessionView
+          chat/                      # Chat interface: ChatView, AdhocChatView, MessageFeed, Composer
           jobs/                      # Job history, job detail, trigger modal
           schedules/                 # Schedule list
           spotlight/                 # Cmd+K agent picker dialog
@@ -74,7 +75,8 @@ packages/web/
           ui-slice.ts                # Sidebar, theme, spotlight, active view
           output-slice.ts            # Live job output messages
           jobs-slice.ts              # Job history with pagination and filtering
-          chat-slice.ts              # Chat sessions, messages, streaming state
+          chat-slice.ts              # Chat sessions, messages, streaming state, ad hoc sessions
+          all-chats-slice.ts         # All Chats page: directory groups, search, expansion state
           schedule-slice.ts          # Schedule list and actions
           toast-slice.ts             # Toast notification queue
         hooks/
@@ -117,8 +119,11 @@ The React SPA uses React Router for client-side routing. Fastify's SPA fallback 
 | `/agents/:name/chat/:sessionId` | `ChatView` | Active chat conversation |
 | `/jobs` | `JobHistory` | Fleet-wide job history with filtering and pagination |
 | `/schedules` | `ScheduleList` | All schedules across all agents |
+| `/chats` | `AllChatsPage` | Machine-wide session discovery across all working directories |
+| `/chats/:encodedPath/:sessionId` | `ReadOnlySessionView` | Read-only view of an unattributed session |
+| `/adhoc/:encodedPath/chat/:sessionId` | `AdhocChatView` | Interactive ad hoc chat on a native CLI session |
 
-The `:name` parameter accepts qualified agent names (e.g., `herdctl.security-auditor`). Route path helper functions in `lib/paths.ts` generate these paths consistently across the application.
+The `:name` parameter accepts qualified agent names (e.g., `herdctl.security-auditor`). The `:encodedPath` parameter is a URL-safe encoding of a working directory path (slashes replaced with dashes). Route path helper functions in `lib/paths.ts` generate these paths consistently across the application.
 
 ## Component Architecture
 
@@ -214,6 +219,30 @@ When no session is selected, `ChatView` shows the session list with a "Start New
 
 Chat messages stream in real time via WebSocket. The user sends a `chat:send` message, and the server streams back `chat:response` chunks (text), `chat:tool_call` results (structured tool call data), `chat:message_boundary` signals (separating distinct assistant turns), and a final `chat:complete` or `chat:error`.
 
+### All Chats Page
+
+`AllChatsPage` provides machine-wide session discovery. Unlike the sidebar's Chats View (which shows only recent agent-attributed sessions), the All Chats page shows every Claude Code session found across all working directories on the machine, including sessions that were never started through herdctl.
+
+Sessions are grouped by working directory using `DirectoryGroup` components. Each group displays as a collapsible section with the directory path as its header. Within each group, individual sessions render as `SessionRow` components showing the session ID, timestamp, origin badge, and preview text.
+
+Sessions have three possible origins, displayed via the `OriginBadge` component:
+
+| Origin | Meaning |
+|--------|---------|
+| `herdctl` | Session created by a herdctl fleet agent via `FleetManager.trigger()` |
+| `native` | Session created by the Claude Code CLI directly (`claude` command), not through herdctl |
+| `ad hoc` | A native session that has been resumed interactively through the web dashboard |
+
+The origin is determined by the `SessionDiscoveryService` in `@herdctl/core`, which checks attribution data stored by `ChatSessionManager` during session creation.
+
+#### Read-Only and Ad Hoc Session Views
+
+Clicking a native (unattributed) session in the All Chats page opens a `ReadOnlySessionView` at `/chats/:encodedPath/:sessionId`. This view fetches the session's JSONL messages via `GET /api/chat/sessions/by-path/:encodedPath/:sessionId` and renders them in a non-interactive `MessageFeed`. Session metadata (git branch, Claude Code version) is displayed when available.
+
+From the read-only view, users can start an ad hoc chat, which navigates to `AdhocChatView` at `/adhoc/:encodedPath/chat/:sessionId`. The ad hoc view provides full interactive chat (with `Composer` for message input and streaming `MessageFeed` for responses) by resuming the native session. On the server side, ad hoc sessions bypass `FleetManager.trigger()` and use `RuntimeFactory` + `JobExecutor` directly, creating a minimal synthetic `ResolvedAgent` with CLI runtime that executes `claude --resume <sessionId>` in the session's working directory.
+
+The WebSocket protocol distinguishes ad hoc sessions by using `agentName: "__adhoc__"` and including a `workingDirectory` field in the `chat:send` payload. The server routes these messages to `WebChatManager.sendAdhocMessage()` instead of the standard `sendMessage()` path.
+
 ### Output Streaming
 
 The `AgentOutput` and `JobOutput` components render live job output. When a user navigates to an agent's Output tab, the `useJobOutput` hook sends a WebSocket `subscribe` message for that agent. The FleetBridge then forwards `job:output` events for that agent only (see [Subscription-Based Filtering](/architecture/http-api/#subscription-based-filtering)).
@@ -242,11 +271,12 @@ Reusable components in `components/ui/` enforce visual consistency:
 | `ConnectionStatus` | Inline connection indicator in the header |
 | `TimeAgo` | Relative time display (e.g., "2m ago") |
 | `Toast` / `ToastContainer` | Toast notification system for action feedback |
+| `OriginBadge` | Session origin indicator (herdctl/native/ad hoc) with color-coded styling |
 | `ErrorBoundary` | React error boundary at layout and page levels |
 
 ## State Management
 
-The application uses a single Zustand store composed of seven slices. There is no Redux, MobX, or other external state library.
+The application uses a single Zustand store composed of eight slices. There is no Redux, MobX, or other external state library.
 
 ### Store Slices
 
@@ -256,7 +286,8 @@ The application uses a single Zustand store composed of seven slices. There is n
 | `ui-slice` | `sidebarCollapsed`, `sidebarTab`, `spotlightOpen`, `theme`, `selectedAgent` | UI chrome state |
 | `output-slice` | `outputsByJob` (Map of job ID to output messages) | Live streaming output per job |
 | `jobs-slice` | `jobs`, `totalJobs`, `jobsFilter`, pagination state | Job history with filtering |
-| `chat-slice` | `chatSessions`, `chatMessages`, `chatStreaming`, `sidebarSessions`, `recentSessions` | Chat sessions, messages, streaming state |
+| `chat-slice` | `chatSessions`, `chatMessages`, `chatStreaming`, `sidebarSessions`, `recentSessions` | Chat sessions, messages, streaming state, ad hoc session support |
+| `all-chats-slice` | `allChatsGroups`, `allChatsSearchQuery`, `allChatsExpandedGroups` | All Chats page: directory groups, search filtering, expand/collapse |
 | `schedule-slice` | `schedules`, loading/error state | Schedule list and actions |
 | `toast-slice` | `toasts` queue | Toast notification lifecycle |
 
@@ -346,6 +377,8 @@ The `useWebSocket` hook receives parsed `ServerMessage` objects and dispatches t
 | `chat:complete` | `completeStreaming` | Finalize chat response |
 | `chat:error` | `setChatError` | Display error in chat UI |
 
+The `chat:*` message types are shared between agent-attributed sessions and ad hoc sessions. The `WebSocketHandler` routes `chat:send` messages based on the `agentName` field: when `agentName` is `"__adhoc__"`, the message is dispatched to `WebChatManager.sendAdhocMessage()` with the `workingDirectory` from the payload; otherwise, it follows the standard `WebChatManager.sendMessage()` path through FleetManager. Response messages (`chat:response`, `chat:tool_call`, `chat:message_boundary`, `chat:complete`) use `agentName: "__adhoc__"` for ad hoc sessions so the frontend can route them to the correct view.
+
 ## API Layer
 
 The REST API client (`lib/api.ts`) provides typed functions for every endpoint. It uses the browser's native `fetch` API with typed request/response generics.
@@ -369,38 +402,65 @@ Chat operations use a combination of REST and WebSocket:
 
 | Operation | Transport | Endpoint |
 |-----------|-----------|----------|
-| Create session | REST | `POST /api/chat/:agentName/sessions` |
-| List sessions | REST | `GET /api/chat/:agentName/sessions` |
+| List sessions (per agent) | REST | `GET /api/chat/:agentName/sessions` |
 | List recent (cross-agent) | REST | `GET /api/chat/recent` |
-| Get session + messages | REST | `GET /api/chat/:agentName/sessions/:sessionId` |
-| Delete session | REST | `DELETE /api/chat/:agentName/sessions/:sessionId` |
+| List all (grouped by directory) | REST | `GET /api/chat/all` |
+| Expand a directory group | REST | `GET /api/chat/all/:encodedPath` |
+| Get session + messages (agent) | REST | `GET /api/chat/:agentName/sessions/:sessionId` |
+| Get session + messages (by path) | REST | `GET /api/chat/sessions/by-path/:encodedPath/:sessionId` |
+| Get session usage (agent) | REST | `GET /api/chat/:agentName/sessions/:sessionId/usage` |
+| Get session usage (by path) | REST | `GET /api/chat/sessions/by-path/:encodedPath/:sessionId/usage` |
 | Rename session | REST | `PATCH /api/chat/:agentName/sessions/:sessionId` |
 | Send message (streaming) | WebSocket | `chat:send` message |
+| Send ad hoc message (streaming) | WebSocket | `chat:send` message (with `agentName: "__adhoc__"`) |
 | Get chat config | REST | `GET /api/chat/config` |
+| Send message (non-streaming) | REST | `POST /api/chat/:agentName/messages` |
 
 Session lifecycle is managed via REST. Message sending uses WebSocket for real-time streaming. The `chat:send` WebSocket message triggers `WebChatManager.sendMessage()`, which creates a FleetManager job with `triggerType: "web"` and streams the response back through callbacks that the `WebSocketHandler` relays to the requesting client.
 
+The API has two addressing schemes for sessions:
+
+1. **Agent-scoped** (`/api/chat/:agentName/sessions/:sessionId`) -- for sessions attributed to a fleet agent. The agent's working directory is resolved from FleetManager.
+2. **Path-scoped** (`/api/chat/sessions/by-path/:encodedPath/:sessionId`) -- for unattributed sessions discovered on disk. The `encodedPath` is a URL-safe encoding of the working directory, resolved back to a filesystem path via the directory group index.
+
+The `GET /api/chat/all` endpoint returns sessions grouped into `DirectoryGroup` objects, each containing a `workingDirectory`, `encodedPath`, and array of `DiscoveredSession` objects. Pagination is supported via `limit` (number of directory groups) and `sessionsPerGroup` (sessions per group) query parameters.
+
 ## Chat Integration
 
-The web chat system integrates with `@herdctl/chat`, the same shared infrastructure used by the Discord and Slack connectors. The key shared components are:
+The web chat system integrates with `@herdctl/chat` for session attribution and message extraction, and with `SessionDiscoveryService` from `@herdctl/core` for session enumeration and message reading.
 
-- **`ChatSessionManager`** -- Per-agent session tracking with SDK session ID mapping for conversation continuity
-- **`extractMessageContent()`** -- Extracts text from Claude SDK response objects
-- **`extractToolResults()`** / **`extractToolUseBlocks()`** -- Parses tool call data from SDK messages
-- **`getToolInputSummary()`** -- Generates human-readable summaries of tool inputs
+### Shared Infrastructure
 
-`WebChatManager` manages chat sessions on the server side. Sessions are:
+From `@herdctl/chat`:
 
-- **Server-managed** -- Session IDs are server-generated UUIDs
-- **Per-agent** -- Each agent can have multiple concurrent sessions
-- **Shared** -- No per-user scoping; any browser sees and can interact with any session
-- **Persistent** -- Message history stored as JSON files in `.herdctl/web/chat-history/<agentName>/<sessionId>.json`
+- **`ChatSessionManager`** -- Per-agent session tracking. Used by `WebChatManager` to record attribution when sessions are created through the web dashboard, so they can be distinguished from native CLI sessions.
+- **`extractMessageContent()`** -- Extracts text from Claude SDK response objects during streaming.
 
-When a user sends a message, `WebChatManager` triggers a FleetManager job and processes the agent's streaming response through SDK message callbacks. Text chunks, tool call results, and message boundaries are relayed back to the browser via WebSocket in real time.
+From `@herdctl/core`:
+
+- **`SessionDiscoveryService`** -- Discovers Claude Code sessions on disk by scanning `.claude/projects/` directories. Provides session enumeration, message reading (from JSONL files), metadata extraction, and usage tracking. This is the single source of truth for what sessions exist.
+- **`extractToolResults()`** / **`extractToolUseBlocks()`** -- Parses tool call data from SDK messages during streaming.
+- **`getToolInputSummary()`** -- Generates human-readable summaries of tool inputs.
+- **`SessionMetadataStore`** -- Persists custom session names (renames) in `.herdctl/session-metadata/`.
+
+### WebChatManager
+
+`WebChatManager` is the server-side orchestrator for all chat operations. It delegates read operations (listing sessions, reading messages, fetching usage) to `SessionDiscoveryService` and handles write operations (sending messages, renaming sessions) itself. Sessions are:
+
+- **Discovered from disk** -- Session enumeration comes from `SessionDiscoveryService`, which scans the filesystem for Claude Code JSONL session files rather than maintaining its own session registry.
+- **Per-agent or unattributed** -- Agent-attributed sessions are scoped by agent name and working directory. Unattributed sessions (from native CLI usage) are accessed by working directory path alone.
+- **Shared** -- No per-user scoping; any browser sees and can interact with any session.
+- **Origin-aware** -- Each session carries an `origin` field (`herdctl`, `native`, or `adhoc`) determined by checking attribution data.
+
+When a user sends a message to an agent-attributed session, `WebChatManager` triggers a FleetManager job and processes the agent's streaming response through SDK message callbacks. Text chunks, tool call results, and message boundaries are relayed back to the browser via WebSocket in real time.
+
+For ad hoc sessions (native sessions resumed interactively), `WebChatManager.sendAdhocMessage()` bypasses FleetManager entirely. It constructs a minimal synthetic `ResolvedAgent` with CLI runtime and uses `RuntimeFactory` + `JobExecutor` directly to execute `claude --resume <sessionId>` in the session's working directory. The streaming callback pipeline is identical to agent-attributed sessions.
 
 ### Conversation Continuity
 
-Each web chat session maps to a Claude SDK session. On the first message, the SDK creates a new session. `WebChatManager` stores the returned SDK session ID via `ChatSessionManager.setSession()`. On subsequent messages in the same web session, the stored SDK session ID is passed as `resume`, allowing the agent to continue the conversation with full context.
+Each web chat session maps to a Claude SDK session. On the first message, the SDK creates a new session. `WebChatManager` stores the returned SDK session ID via `ChatSessionManager.setSession()` for attribution. On subsequent messages in the same web session, the stored SDK session ID is passed as `resume`, allowing the agent to continue the conversation with full context.
+
+Ad hoc sessions always use `resume` since they are, by definition, continuations of existing native CLI sessions.
 
 ## Design System
 

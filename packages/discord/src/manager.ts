@@ -14,18 +14,20 @@ import {
   type ChatConnectorLogger,
   ChatSessionManager,
   extractMessageContent,
-  extractToolResults,
-  extractToolUseBlocks,
-  getToolInputSummary,
   StreamingResponder,
   splitMessage,
-  TOOL_EMOJIS,
 } from "@herdctl/chat";
 import type {
   ChatManagerConnectorState,
   FleetManagerContext,
   IChatManager,
   ResolvedAgent,
+} from "@herdctl/core";
+import {
+  extractToolResults,
+  extractToolUseBlocks,
+  getToolInputSummary,
+  TOOL_EMOJIS,
 } from "@herdctl/core";
 
 import { DiscordConnector } from "./discord-connector.js";

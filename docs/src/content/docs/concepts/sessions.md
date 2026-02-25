@@ -453,6 +453,52 @@ The `sessions resume` command launches Claude Code with `--resume <session-id>` 
 
 See the [CLI Reference](/cli-reference/#sessions) for complete command options.
 
+## Session Discovery
+
+The session modes above describe sessions that herdctl creates and manages directly. But herdctl can also discover sessions it didn't create.
+
+The `SessionDiscoveryService` scans Claude Code's JSONL session files in `~/.claude/projects/` to find every session associated with a working directory that an herdctl agent uses. This means the web dashboard shows a complete picture of all Claude Code activity in a project, not just herdctl-initiated sessions:
+
+- **herdctl sessions** — sessions started through scheduled jobs or interactive web chat
+- **Native sessions** — sessions started by running `claude` directly in the terminal, in a project directory that an herdctl agent also uses
+- **Full conversation history** — for any discovered session, the dashboard can display the complete message history
+
+This is useful because developers often switch between herdctl-managed agents and direct Claude Code usage in the same project. Session discovery surfaces all of that activity in one place.
+
+## Session Attribution
+
+Every discovered session is attributed to an **origin** that describes how it was started:
+
+| Origin | Description |
+|--------|-------------|
+| `herdctl` | Started by herdctl — either through a scheduled job or interactive web chat. Attribution is determined by cross-referencing job metadata files and platform session records in `.herdctl/sessions/`. |
+| `native` | Started by running `claude` directly in the terminal, in a working directory that an herdctl agent also uses. These sessions are discovered and displayed but not managed by herdctl. |
+| `ad hoc` | A native session that a user chose to continue interactively from the web dashboard. herdctl creates a new interactive session that picks up the conversation. |
+
+Attribution matters because it tells you at a glance whether a session is something herdctl is responsible for or something a developer started independently. In the dashboard, sessions are labeled with their origin so you can filter and distinguish between managed and unmanaged activity.
+
+## Sidechain Sessions
+
+Claude Code internally marks certain sessions as **sidechain** sessions. These include:
+
+- **Sub-agent sessions** — created by the Task tool, typically single-message prompt-cache warmup sessions
+- **Resumed sessions** — sessions started with the `--resume` flag
+
+Sidechain sessions are automatically filtered from the dashboard because they are usually noise. A Task tool sub-agent session might contain only a single "Warmup" message and provides no useful context in the session list.
+
+This filtering has a practical consequence for schedule configuration: herdctl defaults `resume_session: false` in schedule configuration. Setting it to `true` causes Claude Code to mark the resumed session as a sidechain, which hides it from the dashboard. If you need session continuity, use `persistent` mode instead of `resume_session: true`.
+
+## Session Names
+
+Sessions are given human-readable names for display in the dashboard and CLI. The naming follows a priority order:
+
+1. **Custom name** — a name manually set by the user through the dashboard
+2. **Auto-generated name** — extracted from Claude Code's automatic session summary (stored as `type: "summary"` entries in the session JSONL file)
+3. **First message preview** — the first ~100 characters of the first user message in the session
+4. **Fallback** — "New conversation"
+
+Auto-generated names are cached in the `SessionMetadataStore` so that session lists load quickly without re-parsing JSONL files on every request. When Claude Code generates a new summary for a session, the cached name is updated on the next discovery pass.
+
 ## Related Concepts
 
 - [Jobs](/concepts/jobs/) - Individual executions that use sessions

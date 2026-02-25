@@ -6,12 +6,11 @@
 
 import type { StateCreator } from "zustand";
 import {
-  createChatSession as apiCreateChatSession,
-  deleteChatSession as apiDeleteChatSession,
   fetchRecentSessions as apiFetchRecentSessions,
   renameChatSession as apiRenameChatSession,
   fetchChatSession,
   fetchChatSessions,
+  fetchSessionByPath,
 } from "../lib/api";
 import type { ChatMessage, ChatSession, ChatToolCall, RecentChatSession } from "../lib/types";
 
@@ -58,18 +57,16 @@ export interface ChatActions {
   fetchChatSessions: (agentName: string) => Promise<void>;
   /** Fetch messages for a specific session */
   fetchChatMessages: (agentName: string, sessionId: string) => Promise<void>;
-  /** Create a new chat session */
-  createChatSession: (agentName: string) => Promise<string | null>;
-  /** Delete a chat session */
-  deleteChatSession: (agentName: string, sessionId: string) => Promise<void>;
   /** Rename a chat session */
-  renameChatSession: (agentName: string, sessionId: string, name: string) => Promise<void>;
+  renameChatSession: (agentName: string, sessionId: string, customName: string) => Promise<void>;
   /** Set the active session */
   setActiveChatSession: (sessionId: string | null) => void;
   /** Append a chunk to streaming content */
   appendStreamingChunk: (chunk: string) => void;
-  /** Complete streaming: move content to messages, reset streaming state */
-  completeStreaming: () => void;
+  /** Complete streaming: move content to messages, reset streaming state
+   *  @param sessionId - Optional session ID for new chats (sets activeChatSessionId if null)
+   */
+  completeStreaming: (sessionId?: string) => void;
   /** Add a user message immediately to the messages array */
   addUserMessage: (content: string) => void;
   /** Add a tool call message to the conversation */
@@ -92,6 +89,8 @@ export interface ChatActions {
   touchRecentSession: (sessionId: string, agentName: string) => void;
   /** Toggle chat info sidebar visibility */
   toggleChatInfoSidebar: () => void;
+  /** Fetch messages for an ad hoc session by path (for unattributed sessions) */
+  fetchAdhocChatMessages: (encodedPath: string, sessionId: string) => Promise<void>;
 }
 
 export type ChatSlice = ChatState & ChatActions;
@@ -188,96 +187,16 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
     }
   },
 
-  createChatSession: async (agentName: string) => {
+  renameChatSession: async (agentName: string, sessionId: string, customName: string) => {
     set({ chatError: null });
 
     try {
-      const response = await apiCreateChatSession(agentName);
-      const newSession: ChatSession = {
-        sessionId: response.sessionId,
-        createdAt: response.createdAt,
-        lastMessageAt: response.createdAt,
-        messageCount: 0,
-        preview: "",
-      };
-
-      set((state) => {
-        // Update the main session list
-        const chatSessions = [newSession, ...state.chatSessions];
-
-        // Also update sidebar sessions so the new chat appears immediately
-        const agentSessions = state.sidebarSessions[agentName] ?? [];
-        const updatedAgentSessions = [newSession, ...agentSessions].slice(0, SIDEBAR_SESSION_LIMIT);
-
-        // Also add to recentSessions for the Recent tab
-        const newRecentSession: RecentChatSession = {
-          ...newSession,
-          agentName,
-        };
-        const recentSessions = [newRecentSession, ...state.recentSessions];
-
-        return {
-          chatSessions,
-          activeChatSessionId: response.sessionId,
-          chatMessages: [],
-          sidebarSessions: {
-            ...state.sidebarSessions,
-            [agentName]: updatedAgentSessions,
-          },
-          recentSessions,
-        };
-      });
-
-      return response.sessionId;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to create chat session";
-      set({ chatError: message });
-      return null;
-    }
-  },
-
-  deleteChatSession: async (agentName: string, sessionId: string) => {
-    set({ chatError: null });
-
-    try {
-      await apiDeleteChatSession(agentName, sessionId);
-
-      const { activeChatSessionId } = get();
-
-      set((state) => {
-        // Also remove from sidebar sessions
-        const agentSessions = state.sidebarSessions[agentName];
-        const updatedSidebarSessions = agentSessions
-          ? {
-              ...state.sidebarSessions,
-              [agentName]: agentSessions.filter((s) => s.sessionId !== sessionId),
-            }
-          : state.sidebarSessions;
-
-        return {
-          chatSessions: state.chatSessions.filter((s) => s.sessionId !== sessionId),
-          activeChatSessionId: activeChatSessionId === sessionId ? null : activeChatSessionId,
-          chatMessages: activeChatSessionId === sessionId ? [] : state.chatMessages,
-          sidebarSessions: updatedSidebarSessions,
-          recentSessions: state.recentSessions.filter((s) => s.sessionId !== sessionId),
-        };
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to delete chat session";
-      set({ chatError: message });
-    }
-  },
-
-  renameChatSession: async (agentName: string, sessionId: string, name: string) => {
-    set({ chatError: null });
-
-    try {
-      await apiRenameChatSession(agentName, sessionId, name);
+      await apiRenameChatSession(agentName, sessionId, customName);
 
       set((state) => {
         // Update custom name in main session list
         const chatSessions = state.chatSessions.map((s) =>
-          s.sessionId === sessionId ? { ...s, customName: name } : s,
+          s.sessionId === sessionId ? { ...s, customName } : s,
         );
 
         // Update custom name in sidebar sessions
@@ -286,13 +205,13 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
           ? {
               ...state.sidebarSessions,
               [agentName]: agentSessions.map((s) =>
-                s.sessionId === sessionId ? { ...s, customName: name } : s,
+                s.sessionId === sessionId ? { ...s, customName } : s,
               ),
             }
           : state.sidebarSessions;
 
         const recentSessions = state.recentSessions.map((s) =>
-          s.sessionId === sessionId ? { ...s, customName: name } : s,
+          s.sessionId === sessionId ? { ...s, customName } : s,
         );
 
         return {
@@ -324,8 +243,8 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
     }));
   },
 
-  completeStreaming: () => {
-    const { chatStreamingContent } = get();
+  completeStreaming: (sessionId?: string) => {
+    const { chatStreamingContent, activeChatSessionId } = get();
 
     if (chatStreamingContent) {
       const assistantMessage: ChatMessage = {
@@ -338,12 +257,18 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
         chatMessages: [...state.chatMessages, assistantMessage],
         chatStreaming: false,
         chatStreamingContent: "",
+        // For new chats, set the active session ID from the completed message
+        activeChatSessionId:
+          sessionId && activeChatSessionId === null ? sessionId : state.activeChatSessionId,
       }));
     } else {
-      set({
+      set((state) => ({
         chatStreaming: false,
         chatStreamingContent: "",
-      });
+        // For new chats, set the active session ID from the completed message
+        activeChatSessionId:
+          sessionId && activeChatSessionId === null ? sessionId : state.activeChatSessionId,
+      }));
     }
   },
 
@@ -402,8 +327,8 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
     try {
       const results = await Promise.all(
         agentNames.map((name) =>
-          fetchChatSessions(name)
-            .then((r) => ({ name, sessions: r.sessions.slice(0, SIDEBAR_SESSION_LIMIT) }))
+          fetchChatSessions(name, { limit: SIDEBAR_SESSION_LIMIT })
+            .then((r) => ({ name, sessions: r.sessions }))
             .catch(() => ({ name, sessions: [] as ChatSession[] })),
         ),
       );
@@ -501,5 +426,30 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
       }
       return { chatInfoSidebarOpen: newOpen };
     });
+  },
+
+  fetchAdhocChatMessages: async (encodedPath: string, sessionId: string) => {
+    set({
+      chatMessagesLoading: true,
+      chatError: null,
+      chatStreaming: false,
+      chatStreamingContent: "",
+    });
+
+    try {
+      const response = await fetchSessionByPath(encodedPath, sessionId);
+      set({
+        chatMessages: response.messages,
+        chatMessagesLoading: false,
+        activeChatSessionId: sessionId,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to fetch ad hoc chat messages";
+      set({
+        chatMessagesLoading: false,
+        chatError: message,
+      });
+    }
   },
 });

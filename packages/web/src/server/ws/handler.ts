@@ -163,20 +163,117 @@ export class WebSocketHandler {
    * Handle a chat:send message from a client
    */
   private async handleChatSend(client: WebSocketClient, message: ChatSendMessage): Promise<void> {
-    const { agentName, sessionId, message: userMessage } = message.payload;
+    const { agentName, sessionId, message: userMessage, workingDirectory } = message.payload;
 
     if (!this.chatManager) {
       this.sendToClient(client, {
         type: "chat:error",
         payload: {
           agentName,
-          sessionId,
+          sessionId: sessionId ?? "",
           error: "Chat manager not available",
         },
       });
       return;
     }
 
+    // Handle ad hoc sessions (unattributed sessions)
+    if (agentName === "__adhoc__") {
+      if (!workingDirectory || !sessionId) {
+        this.sendToClient(client, {
+          type: "chat:error",
+          payload: {
+            agentName,
+            sessionId: sessionId ?? "",
+            error: "Ad hoc sessions require workingDirectory and sessionId",
+          },
+        });
+        return;
+      }
+
+      logger.debug(`${client.clientId} sending ad hoc chat message`, {
+        workingDirectory,
+        sessionId,
+      });
+
+      let jobId = "";
+
+      try {
+        const result = await this.chatManager.sendAdhocMessage(
+          workingDirectory,
+          sessionId,
+          userMessage,
+          async (chunk) => {
+            this.sendToClient(client, {
+              type: "chat:response",
+              payload: {
+                agentName: "__adhoc__",
+                sessionId,
+                jobId,
+                chunk,
+              },
+            });
+          },
+          async (toolCall) => {
+            this.sendToClient(client, {
+              type: "chat:tool_call",
+              payload: {
+                agentName: "__adhoc__",
+                sessionId,
+                jobId,
+                toolName: toolCall.toolName,
+                inputSummary: toolCall.inputSummary,
+                output: toolCall.output,
+                isError: toolCall.isError,
+                durationMs: toolCall.durationMs,
+              },
+            });
+          },
+          async () => {
+            this.sendToClient(client, {
+              type: "chat:message_boundary",
+              payload: {
+                agentName: "__adhoc__",
+                sessionId,
+                jobId,
+              },
+            });
+          },
+        );
+
+        jobId = result.jobId;
+
+        this.sendToClient(client, {
+          type: "chat:complete",
+          payload: {
+            agentName: "__adhoc__",
+            sessionId: result.sessionId ?? sessionId,
+            jobId: result.jobId,
+            success: result.success,
+            error: result.error,
+          },
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error(`Ad hoc chat send failed`, {
+          workingDirectory,
+          sessionId,
+          error: errorMessage,
+        });
+
+        this.sendToClient(client, {
+          type: "chat:error",
+          payload: {
+            agentName: "__adhoc__",
+            sessionId,
+            error: errorMessage,
+          },
+        });
+      }
+      return;
+    }
+
+    // Handle regular agent chat sessions
     logger.debug(`${client.clientId} sending chat message`, { agentName, sessionId });
 
     let jobId = "";
@@ -184,15 +281,16 @@ export class WebSocketHandler {
     try {
       const result = await this.chatManager.sendMessage(
         agentName,
-        sessionId,
+        sessionId ?? null, // null for new chat
         userMessage,
         async (chunk) => {
           // Stream chunks back to the client
+          // Use input sessionId for ongoing messages (may be empty for new chats)
           this.sendToClient(client, {
             type: "chat:response",
             payload: {
               agentName,
-              sessionId,
+              sessionId: sessionId ?? "",
               jobId,
               chunk,
             },
@@ -204,7 +302,7 @@ export class WebSocketHandler {
             type: "chat:tool_call",
             payload: {
               agentName,
-              sessionId,
+              sessionId: sessionId ?? "",
               jobId,
               toolName: toolCall.toolName,
               inputSummary: toolCall.inputSummary,
@@ -220,7 +318,7 @@ export class WebSocketHandler {
             type: "chat:message_boundary",
             payload: {
               agentName,
-              sessionId,
+              sessionId: sessionId ?? "",
               jobId,
             },
           });
@@ -229,27 +327,18 @@ export class WebSocketHandler {
 
       jobId = result.jobId;
 
-      if (result.success) {
-        // Send completion message
-        this.sendToClient(client, {
-          type: "chat:complete",
-          payload: {
-            agentName,
-            sessionId,
-            jobId: result.jobId,
-          },
-        });
-      } else {
-        // Send error message
-        this.sendToClient(client, {
-          type: "chat:error",
-          payload: {
-            agentName,
-            sessionId,
-            error: result.error ?? "Unknown error",
-          },
-        });
-      }
+      // Always send chat:complete with the SDK session ID from the result
+      // This is how the frontend learns the session ID for new chats
+      this.sendToClient(client, {
+        type: "chat:complete",
+        payload: {
+          agentName,
+          sessionId: result.sessionId ?? sessionId ?? "",
+          jobId: result.jobId,
+          success: result.success,
+          error: result.error,
+        },
+      });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(`Chat send failed`, { agentName, sessionId, error: errorMessage });
@@ -258,7 +347,7 @@ export class WebSocketHandler {
         type: "chat:error",
         payload: {
           agentName,
-          sessionId,
+          sessionId: sessionId ?? "",
           error: errorMessage,
         },
       });

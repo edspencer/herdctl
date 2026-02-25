@@ -359,6 +359,8 @@ export type ActiveView = "dashboard" | "agents" | "jobs" | "schedules" | "settin
 // Chat Types
 // =============================================================================
 
+export type SessionOrigin = "web" | "discord" | "slack" | "schedule" | "native";
+
 export interface ChatSession {
   sessionId: string;
   createdAt: string;
@@ -366,6 +368,10 @@ export interface ChatSession {
   messageCount: number;
   preview: string;
   customName?: string;
+  /** Auto-generated session name (extracted from JSONL summary field) */
+  autoName?: string;
+  origin: SessionOrigin;
+  resumable: boolean;
 }
 
 /**
@@ -374,6 +380,8 @@ export interface ChatSession {
  */
 export interface RecentChatSession extends ChatSession {
   agentName: string;
+  /** Encoded working directory path (for routing unattributed sessions to read-only view) */
+  encodedPath?: string;
 }
 
 export interface ChatToolCall {
@@ -411,6 +419,8 @@ export interface ChatCompleteMessage {
     agentName: string;
     sessionId: string;
     jobId: string;
+    success: boolean;
+    error?: string;
   };
 }
 
@@ -431,7 +441,55 @@ export interface ChatSendMessage {
   type: "chat:send";
   payload: {
     agentName: string;
-    sessionId: string;
+    sessionId?: string;
     message: string;
   };
+}
+
+// =============================================================================
+// All Chats Types
+// =============================================================================
+
+/**
+ * A chat session discovered on the machine, potentially without a fleet agent association.
+ * Used by the "All Chats" page to display sessions grouped by working directory.
+ */
+export interface DiscoveredSession {
+  sessionId: string;
+  workingDirectory: string;
+  mtime: string;
+  origin: SessionOrigin;
+  agentName: string | undefined;
+  resumable: boolean;
+  customName: string | undefined;
+  /** Auto-generated session name (extracted from JSONL summary field) */
+  autoName: string | undefined;
+  preview: string | undefined;
+}
+
+/**
+ * A group of sessions sharing the same working directory.
+ * The API returns sessions grouped this way for efficient display.
+ */
+export interface DirectoryGroup {
+  workingDirectory: string;
+  encodedPath: string;
+  agentName: string | undefined;
+  sessionCount: number;
+  sessions: DiscoveredSession[];
+}
+
+/**
+ * Response from GET /api/chat/all
+ */
+export interface AllChatsResponse {
+  groups: DirectoryGroup[];
+  totalGroups: number;
+}
+
+/**
+ * Response from GET /api/chat/all/:encodedPath (expanded group)
+ */
+export interface DirectoryGroupExpanded {
+  group: DirectoryGroup;
 }

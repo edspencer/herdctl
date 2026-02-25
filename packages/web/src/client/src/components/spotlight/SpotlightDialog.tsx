@@ -14,20 +14,14 @@
  * - Focus trap: Tab/Shift+Tab cycle within dialog, focus restored on close
  */
 
-import { Search } from "lucide-react";
+import { MessagesSquare, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 import { getAgentAvatar } from "../../lib/avatar";
-import { agentChatPath } from "../../lib/paths";
+import { agentChatPath, allChatsPath } from "../../lib/paths";
 import type { AgentInfo } from "../../lib/types";
-import {
-  useChatActions,
-  useFleet,
-  useRecentSessions,
-  useSpotlightOpen,
-  useUIActions,
-} from "../../store";
+import { useFleet, useRecentSessions, useSpotlightOpen, useUIActions } from "../../store";
 
 // =============================================================================
 // Constants
@@ -61,12 +55,9 @@ export function SpotlightDialog() {
   const { setSpotlightOpen } = useUIActions();
   const { agents } = useFleet();
   const recentSessions = useRecentSessions();
-  const { createChatSession } = useChatActions();
 
   const [query, setQuery] = useState("");
   const [highlightedIndex, setHighlightedIndex] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
 
   // Animation state: shouldRender keeps the DOM alive during exit animation
   const [shouldRender, setShouldRender] = useState(false);
@@ -156,8 +147,6 @@ export function SpotlightDialog() {
   useEffect(() => {
     if (spotlightOpen) {
       setQuery("");
-      setError(null);
-      setIsCreating(false);
       // Set initial highlight to default agent after agents are available
       setHighlightedIndex(defaultAgentIndex);
       // Focus input on next tick
@@ -180,28 +169,30 @@ export function SpotlightDialog() {
     }
   }, [highlightedIndex]);
 
-  // Handle agent selection
+  // Handle agent selection (navigate to new chat - session is created on first message)
   const handleSelect = useCallback(
-    async (agent: AgentInfo) => {
-      if (isCreating) return;
-
-      setIsCreating(true);
-      setError(null);
-
-      const sessionId = await createChatSession(agent.qualifiedName);
-
-      if (sessionId) {
-        // Clear saved focus so it doesn't fight with the chat input's autoFocus
-        previousFocusRef.current = null;
-        setSpotlightOpen(false);
-        navigate(agentChatPath(agent.qualifiedName, sessionId));
-      } else {
-        setError("Failed to create chat session. Please try again.");
-        setIsCreating(false);
-      }
+    (agent: AgentInfo) => {
+      // Clear saved focus so it doesn't fight with the chat input's autoFocus
+      previousFocusRef.current = null;
+      setSpotlightOpen(false);
+      navigate(agentChatPath(agent.qualifiedName));
     },
-    [createChatSession, navigate, setSpotlightOpen, isCreating],
+    [navigate, setSpotlightOpen],
   );
+
+  // Handle All Chats navigation
+  const handleAllChats = useCallback(() => {
+    previousFocusRef.current = null;
+    setSpotlightOpen(false);
+    navigate(allChatsPath());
+  }, [navigate, setSpotlightOpen]);
+
+  // Check if query matches "all chats" or "chats" for showing the All Chats option prominently
+  const showAllChatsOption = useMemo(() => {
+    if (!query.trim()) return true;
+    const lowerQuery = query.toLowerCase();
+    return "all chats".includes(lowerQuery) || "chats".includes(lowerQuery);
+  }, [query]);
 
   // ---------------------------------------------------------------------------
   // 6.2 — Focus trap: cycle Tab/Shift+Tab within dialog
@@ -302,7 +293,6 @@ export function SpotlightDialog() {
             onKeyDown={handleKeyDown}
             placeholder="Start a conversation with..."
             className="w-full bg-herd-input-bg border-b border-herd-border rounded-t-[10px] pl-10 pr-4 py-3 text-sm text-herd-fg placeholder:text-herd-muted focus:outline-none"
-            disabled={isCreating}
           />
         </div>
 
@@ -318,10 +308,9 @@ export function SpotlightDialog() {
                 key={agent.qualifiedName}
                 type="button"
                 onClick={() => handleSelect(agent)}
-                disabled={isCreating}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
                   index === highlightedIndex ? "bg-herd-primary-muted" : "hover:bg-herd-hover"
-                } ${isCreating ? "opacity-50 cursor-not-allowed" : ""}`}
+                }`}
               >
                 {/* Agent avatar */}
                 <img
@@ -345,12 +334,22 @@ export function SpotlightDialog() {
           )}
         </div>
 
-        {/* Error message */}
-        {error && (
-          <div className="px-4 py-2 border-t border-herd-border">
-            <div className="bg-herd-status-error/10 border border-herd-status-error/20 text-herd-status-error rounded-lg px-3 py-2 text-xs">
-              {error}
-            </div>
+        {/* All Chats navigation option */}
+        {showAllChatsOption && (
+          <div className="border-t border-herd-border">
+            <button
+              type="button"
+              onClick={handleAllChats}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-herd-hover transition-colors"
+            >
+              <div className="w-8 h-8 rounded bg-herd-hover flex items-center justify-center flex-shrink-0">
+                <MessagesSquare className="w-4 h-4 text-herd-muted" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm text-herd-fg">All Chats</div>
+                <div className="text-xs text-herd-muted">Browse all sessions on this machine</div>
+              </div>
+            </button>
           </div>
         )}
 

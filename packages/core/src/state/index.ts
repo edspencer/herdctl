@@ -55,6 +55,18 @@ export {
   readJobOutput,
   readJobOutputAll,
 } from "./job-output.js";
+// Re-export JSONL parser functions
+export {
+  type ChatMessage,
+  type ChatToolCall,
+  extractLastSummary,
+  extractSessionMetadata,
+  extractSessionUsage,
+  isSidechainSession,
+  parseSessionMessages,
+  type SessionMetadata,
+  type SessionUsage,
+} from "./jsonl-parser.js";
 // Re-export schemas
 export * from "./schemas/index.js";
 // Re-export session functions
@@ -67,6 +79,28 @@ export {
   type SessionOptions,
   updateSessionInfo,
 } from "./session.js";
+// Re-export session attribution functions
+export {
+  type AttributionIndex,
+  buildAttributionIndex,
+  type SessionAttribution,
+  type SessionOrigin,
+} from "./session-attribution.js";
+// Re-export session discovery functions
+export {
+  type DirectoryGroup,
+  type DiscoveredSession,
+  type SessionDiscoveryOptions,
+  SessionDiscoveryService,
+} from "./session-discovery.js";
+// Re-export session metadata functions
+export {
+  type SessionMetadataEntry,
+  SessionMetadataEntrySchema,
+  type SessionMetadataFile,
+  SessionMetadataFileSchema,
+  SessionMetadataStore,
+} from "./session-metadata.js";
 // Re-export session validation functions
 export {
   cliSessionFileExists,
@@ -78,6 +112,16 @@ export {
   validateSession,
   validateSessionWithFileCheck,
 } from "./session-validation.js";
+// Re-export tool parsing functions
+export {
+  extractToolResultContent,
+  extractToolResults,
+  extractToolUseBlocks,
+  getToolInputSummary,
+  TOOL_EMOJIS,
+  type ToolResult,
+  type ToolUseBlock,
+} from "./tool-parsing.js";
 // Re-export types
 export * from "./types.js";
 // Re-export file utilities

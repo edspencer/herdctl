@@ -9,7 +9,8 @@
 import { useEffect } from "react";
 import { Route, Routes } from "react-router";
 import { AgentDetail } from "./components/agent";
-import { ChatView } from "./components/chat";
+import { AllChatsPage, ReadOnlySessionView } from "./components/all-chats";
+import { AdhocChatView, ChatView } from "./components/chat";
 import { FleetDashboard } from "./components/dashboard/FleetDashboard";
 import { JobHistory } from "./components/jobs";
 import { AppLayout } from "./components/layout/AppLayout";
@@ -128,6 +129,30 @@ export default function App() {
             element={
               <ErrorBoundary>
                 <SchedulesPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/chats"
+            element={
+              <ErrorBoundary>
+                <AllChatsPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/chats/:encodedPath/:sessionId"
+            element={
+              <ErrorBoundary>
+                <ReadOnlySessionView />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/adhoc/:encodedPath/chat/:sessionId"
+            element={
+              <ErrorBoundary>
+                <AdhocChatView />
               </ErrorBoundary>
             }
           />

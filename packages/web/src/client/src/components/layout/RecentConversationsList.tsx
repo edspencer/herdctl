@@ -9,8 +9,8 @@
 
 import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router";
-import { agentChatPath } from "../../lib/paths";
+import { useLocation } from "react-router";
+import type { SessionOrigin } from "../../lib/types";
 import {
   useChatActions,
   useRecentSessions,
@@ -26,11 +26,10 @@ interface RecentConversationsListProps {
 }
 
 export function RecentConversationsList({ onNavigate }: RecentConversationsListProps) {
-  const navigate = useNavigate();
   const location = useLocation();
   const recentSessions = useRecentSessions();
   const recentSessionsLoading = useRecentSessionsLoading();
-  const { fetchRecentSessions, renameChatSession, deleteChatSession } = useChatActions();
+  const { fetchRecentSessions, renameChatSession } = useChatActions();
   const { setSpotlightOpen } = useUIActions();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -66,6 +65,14 @@ export function RecentConversationsList({ onNavigate }: RecentConversationsListP
   const filteredSessions = useMemo(() => {
     if (!searchQuery.trim()) return recentSessions;
 
+    const originLabels: Record<SessionOrigin, string> = {
+      web: "web",
+      discord: "discord",
+      slack: "slack",
+      schedule: "schedule",
+      native: "cli",
+    };
+
     const query = searchQuery.toLowerCase().trim();
     return recentSessions.filter((session) => {
       // Match against customName
@@ -74,6 +81,8 @@ export function RecentConversationsList({ onNavigate }: RecentConversationsListP
       if (session.preview?.toLowerCase().includes(query)) return true;
       // Match against agentName
       if (session.agentName.toLowerCase().includes(query)) return true;
+      // Match against origin label
+      if (originLabels[session.origin].includes(query)) return true;
       return false;
     });
   }, [recentSessions, searchQuery]);
@@ -86,21 +95,6 @@ export function RecentConversationsList({ onNavigate }: RecentConversationsListP
       fetchRecentSessions();
     },
     [renameChatSession, fetchRecentSessions],
-  );
-
-  // Handle delete
-  const handleDelete = useCallback(
-    async (agentName: string, sessionId: string) => {
-      await deleteChatSession(agentName, sessionId);
-      // Navigate away if we deleted the active session
-      if (sessionId === currentSessionId) {
-        navigate(agentChatPath(agentName));
-        onNavigate?.();
-      }
-      // Refresh the list after delete
-      fetchRecentSessions();
-    },
-    [deleteChatSession, currentSessionId, navigate, onNavigate, fetchRecentSessions],
   );
 
   // Handle new chat button
@@ -191,7 +185,6 @@ export function RecentConversationsList({ onNavigate }: RecentConversationsListP
               }
               onNavigate={onNavigate}
               onRename={handleRename}
-              onDelete={handleDelete}
             />
           ))
         )}
