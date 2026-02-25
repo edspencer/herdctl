@@ -123,6 +123,9 @@ export function RecentConversationRow({
         className="w-5 h-5 rounded flex-shrink-0"
       />
 
+      {/* Origin badge */}
+      <OriginBadge origin={session.origin} className="flex-shrink-0" />
+
       {/* Content area with navigation link */}
       {sessionPath ? (
         <Link to={sessionPath} onClick={onNavigate} className="flex-1 min-w-0 flex flex-col">
@@ -137,9 +140,6 @@ export function RecentConversationRow({
           <span className="text-[11px] text-herd-sidebar-muted truncate">Unattributed</span>
         </div>
       )}
-
-      {/* Origin badge */}
-      <OriginBadge origin={session.origin} className="flex-shrink-0" />
 
       {/* Rename button (only for attributed sessions) */}
       {session.agentName && (

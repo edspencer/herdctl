@@ -271,7 +271,7 @@ function AgentRow({
 
   const startEditing = (session: ChatSession) => {
     setEditingSessionId(session.sessionId);
-    setEditValue(session.customName || session.preview || "New conversation");
+    setEditValue(session.customName || session.autoName || session.preview || "New conversation");
   };
 
   const handleSave = (sessionId: string) => {
@@ -382,14 +382,17 @@ function AgentRow({
                       : "text-herd-sidebar-muted hover:bg-herd-sidebar-hover hover:text-herd-sidebar-fg"
                   }`}
                 >
+                  <OriginBadge origin={session.origin} className="flex-shrink-0" />
                   <Link
                     to={agentChatPath(agent.qualifiedName, session.sessionId)}
                     onClick={onNavigate}
                     className="flex-1 truncate min-w-0"
                   >
-                    {session.customName || session.preview || "New conversation"}
+                    {session.customName ||
+                      session.autoName ||
+                      session.preview ||
+                      "New conversation"}
                   </Link>
-                  <OriginBadge origin={session.origin} className="flex-shrink-0" />
                   <button
                     type="button"
                     onClick={(e) => {
