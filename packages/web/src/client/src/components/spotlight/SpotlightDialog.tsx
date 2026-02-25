@@ -68,6 +68,8 @@ export function SpotlightDialog() {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<Element | null>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasResetRef = useRef(false);
+  const shouldRenderRef = useRef(false);
 
   // ---------------------------------------------------------------------------
   // 6.1 — Enter/exit animation lifecycle
@@ -81,11 +83,13 @@ export function SpotlightDialog() {
       }
       setIsClosing(false);
       setShouldRender(true);
-    } else if (shouldRender) {
+      shouldRenderRef.current = true;
+    } else if (shouldRenderRef.current) {
       // Begin exit animation
       setIsClosing(true);
       closeTimerRef.current = setTimeout(() => {
         setShouldRender(false);
+        shouldRenderRef.current = false;
         setIsClosing(false);
         closeTimerRef.current = null;
       }, ANIMATION_DURATION_MS);
@@ -96,7 +100,7 @@ export function SpotlightDialog() {
         closeTimerRef.current = null;
       }
     };
-  }, [spotlightOpen, shouldRender]);
+  }, [spotlightOpen]);
 
   // ---------------------------------------------------------------------------
   // 6.2 — Focus management: save previous focus & restore on close
@@ -133,26 +137,29 @@ export function SpotlightDialog() {
     );
   }, [agents, query]);
 
-  // Determine default agent from recent sessions
+  // Determine default agent index from recent sessions (only from full agent list,
+  // not filteredAgents, so it doesn't change as the user types)
   const defaultAgentIndex = useMemo(() => {
     if (recentSessions.length > 0) {
       const recentAgentName = recentSessions[0].agentName;
-      const index = filteredAgents.findIndex((a) => a.qualifiedName === recentAgentName);
+      const index = agents.findIndex((a) => a.qualifiedName === recentAgentName);
       return index >= 0 ? index : 0;
     }
     return 0;
-  }, [recentSessions, filteredAgents]);
+  }, [recentSessions, agents]);
 
-  // Reset state when dialog opens/closes
+  // Reset state once when dialog opens (ref guard prevents StrictMode double-fire)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only reset on open, not when defaultAgentIndex changes
   useEffect(() => {
-    if (spotlightOpen) {
+    if (spotlightOpen && !hasResetRef.current) {
+      hasResetRef.current = true;
       setQuery("");
-      // Set initial highlight to default agent after agents are available
       setHighlightedIndex(defaultAgentIndex);
-      // Focus input on next tick
       setTimeout(() => inputRef.current?.focus(), 0);
+    } else if (!spotlightOpen) {
+      hasResetRef.current = false;
     }
-  }, [spotlightOpen, defaultAgentIndex]);
+  }, [spotlightOpen]);
 
   // Reset highlighted index when query changes (query is intentionally in deps to trigger reset)
   // biome-ignore lint/correctness/useExhaustiveDependencies: query triggers highlight reset

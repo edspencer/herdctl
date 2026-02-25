@@ -42,17 +42,25 @@ export function Composer({ agentName, sessionId, isAdhoc, workingDirectory }: Co
   const { chatStreaming } = useChatMessages();
   const { addUserMessage } = useChatActions();
 
-  // Auto-resize textarea
+  // Auto-resize textarea as content changes
   useEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
 
-    // Reset height to auto to properly calculate scroll height
-    textarea.style.height = "auto";
-    // Set to scroll height but cap at max
-    const newHeight = Math.min(textarea.scrollHeight, 200);
+    // For empty textarea, just use the single-line height directly
+    if (!value) {
+      textarea.style.height = "44px";
+      return;
+    }
+
+    // Temporarily remove min-height and collapse to measure true content height
+    const prevMinHeight = textarea.style.minHeight;
+    textarea.style.minHeight = "0px";
+    textarea.style.height = "0px";
+    const newHeight = Math.min(Math.max(textarea.scrollHeight, 44), 200);
+    textarea.style.minHeight = prevMinHeight;
     textarea.style.height = `${newHeight}px`;
-  }, []);
+  }, [value]);
 
   // Focus textarea when session changes (covers initial mount, navigation, and Spotlight flow)
   // biome-ignore lint/correctness/useExhaustiveDependencies: sessionId triggers focus on session change
@@ -126,7 +134,7 @@ export function Composer({ agentName, sessionId, isAdhoc, workingDirectory }: Co
             placeholder={isAdhoc ? "Send a message..." : `Send a message to ${agentName}...`}
             rows={1}
             className="flex-1 bg-herd-input-bg border border-herd-border rounded-lg px-3 py-2.5 text-base text-herd-fg placeholder:text-herd-muted focus:outline-none focus:border-herd-primary/60 transition-colors resize-none"
-            style={{ minHeight: "42px", maxHeight: "200px" }}
+            style={{ minHeight: "44px", maxHeight: "200px" }}
           />
           <button
             type="button"
