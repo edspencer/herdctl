@@ -1,5 +1,19 @@
 # herdctl
 
+## 1.5.0
+
+### Minor Changes
+
+- [#153](https://github.com/edspencer/herdctl/pull/153) [`487893e`](https://github.com/edspencer/herdctl/commit/487893e512acc56e7de2caf9b44eab5f20f5df64) Thanks [@edspencer](https://github.com/edspencer)! - Start web UI without fleet config for zero-config session browsing. When no herdctl.yaml is found, `herdctl start` now boots the web dashboard in web-only mode instead of exiting with an error, letting users browse Claude Code sessions from ~/.claude/ without any fleet configuration.
+
+### Patch Changes
+
+- Updated dependencies [[`487893e`](https://github.com/edspencer/herdctl/commit/487893e512acc56e7de2caf9b44eab5f20f5df64)]:
+  - @herdctl/core@5.8.0
+  - @herdctl/discord@1.0.14
+  - @herdctl/slack@1.2.8
+  - @herdctl/web@0.9.2
+
 ## 1.4.2
 
 ### Patch Changes
