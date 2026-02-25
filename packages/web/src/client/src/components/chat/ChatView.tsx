@@ -7,7 +7,7 @@
  */
 
 import { Container, Info, MessageCircle, SplitSquareHorizontal } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router";
 import { agentChatPath } from "../../lib/paths";
 import {
@@ -36,11 +36,18 @@ export function ChatView() {
   const { fetchChatMessages, setActiveChatSession, clearActiveChatState, setMessageGrouping } =
     useChatActions();
 
+  // Track the previous activeChatSessionId so the redirect effect only fires
+  // when it genuinely changes (e.g., server assigns a new session after first message),
+  // not when we navigate to "new chat" and the stale value is still in the store.
+  const prevActiveSessionRef = useRef<string | null>(null);
+
   // When activeChatSessionId updates (e.g., after a new chat is created), update the URL
   // This handles the case where we start a new chat without a sessionId, send a message,
   // and the server returns the new sessionId in chat:complete
   useEffect(() => {
-    if (activeChatSessionId && !sessionId && qualifiedName) {
+    const changed = activeChatSessionId !== prevActiveSessionRef.current;
+    prevActiveSessionRef.current = activeChatSessionId;
+    if (activeChatSessionId && !sessionId && qualifiedName && changed) {
       // New chat received its sessionId - update URL to include it
       navigate(agentChatPath(qualifiedName, activeChatSessionId), { replace: true });
     }
