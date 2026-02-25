@@ -194,6 +194,94 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   // Lifecycle Methods
   // ===========================================================================
 
+  /**
+   * Initialize FleetManager in web-only mode without a configuration file
+   *
+   * Creates a minimal config with zero agents and web enabled, allowing
+   * the web dashboard to serve session data from ~/.claude/ without
+   * requiring a herdctl.yaml fleet configuration.
+   *
+   * @param options - Optional overrides for the minimal web config
+   */
+  async initializeWebOnly(options?: { port?: number; host?: string }): Promise<void> {
+    if (this.status !== "uninitialized" && this.status !== "stopped" && this.status !== "error") {
+      throw new InvalidStateError("initializeWebOnly", this.status, [
+        "uninitialized",
+        "stopped",
+        "error",
+      ]);
+    }
+
+    this.logger.debug("Initializing fleet manager in web-only mode...");
+
+    try {
+      // Build a minimal ResolvedConfig with web enabled and zero agents
+      this.config = {
+        fleet: {
+          version: 1,
+          fleet: { name: "herdctl" },
+          agents: [],
+          fleets: [],
+          web: {
+            enabled: true,
+            port: options?.port ?? 3232,
+            host: options?.host ?? "localhost",
+            session_expiry_hours: 24,
+            open_browser: false,
+            tool_results: true,
+            message_grouping: "separate",
+          },
+        },
+        agents: [],
+        configPath: "",
+        configDir: process.cwd(),
+      };
+
+      // Apply any CLI config overrides (e.g., --web-port)
+      if (this.configOverrides) {
+        this.config = this.applyConfigOverrides(this.config);
+      }
+
+      this.stateDirInfo = await this.initializeStateDir();
+      this.logger.debug("State directory initialized");
+
+      this.scheduler = new Scheduler({
+        stateDir: this.stateDir,
+        checkInterval: this.checkInterval,
+        logger: this.logger,
+        onTrigger: (info) => this.handleScheduleTrigger(info),
+      });
+
+      // Initialize chat managers (web will be picked up since config.fleet.web.enabled = true)
+      await this.initializeChatManagers();
+
+      await Promise.allSettled(
+        Array.from(this.chatManagers.entries()).map(async ([platform, manager]) => {
+          this.logger.debug(`Initializing ${platform} chat manager...`);
+          try {
+            await manager.initialize();
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`Failed to initialize ${platform} chat manager: ${errorMessage}`);
+            this.chatManagers.delete(platform);
+          }
+        }),
+      );
+
+      this.status = "initialized";
+      this.initializedAt = new Date().toISOString();
+      this.lastError = null;
+
+      this.logger.info("Fleet manager initialized in web-only mode");
+      this.emit("initialized");
+    } catch (error) {
+      this.status = "error";
+      this.lastError = error instanceof Error ? error.message : String(error);
+      this.emit("error", error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
+  }
+
   async initialize(): Promise<void> {
     if (this.status !== "uninitialized" && this.status !== "stopped") {
       throw new InvalidStateError("initialize", this.status, ["uninitialized", "stopped"]);

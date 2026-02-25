@@ -12,6 +12,7 @@ import * as path from "node:path";
 import {
   type AgentInfo,
   ConfigNotFoundError,
+  ConfigurationError,
   type FleetConfigOverrides,
   FleetManager,
   type FleetStatus,
@@ -256,7 +257,31 @@ export async function startCommand(options: StartOptions): Promise<void> {
 
   try {
     // Initialize the fleet manager
-    await manager.initialize();
+    let webOnlyMode = false;
+    try {
+      await manager.initialize();
+    } catch (initError) {
+      // If no config file found, fall back to web-only mode
+      const isConfigNotFound =
+        initError instanceof ConfigNotFoundError ||
+        (initError instanceof ConfigurationError && initError.cause instanceof ConfigNotFoundError);
+
+      if (isConfigNotFound) {
+        console.log("No fleet configuration found — starting web UI only.");
+        console.log(
+          "Browse your Claude Code sessions at http://localhost:%s",
+          options.webPort ?? 3232,
+        );
+        console.log("");
+
+        await manager.initializeWebOnly({
+          port: options.webPort,
+        });
+        webOnlyMode = true;
+      } else {
+        throw initError;
+      }
+    }
 
     // Start the fleet
     await manager.start();
@@ -265,10 +290,16 @@ export async function startCommand(options: StartOptions): Promise<void> {
     const pidFile = await writePidFile(stateDir);
     console.log(`PID file written: ${pidFile}`);
 
-    // Get and display startup status
-    const status = await manager.getFleetStatus();
-    const agents = await manager.getAgentInfo();
-    console.log(formatStartupStatus(status, agents));
+    if (!webOnlyMode) {
+      // Get and display startup status
+      const status = await manager.getFleetStatus();
+      const agents = await manager.getAgentInfo();
+      console.log(formatStartupStatus(status, agents));
+    } else {
+      console.log("");
+      console.log("Press Ctrl+C to stop the server");
+      console.log("");
+    }
 
     // Stream logs to stdout
     // This keeps the process running since it's an async iterator
