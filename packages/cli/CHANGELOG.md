@@ -1,5 +1,17 @@
 # herdctl
 
+## 1.4.1
+
+### Patch Changes
+
+- [#144](https://github.com/edspencer/herdctl/pull/144) [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9) Thanks [@edspencer](https://github.com/edspencer)! - Add ASCII art banner displayed on `herdctl start` with a blue gradient matching the herdctl brand color.
+
+- Updated dependencies [[`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9), [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9), [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9), [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9), [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9), [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9), [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9), [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9), [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9), [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9), [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9)]:
+  - @herdctl/web@0.9.0
+  - @herdctl/core@5.7.0
+  - @herdctl/discord@1.0.12
+  - @herdctl/slack@1.2.6
+
 ## 1.4.0
 
 ### Minor Changes

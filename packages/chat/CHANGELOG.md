@@ -1,5 +1,14 @@
 # @herdctl/chat
 
+## 0.3.6
+
+### Patch Changes
+
+- [#144](https://github.com/edspencer/herdctl/pull/144) [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9) Thanks [@edspencer](https://github.com/edspencer)! - Move tool-parsing utilities from @herdctl/chat to @herdctl/core for reuse by new session discovery modules. @herdctl/chat re-exports all symbols for backwards compatibility.
+
+- Updated dependencies [[`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9), [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9), [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9), [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9), [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9), [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9), [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9)]:
+  - @herdctl/core@5.7.0
+
 ## 0.3.5
 
 ### Patch Changes

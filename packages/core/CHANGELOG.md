@@ -1,5 +1,25 @@
 # @herdctl/core
 
+## 5.7.0
+
+### Minor Changes
+
+- [#144](https://github.com/edspencer/herdctl/pull/144) [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9) Thanks [@edspencer](https://github.com/edspencer)! - Add JSONL session parser for reading Claude Code native session files. Exports `parseSessionMessages()`, `extractSessionMetadata()`, and `extractSessionUsage()` for converting `.jsonl` session files into the `ChatMessage[]` format used by the web frontend.
+
+- [#144](https://github.com/edspencer/herdctl/pull/144) [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9) Thanks [@edspencer](https://github.com/edspencer)! - Add session attribution module for determining session origins (web, discord, slack, schedule, native) by cross-referencing job metadata and platform session YAML files. Exports `buildAttributionIndex()` which returns an `AttributionIndex` for looking up `SessionAttribution` by session ID.
+
+- [#144](https://github.com/edspencer/herdctl/pull/144) [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9) Thanks [@edspencer](https://github.com/edspencer)! - Add session discovery service and metadata store for unified Claude Code session enumeration. `SessionDiscoveryService` ties together JSONL parsing, session attribution, and CLI session path utilities into a single cached API for discovering sessions across all project directories. `SessionMetadataStore` provides CRUD operations for custom session names stored in `.herdctl/session-metadata/`.
+
+- [#144](https://github.com/edspencer/herdctl/pull/144) [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9) Thanks [@edspencer](https://github.com/edspencer)! - Add auto-generated session names extracted from Claude Code JSONL summary field, with caching in SessionMetadataStore
+
+- [#144](https://github.com/edspencer/herdctl/pull/144) [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9) Thanks [@edspencer](https://github.com/edspencer)! - Only show sessions attributed to the specific agent in Fleet view. When multiple agents share a working directory, each agent's session list now shows only its own herdctl-managed sessions instead of duplicating all sessions across every agent.
+
+- [#144](https://github.com/edspencer/herdctl/pull/144) [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9) Thanks [@edspencer](https://github.com/edspencer)! - Filter sidechain (sub-agent) sessions from UI session discovery and default `resume_session` to `false`. Sidechain sessions created by Claude Code's Task tool or `--resume` flag are now excluded from the dashboard to reduce noise.
+
+### Patch Changes
+
+- [#144](https://github.com/edspencer/herdctl/pull/144) [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9) Thanks [@edspencer](https://github.com/edspencer)! - Move tool-parsing utilities from @herdctl/chat to @herdctl/core for reuse by new session discovery modules. @herdctl/chat re-exports all symbols for backwards compatibility.
+
 ## 5.6.0
 
 ### Minor Changes

@@ -1,5 +1,31 @@
 # @herdctl/web
 
+## 0.9.0
+
+### Minor Changes
+
+- [#144](https://github.com/edspencer/herdctl/pull/144) [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9) Thanks [@edspencer](https://github.com/edspencer)! - Add interactive ad hoc chat sessions for unattributed Claude Code sessions
+
+  - Users can now resume and interact with sessions that don't belong to any fleet agent
+  - New `/adhoc/:encodedPath/chat/:sessionId` route for ad hoc chat view
+  - WebChatManager uses RuntimeFactory + JobExecutor directly (bypasses FleetManager.trigger())
+  - "Continue conversation" button added to read-only session view
+  - Recent conversations and All Chats page now route resumable unattributed sessions to ad hoc chat
+
+- [#144](https://github.com/edspencer/herdctl/pull/144) [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9) Thanks [@edspencer](https://github.com/edspencer)! - Add auto-generated session names extracted from Claude Code JSONL summary field, with caching in SessionMetadataStore
+
+- [#144](https://github.com/edspencer/herdctl/pull/144) [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9) Thanks [@edspencer](https://github.com/edspencer)! - Add All Chats page for machine-wide session discovery grouped by working directory
+
+- [#144](https://github.com/edspencer/herdctl/pull/144) [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9) Thanks [@edspencer](https://github.com/edspencer)! - Refactor web chat backend to use SessionDiscoveryService for unified session access. WebChatManager now delegates read operations (listing sessions, fetching messages, usage stats) to the core discovery service instead of managing its own web chat history files. SDK session ID replaces web UUID as the canonical session identifier. New REST endpoints `GET /api/chat/all` and `GET /api/chat/all/:encodedPath` provide machine-wide session discovery grouped by working directory. Removed endpoints for session pre-creation, deletion, and SDK session ID lookup.
+
+- [#144](https://github.com/edspencer/herdctl/pull/144) [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9) Thanks [@edspencer](https://github.com/edspencer)! - Update frontend to display sessions from all origins (web, CLI, Discord, Slack, schedule). Add OriginBadge component showing session source. Session rows in sidebar, recent conversations, and agent chats tab now show origin badges and dim non-resumable (Docker) sessions. ChatInfoSidebar displays session metadata (git branch, Claude Code version) and handles resume commands using SDK session IDs directly. New chat flow no longer pre-creates sessions — first message triggers session creation. Removed delete session functionality (backend endpoint removed in prior milestone). Session detail endpoint now returns metadata alongside messages.
+
+### Patch Changes
+
+- Updated dependencies [[`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9), [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9), [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9), [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9), [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9), [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9), [`01274a8`](https://github.com/edspencer/herdctl/commit/01274a8dc34bcb0a5b2f2830ab66916c5237f0f9)]:
+  - @herdctl/core@5.7.0
+  - @herdctl/chat@0.3.6
+
 ## 0.8.1
 
 ### Patch Changes
