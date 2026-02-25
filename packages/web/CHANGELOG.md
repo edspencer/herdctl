@@ -1,5 +1,21 @@
 # @herdctl/web
 
+## 0.9.1
+
+### Patch Changes
+
+- [#151](https://github.com/edspencer/herdctl/pull/151) [`e7933a5`](https://github.com/edspencer/herdctl/commit/e7933a5a8b63df1805b6d965edbb6b0526a57801) Thanks [@edspencer](https://github.com/edspencer)! - Fix Spotlight search filter resetting on keystroke and chat composer textarea starting at full height
+
+- [#151](https://github.com/edspencer/herdctl/pull/151) [`e7933a5`](https://github.com/edspencer/herdctl/commit/e7933a5a8b63df1805b6d965edbb6b0526a57801) Thanks [@edspencer](https://github.com/edspencer)! - Populate session preview from first user message instead of showing "New conversation"
+
+  Sessions without a custom name or auto-generated summary now display the first user message text (truncated to 100 chars) in the sidebar and All Chats page. Previews are cached in the session metadata store with mtime-based invalidation.
+
+- [#151](https://github.com/edspencer/herdctl/pull/151) [`e7933a5`](https://github.com/edspencer/herdctl/commit/e7933a5a8b63df1805b6d965edbb6b0526a57801) Thanks [@edspencer](https://github.com/edspencer)! - Tighten sidebar spacing on smaller screens with responsive gap and padding
+
+- Updated dependencies [[`e7933a5`](https://github.com/edspencer/herdctl/commit/e7933a5a8b63df1805b6d965edbb6b0526a57801)]:
+  - @herdctl/core@5.7.1
+  - @herdctl/chat@0.3.7
+
 ## 0.9.0
 
 ### Minor Changes
