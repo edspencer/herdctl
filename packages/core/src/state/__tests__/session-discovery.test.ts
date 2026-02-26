@@ -861,6 +861,101 @@ describe("SessionDiscoveryService", () => {
   });
 
   // ===========================================================================
+  // invalidateAttributionCache
+  // ===========================================================================
+
+  describe("invalidateAttributionCache", () => {
+    it("forces attribution index rebuild on next call", async () => {
+      mockBuildAttributionIndex.mockClear();
+
+      const workingDir = "/Users/ed/Code/myproject";
+      const encodedPath = "-Users-ed-Code-myproject";
+      const projectDir = join(tempClaudeHome, "projects", encodedPath);
+      await mkdir(projectDir, { recursive: true });
+      await createSessionFile(projectDir, "session-abc");
+
+      mockBuildAttributionIndex.mockResolvedValue(
+        createMockAttributionIndex({ defaultAgentName: "my-agent" }),
+      );
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+        cacheTtlMs: 60000, // Long TTL so cache wouldn't expire naturally
+      });
+
+      // First call builds the index
+      await service.getAgentSessions("my-agent", workingDir, false);
+      expect(mockBuildAttributionIndex).toHaveBeenCalledTimes(1);
+
+      // Invalidate attribution cache
+      service.invalidateAttributionCache();
+
+      // Next call should rebuild the index despite long TTL
+      await service.getAgentSessions("my-agent", workingDir, false);
+      expect(mockBuildAttributionIndex).toHaveBeenCalledTimes(2);
+    });
+
+    it("also invalidates directory cache when workingDirectory is provided", async () => {
+      const workingDir = "/Users/ed/Code/myproject";
+      const encodedPath = "-Users-ed-Code-myproject";
+      const projectDir = join(tempClaudeHome, "projects", encodedPath);
+      await mkdir(projectDir, { recursive: true });
+      await createSessionFile(projectDir, "session-abc");
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+        cacheTtlMs: 60000, // Long TTL
+      });
+
+      // Populate both caches
+      await service.getAgentSessions("my-agent", workingDir, false);
+
+      // Add a new session file (won't be seen due to cache)
+      await createSessionFile(projectDir, "session-def");
+
+      // Verify cache returns old data
+      const beforeInvalidate = await service.getAgentSessions("my-agent", workingDir, false);
+      expect(beforeInvalidate).toHaveLength(1);
+
+      // Invalidate attribution + directory cache for this path
+      service.invalidateAttributionCache(workingDir);
+
+      // Should now see both sessions
+      const afterInvalidate = await service.getAgentSessions("my-agent", workingDir, false);
+      expect(afterInvalidate).toHaveLength(2);
+    });
+
+    it("does not invalidate directory cache when no workingDirectory is provided", async () => {
+      const workingDir = "/Users/ed/Code/myproject";
+      const encodedPath = "-Users-ed-Code-myproject";
+      const projectDir = join(tempClaudeHome, "projects", encodedPath);
+      await mkdir(projectDir, { recursive: true });
+      await createSessionFile(projectDir, "session-abc");
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+        cacheTtlMs: 60000, // Long TTL
+      });
+
+      // Populate caches
+      await service.getAgentSessions("my-agent", workingDir, false);
+
+      // Add a new session file
+      await createSessionFile(projectDir, "session-def");
+
+      // Invalidate only attribution (no workingDirectory arg)
+      service.invalidateAttributionCache();
+
+      // Directory cache is still active, so only 1 session
+      const sessions = await service.getAgentSessions("my-agent", workingDir, false);
+      expect(sessions).toHaveLength(1);
+    });
+  });
+
+  // ===========================================================================
   // Edge cases
   // ===========================================================================
 
