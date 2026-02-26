@@ -762,4 +762,29 @@ export class SessionDiscoveryService {
       logger.debug("Invalidated all caches");
     }
   }
+
+  /**
+   * Invalidate the attribution index cache.
+   *
+   * Call this after writing new session attribution (e.g., after a web chat
+   * message creates or updates a session) so the next session list request
+   * rebuilds the index and includes the newly attributed session.
+   *
+   * Optionally also invalidates a specific directory's file listing cache,
+   * which is needed when a new session creates a new JSONL file.
+   *
+   * @param workingDirectory - Optional working directory whose file listing cache should also be cleared
+   */
+  invalidateAttributionCache(workingDirectory?: string): void {
+    this.attributionIndex = null;
+    this.attributionFetchedAt = 0;
+    logger.debug("Invalidated attribution cache");
+
+    if (workingDirectory !== undefined) {
+      const encodedPath = encodePathForCli(workingDirectory);
+      const sessionDir = path.join(this.claudeHomePath, "projects", encodedPath);
+      this.directoryCache.delete(sessionDir);
+      logger.debug(`Also invalidated directory cache for: ${sessionDir}`);
+    }
+  }
 }

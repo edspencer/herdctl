@@ -384,6 +384,13 @@ export class WebChatManager {
           agentName,
           sdkSessionId: result.sessionId,
         });
+
+        // Invalidate the attribution cache so the next session list request
+        // picks up this newly attributed session immediately instead of
+        // waiting for the 30-second cache TTL to expire.
+        const agent = this.getAgentConfig(agentName);
+        const workDir = this.getWorkingDirectory(agent);
+        this.discoveryService!.invalidateAttributionCache(workDir);
       }
 
       return {

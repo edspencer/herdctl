@@ -148,6 +148,7 @@ function createMockDiscoveryService() {
       turnCount: 5,
       hasData: true,
     })),
+    invalidateAttributionCache: vi.fn(),
   } as any;
 }
 
@@ -733,6 +734,30 @@ describe("WebChatManager", () => {
         "sdk-session-abc",
         "sdk-session-abc",
       );
+    });
+
+    it("invalidates attribution cache after storing session attribution", async () => {
+      const onChunk = vi.fn();
+
+      await manager.sendMessage("test-agent", null, "Hello", onChunk);
+
+      expect(mockDiscoveryService.invalidateAttributionCache).toHaveBeenCalledWith(
+        "/home/user/project",
+      );
+    });
+
+    it("does not invalidate attribution cache on failed job", async () => {
+      mockFleetManager.trigger.mockResolvedValue({
+        jobId: "job-456",
+        success: false,
+        error: { message: "Agent busy" },
+      });
+
+      const onChunk = vi.fn();
+
+      await manager.sendMessage("test-agent", null, "Hello", onChunk);
+
+      expect(mockDiscoveryService.invalidateAttributionCache).not.toHaveBeenCalled();
     });
   });
 
