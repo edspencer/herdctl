@@ -1,5 +1,21 @@
 # @herdctl/core
 
+## 5.8.2
+
+### Patch Changes
+
+- [#171](https://github.com/edspencer/herdctl/pull/171) [`fea713e`](https://github.com/edspencer/herdctl/commit/fea713e8cfaa86ccf6c849a66928dcf2063f6da2) Thanks [@edspencer](https://github.com/edspencer)! - fix: invalidate attribution cache after chat message send
+
+  New web chat sessions were not appearing in the sidebar because the
+  SessionDiscoveryService's attribution index (30-second cache TTL) didn't
+  include the newly written session attribution. The next getAgentSessions()
+  call would filter out the new session since it wasn't yet in the index.
+
+  Added `invalidateAttributionCache()` to SessionDiscoveryService and call
+  it from WebChatManager.sendMessage() after writing session attribution.
+  This also clears the directory file listing cache for the agent's working
+  directory so new JSONL files are picked up immediately.
+
 ## 5.8.1
 
 ### Patch Changes

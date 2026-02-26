@@ -1,5 +1,27 @@
 # @herdctl/web
 
+## 0.9.5
+
+### Patch Changes
+
+- [#171](https://github.com/edspencer/herdctl/pull/171) [`fea713e`](https://github.com/edspencer/herdctl/commit/fea713e8cfaa86ccf6c849a66928dcf2063f6da2) Thanks [@edspencer](https://github.com/edspencer)! - fix: invalidate attribution cache after chat message send
+
+  New web chat sessions were not appearing in the sidebar because the
+  SessionDiscoveryService's attribution index (30-second cache TTL) didn't
+  include the newly written session attribution. The next getAgentSessions()
+  call would filter out the new session since it wasn't yet in the index.
+
+  Added `invalidateAttributionCache()` to SessionDiscoveryService and call
+  it from WebChatManager.sendMessage() after writing session attribution.
+  This also clears the directory file listing cache for the agent's working
+  directory so new JSONL files are picked up immediately.
+
+- [#160](https://github.com/edspencer/herdctl/pull/160) [`23e02e1`](https://github.com/edspencer/herdctl/commit/23e02e1a70d954b2aa7de28dcc07baaee760d168) Thanks [@edspencer](https://github.com/edspencer)! - Fix session search to include autoName field and deduplicate search logic. Sessions with only autoName (no customName) are now searchable. Extracted sessionMatchesQuery to shared utility to prevent duplication.
+
+- Updated dependencies [[`fea713e`](https://github.com/edspencer/herdctl/commit/fea713e8cfaa86ccf6c849a66928dcf2063f6da2)]:
+  - @herdctl/core@5.8.2
+  - @herdctl/chat@0.3.10
+
 ## 0.9.4
 
 ### Patch Changes

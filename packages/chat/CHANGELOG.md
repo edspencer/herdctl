@@ -1,5 +1,12 @@
 # @herdctl/chat
 
+## 0.3.10
+
+### Patch Changes
+
+- Updated dependencies [[`fea713e`](https://github.com/edspencer/herdctl/commit/fea713e8cfaa86ccf6c849a66928dcf2063f6da2)]:
+  - @herdctl/core@5.8.2
+
 ## 0.3.9
 
 ### Patch Changes
