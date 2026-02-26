@@ -263,30 +263,13 @@ export async function parseSessionMessages(
 
     // ── Assistant messages ──────────────────────────────────────────────
     if (type === "assistant") {
-      const messageId = typeof message.id === "string" ? message.id : undefined;
-
-      // Deduplicate by message ID
-      if (messageId) {
-        if (seenAssistantIds.has(messageId)) continue;
-        seenAssistantIds.add(messageId);
-      }
-
       const content = message.content;
 
-      // Simple string content
-      if (typeof content === "string") {
-        if (content.length > 0) {
-          messages.push({ role: "assistant", content, timestamp });
-        }
-        continue;
-      }
-
-      // Array of content blocks
+      // Always extract tool_use blocks before deduplication.
+      // Claude Code writes one JSONL line per content block within a single
+      // API response, so multiple lines share the same message.id. We must
+      // capture tool_use IDs from every line so tool results can be paired.
       if (Array.isArray(content)) {
-        // Extract text from text blocks
-        const text = extractTextContent(content);
-
-        // Extract tool_use blocks and store as pending
         const toolUseBlocks: ToolUseBlock[] = extractToolUseBlocks(
           parsed as { type: string; message?: { content?: unknown } },
         );
@@ -300,8 +283,27 @@ export async function parseSessionMessages(
             });
           }
         }
+      }
 
-        // Create assistant message for text content
+      // Deduplicate text content by message ID
+      const messageId = typeof message.id === "string" ? message.id : undefined;
+      if (messageId) {
+        if (seenAssistantIds.has(messageId)) continue;
+        seenAssistantIds.add(messageId);
+      }
+
+      // Simple string content
+      if (typeof content === "string") {
+        if (content.length > 0) {
+          messages.push({ role: "assistant", content, timestamp });
+        }
+        continue;
+      }
+
+      // Array of content blocks — extract text (tool_use already handled above)
+      if (Array.isArray(content)) {
+        const text = extractTextContent(content);
+
         if (text.length > 0 && (limit === undefined || messages.length < limit)) {
           messages.push({ role: "assistant", content: text, timestamp });
         }

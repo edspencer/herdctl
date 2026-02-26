@@ -107,6 +107,37 @@ describe("parseSessionMessages", () => {
     expect(messages[4].role).toBe("assistant");
   });
 
+  it("parses split-tool-blocks-session.jsonl where tool_use blocks are on separate lines with same message.id", async () => {
+    // Claude Code CLI writes one JSONL line per content block, so parallel tool calls
+    // produce multiple lines with the same message.id. The parser must extract tool_use
+    // blocks from ALL lines before deduplicating assistant text.
+    const messages = await parseSessionMessages(fixture("split-tool-blocks-session.jsonl"));
+
+    // 1 user + 1 assistant (text) + 1 tool (Bash) + 1 tool (Read) + 1 assistant = 5
+    expect(messages).toHaveLength(5);
+
+    expect(messages[0].role).toBe("user");
+    expect(messages[1].role).toBe("assistant");
+    expect(messages[1].content).toBe("I'll check both for you.");
+
+    // First tool: Bash — from the first assistant line
+    const bashTool = messages[2];
+    expect(bashTool.role).toBe("tool");
+    expect(bashTool.toolCall!.toolName).toBe("Bash");
+    expect(bashTool.toolCall!.inputSummary).toBe("git status");
+    expect(bashTool.toolCall!.output).toContain("nothing to commit");
+
+    // Second tool: Read — from the SECOND assistant line (same message.id)
+    const readTool = messages[3];
+    expect(readTool.role).toBe("tool");
+    expect(readTool.toolCall!.toolName).toBe("Read");
+    expect(readTool.toolCall!.inputSummary).toBe("/workspace/config.json");
+    expect(readTool.toolCall!.output).toContain("8080");
+
+    // Final assistant
+    expect(messages[4].role).toBe("assistant");
+  });
+
   it("parses content-blocks-session.jsonl with mixed text and tool_use blocks", async () => {
     const messages = await parseSessionMessages(fixture("content-blocks-session.jsonl"));
 
