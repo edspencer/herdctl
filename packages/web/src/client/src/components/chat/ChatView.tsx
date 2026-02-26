@@ -67,7 +67,8 @@ export function ChatView() {
     if (sessionId && qualifiedName) {
       fetchChatMessages(qualifiedName, sessionId);
     } else {
-      setActiveChatSession(null);
+      // For new chats, set the agent name so WebSocket messages can be filtered
+      setActiveChatSession(null, qualifiedName);
     }
   }, [sessionId, qualifiedName, fetchChatMessages, setActiveChatSession]);
 

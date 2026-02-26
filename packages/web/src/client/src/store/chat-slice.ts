@@ -32,6 +32,8 @@ export interface ChatState {
   chatMessagesLoading: boolean;
   /** Currently active session ID */
   activeChatSessionId: string | null;
+  /** Currently active agent qualified name (for routing WebSocket messages) */
+  activeChatAgent: string | null;
   /** Whether the agent is currently streaming a response */
   chatStreaming: boolean;
   /** Accumulated content from streaming chunks */
@@ -59,8 +61,8 @@ export interface ChatActions {
   fetchChatMessages: (agentName: string, sessionId: string) => Promise<void>;
   /** Rename a chat session */
   renameChatSession: (agentName: string, sessionId: string, customName: string) => Promise<void>;
-  /** Set the active session */
-  setActiveChatSession: (sessionId: string | null) => void;
+  /** Set the active session and agent */
+  setActiveChatSession: (sessionId: string | null, agentName?: string | null) => void;
   /** Append a chunk to streaming content */
   appendStreamingChunk: (chunk: string) => void;
   /** Complete streaming: move content to messages, reset streaming state
@@ -127,6 +129,7 @@ const initialChatState: ChatState = {
   chatMessages: [],
   chatMessagesLoading: false,
   activeChatSessionId: null,
+  activeChatAgent: null,
   chatStreaming: false,
   chatStreamingContent: "",
   chatError: null,
@@ -177,6 +180,7 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
         chatMessages: response.messages,
         chatMessagesLoading: false,
         activeChatSessionId: sessionId,
+        activeChatAgent: agentName,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to fetch chat messages";
@@ -226,9 +230,10 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
     }
   },
 
-  setActiveChatSession: (sessionId: string | null) => {
+  setActiveChatSession: (sessionId: string | null, agentName?: string | null) => {
     set({
       activeChatSessionId: sessionId,
+      activeChatAgent: agentName ?? get().activeChatAgent,
       // Clear messages when switching sessions (will be fetched separately)
       chatMessages: sessionId === null ? [] : get().chatMessages,
       chatStreaming: false,
@@ -376,6 +381,7 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
       chatMessages: [],
       chatMessagesLoading: false,
       activeChatSessionId: null,
+      activeChatAgent: null,
       chatStreaming: false,
       chatStreamingContent: "",
       chatError: null,
@@ -442,6 +448,7 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
         chatMessages: response.messages,
         chatMessagesLoading: false,
         activeChatSessionId: sessionId,
+        activeChatAgent: null, // Ad hoc sessions don't have an associated agent
       });
     } catch (error) {
       const message =

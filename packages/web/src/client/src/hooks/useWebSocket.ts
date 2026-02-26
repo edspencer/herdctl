@@ -122,29 +122,82 @@ export function useWebSocket() {
           break;
 
         case "chat:response": {
-          const { sessionId, chunk } = message.payload;
-          if (sessionId === useStore.getState().activeChatSessionId) {
+          const { sessionId, chunk, agentName } = message.payload;
+          const state = useStore.getState();
+
+          // Only process if this is for the active session
+          const isActiveSession = sessionId === state.activeChatSessionId;
+
+          // For new chats (activeChatSessionId is null), we should only process if:
+          // 1. The user has sent a message and we're currently streaming (chatMessages exists)
+          // 2. The message is for the currently active agent (prevents cross-chat contamination)
+          const isNewChatForThisAgent =
+            state.activeChatSessionId === null &&
+            state.chatStreaming &&
+            state.chatMessages.length > 0 &&
+            agentName === state.activeChatAgent;
+
+          if (isActiveSession || isNewChatForThisAgent) {
             appendStreamingChunk(chunk);
           }
-          touchRecentSession(message.payload.sessionId, message.payload.agentName);
+
+          touchRecentSession(sessionId, agentName);
           break;
         }
 
         case "chat:complete": {
-          const { sessionId } = message.payload;
+          const { sessionId, agentName } = message.payload;
           const state = useStore.getState();
-          // For new chats, activeChatSessionId is null until we receive the sessionId
-          // Pass sessionId to completeStreaming so it can set activeChatSessionId
-          if (sessionId === state.activeChatSessionId || state.activeChatSessionId === null) {
+
+          // Only process if this is for the active session
+          // For new chats, activeChatSessionId is null and we need to check if the user
+          // is currently on a new chat page for THIS agent (not just any new chat)
+          const isActiveSession = sessionId === state.activeChatSessionId;
+
+          // For new chats (activeChatSessionId is null), we should only process if:
+          // 1. User is on a new chat page (chatMessages has user message but no sessionId yet)
+          // 2. The streaming content exists (meaning this agent is responding to the user's message)
+          // 3. The message is for the currently active agent (prevents cross-chat contamination)
+          const isNewChatForThisAgent =
+            state.activeChatSessionId === null &&
+            state.chatStreaming &&
+            state.chatMessages.length > 0 &&
+            agentName === state.activeChatAgent;
+
+          if (isActiveSession || isNewChatForThisAgent) {
             completeStreaming(sessionId);
+
+            // Refresh sidebar sessions after completing the first message of a new chat
+            // This ensures the new session appears in the sidebar without requiring a refresh
+            if (isNewChatForThisAgent) {
+              const fetchSidebarSessions = useStore.getState().fetchSidebarSessions;
+              const agents = useStore.getState().agents;
+              const agentQualifiedNames = agents.map((a) => a.qualifiedName);
+              void fetchSidebarSessions(agentQualifiedNames);
+            }
           }
-          touchRecentSession(message.payload.sessionId, message.payload.agentName);
+
+          touchRecentSession(sessionId, agentName);
           break;
         }
 
         case "chat:tool_call": {
-          const { sessionId } = message.payload;
-          if (sessionId === useStore.getState().activeChatSessionId) {
+          const { sessionId, agentName } = message.payload;
+          const state = useStore.getState();
+
+          // Only process if this is for the active session
+          const isActiveSession = sessionId === state.activeChatSessionId;
+
+          // For new chats (activeChatSessionId is null), we should only process if:
+          // 1. The user has sent a message and we're currently streaming
+          // 2. The message is for the currently active agent (prevents cross-chat contamination)
+          const isNewChatForThisAgent =
+            state.activeChatSessionId === null &&
+            state.chatStreaming &&
+            state.chatMessages.length > 0 &&
+            agentName === state.activeChatAgent;
+
+          if (isActiveSession || isNewChatForThisAgent) {
             addToolCallMessage({
               toolName: message.payload.toolName,
               inputSummary: message.payload.inputSummary,
@@ -153,15 +206,30 @@ export function useWebSocket() {
               durationMs: message.payload.durationMs,
             });
           }
-          touchRecentSession(message.payload.sessionId, message.payload.agentName);
+
+          touchRecentSession(sessionId, agentName);
           break;
         }
 
         case "chat:message_boundary": {
-          const { sessionId } = message.payload;
-          if (sessionId === useStore.getState().activeChatSessionId) {
+          const { sessionId, agentName } = message.payload;
+          const state = useStore.getState();
+
+          // Only process if this is for the active session
+          const isActiveSession = sessionId === state.activeChatSessionId;
+
+          // For new chats (activeChatSessionId is null), we should only process if:
+          // 1. The user has sent a message and we're currently streaming
+          // 2. The message is for the currently active agent (prevents cross-chat contamination)
+          const isNewChatForThisAgent =
+            state.activeChatSessionId === null &&
+            state.chatStreaming &&
+            state.chatMessages.length > 0 &&
+            agentName === state.activeChatAgent;
+
+          if (isActiveSession || isNewChatForThisAgent) {
             // Only flush if user prefers separate messages
-            if (useStore.getState().messageGrouping === "separate") {
+            if (state.messageGrouping === "separate") {
               flushStreamingMessage();
             }
           }
