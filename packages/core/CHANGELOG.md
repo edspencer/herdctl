@@ -1,5 +1,11 @@
 # @herdctl/core
 
+## 5.8.1
+
+### Patch Changes
+
+- [#156](https://github.com/edspencer/herdctl/pull/156) [`8f06594`](https://github.com/edspencer/herdctl/commit/8f0659459a58d22ef221638589fb7d23c6579a71) Thanks [@edspencer](https://github.com/edspencer)! - Fix "unknown" tool names in chat view when Claude Code writes parallel tool calls as separate JSONL lines with the same message ID
+
 ## 5.8.0
 
 ### Minor Changes
