@@ -1,5 +1,13 @@
 # @herdctl/web
 
+## 0.9.4
+
+### Patch Changes
+
+- [#158](https://github.com/edspencer/herdctl/pull/158) [`6ffe431`](https://github.com/edspencer/herdctl/commit/6ffe4318a1d1d23faf300b687d244c97926c2110) Thanks [@edspencer](https://github.com/edspencer)! - Fix chat bugs: prevent messages from other agents appearing in new chats, and ensure new chats appear in sidebar immediately after first message
+
+  The WebSocket message handler now tracks the active agent (activeChatAgent) in addition to the active session ID. This prevents messages from concurrent chats in different agents from being routed to the wrong chat window. Additionally, the sidebar session list is refreshed immediately after completing a new chat's first message.
+
 ## 0.9.3
 
 ### Patch Changes
