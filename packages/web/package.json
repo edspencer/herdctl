@@ -1,6 +1,6 @@
 {
   "name": "@herdctl/web",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "description": "Web dashboard for herdctl fleet management",
   "license": "MIT",
   "type": "module",

@@ -1,5 +1,16 @@
 # @herdctl/web
 
+## 0.9.6
+
+### Patch Changes
+
+- [#173](https://github.com/edspencer/herdctl/pull/173) [`61b3e57`](https://github.com/edspencer/herdctl/commit/61b3e577c140cc5ddfbaef54f0d62bd9a335c7c6) Thanks [@edspencer](https://github.com/edspencer)! - Fix sidebar session lists not refreshing after chat:complete for existing or externally-created sessions
+
+  - Always refresh sidebar sessions (Fleet tab) on any chat:complete event, not just new chats
+  - Also refresh recent sessions (Chats tab) on any chat:complete event
+  - Add 2-second debounce to prevent rapid refreshes during multi-turn conversations
+  - Sessions created from CLI, Discord, Slack, or other browser tabs now appear without requiring a page reload
+
 ## 0.9.5
 
 ### Patch Changes
