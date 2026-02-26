@@ -7,6 +7,27 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### All Chats Page and Session Discovery
+**February 25, 2026** · `@herdctl/web@0.9.0` · `@herdctl/core@5.7.0`
+
+The web dashboard now includes a machine-wide "All Chats" view showing every Claude Code session on your system, grouped by working directory. Sessions are enriched with origin badges (Web, CLI, Discord, Slack, or Schedule) indicating where the conversation originated. You can now interact with unattributed CLI sessions directly from the dashboard — click any native Claude Code session to resume it in an interactive ad hoc chat view that works just like fleet agent chats. Session names are auto-generated from Claude summaries when available, and session previews display the first user message instead of "New conversation". Sidechain sessions (sub-agent warmup) are filtered from the UI to reduce noise. When multiple agents share a working directory, each agent's session list now shows only its own sessions instead of duplicating all sessions across every agent.
+
+---
+
+### Web Chat Bug Fixes and Zero-Config Start
+**February 25, 2026** · `@herdctl/web@0.9.4` · `@herdctl/core@5.8.0`
+
+Fixed two critical chat bugs: messages from concurrent chats in different agents no longer leak into the wrong chat window, and new chats now appear in the sidebar immediately after the first message instead of requiring a refresh. The WebSocket message handler now tracks both the active session and agent to prevent cross-contamination. Additionally, `herdctl start` now boots the web dashboard in web-only mode when no `herdctl.yaml` is found, enabling `npx herdctl start` to work out of the box for browsing Claude Code sessions without any fleet configuration.
+
+---
+
+### Tool Name Display Fix
+**February 25, 2026** · `@herdctl/core@5.8.1`
+
+Fixed "unknown" tool names appearing in chat views when Claude Code writes parallel tool calls. The JSONL parser was deduplicating messages before extracting tool IDs, causing secondary tool names to be lost. Tool parsing now happens before deduplication to preserve all tool identifiers.
+
+---
+
 ### Agent Distribution System
 **February 24, 2026** · `@herdctl/core@5.6.0` · `herdctl@1.4.0`
 
