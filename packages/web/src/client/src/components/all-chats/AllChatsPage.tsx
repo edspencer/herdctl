@@ -7,7 +7,8 @@
 
 import { FolderSearch } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { DirectoryGroup as DirectoryGroupType, DiscoveredSession } from "../../lib/types";
+import { sessionMatchesQuery } from "../../lib/session-utils";
+import type { DirectoryGroup as DirectoryGroupType } from "../../lib/types";
 import {
   useAllChatsActions,
   useAllChatsError,
@@ -19,26 +20,6 @@ import {
 } from "../../store";
 import { AllChatsSearch } from "./AllChatsSearch";
 import { DirectoryGroup } from "./DirectoryGroup";
-
-// =============================================================================
-// Helper Functions
-// =============================================================================
-
-/**
- * Check if a session matches the search query.
- */
-function sessionMatchesQuery(session: DiscoveredSession, query: string): boolean {
-  const lowerQuery = query.toLowerCase();
-  const customName = session.customName?.toLowerCase() ?? "";
-  const preview = session.preview?.toLowerCase() ?? "";
-  const agentName = session.agentName?.toLowerCase() ?? "";
-
-  return (
-    customName.includes(lowerQuery) ||
-    preview.includes(lowerQuery) ||
-    agentName.includes(lowerQuery)
-  );
-}
 
 /**
  * Check if a directory group matches the search query.

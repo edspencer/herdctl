@@ -9,7 +9,8 @@ import { ChevronRight, Info } from "lucide-react";
 import { useMemo } from "react";
 import { Link } from "react-router";
 import { agentPath } from "../../lib/paths";
-import type { DirectoryGroup as DirectoryGroupType, DiscoveredSession } from "../../lib/types";
+import { sessionMatchesQuery } from "../../lib/session-utils";
+import type { DirectoryGroup as DirectoryGroupType } from "../../lib/types";
 import { useAllChatsActions } from "../../store";
 import { SessionRow } from "./SessionRow";
 
@@ -34,27 +35,6 @@ interface DirectoryGroupProps {
 
 /** Number of sessions to show before "Show all" button */
 const INITIAL_SESSIONS_SHOWN = 10;
-
-// =============================================================================
-// Helper Functions
-// =============================================================================
-
-/**
- * Check if a session matches the search query.
- * Matches against customName, preview, or agentName.
- */
-function sessionMatchesQuery(session: DiscoveredSession, query: string): boolean {
-  const lowerQuery = query.toLowerCase();
-  const customName = session.customName?.toLowerCase() ?? "";
-  const preview = session.preview?.toLowerCase() ?? "";
-  const agentName = session.agentName?.toLowerCase() ?? "";
-
-  return (
-    customName.includes(lowerQuery) ||
-    preview.includes(lowerQuery) ||
-    agentName.includes(lowerQuery)
-  );
-}
 
 // =============================================================================
 // Component
