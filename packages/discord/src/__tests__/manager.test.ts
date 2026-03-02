@@ -718,6 +718,691 @@ describe.skip("DiscordManager response splitting", () => {
   });
 });
 
+// =============================================================================
+// handleMessage pipeline tests (active)
+// =============================================================================
+
+/**
+ * These tests exercise the handleMessage() pipeline end-to-end by:
+ * 1. Creating a DiscordManager with a mock FleetManagerContext
+ * 2. Injecting a mock connector (EventEmitter with session manager)
+ * 3. Emitting a "message" event on the connector → triggers handleMessage()
+ * 4. The mock ctx.trigger() captures and invokes the onMessage callback
+ * 5. Assertions verify reply calls, embeds, fallback behavior
+ */
+describe("DiscordManager handleMessage pipeline", () => {
+  /**
+   * Helper: build a DiscordManager wired to a custom ctx.trigger mock.
+   * Returns { manager, connector, triggerMock } ready for emitting events.
+   */
+  function buildManagerWithTrigger(
+    triggerImpl: (...args: unknown[]) => Promise<unknown>,
+    agentOverrides?: Partial<ReturnType<typeof createDiscordAgent>>,
+  ) {
+    const discordConfig: AgentChatDiscord = {
+      bot_token_env: "TEST_BOT_TOKEN",
+      session_expiry_hours: 24,
+      log_level: "standard",
+      output: {
+        tool_results: true,
+        tool_result_max_length: 900,
+        system_status: true,
+        result_summary: false,
+        typing_indicator: true,
+        errors: true,
+        acknowledge_emoji: "",
+        final_answer_only: true,
+        progress_indicator: false, // disable for cleaner assertions
+        concise_mode: true,
+      },
+      guilds: [],
+    };
+    const agent = {
+      ...createDiscordAgent("test-agent", discordConfig),
+      ...agentOverrides,
+    } as ReturnType<typeof createDiscordAgent>;
+
+    const emitter = new EventEmitter();
+    const ctx: FleetManagerContext = {
+      getConfig: () =>
+        ({
+          fleet: { name: "test-fleet" } as unknown,
+          agents: [agent],
+          configPath: "/test/herdctl.yaml",
+          configDir: "/test",
+        }) as ReturnType<FleetManagerContext["getConfig"]>,
+      getStateDir: () => "/tmp/test-state",
+      getStateDirInfo: () => null,
+      getLogger: () => mockLogger,
+      getScheduler: () => null,
+      getStatus: () => "running",
+      getInitializedAt: () => "2024-01-01T00:00:00.000Z",
+      getStartedAt: () => "2024-01-01T00:00:01.000Z",
+      getStoppedAt: () => null,
+      getLastError: () => null,
+      getCheckInterval: () => 1000,
+      emit: (event: string, ...args: unknown[]) => emitter.emit(event, ...args),
+      getEmitter: () => emitter,
+      trigger: triggerImpl as FleetManagerContext["trigger"],
+    };
+
+    const manager = new DiscordManager(ctx);
+
+    // Build mock connector
+    const connector = new EventEmitter() as EventEmitter & {
+      connect: ReturnType<typeof vi.fn>;
+      disconnect: ReturnType<typeof vi.fn>;
+      isConnected: ReturnType<typeof vi.fn>;
+      getState: ReturnType<typeof vi.fn>;
+      uploadFile: ReturnType<typeof vi.fn>;
+      agentName: string;
+      sessionManager: {
+        getOrCreateSession: ReturnType<typeof vi.fn>;
+        getSession: ReturnType<typeof vi.fn>;
+        setSession: ReturnType<typeof vi.fn>;
+        touchSession: ReturnType<typeof vi.fn>;
+        getActiveSessionCount: ReturnType<typeof vi.fn>;
+      };
+    };
+    connector.connect = vi.fn().mockResolvedValue(undefined);
+    connector.disconnect = vi.fn().mockResolvedValue(undefined);
+    connector.isConnected = vi.fn().mockReturnValue(true);
+    connector.getState = vi.fn().mockReturnValue({
+      status: "connected",
+      connectedAt: "2024-01-01T00:00:00.000Z",
+      disconnectedAt: null,
+      reconnectAttempts: 0,
+      lastError: null,
+      botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
+      messageStats: { received: 0, sent: 0, ignored: 0 },
+    } satisfies DiscordConnectorState);
+    connector.uploadFile = vi.fn().mockResolvedValue({ fileId: "f1" });
+    connector.agentName = "test-agent";
+    connector.sessionManager = {
+      getOrCreateSession: vi.fn().mockResolvedValue({ sessionId: "s1", isNew: false }),
+      getSession: vi.fn().mockResolvedValue(null),
+      setSession: vi.fn().mockResolvedValue(undefined),
+      touchSession: vi.fn().mockResolvedValue(undefined),
+      getActiveSessionCount: vi.fn().mockResolvedValue(0),
+    };
+
+    // Inject connector
+    // @ts-expect-error - accessing private property for testing
+    manager.connectors.set("test-agent", connector);
+    // @ts-expect-error - accessing private property for testing
+    manager.initialized = true;
+
+    return { manager, connector, ctx };
+  }
+
+  /** Create a standard message event with configurable reply mock */
+  function createMessageEvent(replyMock?: ReturnType<typeof vi.fn>) {
+    const replyFn = replyMock ?? vi.fn().mockResolvedValue(undefined);
+    const replyWithRefFn = vi.fn().mockResolvedValue({
+      edit: vi.fn().mockResolvedValue(undefined),
+      delete: vi.fn().mockResolvedValue(undefined),
+    });
+    const event = {
+      agentName: "test-agent",
+      prompt: "Hello bot!",
+      context: { messages: [], wasMentioned: true, prompt: "Hello bot!" },
+      metadata: {
+        guildId: "guild1",
+        channelId: "channel1",
+        messageId: "msg1",
+        userId: "user1",
+        username: "TestUser",
+        wasMentioned: true,
+        mode: "mention" as const,
+      },
+      reply: replyFn,
+      startTyping: () => () => {},
+      addReaction: vi.fn().mockResolvedValue(undefined),
+      removeReaction: vi.fn().mockResolvedValue(undefined),
+      replyWithRef: replyWithRefFn,
+    } as unknown as DiscordMessageEvent;
+    return { event, reply: replyFn, replyWithRef: replyWithRefFn };
+  }
+
+  // ---- finalAnswerOnly: basic text delivery ----
+
+  it("sends only the last assistant message in finalAnswerOnly mode", async () => {
+    const { manager, connector } = buildManagerWithTrigger(async (...args: unknown[]) => {
+      const options = args[2] as { onMessage?: (m: unknown) => Promise<void> } | undefined;
+      if (options?.onMessage) {
+        // Two assistant turns with text
+        await options.onMessage({
+          type: "assistant",
+          message: {
+            id: "msg_1",
+            stop_reason: "end_turn",
+            content: [{ type: "text", text: "Checking..." }],
+          },
+        });
+        await options.onMessage({
+          type: "assistant",
+          message: {
+            id: "msg_2",
+            stop_reason: "end_turn",
+            content: [{ type: "text", text: "Here is the answer." }],
+          },
+        });
+        await options.onMessage({ type: "result", result: "Here is the answer." });
+      }
+      return {
+        jobId: "j1",
+        agentName: "test-agent",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+        sessionId: "sid1",
+      };
+    });
+
+    await manager.start();
+    const { event, reply } = createMessageEvent();
+    connector.emit("message", event);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    // Only the LAST assistant message should be delivered
+    const textCalls = reply.mock.calls.filter((call: unknown[]) => typeof call[0] === "string");
+    expect(textCalls).toHaveLength(1);
+    expect(textCalls[0][0]).toBe("Here is the answer.");
+  });
+
+  // ---- resultText fallback when assistant messages are tool-only ----
+
+  it("uses SDK result text as fallback when no assistant text was buffered", async () => {
+    const { manager, connector } = buildManagerWithTrigger(async (...args: unknown[]) => {
+      const options = args[2] as { onMessage?: (m: unknown) => Promise<void> } | undefined;
+      if (options?.onMessage) {
+        // Assistant message with ONLY tool_use (no text blocks)
+        await options.onMessage({
+          type: "assistant",
+          message: {
+            id: "msg_1",
+            stop_reason: "tool_use",
+            content: [{ type: "tool_use", name: "Bash", id: "t1", input: { command: "ls" } }],
+          },
+        });
+        // Tool result
+        await options.onMessage({
+          type: "user",
+          message: {
+            content: [{ type: "tool_result", tool_use_id: "t1", content: "file1 file2" }],
+          },
+        });
+        // Result message has the final answer text
+        await options.onMessage({
+          type: "result",
+          result: "The directory contains file1 and file2.",
+        });
+      }
+      return {
+        jobId: "j2",
+        agentName: "test-agent",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+        sessionId: "sid2",
+      };
+    });
+
+    await manager.start();
+    const { event, reply } = createMessageEvent();
+    connector.emit("message", event);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    // The result text should be sent as fallback
+    const textCalls = reply.mock.calls.filter((call: unknown[]) => typeof call[0] === "string");
+    expect(textCalls).toHaveLength(1);
+    expect(textCalls[0][0]).toBe("The directory contains file1 and file2.");
+  });
+
+  // ---- Dedup: skip intermediates (stop_reason: null) ----
+
+  it("skips intermediate assistant snapshots (stop_reason: null)", async () => {
+    const { manager, connector } = buildManagerWithTrigger(async (...args: unknown[]) => {
+      const options = args[2] as { onMessage?: (m: unknown) => Promise<void> } | undefined;
+      if (options?.onMessage) {
+        // Intermediate snapshot (stop_reason: null) — should be skipped
+        await options.onMessage({
+          type: "assistant",
+          message: {
+            id: "msg_1",
+            stop_reason: null,
+            content: [{ type: "text", text: "Partial..." }],
+          },
+        });
+        // Final snapshot (stop_reason: "end_turn") — should be delivered
+        await options.onMessage({
+          type: "assistant",
+          message: {
+            id: "msg_1",
+            stop_reason: "end_turn",
+            content: [{ type: "text", text: "Complete answer." }],
+          },
+        });
+        await options.onMessage({ type: "result", result: "Complete answer." });
+      }
+      return {
+        jobId: "j3",
+        agentName: "test-agent",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+        sessionId: "sid3",
+      };
+    });
+
+    await manager.start();
+    const { event, reply } = createMessageEvent();
+    connector.emit("message", event);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    const textCalls = reply.mock.calls.filter((call: unknown[]) => typeof call[0] === "string");
+    expect(textCalls).toHaveLength(1);
+    expect(textCalls[0][0]).toBe("Complete answer.");
+  });
+
+  // ---- Dedup: deduplicate same message.id ----
+
+  it("deduplicates assistant messages by message.id", async () => {
+    const { manager, connector } = buildManagerWithTrigger(async (...args: unknown[]) => {
+      const options = args[2] as { onMessage?: (m: unknown) => Promise<void> } | undefined;
+      if (options?.onMessage) {
+        // Same message.id delivered twice (stop_reason not null) — second should be deduped
+        await options.onMessage({
+          type: "assistant",
+          message: {
+            id: "msg_1",
+            stop_reason: "end_turn",
+            content: [{ type: "text", text: "First delivery." }],
+          },
+        });
+        await options.onMessage({
+          type: "assistant",
+          message: {
+            id: "msg_1",
+            stop_reason: "end_turn",
+            content: [{ type: "text", text: "Duplicate delivery." }],
+          },
+        });
+        await options.onMessage({ type: "result", result: "First delivery." });
+      }
+      return {
+        jobId: "j4",
+        agentName: "test-agent",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+        sessionId: "sid4",
+      };
+    });
+
+    await manager.start();
+    const { event, reply } = createMessageEvent();
+    connector.emit("message", event);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    const textCalls = reply.mock.calls.filter((call: unknown[]) => typeof call[0] === "string");
+    expect(textCalls).toHaveLength(1);
+    // Only the first delivery should be buffered (not the duplicate)
+    expect(textCalls[0][0]).toBe("First delivery.");
+  });
+
+  // ---- Fallback when no output at all ----
+
+  it("shows fallback embed when no messages are sent", async () => {
+    const { manager, connector } = buildManagerWithTrigger(async (...args: unknown[]) => {
+      const options = args[2] as { onMessage?: (m: unknown) => Promise<void> } | undefined;
+      if (options?.onMessage) {
+        // Only a result message with no text
+        await options.onMessage({ type: "result", is_error: false });
+      }
+      return {
+        jobId: "j5",
+        agentName: "test-agent",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+        sessionId: "sid5",
+      };
+    });
+
+    await manager.start();
+    const { event, reply } = createMessageEvent();
+    connector.emit("message", event);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    // Should show the "Task completed" fallback embed
+    const embedCalls = reply.mock.calls.filter(
+      (call: unknown[]) =>
+        typeof call[0] === "object" && (call[0] as { embeds?: unknown[] }).embeds,
+    );
+    expect(embedCalls.length).toBeGreaterThanOrEqual(1);
+    const lastEmbed = embedCalls[embedCalls.length - 1][0] as { embeds: DiscordReplyEmbed[] };
+    expect(lastEmbed.embeds[0].description).toContain("Task completed");
+  });
+
+  // ---- Error fallback ----
+
+  it("shows error fallback when job fails with no output", async () => {
+    const { manager, connector } = buildManagerWithTrigger(async () => {
+      return {
+        jobId: "j6",
+        agentName: "test-agent",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: false,
+        error: { message: "Agent crashed" },
+        errorDetails: { message: "Agent crashed" },
+      };
+    });
+
+    await manager.start();
+    const { event, reply } = createMessageEvent();
+    connector.emit("message", event);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    const embedCalls = reply.mock.calls.filter(
+      (call: unknown[]) =>
+        typeof call[0] === "object" && (call[0] as { embeds?: unknown[] }).embeds,
+    );
+    expect(embedCalls.length).toBeGreaterThanOrEqual(1);
+    const lastEmbed = embedCalls[embedCalls.length - 1][0] as { embeds: DiscordReplyEmbed[] };
+    expect(lastEmbed.embeds[0].description).toContain("Agent crashed");
+  });
+
+  // ---- Tool result embeds ----
+
+  it("sends tool result embeds when showToolResults is true", async () => {
+    const { manager, connector } = buildManagerWithTrigger(async (...args: unknown[]) => {
+      const options = args[2] as { onMessage?: (m: unknown) => Promise<void> } | undefined;
+      if (options?.onMessage) {
+        // Assistant with tool_use
+        await options.onMessage({
+          type: "assistant",
+          message: {
+            id: "msg_1",
+            stop_reason: "tool_use",
+            content: [
+              { type: "text", text: "Let me check." },
+              { type: "tool_use", name: "Bash", id: "t1", input: { command: "ls" } },
+            ],
+          },
+        });
+        // Tool result
+        await options.onMessage({
+          type: "user",
+          message: {
+            content: [{ type: "tool_result", tool_use_id: "t1", content: "file1.txt\nfile2.txt" }],
+          },
+        });
+        // Final answer
+        await options.onMessage({
+          type: "assistant",
+          message: {
+            id: "msg_2",
+            stop_reason: "end_turn",
+            content: [{ type: "text", text: "Found 2 files." }],
+          },
+        });
+        await options.onMessage({ type: "result", result: "Found 2 files." });
+      }
+      return {
+        jobId: "j7",
+        agentName: "test-agent",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+        sessionId: "sid7",
+      };
+    });
+
+    await manager.start();
+    const { event, reply } = createMessageEvent();
+    connector.emit("message", event);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    // Should have sent: tool result embed + final text
+    const embedCalls = reply.mock.calls.filter(
+      (call: unknown[]) =>
+        typeof call[0] === "object" && (call[0] as { embeds?: unknown[] }).embeds,
+    );
+    const textCalls = reply.mock.calls.filter((call: unknown[]) => typeof call[0] === "string");
+
+    expect(embedCalls.length).toBeGreaterThanOrEqual(1);
+    const toolEmbed = embedCalls[0][0] as { embeds: DiscordReplyEmbed[] };
+    expect(toolEmbed.embeds[0].description).toContain("Bash");
+
+    expect(textCalls).toHaveLength(1);
+    expect(textCalls[0][0]).toBe("Found 2 files.");
+  });
+
+  // ---- Concise mode system prompt injection ----
+
+  it("injects concise mode system prompt when enabled", async () => {
+    let capturedSystemPrompt: string | undefined;
+    const { manager, connector } = buildManagerWithTrigger(async (...args: unknown[]) => {
+      const options = args[2] as
+        | { systemPromptAppend?: string; onMessage?: (m: unknown) => Promise<void> }
+        | undefined;
+      capturedSystemPrompt = options?.systemPromptAppend;
+      if (options?.onMessage) {
+        await options.onMessage({
+          type: "assistant",
+          message: {
+            id: "msg_1",
+            stop_reason: "end_turn",
+            content: [{ type: "text", text: "Done." }],
+          },
+        });
+        await options.onMessage({ type: "result", result: "Done." });
+      }
+      return {
+        jobId: "j8",
+        agentName: "test-agent",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+        sessionId: "sid8",
+      };
+    });
+
+    await manager.start();
+    const { event } = createMessageEvent();
+    connector.emit("message", event);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    expect(capturedSystemPrompt).toBeDefined();
+    expect(capturedSystemPrompt).toContain("Discord chat");
+    expect(capturedSystemPrompt).toContain("final answer");
+  });
+
+  // ---- Session persistence ----
+
+  it("stores session ID after successful job", async () => {
+    const { manager, connector } = buildManagerWithTrigger(async (...args: unknown[]) => {
+      const options = args[2] as { onMessage?: (m: unknown) => Promise<void> } | undefined;
+      if (options?.onMessage) {
+        await options.onMessage({
+          type: "assistant",
+          message: {
+            id: "msg_1",
+            stop_reason: "end_turn",
+            content: [{ type: "text", text: "OK." }],
+          },
+        });
+        await options.onMessage({ type: "result", result: "OK." });
+      }
+      return {
+        jobId: "j9",
+        agentName: "test-agent",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+        sessionId: "sdk-session-42",
+      };
+    });
+
+    await manager.start();
+    const { event } = createMessageEvent();
+    connector.emit("message", event);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    expect(connector.sessionManager.setSession).toHaveBeenCalledWith("channel1", "sdk-session-42");
+  });
+
+  // ---- Mixed: tool-only turns + final text ----
+
+  it("handles multi-turn tool usage with final text answer", async () => {
+    const { manager, connector } = buildManagerWithTrigger(async (...args: unknown[]) => {
+      const options = args[2] as { onMessage?: (m: unknown) => Promise<void> } | undefined;
+      if (options?.onMessage) {
+        // Turn 1: text + tool
+        await options.onMessage({
+          type: "assistant",
+          message: {
+            id: "msg_1",
+            stop_reason: "tool_use",
+            content: [
+              { type: "text", text: "Let me look." },
+              { type: "tool_use", name: "Read", id: "t1", input: { file_path: "/x.txt" } },
+            ],
+          },
+        });
+        await options.onMessage({
+          type: "user",
+          message: {
+            content: [{ type: "tool_result", tool_use_id: "t1", content: "contents" }],
+          },
+        });
+        // Turn 2: tool-only (no text)
+        await options.onMessage({
+          type: "assistant",
+          message: {
+            id: "msg_2",
+            stop_reason: "tool_use",
+            content: [{ type: "tool_use", name: "Bash", id: "t2", input: { command: "wc -l" } }],
+          },
+        });
+        await options.onMessage({
+          type: "user",
+          message: {
+            content: [{ type: "tool_result", tool_use_id: "t2", content: "42" }],
+          },
+        });
+        // Turn 3: final text
+        await options.onMessage({
+          type: "assistant",
+          message: {
+            id: "msg_3",
+            stop_reason: "end_turn",
+            content: [{ type: "text", text: "The file has 42 lines." }],
+          },
+        });
+        await options.onMessage({ type: "result", result: "The file has 42 lines." });
+      }
+      return {
+        jobId: "j10",
+        agentName: "test-agent",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+        sessionId: "sid10",
+      };
+    });
+
+    await manager.start();
+    const { event, reply } = createMessageEvent();
+    connector.emit("message", event);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    // The final text "The file has 42 lines." should be the only text sent
+    const textCalls = reply.mock.calls.filter((call: unknown[]) => typeof call[0] === "string");
+    expect(textCalls).toHaveLength(1);
+    expect(textCalls[0][0]).toBe("The file has 42 lines.");
+  });
+
+  // ---- Non-finalAnswerOnly mode: sends every turn ----
+
+  it("sends every assistant message immediately when finalAnswerOnly is false", async () => {
+    const { manager, connector } = buildManagerWithTrigger(
+      async (...args: unknown[]) => {
+        const options = args[2] as { onMessage?: (m: unknown) => Promise<void> } | undefined;
+        if (options?.onMessage) {
+          await options.onMessage({
+            type: "assistant",
+            message: {
+              id: "msg_1",
+              stop_reason: "end_turn",
+              content: [{ type: "text", text: "First turn." }],
+            },
+          });
+          await options.onMessage({
+            type: "assistant",
+            message: {
+              id: "msg_2",
+              stop_reason: "end_turn",
+              content: [{ type: "text", text: "Second turn." }],
+            },
+          });
+          await options.onMessage({ type: "result", result: "Second turn." });
+        }
+        return {
+          jobId: "j11",
+          agentName: "test-agent",
+          scheduleName: null,
+          startedAt: new Date().toISOString(),
+          success: true,
+          sessionId: "sid11",
+        };
+      },
+      // Override: disable finalAnswerOnly
+      {
+        chat: {
+          discord: {
+            bot_token_env: "TEST_BOT_TOKEN",
+            session_expiry_hours: 24,
+            log_level: "standard",
+            output: {
+              tool_results: true,
+              tool_result_max_length: 900,
+              system_status: true,
+              result_summary: false,
+              typing_indicator: true,
+              errors: true,
+              acknowledge_emoji: "",
+              final_answer_only: false,
+              progress_indicator: false,
+              concise_mode: false,
+            },
+            guilds: [],
+          },
+        },
+      } as Partial<ReturnType<typeof createDiscordAgent>>,
+    );
+
+    await manager.start();
+    const { event, reply } = createMessageEvent();
+    connector.emit("message", event);
+    await new Promise((resolve) => setTimeout(resolve, 2500)); // wait for rate limiting
+
+    // Both messages should be sent
+    const textCalls = reply.mock.calls.filter((call: unknown[]) => typeof call[0] === "string");
+    expect(textCalls).toHaveLength(2);
+    expect(textCalls[0][0]).toBe("First turn.");
+    expect(textCalls[1][0]).toBe("Second turn.");
+  });
+});
+
 // Message handling tests are skipped pending refactor to work with the new architecture
 // The new DiscordManager uses this.ctx.trigger() directly instead of emitter.trigger
 // and delegates message extraction/splitting to @herdctl/chat

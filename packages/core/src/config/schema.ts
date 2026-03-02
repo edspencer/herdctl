@@ -413,6 +413,12 @@ export const DefaultsSchema = z.object({
   permission_mode: PermissionModeSchema.optional(),
   allowed_tools: z.array(z.string()).optional(),
   denied_tools: z.array(z.string()).optional(),
+  mcp_servers: z
+    .record(
+      z.string(),
+      z.lazy(() => McpServerSchema),
+    )
+    .optional(),
 });
 
 // =============================================================================

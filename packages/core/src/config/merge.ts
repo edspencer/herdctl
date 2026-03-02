@@ -11,6 +11,7 @@ import type {
   AgentConfig,
   AgentWorkingDirectory,
   Docker,
+  McpServer,
   PermissionMode,
   Session,
   WorkSource,
@@ -124,6 +125,7 @@ export interface ExtendedDefaults {
   permission_mode?: PermissionMode;
   allowed_tools?: string[];
   denied_tools?: string[];
+  mcp_servers?: Record<string, McpServer>;
 }
 
 // =============================================================================
@@ -233,6 +235,15 @@ export function mergeAgentConfig(
 
   if (defaults.denied_tools !== undefined && result.denied_tools === undefined) {
     result.denied_tools = defaults.denied_tools;
+  }
+
+  // Merge mcp_servers (deep merge — agent servers override defaults with same name,
+  // default servers not present in agent config are inherited)
+  if (defaults.mcp_servers || agent.mcp_servers) {
+    result.mcp_servers = deepMerge(
+      defaults.mcp_servers as Record<string, unknown> | undefined,
+      agent.mcp_servers as Record<string, unknown> | undefined,
+    ) as AgentConfig["mcp_servers"];
   }
 
   return result;

@@ -55,7 +55,7 @@ const DISCORD_SYSTEM_PROMPT_APPEND = `You are responding in a Discord chat. Foll
 - Do NOT describe which tools you are using or what you found in intermediate steps
 - Do NOT show file diffs or large code blocks unless the user explicitly asked to see code
 - Keep responses concise — prefer summaries over exhaustive detail
-- The user cannot see your tool calls, so never reference them`;
+- IMPORTANT: Always end with a clear text response summarizing the outcome`;
 
 // =============================================================================
 // Discord Manager
@@ -557,6 +557,10 @@ export class DiscordManager implements IChatManager {
       // Final-answer-only mode: buffer assistant messages and send only the last one
       const bufferedAssistantMessages: string[] = [];
 
+      // Capture the result text from the SDK's "result" message as a fallback
+      // When all assistant messages are tool-only (no text), this is the last resort
+      let resultText: string | undefined;
+
       // Progress indicator: track tool names for in-place-updating embed
       interface ProgressEmbedHandle {
         edit: (content: string | DiscordReplyPayload) => Promise<void>;
@@ -721,6 +725,15 @@ export class DiscordManager implements IChatManager {
             }
           }
 
+          // Capture result text from the SDK "result" message as a fallback answer.
+          // This covers cases where all assistant messages were tool-only (no text blocks).
+          if (message.type === "result") {
+            const resultMsg = message as { result?: string };
+            if (typeof resultMsg.result === "string" && resultMsg.result.trim()) {
+              resultText = resultMsg.result;
+            }
+          }
+
           // Show result summary embed (cost, tokens, turns)
           if (message.type === "result" && outputConfig.result_summary) {
             const resultMessage = message as {
@@ -821,10 +834,17 @@ export class DiscordManager implements IChatManager {
         }
       }
 
-      // In final-answer-only mode, send only the last buffered assistant message
-      if (finalAnswerOnly && bufferedAssistantMessages.length > 0) {
-        const finalMessage = bufferedAssistantMessages[bufferedAssistantMessages.length - 1];
-        await streamer.addMessageAndSend(finalMessage);
+      // In final-answer-only mode, send the last buffered assistant message.
+      // If no assistant messages had extractable text (all were tool-only), fall back
+      // to the SDK's result text which captures the final conversation output.
+      if (finalAnswerOnly) {
+        if (bufferedAssistantMessages.length > 0) {
+          const finalMessage = bufferedAssistantMessages[bufferedAssistantMessages.length - 1];
+          await streamer.addMessageAndSend(finalMessage);
+        } else if (resultText) {
+          logger.debug("No buffered assistant text — using SDK result text as fallback answer");
+          await streamer.addMessageAndSend(resultText);
+        }
       }
 
       // Flush any remaining buffered content
@@ -834,7 +854,9 @@ export class DiscordManager implements IChatManager {
         `Discord job completed: ${result.jobId} for agent '${qualifiedName}'${result.sessionId ? ` (session: ${result.sessionId})` : ""}`,
       );
 
-      // If no messages were sent (text or embeds), send an appropriate fallback
+      // If no text messages were sent, send an appropriate fallback.
+      // When embedsSent > 0 but no text was delivered, the user saw tool/result embeds
+      // but may have missed the final answer. Show a brief completion indicator.
       if (!streamer.hasSentMessages() && embedsSent === 0) {
         if (result.success) {
           await event.reply(
