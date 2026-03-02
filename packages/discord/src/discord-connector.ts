@@ -36,6 +36,8 @@ import {
   type TextBasedChannel,
 } from "./mention-handler.js";
 import type {
+  AttachmentCategory,
+  DiscordAttachmentInfo,
   DiscordConnectionStatus,
   DiscordConnectorEventMap,
   DiscordConnectorEventName,
@@ -748,6 +750,29 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
       }
     }
 
+    // Extract non-voice file attachments (images, PDFs, text/code files)
+    let attachments: DiscordAttachmentInfo[] | undefined;
+    if (!isVoiceMessage && message.attachments.size > 0) {
+      const extracted: DiscordAttachmentInfo[] = [];
+      for (const [, attachment] of message.attachments) {
+        const contentType = attachment.contentType ?? "application/octet-stream";
+        const category = DiscordConnector._categorizeContentType(contentType);
+        if (category !== "unsupported") {
+          extracted.push({
+            id: attachment.id,
+            name: attachment.name ?? "unknown",
+            url: attachment.url,
+            contentType,
+            size: attachment.size,
+            category,
+          });
+        }
+      }
+      if (extracted.length > 0) {
+        attachments = extracted;
+      }
+    }
+
     // Create reaction functions for acknowledgement emoji support
     const addReaction = async (emoji: string): Promise<void> => {
       try {
@@ -789,6 +814,7 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
         isVoiceMessage,
         voiceAttachmentUrl,
         voiceAttachmentName,
+        attachments,
       },
       reply,
       replyWithRef,
@@ -797,6 +823,27 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
       removeReaction,
     };
     this.emit("message", payload);
+  }
+
+  /**
+   * Categorize a MIME content type into an attachment processing category
+   */
+  private static _categorizeContentType(contentType: string): AttachmentCategory {
+    const lower = contentType.toLowerCase().split(";")[0].trim();
+    if (lower.startsWith("image/")) return "image";
+    if (lower === "application/pdf") return "pdf";
+    if (lower.startsWith("text/")) return "text";
+    // Common code file MIME types that don't start with text/
+    const codeTypes = [
+      "application/json",
+      "application/javascript",
+      "application/typescript",
+      "application/x-yaml",
+      "application/x-sh",
+      "application/xml",
+    ];
+    if (codeTypes.includes(lower)) return "text";
+    return "unsupported";
   }
 
   /**

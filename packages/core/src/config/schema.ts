@@ -671,6 +671,41 @@ export const DiscordVoiceSchema = z.object({
 });
 
 /**
+ * Discord file attachment handling configuration schema
+ *
+ * Controls how non-voice file attachments (images, PDFs, code files) are
+ * processed when users upload them alongside messages.
+ *
+ * @example
+ * ```yaml
+ * attachments:
+ *   enabled: true
+ *   max_file_size_mb: 10
+ *   max_files_per_message: 5
+ *   allowed_types:
+ *     - "image/*"
+ *     - "application/pdf"
+ *     - "text/*"
+ *   download_dir: ".discord-attachments"
+ *   cleanup_after_processing: true
+ * ```
+ */
+export const DiscordAttachmentsSchema = z.object({
+  /** Enable file attachment processing (default: false) */
+  enabled: z.boolean().optional().default(false),
+  /** Maximum file size in MB (default: 10) */
+  max_file_size_mb: z.number().positive().optional().default(10),
+  /** Maximum files per message (default: 5) */
+  max_files_per_message: z.number().int().positive().optional().default(5),
+  /** Allowed MIME type patterns — supports wildcards like "image/*" (default: ["image/*", "application/pdf", "text/*"]) */
+  allowed_types: z.array(z.string()).optional().default(["image/*", "application/pdf", "text/*"]),
+  /** Directory name for downloaded binary attachments, relative to agent working_directory (default: ".discord-attachments") */
+  download_dir: z.string().optional().default(".discord-attachments"),
+  /** Delete downloaded files after the agent finishes processing (default: true) */
+  cleanup_after_processing: z.boolean().optional().default(true),
+});
+
+/**
  * Per-agent Discord bot configuration schema
  *
  * Each agent can have its own Discord bot with independent identity,
@@ -717,6 +752,8 @@ export const AgentChatDiscordSchema = z.object({
   dm: ChatDMSchema.optional(),
   /** Voice message transcription configuration */
   voice: DiscordVoiceSchema.optional(),
+  /** File attachment handling configuration */
+  attachments: DiscordAttachmentsSchema.optional(),
 });
 
 // =============================================================================
@@ -1120,6 +1157,7 @@ export type DiscordChannel = z.infer<typeof DiscordChannelSchema>;
 export type DiscordGuild = z.infer<typeof DiscordGuildSchema>;
 export type DiscordOutput = z.infer<typeof DiscordOutputSchema>;
 export type DiscordVoice = z.infer<typeof DiscordVoiceSchema>;
+export type DiscordAttachments = z.infer<typeof DiscordAttachmentsSchema>;
 export type AgentChatDiscord = z.infer<typeof AgentChatDiscordSchema>;
 export type AgentChat = z.infer<typeof AgentChatSchema>;
 // Agent Chat Slack types

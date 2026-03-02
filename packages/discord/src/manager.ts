@@ -10,6 +10,9 @@
  * @module manager
  */
 
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+
 import {
   type ChatConnectorLogger,
   ChatSessionManager,
@@ -20,6 +23,7 @@ import {
 } from "@herdctl/chat";
 import type {
   ChatManagerConnectorState,
+  DiscordAttachments,
   FleetManagerContext,
   IChatManager,
   InjectedMcpServerDef,
@@ -36,6 +40,7 @@ import {
 
 import { DiscordConnector } from "./discord-connector.js";
 import type {
+  DiscordAttachmentInfo,
   DiscordConnectorEventMap,
   DiscordReplyEmbed,
   DiscordReplyEmbedField,
@@ -488,6 +493,10 @@ export class DiscordManager implements IChatManager {
       await event.addReaction(ackEmoji);
     }
 
+    // Attachment state — declared here so the finally block can clean up
+    let attachmentDownloadedPaths: string[] = [];
+    const attachmentConfig = agent.chat?.discord?.attachments;
+
     try {
       // Handle voice messages: transcribe audio before triggering the agent
       let prompt = event.prompt;
@@ -540,6 +549,40 @@ export class DiscordManager implements IChatManager {
           logger.error(`Voice transcription failed: ${errMsg}`);
           await event.reply(`Failed to transcribe voice message: ${errMsg}`);
           return;
+        }
+      }
+
+      // Handle file attachments: download, process, and prepend to prompt
+      if (
+        event.metadata.attachments &&
+        event.metadata.attachments.length > 0 &&
+        attachmentConfig?.enabled
+      ) {
+        const result = await DiscordManager.processAttachments(
+          event.metadata.attachments,
+          attachmentConfig,
+          workingDir,
+          logger as ChatConnectorLogger,
+        );
+        attachmentDownloadedPaths = result.downloadedPaths;
+
+        if (result.skippedFiles.length > 0) {
+          for (const skipped of result.skippedFiles) {
+            logger.debug(`Skipped attachment ${skipped.name}: ${skipped.reason}`);
+          }
+        }
+
+        if (result.promptSections.length > 0) {
+          const attachmentBlock = [
+            "The user sent the following file attachment(s) with their message:",
+            "",
+            ...result.promptSections,
+            "",
+            "---",
+            "",
+            `User message: ${prompt}`,
+          ].join("\n");
+          prompt = attachmentBlock;
         }
       }
 
@@ -933,6 +976,16 @@ export class DiscordManager implements IChatManager {
       if (ackEmoji) {
         await event.removeReaction(ackEmoji);
       }
+      // Clean up downloaded attachment files if configured
+      if (
+        attachmentDownloadedPaths.length > 0 &&
+        attachmentConfig?.cleanup_after_processing !== false
+      ) {
+        await DiscordManager.cleanupAttachments(
+          attachmentDownloadedPaths,
+          logger as ChatConnectorLogger,
+        );
+      }
     }
   }
 
@@ -1135,5 +1188,167 @@ export class DiscordManager implements IChatManager {
     }
 
     return agent.working_directory.root;
+  }
+
+  // ===========================================================================
+  // Attachment Processing
+  // ===========================================================================
+
+  /** Maximum characters to inline for text/code file content */
+  private static readonly TEXT_INLINE_MAX_CHARS = 50_000;
+
+  /**
+   * Check if a content type matches a MIME pattern (supports wildcards like "image/*")
+   */
+  private static matchesMimePattern(contentType: string, pattern: string): boolean {
+    const ct = contentType.toLowerCase().split(";")[0].trim();
+    const pat = pattern.toLowerCase().trim();
+    if (pat === ct) return true;
+    if (pat.endsWith("/*")) {
+      const prefix = pat.slice(0, -1); // "image/*" → "image/"
+      return ct.startsWith(prefix);
+    }
+    return false;
+  }
+
+  /**
+   * Process file attachments: download, categorize, and prepare prompt sections.
+   *
+   * - Text/code files are inlined directly into the prompt
+   * - Images and PDFs are saved to disk so the agent can use its Read tool
+   *
+   * Returns prompt sections to prepend, paths of downloaded files for cleanup,
+   * and a list of skipped files with reasons.
+   */
+  private static async processAttachments(
+    attachments: DiscordAttachmentInfo[],
+    config: DiscordAttachments,
+    workingDir: string | undefined,
+    logger: ChatConnectorLogger,
+  ): Promise<{
+    promptSections: string[];
+    downloadedPaths: string[];
+    skippedFiles: { name: string; reason: string }[];
+  }> {
+    const promptSections: string[] = [];
+    const downloadedPaths: string[] = [];
+    const skippedFiles: { name: string; reason: string }[] = [];
+    const maxBytes = config.max_file_size_mb * 1024 * 1024;
+
+    // Limit to max_files_per_message
+    const toProcess = attachments.slice(0, config.max_files_per_message);
+    if (attachments.length > config.max_files_per_message) {
+      const skipped = attachments.slice(config.max_files_per_message);
+      for (const a of skipped) {
+        skippedFiles.push({ name: a.name, reason: "exceeded max_files_per_message" });
+      }
+    }
+
+    // Create timestamp directory for binary downloads
+    const timestamp = Date.now().toString();
+
+    for (const attachment of toProcess) {
+      // Check allowed types
+      const allowed = config.allowed_types.some((pattern) =>
+        DiscordManager.matchesMimePattern(attachment.contentType, pattern),
+      );
+      if (!allowed) {
+        skippedFiles.push({
+          name: attachment.name,
+          reason: `type ${attachment.contentType} not in allowed_types`,
+        });
+        continue;
+      }
+
+      // Check file size
+      if (attachment.size > maxBytes) {
+        skippedFiles.push({
+          name: attachment.name,
+          reason: `size ${attachment.size} exceeds ${config.max_file_size_mb}MB limit`,
+        });
+        continue;
+      }
+
+      try {
+        if (attachment.category === "text") {
+          // Text/code: download and inline
+          const response = await fetch(attachment.url);
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          let text = await response.text();
+          if (text.length > DiscordManager.TEXT_INLINE_MAX_CHARS) {
+            text = `${text.substring(0, DiscordManager.TEXT_INLINE_MAX_CHARS)}\n... [truncated at ${DiscordManager.TEXT_INLINE_MAX_CHARS} chars]`;
+          }
+          promptSections.push(
+            `--- File: ${attachment.name} (${attachment.contentType}) ---\n${text}\n--- End of ${attachment.name} ---`,
+          );
+        } else {
+          // Image/PDF: download to disk
+          if (!workingDir) {
+            skippedFiles.push({
+              name: attachment.name,
+              reason: "no working_directory configured for binary attachments",
+            });
+            continue;
+          }
+          const response = await fetch(attachment.url);
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          const buffer = Buffer.from(await response.arrayBuffer());
+          const downloadDir = join(workingDir, config.download_dir, timestamp);
+          await mkdir(downloadDir, { recursive: true });
+          const filePath = join(downloadDir, attachment.name);
+          await writeFile(filePath, buffer);
+          downloadedPaths.push(filePath);
+
+          const typeLabel = attachment.category === "image" ? "Image" : "PDF";
+          promptSections.push(
+            `[${typeLabel} attached: ${filePath}] (Use the Read tool to view this file)`,
+          );
+        }
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.warn(`Failed to process attachment ${attachment.name}: ${errMsg}`);
+        skippedFiles.push({
+          name: attachment.name,
+          reason: `download/processing failed: ${errMsg}`,
+        });
+      }
+    }
+
+    return { promptSections, downloadedPaths, skippedFiles };
+  }
+
+  /**
+   * Clean up downloaded attachment files after processing
+   */
+  private static async cleanupAttachments(
+    paths: string[],
+    logger: ChatConnectorLogger,
+  ): Promise<void> {
+    const parentDirs = new Set<string>();
+    for (const filePath of paths) {
+      try {
+        await rm(filePath);
+        // Track parent directory for cleanup
+        const lastSlash = filePath.lastIndexOf("/");
+        if (lastSlash > 0) {
+          parentDirs.add(filePath.substring(0, lastSlash));
+        }
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.debug(`Failed to clean up attachment file ${filePath}: ${errMsg}`);
+      }
+    }
+    // Try to remove empty timestamp directories
+    for (const dir of parentDirs) {
+      try {
+        await rm(dir, { recursive: true });
+      } catch {
+        // Directory may not be empty or already removed — ignore
+      }
+    }
   }
 }

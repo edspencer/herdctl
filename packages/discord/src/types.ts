@@ -281,6 +281,33 @@ export interface DiscordReplyPayload {
 }
 
 // =============================================================================
+// Attachment Types
+// =============================================================================
+
+/**
+ * Category of a Discord file attachment based on its MIME type
+ */
+export type AttachmentCategory = "image" | "pdf" | "text" | "unsupported";
+
+/**
+ * Metadata for a non-voice file attachment from a Discord message
+ */
+export interface DiscordAttachmentInfo {
+  /** Discord attachment ID */
+  id: string;
+  /** Original filename */
+  name: string;
+  /** Download URL */
+  url: string;
+  /** MIME content type */
+  contentType: string;
+  /** File size in bytes */
+  size: number;
+  /** Categorized type for processing */
+  category: AttachmentCategory;
+}
+
+// =============================================================================
 // Event Types
 // =============================================================================
 
@@ -366,6 +393,8 @@ export interface DiscordConnectorEventMap {
       voiceAttachmentUrl?: string;
       /** Filename of the voice message attachment */
       voiceAttachmentName?: string;
+      /** Non-voice file attachments (images, PDFs, text files) */
+      attachments?: DiscordAttachmentInfo[];
     };
     /** Function to send a reply in the same channel (text or embed) */
     reply: (content: string | DiscordReplyPayload) => Promise<void>;

@@ -94,6 +94,8 @@ export {
   ChatSchema,
   type Defaults,
   DefaultsSchema,
+  type DiscordAttachments,
+  DiscordAttachmentsSchema,
   type DiscordChannel,
   DiscordChannelSchema,
   type DiscordChat,
