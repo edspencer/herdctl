@@ -517,10 +517,13 @@ export class SessionDiscoveryService {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
         logger.debug(`Projects directory does not exist: ${projectsDir}`);
+        encodedPaths = [];
+      } else {
+        logger.warn(
+          `Failed to read projects directory: ${projectsDir}: ${(error as Error).message}`,
+        );
         return [];
       }
-      logger.warn(`Failed to read projects directory: ${projectsDir}: ${(error as Error).message}`);
-      return [];
     }
 
     // Get attribution index

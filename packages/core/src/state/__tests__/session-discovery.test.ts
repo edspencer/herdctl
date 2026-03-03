@@ -285,10 +285,10 @@ describe("SessionDiscoveryService", () => {
 
     it("sets resumable: false for Docker agents", async () => {
       const workingDir = "/Users/ed/Code/myproject";
-      const encodedPath = "-Users-ed-Code-myproject";
-      const projectDir = join(tempClaudeHome, "projects", encodedPath);
-      await mkdir(projectDir, { recursive: true });
-      await createSessionFile(projectDir, "session-abc");
+      // Docker agents scan docker-sessions/ instead of projects/
+      const dockerSessionDir = join(tempStateDir, "docker-sessions");
+      await mkdir(dockerSessionDir, { recursive: true });
+      await createSessionFile(dockerSessionDir, "session-abc");
 
       const service = new SessionDiscoveryService({
         claudeHomePath: tempClaudeHome,
@@ -613,9 +613,15 @@ describe("SessionDiscoveryService", () => {
     });
 
     it("sets resumable based on agent dockerEnabled", async () => {
-      const projectDir = join(tempClaudeHome, "projects", "-Users-ed-Code-myproject");
-      await mkdir(projectDir, { recursive: true });
-      await createSessionFile(projectDir, "session-a");
+      // Docker agents scan docker-sessions/ instead of projects/
+      const dockerSessionDir = join(tempStateDir, "docker-sessions");
+      await mkdir(dockerSessionDir, { recursive: true });
+      await createSessionFile(dockerSessionDir, "session-a");
+
+      // Attribution must match the docker agent name for the session to be included
+      mockBuildAttributionIndex.mockResolvedValue(
+        createMockAttributionIndex({ defaultAgentName: "docker-agent" }),
+      );
 
       const service = new SessionDiscoveryService({
         claudeHomePath: tempClaudeHome,
@@ -630,7 +636,10 @@ describe("SessionDiscoveryService", () => {
         },
       ]);
 
-      expect(groups[0].sessions[0].resumable).toBe(false);
+      // Docker group should appear with the session
+      const dockerGroup = groups.find((g) => g.encodedPath.startsWith("docker:"));
+      expect(dockerGroup).toBeDefined();
+      expect(dockerGroup!.sessions[0].resumable).toBe(false);
     });
 
     it("defaults resumable to true for unmatched directories", async () => {
