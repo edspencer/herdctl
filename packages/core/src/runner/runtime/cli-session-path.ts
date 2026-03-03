@@ -78,6 +78,34 @@ export function getCliSessionFile(workspacePath: string, sessionId: string): str
 }
 
 /**
+ * Get the docker-sessions directory path
+ *
+ * Docker sessions are stored in .herdctl/docker-sessions/ on the host.
+ * The container runner mounts the Claude session directory from the container
+ * to this host path so session files survive container exit.
+ *
+ * @param stateDir - Path to the .herdctl state directory
+ * @returns Absolute path to the docker-sessions directory
+ */
+export function getDockerSessionDir(stateDir: string): string {
+  return path.join(stateDir, "docker-sessions");
+}
+
+/**
+ * Get the path to a specific Docker session file
+ *
+ * Docker sessions are stored flat in .herdctl/docker-sessions/{session-id}.jsonl
+ * (not nested by workspace path like CLI sessions).
+ *
+ * @param stateDir - Path to the .herdctl state directory
+ * @param sessionId - Session ID (UUID format)
+ * @returns Absolute path to the Docker session JSONL file
+ */
+export function getDockerSessionFile(stateDir: string, sessionId: string): string {
+  return path.join(getDockerSessionDir(stateDir), `${sessionId}.jsonl`);
+}
+
+/**
  * Find the newest session file in a CLI session directory
  *
  * Scans the session directory for .jsonl files and returns the path to the

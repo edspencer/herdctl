@@ -1313,4 +1313,259 @@ describe("SessionDiscoveryService", () => {
       expect(mockBatchSetAutoNames).not.toHaveBeenCalled();
     });
   });
+
+  // ===========================================================================
+  // Docker session discovery
+  // ===========================================================================
+
+  describe("Docker session discovery", () => {
+    it("getAgentSessions scans docker-sessions dir when dockerEnabled is true", async () => {
+      // Create docker-sessions directory in the state dir
+      const dockerSessionsDir = join(tempStateDir, "docker-sessions");
+      await mkdir(dockerSessionsDir, { recursive: true });
+
+      // Create session files
+      const now = Date.now();
+      await createSessionFile(dockerSessionsDir, "docker-session-1");
+      await createSessionFile(dockerSessionsDir, "docker-session-2");
+
+      const olderTime = new Date(now - 10000);
+      const newerTime = new Date(now);
+      await utimes(join(dockerSessionsDir, "docker-session-1.jsonl"), olderTime, olderTime);
+      await utimes(join(dockerSessionsDir, "docker-session-2.jsonl"), newerTime, newerTime);
+
+      // Attribution maps both sessions to the docker agent
+      mockBuildAttributionIndex.mockResolvedValue(
+        createMockAttributionIndex({
+          getAttribute: () => ({
+            origin: "web" as const,
+            agentName: "docker-agent",
+            triggerType: "web",
+          }),
+        }),
+      );
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      const sessions = await service.getAgentSessions(
+        "docker-agent",
+        "/opt/workspace",
+        true, // dockerEnabled
+      );
+
+      expect(sessions).toHaveLength(2);
+      expect(sessions[0].sessionId).toBe("docker-session-2"); // newest first
+      expect(sessions[1].sessionId).toBe("docker-session-1");
+      expect(sessions[0].resumable).toBe(false);
+      expect(sessions[0].workingDirectory).toBe("/opt/workspace");
+    });
+
+    it("getAgentSessions returns empty when docker-sessions dir doesn't exist", async () => {
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      const sessions = await service.getAgentSessions("docker-agent", "/opt/workspace", true);
+
+      expect(sessions).toEqual([]);
+    });
+
+    it("getAgentSessions filters docker sessions by attribution", async () => {
+      const dockerSessionsDir = join(tempStateDir, "docker-sessions");
+      await mkdir(dockerSessionsDir, { recursive: true });
+      await createSessionFile(dockerSessionsDir, "session-for-agent-a");
+      await createSessionFile(dockerSessionsDir, "session-for-agent-b");
+
+      // Attribution maps sessions to different agents
+      mockBuildAttributionIndex.mockResolvedValue(
+        createMockAttributionIndex({
+          getAttribute: (sessionId) => ({
+            origin: "web" as const,
+            agentName: sessionId === "session-for-agent-a" ? "agent-a" : "agent-b",
+            triggerType: "web",
+          }),
+        }),
+      );
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      // Should only return sessions for agent-a
+      const sessions = await service.getAgentSessions("agent-a", "/opt/a", true);
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0].sessionId).toBe("session-for-agent-a");
+    });
+
+    it("getAllSessions includes docker sessions for docker-enabled agents", async () => {
+      // Create docker-sessions directory
+      const dockerSessionsDir = join(tempStateDir, "docker-sessions");
+      await mkdir(dockerSessionsDir, { recursive: true });
+      await createSessionFile(dockerSessionsDir, "docker-session-1");
+
+      // Also create a normal project directory
+      const normalProjectDir = join(tempClaudeHome, "projects", "-Users-ed-Code-normal");
+      await mkdir(normalProjectDir, { recursive: true });
+      await createSessionFile(normalProjectDir, "normal-session-1");
+
+      // Attribution maps sessions to their agents
+      mockBuildAttributionIndex.mockResolvedValue(
+        createMockAttributionIndex({
+          getAttribute: (sessionId) => ({
+            origin: "web" as const,
+            agentName: sessionId === "docker-session-1" ? "docker-agent" : undefined,
+            triggerType: sessionId === "docker-session-1" ? "web" : undefined,
+          }),
+        }),
+      );
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      const groups = await service.getAllSessions([
+        {
+          name: "docker-agent",
+          workingDirectory: "/opt/workspace",
+          dockerEnabled: true,
+        },
+      ]);
+
+      // Should have 2 groups: one for the normal project, one for the docker agent
+      expect(groups.length).toBeGreaterThanOrEqual(1);
+
+      // Find the docker group
+      const dockerGroup = groups.find((g) => g.encodedPath.startsWith("docker:"));
+      expect(dockerGroup).toBeDefined();
+      expect(dockerGroup!.agentName).toBe("docker-agent");
+      expect(dockerGroup!.sessions).toHaveLength(1);
+      expect(dockerGroup!.sessions[0].sessionId).toBe("docker-session-1");
+      expect(dockerGroup!.sessions[0].resumable).toBe(false);
+    });
+
+    it("getSessionMessages resolves docker session file path when dockerEnabled", async () => {
+      const dockerSessionsDir = join(tempStateDir, "docker-sessions");
+      await mkdir(dockerSessionsDir, { recursive: true });
+      await createSessionFile(dockerSessionsDir, "session-abc");
+
+      const mockMessages = [
+        { role: "user" as const, content: "Hello", timestamp: "2024-01-15T10:00:00Z" },
+      ];
+      mockParseSessionMessages.mockResolvedValue(mockMessages);
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      await service.getSessionMessages("/opt/workspace", "session-abc", { dockerEnabled: true });
+
+      // Should have been called with the docker-sessions path
+      expect(mockParseSessionMessages).toHaveBeenCalledWith(
+        join(tempStateDir, "docker-sessions", "session-abc.jsonl"),
+      );
+    });
+
+    it("getSessionMetadata resolves docker session file path when dockerEnabled", async () => {
+      const dockerSessionsDir = join(tempStateDir, "docker-sessions");
+      await mkdir(dockerSessionsDir, { recursive: true });
+
+      const mockMetadata = {
+        sessionId: "session-abc",
+        firstMessagePreview: "Hello world",
+        gitBranch: undefined,
+        claudeCodeVersion: undefined,
+        messageCount: 1,
+        firstMessageAt: "2024-01-15T10:00:00Z",
+        lastMessageAt: "2024-01-15T10:00:00Z",
+        summary: undefined,
+        isSidechain: false,
+      };
+      mockExtractSessionMetadata.mockResolvedValue(mockMetadata);
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      await service.getSessionMetadata("/opt/workspace", "session-abc", { dockerEnabled: true });
+
+      expect(mockExtractSessionMetadata).toHaveBeenCalledWith(
+        join(tempStateDir, "docker-sessions", "session-abc.jsonl"),
+      );
+    });
+
+    it("getSessionUsage resolves docker session file path when dockerEnabled", async () => {
+      const dockerSessionsDir = join(tempStateDir, "docker-sessions");
+      await mkdir(dockerSessionsDir, { recursive: true });
+
+      const mockUsage = { inputTokens: 500, turnCount: 3, hasData: true };
+      mockExtractSessionUsage.mockResolvedValue(mockUsage);
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      await service.getSessionUsage("/opt/workspace", "session-abc", { dockerEnabled: true });
+
+      expect(mockExtractSessionUsage).toHaveBeenCalledWith(
+        join(tempStateDir, "docker-sessions", "session-abc.jsonl"),
+      );
+    });
+
+    it("invalidateCache clears docker-sessions cache when dockerEnabled option is set", async () => {
+      // Create docker sessions directory and populate cache
+      const dockerSessionsDir = join(tempStateDir, "docker-sessions");
+      await mkdir(dockerSessionsDir, { recursive: true });
+      await createSessionFile(dockerSessionsDir, "session-1");
+
+      mockBuildAttributionIndex.mockResolvedValue(
+        createMockAttributionIndex({
+          getAttribute: () => ({
+            origin: "web" as const,
+            agentName: "docker-agent",
+            triggerType: "web",
+          }),
+        }),
+      );
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+        cacheTtlMs: 60000,
+      });
+
+      // Populate cache
+      await service.getAgentSessions("docker-agent", "/opt/workspace", true);
+
+      // Add a new session file
+      await createSessionFile(dockerSessionsDir, "session-2");
+
+      // Without invalidation, cache returns old data
+      const beforeInvalidate = await service.getAgentSessions(
+        "docker-agent",
+        "/opt/workspace",
+        true,
+      );
+      expect(beforeInvalidate).toHaveLength(1);
+
+      // Invalidate with dockerEnabled
+      service.invalidateCache("/opt/workspace", { dockerEnabled: true });
+
+      // Now should see new session
+      const afterInvalidate = await service.getAgentSessions(
+        "docker-agent",
+        "/opt/workspace",
+        true,
+      );
+      expect(afterInvalidate).toHaveLength(2);
+    });
+  });
 });

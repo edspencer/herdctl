@@ -219,9 +219,14 @@ export function registerChatRoutes(
         return reply.status(404).send({ error: `Directory not found: ${encodedPath}` });
       }
 
+      // Docker groups have encodedPath starting with "docker:" — they need
+      // the dockerEnabled flag to resolve session files from .herdctl/docker-sessions/
+      const isDocker = group.encodedPath.startsWith("docker:");
+      const dockerOpts = isDocker ? { dockerEnabled: true } : undefined;
+
       const [messages, metadata] = await Promise.all([
-        discoveryService.getSessionMessages(group.workingDirectory, sessionId),
-        discoveryService.getSessionMetadata(group.workingDirectory, sessionId),
+        discoveryService.getSessionMessages(group.workingDirectory, sessionId, dockerOpts),
+        discoveryService.getSessionMetadata(group.workingDirectory, sessionId, dockerOpts),
       ]);
 
       return reply.send({
@@ -265,7 +270,13 @@ export function registerChatRoutes(
         return reply.status(404).send({ error: `Directory not found: ${encodedPath}` });
       }
 
-      const usage = await chatManager.getAdhocSessionUsage(group.workingDirectory, sessionId);
+      const isDocker = group.encodedPath.startsWith("docker:");
+      const dockerOpts = isDocker ? { dockerEnabled: true } : undefined;
+      const usage = await chatManager.getAdhocSessionUsage(
+        group.workingDirectory,
+        sessionId,
+        dockerOpts,
+      );
       return reply.send(usage);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -330,10 +341,19 @@ export function registerChatRoutes(
     // Get working directory from agent config
     const workingDirectory = agentConfig.working_directory ?? "/tmp/unknown";
 
+    // Check if this agent uses Docker (ResolvedAgent has docker config, AgentInfo doesn't)
+    const resolvedAgents = fleetManager.getAgents();
+    const resolvedAgent = resolvedAgents.find(
+      (a) => a.qualifiedName === agentName || a.name === agentName,
+    );
+    const dockerEnabled = resolvedAgent?.docker?.enabled ?? false;
+
     try {
       const [messages, metadata] = await Promise.all([
         chatManager.getSessionMessages(agentName, sessionId),
-        discoveryService.getSessionMetadata(workingDirectory, sessionId),
+        discoveryService.getSessionMetadata(workingDirectory, sessionId, {
+          dockerEnabled,
+        }),
       ]);
 
       return reply.send({

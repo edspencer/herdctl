@@ -9,7 +9,12 @@
 import { readdir, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { encodePathForCli, getCliSessionFile } from "../runner/runtime/cli-session-path.js";
+import {
+  encodePathForCli,
+  getCliSessionFile,
+  getDockerSessionDir,
+  getDockerSessionFile,
+} from "../runner/runtime/cli-session-path.js";
 import { createLogger } from "../utils/logger.js";
 import {
   type ChatMessage,
@@ -288,6 +293,7 @@ export class SessionDiscoveryService {
     sessionId: string,
     fileMtime: string,
     workingDirectory: string,
+    dockerEnabled?: boolean,
   ): Promise<{ autoName: string | undefined; needsUpdate: boolean }> {
     // Check cache
     const cached = await this.sessionMetadataStore.getAutoName(agentName, sessionId);
@@ -298,7 +304,9 @@ export class SessionDiscoveryService {
     }
 
     // Need to extract from JSONL
-    const filePath = getCliSessionFile(workingDirectory, sessionId);
+    const filePath = dockerEnabled
+      ? getDockerSessionFile(this.stateDir, sessionId)
+      : getCliSessionFile(workingDirectory, sessionId);
     const summary = await extractLastSummary(filePath);
 
     if (summary) {
@@ -322,6 +330,7 @@ export class SessionDiscoveryService {
     sessionId: string,
     fileMtime: string,
     workingDirectory: string,
+    dockerEnabled?: boolean,
   ): Promise<{ preview: string | undefined; needsUpdate: boolean }> {
     // Check cache
     const cached = await this.sessionMetadataStore.getPreview(agentName, sessionId);
@@ -332,7 +341,9 @@ export class SessionDiscoveryService {
     }
 
     // Need to extract from JSONL
-    const filePath = getCliSessionFile(workingDirectory, sessionId);
+    const filePath = dockerEnabled
+      ? getDockerSessionFile(this.stateDir, sessionId)
+      : getCliSessionFile(workingDirectory, sessionId);
     const preview = await extractFirstMessagePreview(filePath);
 
     if (preview) {
@@ -361,10 +372,15 @@ export class SessionDiscoveryService {
     options?: { limit?: number },
   ): Promise<DiscoveredSession[]> {
     const limit = options?.limit;
-    const encodedPath = encodePathForCli(workingDirectory);
-    const sessionDir = path.join(this.claudeHomePath, "projects", encodedPath);
 
-    logger.debug(`Getting sessions for agent ${agentName}`, { sessionDir });
+    // Docker agents store session files in .herdctl/docker-sessions/ on the host
+    // (the container's ~/.claude/projects/ is ephemeral and gone after exit).
+    // Non-Docker agents store sessions in ~/.claude/projects/{encoded-path}/.
+    const sessionDir = dockerEnabled
+      ? getDockerSessionDir(this.stateDir)
+      : path.join(this.claudeHomePath, "projects", encodePathForCli(workingDirectory));
+
+    logger.debug(`Getting sessions for agent ${agentName}`, { sessionDir, dockerEnabled });
 
     // Get session files (already sorted by mtime descending)
     const sessionFiles = await this.listSessionFiles(sessionDir);
@@ -384,12 +400,16 @@ export class SessionDiscoveryService {
     const previewUpdates: Array<{ sessionId: string; preview: string; mtime: string }> = [];
 
     for (const { sessionId, mtime } of filesToEnrich) {
+      // Get the actual file path based on storage location
+      const filePath = dockerEnabled
+        ? getDockerSessionFile(this.stateDir, sessionId)
+        : getCliSessionFile(workingDirectory, sessionId);
+
       // Filter out sidechain (sub-agent) sessions. Claude Code marks sessions
       // as sidechain when they're Task tool sub-agents or when --resume is used.
       // These are mostly prompt-cache warmup sessions ("Warmup" + single response)
       // that clutter the UI with no useful content. We check only the first JSONL
       // line so this is O(1) per file.
-      const filePath = getCliSessionFile(workingDirectory, sessionId);
       if (await isSidechainSession(filePath)) {
         continue;
       }
@@ -407,24 +427,26 @@ export class SessionDiscoveryService {
       const customName = await this.sessionMetadataStore.getCustomName(agentName, sessionId);
       const mtimeStr = mtime.toISOString();
 
-      // Resolve autoName with caching
+      // Resolve autoName with caching — pass docker flag so it reads the right file
       const { autoName, needsUpdate } = await this.resolveAutoName(
         agentName,
         sessionId,
         mtimeStr,
         workingDirectory,
+        dockerEnabled,
       );
 
       if (needsUpdate && autoName) {
         autoNameUpdates.push({ sessionId, autoName, mtime: mtimeStr });
       }
 
-      // Resolve preview with caching
+      // Resolve preview with caching — pass docker flag so it reads the right file
       const { preview, needsUpdate: previewNeedsUpdate } = await this.resolvePreview(
         agentName,
         sessionId,
         mtimeStr,
         workingDirectory,
+        dockerEnabled,
       );
 
       if (previewNeedsUpdate && preview) {
@@ -561,6 +583,42 @@ export class SessionDiscoveryService {
       });
     }
 
+    // Phase 1b: Also scan docker-sessions directory for Docker-enabled agents.
+    // Docker sessions are stored flat in .herdctl/docker-sessions/ — they don't
+    // appear under ~/.claude/projects/ because the container filesystem is ephemeral.
+    const dockerSessionDir = getDockerSessionDir(this.stateDir);
+    const dockerSessionFiles = await this.listSessionFiles(dockerSessionDir);
+
+    if (dockerSessionFiles.length > 0) {
+      // Get the set of docker-enabled agent names for attribution matching
+      const dockerAgents = agents.filter((a) => a.dockerEnabled);
+
+      if (dockerAgents.length > 0) {
+        // Docker sessions are flat (all agents share one directory), so we need
+        // attribution to separate them. We'll add one DirectoryInfo per docker agent
+        // with all docker session files, and let the enrichment phase filter by attribution.
+        for (const agent of dockerAgents) {
+          // Skip if this agent already has a directory from the projects scan
+          // (shouldn't happen for Docker agents, but be defensive)
+          const encodedPath = encodePathForCli(agent.workingDirectory);
+          if (
+            directories.some((d) => d.encodedPath === encodedPath && d.agentName === agent.name)
+          ) {
+            continue;
+          }
+
+          directories.push({
+            encodedPath: `docker:${agent.name}`,
+            decodedPath: agent.workingDirectory,
+            agentName: agent.name,
+            metadataKey: agent.name,
+            dockerEnabled: true,
+            sessionFiles: dockerSessionFiles,
+          });
+        }
+      }
+    }
+
     // Phase 2: If limit is set, find the top N sessions by mtime across all directories
     // Each directory's sessionFiles are already sorted by mtime descending,
     // so we merge-select the top N using pointers into each sorted list.
@@ -605,13 +663,24 @@ export class SessionDiscoveryService {
           continue;
         }
 
+        // Get the actual file path based on storage location
+        const filePath = dir.dockerEnabled
+          ? getDockerSessionFile(this.stateDir, sessionId)
+          : getCliSessionFile(dir.decodedPath, sessionId);
+
         // Filter out sidechain (sub-agent) sessions — see comment in getAgentSessions()
-        const filePath = getCliSessionFile(dir.decodedPath, sessionId);
         if (await isSidechainSession(filePath)) {
           continue;
         }
 
         const attribution = attributionIndex.getAttribute(sessionId);
+
+        // For docker directories, only include sessions attributed to this specific agent
+        // (since all docker agents share the same docker-sessions directory)
+        if (dir.dockerEnabled && attribution.agentName !== dir.agentName) {
+          continue;
+        }
+
         const mtimeStr = mtime.toISOString();
 
         // Get custom name (works for both attributed and unattributed sessions)
@@ -626,6 +695,7 @@ export class SessionDiscoveryService {
           sessionId,
           mtimeStr,
           dir.decodedPath,
+          dir.dockerEnabled,
         );
 
         if (needsUpdate && autoName) {
@@ -638,6 +708,7 @@ export class SessionDiscoveryService {
           sessionId,
           mtimeStr,
           dir.decodedPath,
+          dir.dockerEnabled,
         );
 
         if (previewNeedsUpdate && preview) {
@@ -687,16 +758,41 @@ export class SessionDiscoveryService {
   }
 
   /**
+   * Resolve the file path for a session JSONL file.
+   *
+   * Docker sessions are stored in .herdctl/docker-sessions/{sessionId}.jsonl.
+   * Native CLI sessions are in ~/.claude/projects/{encoded-path}/{sessionId}.jsonl.
+   */
+  private resolveSessionFilePath(
+    workingDirectory: string,
+    sessionId: string,
+    dockerEnabled?: boolean,
+  ): string {
+    return dockerEnabled
+      ? getDockerSessionFile(this.stateDir, sessionId)
+      : getCliSessionFile(workingDirectory, sessionId);
+  }
+
+  /**
    * Get parsed chat messages from a session.
    *
    * Delegates to the JSONL parser.
    *
    * @param workingDirectory - The session's working directory
    * @param sessionId - The session ID
+   * @param options - Optional settings (dockerEnabled for Docker agent sessions)
    * @returns Array of chat messages
    */
-  async getSessionMessages(workingDirectory: string, sessionId: string): Promise<ChatMessage[]> {
-    const filePath = getCliSessionFile(workingDirectory, sessionId);
+  async getSessionMessages(
+    workingDirectory: string,
+    sessionId: string,
+    options?: { dockerEnabled?: boolean },
+  ): Promise<ChatMessage[]> {
+    const filePath = this.resolveSessionFilePath(
+      workingDirectory,
+      sessionId,
+      options?.dockerEnabled,
+    );
     return parseSessionMessages(filePath);
   }
 
@@ -707,10 +803,19 @@ export class SessionDiscoveryService {
    *
    * @param workingDirectory - The session's working directory
    * @param sessionId - The session ID
+   * @param options - Optional settings (dockerEnabled for Docker agent sessions)
    * @returns Session metadata
    */
-  async getSessionMetadata(workingDirectory: string, sessionId: string): Promise<SessionMetadata> {
-    const filePath = getCliSessionFile(workingDirectory, sessionId);
+  async getSessionMetadata(
+    workingDirectory: string,
+    sessionId: string,
+    options?: { dockerEnabled?: boolean },
+  ): Promise<SessionMetadata> {
+    const filePath = this.resolveSessionFilePath(
+      workingDirectory,
+      sessionId,
+      options?.dockerEnabled,
+    );
 
     // Check cache
     const cached = this.metadataCache.get(filePath);
@@ -733,10 +838,19 @@ export class SessionDiscoveryService {
    *
    * @param workingDirectory - The session's working directory
    * @param sessionId - The session ID
+   * @param options - Optional settings (dockerEnabled for Docker agent sessions)
    * @returns Session usage data
    */
-  async getSessionUsage(workingDirectory: string, sessionId: string): Promise<SessionUsage> {
-    const filePath = getCliSessionFile(workingDirectory, sessionId);
+  async getSessionUsage(
+    workingDirectory: string,
+    sessionId: string,
+    options?: { dockerEnabled?: boolean },
+  ): Promise<SessionUsage> {
+    const filePath = this.resolveSessionFilePath(
+      workingDirectory,
+      sessionId,
+      options?.dockerEnabled,
+    );
     return extractSessionUsage(filePath);
   }
 
@@ -747,13 +861,21 @@ export class SessionDiscoveryService {
    * is cleared. Otherwise, all caches are cleared.
    *
    * @param workingDirectory - Optional working directory to clear cache for
+   * @param options - Optional settings (dockerEnabled to also clear docker-sessions cache)
    */
-  invalidateCache(workingDirectory?: string): void {
+  invalidateCache(workingDirectory?: string, options?: { dockerEnabled?: boolean }): void {
     if (workingDirectory !== undefined) {
       const encodedPath = encodePathForCli(workingDirectory);
       const sessionDir = path.join(this.claudeHomePath, "projects", encodedPath);
       this.directoryCache.delete(sessionDir);
       logger.debug(`Invalidated cache for directory: ${sessionDir}`);
+
+      // Also invalidate docker-sessions cache when the agent is docker-enabled
+      if (options?.dockerEnabled) {
+        const dockerDir = getDockerSessionDir(this.stateDir);
+        this.directoryCache.delete(dockerDir);
+        logger.debug(`Also invalidated docker-sessions cache: ${dockerDir}`);
+      }
     } else {
       this.directoryCache.clear();
       this.attributionIndex = null;
@@ -774,8 +896,12 @@ export class SessionDiscoveryService {
    * which is needed when a new session creates a new JSONL file.
    *
    * @param workingDirectory - Optional working directory whose file listing cache should also be cleared
+   * @param options - Optional settings (dockerEnabled to also clear docker-sessions cache)
    */
-  invalidateAttributionCache(workingDirectory?: string): void {
+  invalidateAttributionCache(
+    workingDirectory?: string,
+    options?: { dockerEnabled?: boolean },
+  ): void {
     this.attributionIndex = null;
     this.attributionFetchedAt = 0;
     logger.debug("Invalidated attribution cache");
@@ -785,6 +911,13 @@ export class SessionDiscoveryService {
       const sessionDir = path.join(this.claudeHomePath, "projects", encodedPath);
       this.directoryCache.delete(sessionDir);
       logger.debug(`Also invalidated directory cache for: ${sessionDir}`);
+
+      // Also invalidate docker-sessions cache when the agent is docker-enabled
+      if (options?.dockerEnabled) {
+        const dockerDir = getDockerSessionDir(this.stateDir);
+        this.directoryCache.delete(dockerDir);
+        logger.debug(`Also invalidated docker-sessions cache: ${dockerDir}`);
+      }
     }
   }
 }
