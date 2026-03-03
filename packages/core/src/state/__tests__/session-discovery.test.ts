@@ -1529,6 +1529,59 @@ describe("SessionDiscoveryService", () => {
       );
     });
 
+    it("sessionCount reflects visible sessions per agent when docker agents share docker-sessions directory", async () => {
+      // Create docker-sessions directory with sessions for multiple agents
+      const dockerSessionsDir = join(tempStateDir, "docker-sessions");
+      await mkdir(dockerSessionsDir, { recursive: true });
+      await createSessionFile(dockerSessionsDir, "session-for-agent-a-1");
+      await createSessionFile(dockerSessionsDir, "session-for-agent-a-2");
+      await createSessionFile(dockerSessionsDir, "session-for-agent-b-1");
+
+      // Attribution maps sessions to different agents
+      mockBuildAttributionIndex.mockResolvedValue(
+        createMockAttributionIndex({
+          getAttribute: (sessionId) => ({
+            origin: "web" as const,
+            agentName: sessionId.includes("agent-a") ? "agent-a" : "agent-b",
+            triggerType: "web",
+          }),
+        }),
+      );
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      const groups = await service.getAllSessions([
+        {
+          name: "agent-a",
+          workingDirectory: "/opt/workspace-a",
+          dockerEnabled: true,
+        },
+        {
+          name: "agent-b",
+          workingDirectory: "/opt/workspace-b",
+          dockerEnabled: true,
+        },
+      ]);
+
+      // Find groups for each agent
+      const agentAGroup = groups.find((g) => g.agentName === "agent-a");
+      const agentBGroup = groups.find((g) => g.agentName === "agent-b");
+
+      expect(agentAGroup).toBeDefined();
+      expect(agentBGroup).toBeDefined();
+
+      // agent-a should have sessionCount of 2 (not 3)
+      expect(agentAGroup!.sessionCount).toBe(2);
+      expect(agentAGroup!.sessions).toHaveLength(2);
+
+      // agent-b should have sessionCount of 1 (not 3)
+      expect(agentBGroup!.sessionCount).toBe(1);
+      expect(agentBGroup!.sessions).toHaveLength(1);
+    });
+
     it("invalidateCache clears docker-sessions cache when dockerEnabled option is set", async () => {
       // Create docker sessions directory and populate cache
       const dockerSessionsDir = join(tempStateDir, "docker-sessions");

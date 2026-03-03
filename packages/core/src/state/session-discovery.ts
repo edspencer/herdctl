@@ -659,13 +659,9 @@ export class SessionDiscoveryService {
       const sessions: DiscoveredSession[] = [];
       const autoNameUpdates: Array<{ sessionId: string; autoName: string; mtime: string }> = [];
       const previewUpdates: Array<{ sessionId: string; preview: string; mtime: string }> = [];
+      let visibleSessionCount = 0;
 
       for (const { sessionId, mtime } of dir.sessionFiles) {
-        // Skip sessions not in the selected set when limit is active
-        if (selectedSessionIds && !selectedSessionIds.has(sessionId)) {
-          continue;
-        }
-
         // Get the actual file path based on storage location
         const filePath = dir.dockerEnabled
           ? getDockerSessionFile(this.stateDir, sessionId)
@@ -681,6 +677,15 @@ export class SessionDiscoveryService {
         // For docker directories, only include sessions attributed to this specific agent
         // (since all docker agents share the same docker-sessions directory)
         if (dir.dockerEnabled && attribution.agentName !== dir.agentName) {
+          continue;
+        }
+
+        // Count visible sessions BEFORE pagination filtering — sessionCount should reflect
+        // total visible sessions for this agent, not just the paginated subset
+        visibleSessionCount++;
+
+        // Skip sessions not in the selected set when limit is active (pagination)
+        if (selectedSessionIds && !selectedSessionIds.has(sessionId)) {
           continue;
         }
 
@@ -744,7 +749,7 @@ export class SessionDiscoveryService {
           workingDirectory: dir.decodedPath,
           encodedPath: dir.encodedPath,
           agentName: dir.agentName,
-          sessionCount: dir.sessionFiles.length,
+          sessionCount: visibleSessionCount,
           sessions,
         });
       }
