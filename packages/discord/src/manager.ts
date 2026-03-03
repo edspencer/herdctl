@@ -52,17 +52,6 @@ import { transcribeAudio } from "./voice-transcriber.js";
 // Constants
 // =============================================================================
 
-/**
- * System prompt appended for Discord conversations to reduce verbosity.
- * Injected when concise_mode is enabled (default: true).
- */
-const DISCORD_SYSTEM_PROMPT_APPEND = `You are responding in a Discord chat. Follow these rules strictly:
-- Give ONLY your final answer. Do NOT narrate your actions ("Let me check...", "I'll read...")
-- Do NOT describe which tools you are using or what you found in intermediate steps
-- Do NOT show file diffs or large code blocks unless the user explicitly asked to see code
-- Keep responses concise — prefer summaries over exhaustive detail
-- IMPORTANT: Always end with a clear text response summarizing the outcome`;
-
 // =============================================================================
 // Discord Manager
 // =============================================================================
@@ -414,19 +403,17 @@ export class DiscordManager implements IChatManager {
       tool_results: true,
       tool_result_max_length: 900,
       system_status: true,
-      result_summary: false,
+      result_summary: true,
       errors: true,
       typing_indicator: true,
       acknowledge_emoji: "👀",
-      final_answer_only: true,
+      assistant_messages: "answers" as const,
       progress_indicator: true,
-      concise_mode: true,
     };
 
-    // Resolve new output modes (default to true for quiet Discord experience)
-    const finalAnswerOnly = outputConfig.final_answer_only !== false;
-    const showProgressIndicator = outputConfig.progress_indicator !== false && finalAnswerOnly;
-    const conciseMode = outputConfig.concise_mode !== false;
+    // Resolve output modes
+    const assistantMessages = outputConfig.assistant_messages ?? "answers";
+    const showProgressIndicator = outputConfig.progress_indicator !== false;
 
     // Get existing session for this channel (for conversation continuity)
     const connector = this.connectors.get(qualifiedName);
@@ -598,9 +585,6 @@ export class DiscordManager implements IChatManager {
       // We skip intermediates and deliver the first finalized snapshot per message.id.
       const deliveredAssistantIds = new Set<string>();
 
-      // Final-answer-only mode: buffer assistant messages and send only the last one
-      const bufferedAssistantMessages: string[] = [];
-
       // Capture the result text from the SDK's "result" message as a fallback
       // When all assistant messages are tool-only (no text), this is the last resort
       let resultText: string | undefined;
@@ -614,10 +598,7 @@ export class DiscordManager implements IChatManager {
       let progressEmbedHandle: ProgressEmbedHandle | null = null;
       let lastProgressUpdate = 0;
 
-      // Effective tool_results setting: suppress in final_answer_only mode unless explicitly configured
-      const showToolResults = finalAnswerOnly
-        ? agent.chat?.discord?.output?.tool_results === true
-        : outputConfig.tool_results;
+      const showToolResults = outputConfig.tool_results;
 
       // Execute job via FleetManager.trigger() through the context
       // Pass resume option for conversation continuity
@@ -627,7 +608,6 @@ export class DiscordManager implements IChatManager {
         prompt,
         resume: existingSessionId,
         injectedMcpServers,
-        systemPromptAppend: conciseMode ? DISCORD_SYSTEM_PROMPT_APPEND : undefined,
         onMessage: async (message) => {
           // Extract text content from assistant messages and stream to Discord
           if (message.type === "assistant") {
@@ -706,11 +686,13 @@ export class DiscordManager implements IChatManager {
 
             const content = extractMessageContent(sdkMessage);
             if (content) {
-              if (finalAnswerOnly) {
-                // Buffer assistant messages — only the last one will be sent
-                bufferedAssistantMessages.push(content);
+              if (assistantMessages === "answers") {
+                // Only send turns with no tool_use blocks (answer turns)
+                if (toolUseBlocks.length === 0) {
+                  await streamer.addMessageAndSend(content);
+                }
               } else {
-                // Legacy behavior: send every assistant turn immediately
+                // "all" mode: send every turn with text
                 await streamer.addMessageAndSend(content);
               }
             }
@@ -749,7 +731,7 @@ export class DiscordManager implements IChatManager {
           }
 
           // Show system status messages (e.g., "compacting context...")
-          if (message.type === "system" && outputConfig.system_status && !finalAnswerOnly) {
+          if (message.type === "system" && outputConfig.system_status) {
             const sysMessage = message as { subtype?: string; status?: string | null };
             if (sysMessage.subtype === "status" && sysMessage.status) {
               const statusText =
@@ -862,17 +844,10 @@ export class DiscordManager implements IChatManager {
         }
       }
 
-      // In final-answer-only mode, send the last buffered assistant message.
-      // If no assistant messages had extractable text (all were tool-only), fall back
-      // to the SDK's result text which captures the final conversation output.
-      if (finalAnswerOnly) {
-        if (bufferedAssistantMessages.length > 0) {
-          const finalMessage = bufferedAssistantMessages[bufferedAssistantMessages.length - 1];
-          await streamer.addMessageAndSend(finalMessage);
-        } else if (resultText) {
-          logger.debug("No buffered assistant text — using SDK result text as fallback answer");
-          await streamer.addMessageAndSend(resultText);
-        }
+      // Fall back to SDK result text if no answer turns produced text
+      if (!streamer.hasSentMessages() && resultText) {
+        logger.debug("No answer turns produced text — using SDK result text as fallback");
+        await streamer.addMessageAndSend(resultText);
       }
 
       // Flush any remaining buffered content

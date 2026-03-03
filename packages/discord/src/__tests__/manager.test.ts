@@ -177,13 +177,12 @@ describe("DiscordManager", () => {
           tool_results: true,
           tool_result_max_length: 900,
           system_status: true,
-          result_summary: false,
+          result_summary: true,
           typing_indicator: true,
           errors: true,
           acknowledge_emoji: "eyes",
-          final_answer_only: true,
+          assistant_messages: "answers" as const,
           progress_indicator: true,
-          concise_mode: true,
         },
         guilds: [],
       };
@@ -751,9 +750,8 @@ describe("DiscordManager handleMessage pipeline", () => {
         typing_indicator: true,
         errors: true,
         acknowledge_emoji: "",
-        final_answer_only: true,
+        assistant_messages: "answers" as const,
         progress_indicator: false, // disable for cleaner assertions
-        concise_mode: true,
       },
       guilds: [],
     };
@@ -870,21 +868,25 @@ describe("DiscordManager handleMessage pipeline", () => {
     return { event, reply: replyFn, replyWithRef: replyWithRefFn };
   }
 
-  // ---- finalAnswerOnly: basic text delivery ----
+  // ---- answers mode: suppresses reasoning turns, sends answer turns ----
 
-  it("sends only the last assistant message in finalAnswerOnly mode", async () => {
+  it("suppresses reasoning turns (text + tool_use) in 'answers' mode", async () => {
     const { manager, connector } = buildManagerWithTrigger(async (...args: unknown[]) => {
       const options = args[2] as { onMessage?: (m: unknown) => Promise<void> } | undefined;
       if (options?.onMessage) {
-        // Two assistant turns with text
+        // Turn 1: reasoning (text + tool_use) — should be suppressed
         await options.onMessage({
           type: "assistant",
           message: {
             id: "msg_1",
-            stop_reason: "end_turn",
-            content: [{ type: "text", text: "Checking..." }],
+            stop_reason: "tool_use",
+            content: [
+              { type: "text", text: "Let me check..." },
+              { type: "tool_use", name: "Read", id: "t1", input: { file_path: "/x.txt" } },
+            ],
           },
         });
+        // Turn 2: answer (text only) — should be sent
         await options.onMessage({
           type: "assistant",
           message: {
@@ -910,15 +912,60 @@ describe("DiscordManager handleMessage pipeline", () => {
     connector.emit("message", event);
     await new Promise((resolve) => setTimeout(resolve, 200));
 
-    // Only the LAST assistant message should be delivered
+    // Only the answer turn (no tool_use) should be delivered
     const textCalls = reply.mock.calls.filter((call: unknown[]) => typeof call[0] === "string");
     expect(textCalls).toHaveLength(1);
     expect(textCalls[0][0]).toBe("Here is the answer.");
   });
 
-  // ---- resultText fallback when assistant messages are tool-only ----
+  it("sends all answer turns immediately in 'answers' mode", async () => {
+    const { manager, connector } = buildManagerWithTrigger(async (...args: unknown[]) => {
+      const options = args[2] as { onMessage?: (m: unknown) => Promise<void> } | undefined;
+      if (options?.onMessage) {
+        // Two answer turns (text only, no tool_use) — both should be sent
+        await options.onMessage({
+          type: "assistant",
+          message: {
+            id: "msg_1",
+            stop_reason: "end_turn",
+            content: [{ type: "text", text: "First answer." }],
+          },
+        });
+        await options.onMessage({
+          type: "assistant",
+          message: {
+            id: "msg_2",
+            stop_reason: "end_turn",
+            content: [{ type: "text", text: "Second answer." }],
+          },
+        });
+        await options.onMessage({ type: "result", result: "Second answer." });
+      }
+      return {
+        jobId: "j1b",
+        agentName: "test-agent",
+        scheduleName: null,
+        startedAt: new Date().toISOString(),
+        success: true,
+        sessionId: "sid1b",
+      };
+    });
 
-  it("uses SDK result text as fallback when no assistant text was buffered", async () => {
+    await manager.start();
+    const { event, reply } = createMessageEvent();
+    connector.emit("message", event);
+    await new Promise((resolve) => setTimeout(resolve, 2500)); // wait for rate limiting
+
+    // Both answer turns should be delivered
+    const textCalls = reply.mock.calls.filter((call: unknown[]) => typeof call[0] === "string");
+    expect(textCalls).toHaveLength(2);
+    expect(textCalls[0][0]).toBe("First answer.");
+    expect(textCalls[1][0]).toBe("Second answer.");
+  });
+
+  // ---- resultText fallback when all turns are reasoning (tool-only) ----
+
+  it("uses SDK result text as fallback when all turns are reasoning", async () => {
     const { manager, connector } = buildManagerWithTrigger(async (...args: unknown[]) => {
       const options = args[2] as { onMessage?: (m: unknown) => Promise<void> } | undefined;
       if (options?.onMessage) {
@@ -1186,9 +1233,9 @@ describe("DiscordManager handleMessage pipeline", () => {
     expect(textCalls[0][0]).toBe("Found 2 files.");
   });
 
-  // ---- Concise mode system prompt injection ----
+  // ---- No system prompt injection (concise_mode removed) ----
 
-  it("injects concise mode system prompt when enabled", async () => {
+  it("does not inject a systemPromptAppend", async () => {
     let capturedSystemPrompt: string | undefined;
     const { manager, connector } = buildManagerWithTrigger(async (...args: unknown[]) => {
       const options = args[2] as
@@ -1221,9 +1268,7 @@ describe("DiscordManager handleMessage pipeline", () => {
     connector.emit("message", event);
     await new Promise((resolve) => setTimeout(resolve, 200));
 
-    expect(capturedSystemPrompt).toBeDefined();
-    expect(capturedSystemPrompt).toContain("Discord chat");
-    expect(capturedSystemPrompt).toContain("final answer");
+    expect(capturedSystemPrompt).toBeUndefined();
   });
 
   // ---- Session persistence ----
@@ -1325,15 +1370,15 @@ describe("DiscordManager handleMessage pipeline", () => {
     connector.emit("message", event);
     await new Promise((resolve) => setTimeout(resolve, 200));
 
-    // The final text "The file has 42 lines." should be the only text sent
+    // Only the answer turn (no tool_use) should be delivered
     const textCalls = reply.mock.calls.filter((call: unknown[]) => typeof call[0] === "string");
     expect(textCalls).toHaveLength(1);
     expect(textCalls[0][0]).toBe("The file has 42 lines.");
   });
 
-  // ---- Non-finalAnswerOnly mode: sends every turn ----
+  // ---- "all" mode: sends every assistant turn with text ----
 
-  it("sends every assistant message immediately when finalAnswerOnly is false", async () => {
+  it("sends every assistant message immediately in 'all' mode", async () => {
     const { manager, connector } = buildManagerWithTrigger(
       async (...args: unknown[]) => {
         const options = args[2] as { onMessage?: (m: unknown) => Promise<void> } | undefined;
@@ -1365,7 +1410,7 @@ describe("DiscordManager handleMessage pipeline", () => {
           sessionId: "sid11",
         };
       },
-      // Override: disable finalAnswerOnly
+      // Override: use "all" mode to send every turn
       {
         chat: {
           discord: {
@@ -1380,9 +1425,8 @@ describe("DiscordManager handleMessage pipeline", () => {
               typing_indicator: true,
               errors: true,
               acknowledge_emoji: "",
-              final_answer_only: false,
+              assistant_messages: "all" as const,
               progress_indicator: false,
-              concise_mode: false,
             },
             guilds: [],
           },
@@ -1400,6 +1444,79 @@ describe("DiscordManager handleMessage pipeline", () => {
     expect(textCalls).toHaveLength(2);
     expect(textCalls[0][0]).toBe("First turn.");
     expect(textCalls[1][0]).toBe("Second turn.");
+  });
+
+  it("sends reasoning turns (text + tool_use) in 'all' mode", async () => {
+    const { manager, connector } = buildManagerWithTrigger(
+      async (...args: unknown[]) => {
+        const options = args[2] as { onMessage?: (m: unknown) => Promise<void> } | undefined;
+        if (options?.onMessage) {
+          // Reasoning turn: text + tool_use
+          await options.onMessage({
+            type: "assistant",
+            message: {
+              id: "msg_1",
+              stop_reason: "tool_use",
+              content: [
+                { type: "text", text: "Let me check the file." },
+                { type: "tool_use", name: "Read", id: "t1", input: { file_path: "/x.txt" } },
+              ],
+            },
+          });
+          // Answer turn: text only
+          await options.onMessage({
+            type: "assistant",
+            message: {
+              id: "msg_2",
+              stop_reason: "end_turn",
+              content: [{ type: "text", text: "The file has 42 lines." }],
+            },
+          });
+          await options.onMessage({ type: "result", result: "The file has 42 lines." });
+        }
+        return {
+          jobId: "j12",
+          agentName: "test-agent",
+          scheduleName: null,
+          startedAt: new Date().toISOString(),
+          success: true,
+          sessionId: "sid12",
+        };
+      },
+      // Override: use "all" mode to send every turn including reasoning
+      {
+        chat: {
+          discord: {
+            bot_token_env: "TEST_BOT_TOKEN",
+            session_expiry_hours: 24,
+            log_level: "standard",
+            output: {
+              tool_results: true,
+              tool_result_max_length: 900,
+              system_status: true,
+              result_summary: false,
+              typing_indicator: true,
+              errors: true,
+              acknowledge_emoji: "",
+              assistant_messages: "all" as const,
+              progress_indicator: false,
+            },
+            guilds: [],
+          },
+        },
+      } as Partial<ReturnType<typeof createDiscordAgent>>,
+    );
+
+    await manager.start();
+    const { event, reply } = createMessageEvent();
+    connector.emit("message", event);
+    await new Promise((resolve) => setTimeout(resolve, 2500)); // wait for rate limiting
+
+    // Both reasoning and answer turns should be sent in "all" mode
+    const textCalls = reply.mock.calls.filter((call: unknown[]) => typeof call[0] === "string");
+    expect(textCalls).toHaveLength(2);
+    expect(textCalls[0][0]).toBe("Let me check the file.");
+    expect(textCalls[1][0]).toBe("The file has 42 lines.");
   });
 });
 
@@ -1436,9 +1553,8 @@ describe.skip("DiscordManager message handling", () => {
             typing_indicator: true,
             errors: true,
             acknowledge_emoji: "eyes",
-            final_answer_only: true,
+            assistant_messages: "answers" as const,
             progress_indicator: true,
-            concise_mode: true,
           },
           guilds: [],
         }),
@@ -1632,9 +1748,8 @@ describe.skip("DiscordManager message handling", () => {
               typing_indicator: true,
               errors: true,
               acknowledge_emoji: "eyes",
-              final_answer_only: true,
+              assistant_messages: "answers" as const,
               progress_indicator: true,
-              concise_mode: true,
             },
             guilds: [],
           }),
@@ -1790,9 +1905,8 @@ describe.skip("DiscordManager message handling", () => {
               typing_indicator: true,
               errors: true,
               acknowledge_emoji: "eyes",
-              final_answer_only: true,
+              assistant_messages: "answers" as const,
               progress_indicator: true,
-              concise_mode: true,
             },
             guilds: [],
           }),
@@ -1979,9 +2093,8 @@ describe.skip("DiscordManager message handling", () => {
               typing_indicator: true,
               errors: true,
               acknowledge_emoji: "eyes",
-              final_answer_only: true,
+              assistant_messages: "answers" as const,
               progress_indicator: true,
-              concise_mode: true,
             },
             guilds: [],
           }),
@@ -2151,9 +2264,8 @@ describe.skip("DiscordManager message handling", () => {
               typing_indicator: true,
               errors: true,
               acknowledge_emoji: "eyes",
-              final_answer_only: true,
+              assistant_messages: "answers" as const,
               progress_indicator: true,
-              concise_mode: true,
             },
             guilds: [],
           }),
@@ -3254,9 +3366,8 @@ describe.skip("DiscordManager session integration", () => {
             typing_indicator: true,
             errors: true,
             acknowledge_emoji: "eyes",
-            final_answer_only: true,
+            assistant_messages: "answers" as const,
             progress_indicator: true,
-            concise_mode: true,
           },
           guilds: [],
         }),
@@ -3970,9 +4081,8 @@ describe.skip("DiscordManager lifecycle", () => {
             typing_indicator: true,
             errors: true,
             acknowledge_emoji: "eyes",
-            final_answer_only: true,
+            assistant_messages: "answers" as const,
             progress_indicator: true,
-            concise_mode: true,
           },
           guilds: [],
         }),
@@ -4125,9 +4235,8 @@ describe.skip("DiscordManager lifecycle", () => {
             typing_indicator: true,
             errors: true,
             acknowledge_emoji: "eyes",
-            final_answer_only: true,
+            assistant_messages: "answers" as const,
             progress_indicator: true,
-            concise_mode: true,
           },
           guilds: [],
         }),
@@ -4492,9 +4601,8 @@ describe.skip("DiscordManager lifecycle", () => {
             typing_indicator: true,
             errors: true,
             acknowledge_emoji: "eyes",
-            final_answer_only: true,
+            assistant_messages: "answers" as const,
             progress_indicator: true,
-            concise_mode: true,
           },
           guilds: [],
         }),
@@ -4692,9 +4800,8 @@ describe.skip("DiscordManager output configuration", () => {
                 typing_indicator: true,
                 errors: true,
                 acknowledge_emoji: "eyes",
-                final_answer_only: true,
+                assistant_messages: "answers" as const,
                 progress_indicator: true,
-                concise_mode: true,
               },
               guilds: [],
             },
@@ -4865,9 +4972,8 @@ describe.skip("DiscordManager output configuration", () => {
                 typing_indicator: true,
                 errors: true,
                 acknowledge_emoji: "eyes",
-                final_answer_only: true,
+                assistant_messages: "answers" as const,
                 progress_indicator: true,
-                concise_mode: true,
               },
               guilds: [],
             },
@@ -5037,9 +5143,8 @@ describe.skip("DiscordManager output configuration", () => {
                 typing_indicator: true,
                 errors: true,
                 acknowledge_emoji: "eyes",
-                final_answer_only: true,
+                assistant_messages: "answers" as const,
                 progress_indicator: true,
-                concise_mode: true,
               },
               guilds: [],
             },
@@ -5210,9 +5315,8 @@ describe.skip("DiscordManager output configuration", () => {
                 typing_indicator: true,
                 errors: true,
                 acknowledge_emoji: "eyes",
-                final_answer_only: true,
+                assistant_messages: "answers" as const,
                 progress_indicator: true,
-                concise_mode: true,
               },
               guilds: [],
             },
@@ -5386,9 +5490,8 @@ describe.skip("DiscordManager output configuration", () => {
                 typing_indicator: true,
                 errors: true,
                 acknowledge_emoji: "eyes",
-                final_answer_only: true,
+                assistant_messages: "answers" as const,
                 progress_indicator: true,
-                concise_mode: true,
               },
               guilds: [],
             },
@@ -5557,9 +5660,8 @@ describe.skip("DiscordManager output configuration", () => {
                 typing_indicator: true,
                 errors: false,
                 acknowledge_emoji: "eyes",
-                final_answer_only: true,
+                assistant_messages: "answers" as const,
                 progress_indicator: true,
-                concise_mode: true,
               },
               guilds: [],
             },
@@ -5704,9 +5806,8 @@ describe.skip("DiscordManager output configuration", () => {
             typing_indicator: true,
             errors: true,
             acknowledge_emoji: "",
-            final_answer_only: true,
+            assistant_messages: "answers" as const,
             progress_indicator: true,
-            concise_mode: true,
           },
           guilds: [],
         }),

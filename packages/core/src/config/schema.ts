@@ -620,24 +620,23 @@ export const ChatOutputSchema = z.object({
  *   tool_results: true
  *   tool_result_max_length: 900
  *   system_status: true
- *   result_summary: false
+ *   result_summary: true
  *   errors: true
  *   typing_indicator: true
+ *   assistant_messages: answers
  * ```
  */
 export const DiscordOutputSchema = ChatOutputSchema.extend({
-  /** Show a summary embed when the agent finishes a turn (cost, tokens, turns) (default: false) */
-  result_summary: z.boolean().optional().default(false),
+  /** Show a summary embed when the agent finishes a turn (cost, tokens, turns) (default: true) */
+  result_summary: z.boolean().optional().default(true),
   /** Show typing indicator while the agent is processing (default: true) */
   typing_indicator: z.boolean().optional().default(true),
   /** Emoji to react with when a message is received (empty string to disable, default: "👀") */
   acknowledge_emoji: z.string().optional().default("👀"),
-  /** Only send the final assistant message, not intermediate turns (default: true) */
-  final_answer_only: z.boolean().optional().default(true),
+  /** Which assistant turns to send: "answers" (no tool_use blocks) or "all" (default: "answers") */
+  assistant_messages: z.enum(["answers", "all"]).optional().default("answers"),
   /** Show a progress indicator embed with tool names while working (default: true) */
   progress_indicator: z.boolean().optional().default(true),
-  /** Inject concise-mode system prompt to reduce verbosity (default: true) */
-  concise_mode: z.boolean().optional().default(true),
 });
 
 /**
