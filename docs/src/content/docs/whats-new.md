@@ -7,6 +7,20 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Parallel GitHub Issue Delegation with Claude Code Skills
+**February 26, 2026**
+
+New Claude Code skills enable autonomous issue resolution at scale. Use `/delegate-issue <N>` to delegate a single GitHub issue to an autonomous Claude Code worker that clones your repo, implements a fix, runs quality gates, and opens a PR. Use `/delegate-issues <N> <M> <P>` to delegate multiple issues in parallel, with each worker operating independently and reporting back with PR links. Each worker is fully autonomous—it understands your codebase from CLAUDE.md, explores the relevant code, implements focused fixes, validates with typecheck/test/build, creates changesets, and opens PRs with detailed summaries.
+
+---
+
+### Web Dashboard Session Discovery Improvements
+**February 26, 2026** · `@herdctl/web@0.9.6` · `@herdctl/web@0.9.5` · `@herdctl/core@5.8.2` · `herdctl@1.5.4` · `herdctl@1.5.3`
+
+The web dashboard now reliably displays chat sessions created from any source without requiring page reloads. Sessions started from the CLI, Discord, Slack, or other browser tabs appear automatically in the sidebar within seconds. Session search now includes auto-generated session names, making all sessions searchable even when they haven't been manually named. These fixes eliminate the need to refresh the page to see new sessions and improve discoverability across your fleet's chat history.
+
+---
+
 ### All Chats Page and Session Discovery
 **February 25, 2026** · `@herdctl/web@0.9.0` · `@herdctl/core@5.7.0`
 
