@@ -222,7 +222,10 @@ export class WebChatManager {
     this.ensureInitialized();
     const agent = this.getAgentConfig(agentName);
     const workDir = this.getWorkingDirectory(agent);
-    const coreMessages = await this.discoveryService!.getSessionMessages(workDir, sessionId);
+    const dockerEnabled = agent.docker?.enabled ?? false;
+    const coreMessages = await this.discoveryService!.getSessionMessages(workDir, sessionId, {
+      dockerEnabled,
+    });
     // Transform core ChatMessage to web ChatMessage (same shape, just type cast)
     return coreMessages.map((m) => this.transformCoreMessage(m));
   }
@@ -238,7 +241,10 @@ export class WebChatManager {
     this.ensureInitialized();
     const agent = this.getAgentConfig(agentName);
     const workDir = this.getWorkingDirectory(agent);
-    const usage = await this.discoveryService!.getSessionUsage(workDir, sessionId);
+    const dockerEnabled = agent.docker?.enabled ?? false;
+    const usage = await this.discoveryService!.getSessionUsage(workDir, sessionId, {
+      dockerEnabled,
+    });
     return this.transformCoreUsage(usage);
   }
 
@@ -390,7 +396,8 @@ export class WebChatManager {
         // waiting for the 30-second cache TTL to expire.
         const agent = this.getAgentConfig(agentName);
         const workDir = this.getWorkingDirectory(agent);
-        this.discoveryService!.invalidateAttributionCache(workDir);
+        const dockerEnabled = agent.docker?.enabled ?? false;
+        this.discoveryService!.invalidateAttributionCache(workDir, { dockerEnabled });
       }
 
       return {
@@ -575,11 +582,13 @@ export class WebChatManager {
   async getAdhocSessionMessages(
     workingDirectory: string,
     sessionId: string,
+    options?: { dockerEnabled?: boolean },
   ): Promise<ChatMessage[]> {
     this.ensureInitialized();
     const coreMessages = await this.discoveryService!.getSessionMessages(
       workingDirectory,
       sessionId,
+      options,
     );
     return coreMessages.map((m) => this.transformCoreMessage(m));
   }
@@ -589,11 +598,20 @@ export class WebChatManager {
    *
    * @param workingDirectory - Working directory where the session exists
    * @param sessionId - Session ID
+   * @param options - Optional settings (dockerEnabled for Docker agent sessions)
    * @returns Session usage data
    */
-  async getAdhocSessionUsage(workingDirectory: string, sessionId: string): Promise<SessionUsage> {
+  async getAdhocSessionUsage(
+    workingDirectory: string,
+    sessionId: string,
+    options?: { dockerEnabled?: boolean },
+  ): Promise<SessionUsage> {
     this.ensureInitialized();
-    const usage = await this.discoveryService!.getSessionUsage(workingDirectory, sessionId);
+    const usage = await this.discoveryService!.getSessionUsage(
+      workingDirectory,
+      sessionId,
+      options,
+    );
     return this.transformCoreUsage(usage);
   }
 

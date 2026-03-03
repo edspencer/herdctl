@@ -551,6 +551,7 @@ describe("WebChatManager", () => {
       expect(mockDiscoveryService.getSessionMessages).toHaveBeenCalledWith(
         "/home/user/project",
         "session-123",
+        { dockerEnabled: false },
       );
     });
 
@@ -614,6 +615,7 @@ describe("WebChatManager", () => {
       expect(mockDiscoveryService.getSessionUsage).toHaveBeenCalledWith(
         "/home/user/project",
         "session-123",
+        { dockerEnabled: false },
       );
     });
 
@@ -743,6 +745,7 @@ describe("WebChatManager", () => {
 
       expect(mockDiscoveryService.invalidateAttributionCache).toHaveBeenCalledWith(
         "/home/user/project",
+        { dockerEnabled: false },
       );
     });
 
