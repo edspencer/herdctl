@@ -178,6 +178,7 @@ describe("DiscordManager", () => {
           tool_result_max_length: 900,
           system_status: true,
           result_summary: false,
+          typing_indicator: true,
           errors: true,
         },
         guilds: [],
@@ -448,6 +449,150 @@ describe("DiscordErrorEvent type", () => {
 
     expect(event.agentName).toBe("test-agent");
     expect(event.error.message).toBe("Connection failed");
+  });
+});
+
+describe("DiscordManager typing_indicator config", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("does not call startTyping when typing_indicator is false", async () => {
+    const triggerMock = vi.fn().mockImplementation(async (_agentName, _scheduleName, options) => {
+      if (options?.onMessage) {
+        await options.onMessage({ type: "assistant", content: "Done!" });
+      }
+      return { jobId: "no-typing-job" };
+    });
+
+    const emitter = new EventEmitter();
+
+    const config: ResolvedConfig = {
+      fleet: { name: "test-fleet" } as unknown as ResolvedConfig["fleet"],
+      agents: [
+        createDiscordAgent("no-typing-agent", {
+          bot_token_env: "TEST_BOT_TOKEN",
+          session_expiry_hours: 24,
+          log_level: "standard",
+          output: {
+            tool_results: true,
+            tool_result_max_length: 900,
+            system_status: true,
+            result_summary: false,
+            typing_indicator: false,
+            errors: true,
+          },
+          guilds: [],
+        }),
+      ],
+      configPath: "/test/herdctl.yaml",
+      configDir: "/test",
+    };
+
+    const ctx: FleetManagerContext = {
+      getConfig: () => config,
+      getStateDir: () => "/tmp/test-state",
+      getStateDirInfo: () => null,
+      getLogger: () => mockLogger,
+      getScheduler: () => null,
+      getStatus: () => "running",
+      getInitializedAt: () => "2024-01-01T00:00:00.000Z",
+      getStartedAt: () => "2024-01-01T00:00:01.000Z",
+      getStoppedAt: () => null,
+      getLastError: () => null,
+      getCheckInterval: () => 1000,
+      emit: (event: string, ...args: unknown[]) => emitter.emit(event, ...args),
+      getEmitter: () => emitter,
+      trigger: triggerMock,
+    };
+
+    const manager = new DiscordManager(ctx);
+
+    const mockConnector = new EventEmitter() as EventEmitter & {
+      connect: ReturnType<typeof vi.fn>;
+      disconnect: ReturnType<typeof vi.fn>;
+      isConnected: ReturnType<typeof vi.fn>;
+      getState: ReturnType<typeof vi.fn>;
+      agentName: string;
+      sessionManager: {
+        getOrCreateSession: ReturnType<typeof vi.fn>;
+        getSession: ReturnType<typeof vi.fn>;
+        setSession: ReturnType<typeof vi.fn>;
+        touchSession: ReturnType<typeof vi.fn>;
+        getActiveSessionCount: ReturnType<typeof vi.fn>;
+      };
+    };
+    mockConnector.connect = vi.fn().mockResolvedValue(undefined);
+    mockConnector.disconnect = vi.fn().mockResolvedValue(undefined);
+    mockConnector.isConnected = vi.fn().mockReturnValue(true);
+    mockConnector.getState = vi.fn().mockReturnValue({
+      status: "connected",
+      connectedAt: "2024-01-01T00:00:00.000Z",
+      disconnectedAt: null,
+      reconnectAttempts: 0,
+      lastError: null,
+      botUser: { id: "bot1", username: "TestBot", discriminator: "0000" },
+      rateLimits: {
+        totalCount: 0,
+        lastRateLimitAt: null,
+        isRateLimited: false,
+        currentResetTime: 0,
+      },
+      messageStats: { received: 0, sent: 0, ignored: 0 },
+    } satisfies DiscordConnectorState);
+    mockConnector.agentName = "no-typing-agent";
+    mockConnector.sessionManager = {
+      getOrCreateSession: vi.fn().mockResolvedValue({ sessionId: "s1", isNew: false }),
+      getSession: vi
+        .fn()
+        .mockResolvedValue({ sessionId: "s1", lastMessageAt: new Date().toISOString() }),
+      setSession: vi.fn().mockResolvedValue(undefined),
+      touchSession: vi.fn().mockResolvedValue(undefined),
+      getActiveSessionCount: vi.fn().mockResolvedValue(0),
+    };
+
+    // @ts-expect-error - accessing private property for testing
+    manager.connectors.set("no-typing-agent", mockConnector);
+    // @ts-expect-error - accessing private property for testing
+    manager.initialized = true;
+
+    await manager.start();
+
+    const replyMock = vi.fn().mockResolvedValue(undefined);
+    const startTypingMock = vi.fn().mockReturnValue(() => {});
+    const messageEvent: DiscordMessageEvent = {
+      agentName: "no-typing-agent",
+      prompt: "Hello bot!",
+      context: {
+        messages: [],
+        wasMentioned: true,
+        prompt: "Hello bot!",
+      },
+      metadata: {
+        guildId: "guild1",
+        channelId: "channel1",
+        messageId: "msg1",
+        userId: "user1",
+        username: "TestUser",
+        wasMentioned: true,
+        mode: "mention",
+      },
+      reply: replyMock,
+      startTyping: startTypingMock,
+    };
+
+    mockConnector.emit("message", messageEvent);
+
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+
+    // startTyping should NOT have been called
+    expect(startTypingMock).not.toHaveBeenCalled();
+    // But the reply should still have been sent
+    expect(replyMock).toHaveBeenCalled();
   });
 });
 
@@ -731,6 +876,7 @@ describe.skip("DiscordManager message handling", () => {
             tool_result_max_length: 900,
             system_status: true,
             result_summary: false,
+            typing_indicator: true,
             errors: true,
           },
           guilds: [],
@@ -916,6 +1062,7 @@ describe.skip("DiscordManager message handling", () => {
               tool_result_max_length: 900,
               system_status: true,
               result_summary: false,
+              typing_indicator: true,
               errors: true,
             },
             guilds: [],
@@ -1063,6 +1210,7 @@ describe.skip("DiscordManager message handling", () => {
               tool_result_max_length: 900,
               system_status: true,
               result_summary: false,
+              typing_indicator: true,
               errors: true,
             },
             guilds: [],
@@ -1241,6 +1389,7 @@ describe.skip("DiscordManager message handling", () => {
               tool_result_max_length: 900,
               system_status: true,
               result_summary: false,
+              typing_indicator: true,
               errors: true,
             },
             guilds: [],
@@ -1402,6 +1551,7 @@ describe.skip("DiscordManager message handling", () => {
               tool_result_max_length: 900,
               system_status: true,
               result_summary: false,
+              typing_indicator: true,
               errors: true,
             },
             guilds: [],
@@ -2470,6 +2620,7 @@ describe.skip("DiscordManager session integration", () => {
             tool_result_max_length: 900,
             system_status: true,
             result_summary: false,
+            typing_indicator: true,
             errors: true,
           },
           guilds: [],
@@ -3157,6 +3308,7 @@ describe.skip("DiscordManager lifecycle", () => {
             tool_result_max_length: 900,
             system_status: true,
             result_summary: false,
+            typing_indicator: true,
             errors: true,
           },
           guilds: [],
@@ -3301,6 +3453,7 @@ describe.skip("DiscordManager lifecycle", () => {
             tool_result_max_length: 900,
             system_status: true,
             result_summary: false,
+            typing_indicator: true,
             errors: true,
           },
           guilds: [],
@@ -3651,6 +3804,7 @@ describe.skip("DiscordManager lifecycle", () => {
             tool_result_max_length: 900,
             system_status: true,
             result_summary: false,
+            typing_indicator: true,
             errors: true,
           },
           guilds: [],
@@ -3840,6 +3994,7 @@ describe.skip("DiscordManager output configuration", () => {
                 tool_result_max_length: 900,
                 system_status: true,
                 result_summary: false,
+                typing_indicator: true,
                 errors: true,
               },
               guilds: [],
@@ -4002,6 +4157,7 @@ describe.skip("DiscordManager output configuration", () => {
                 tool_result_max_length: 900,
                 system_status: true,
                 result_summary: false,
+                typing_indicator: true,
                 errors: true,
               },
               guilds: [],
@@ -4163,6 +4319,7 @@ describe.skip("DiscordManager output configuration", () => {
                 tool_result_max_length: 900,
                 system_status: false,
                 result_summary: false,
+                typing_indicator: true,
                 errors: true,
               },
               guilds: [],
@@ -4325,6 +4482,7 @@ describe.skip("DiscordManager output configuration", () => {
                 tool_result_max_length: 900,
                 system_status: true,
                 result_summary: true,
+                typing_indicator: true,
                 errors: true,
               },
               guilds: [],
@@ -4490,6 +4648,7 @@ describe.skip("DiscordManager output configuration", () => {
                 tool_result_max_length: 900,
                 system_status: true,
                 result_summary: false,
+                typing_indicator: true,
                 errors: true,
               },
               guilds: [],
@@ -4650,6 +4809,7 @@ describe.skip("DiscordManager output configuration", () => {
                 tool_result_max_length: 900,
                 system_status: true,
                 result_summary: false,
+                typing_indicator: true,
                 errors: false,
               },
               guilds: [],

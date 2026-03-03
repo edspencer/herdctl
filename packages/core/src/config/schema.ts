@@ -616,11 +616,14 @@ export const ChatOutputSchema = z.object({
  *   system_status: true
  *   result_summary: false
  *   errors: true
+ *   typing_indicator: true
  * ```
  */
 export const DiscordOutputSchema = ChatOutputSchema.extend({
   /** Show a summary embed when the agent finishes a turn (cost, tokens, turns) (default: false) */
   result_summary: z.boolean().optional().default(false),
+  /** Show typing indicator while the agent is processing (default: true) */
+  typing_indicator: z.boolean().optional().default(true),
 });
 
 /**

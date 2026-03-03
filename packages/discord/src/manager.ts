@@ -390,6 +390,7 @@ export class DiscordManager implements IChatManager {
       system_status: true,
       result_summary: false,
       errors: true,
+      typing_indicator: true,
     };
 
     // Get existing session for this channel (for conversation continuity)
@@ -425,8 +426,8 @@ export class DiscordManager implements IChatManager {
       platformName: "Discord",
     });
 
-    // Start typing indicator while processing
-    const stopTyping = event.startTyping();
+    // Start typing indicator while processing (configurable via output.typing_indicator)
+    const stopTyping = outputConfig.typing_indicator ? event.startTyping() : () => {};
 
     // Track if we've stopped typing to avoid multiple calls
     let typingStopped = false;
