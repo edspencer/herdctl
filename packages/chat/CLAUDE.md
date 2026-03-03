@@ -32,7 +32,7 @@ src/
 
 ## Key Conventions
 
-- **Dependency-injected logger** -- components accept a `SessionManagerLogger` / `ChatConnectorLogger` interface rather than importing a logger directly. Never use raw `console.log`.
+- **Dependency-injected logger** -- Pass a `SessionManagerLogger` / `ChatConnectorLogger` interface to components. Never import a logger directly. Never use raw `console.log`.
 - **Typed errors with type guards** -- use `ChatErrorCode` enum and `isChatConnectorError()` / `isAlreadyConnectedError()` etc. for error discrimination.
 - **Zod schemas** -- session state is validated at read/write boundaries with `ChatSessionStateSchema`.
 

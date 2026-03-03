@@ -18,12 +18,12 @@ The core library. **ALL business logic lives here.** CLI, web, discord, and slac
 
 ## Key Conventions
 
-- **Logging**: Use `createLogger("Prefix")` — never raw `console.*`. Within core, use relative imports: `import { createLogger } from "../utils/logger.js"`.
+- **Logging**: Within core, use relative imports for the logger: `import { createLogger } from "../utils/logger.js"`.
 - **Errors**: Extend `FleetManagerError` from `fleet-manager/errors.ts`. Always include actionable messages.
 - **Validation**: Use Zod schemas for all external input (config files, CLI args, API payloads).
 - **Imports**: Always use relative imports with `.js` extensions within this package.
 - **Tests**: Place in `__tests__/` directories adjacent to source files. Run with `pnpm test`.
-- **Exports**: All public API surfaces are re-exported through `src/index.ts`.
+- **Exports**: Re-export all public API surfaces through `src/index.ts`.
 
 ## Coverage Thresholds (vitest.config.ts)
 
