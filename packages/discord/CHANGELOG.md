@@ -1,5 +1,19 @@
 # @herdctl/discord
 
+## 1.1.0
+
+### Minor Changes
+
+- [#178](https://github.com/edspencer/herdctl/pull/178) [`ccdda22`](https://github.com/edspencer/herdctl/commit/ccdda2234e22c0275c8d3b27b991eb9a68ee53c8) Thanks [@oheckmann74](https://github.com/oheckmann74)! - Add configurable typing_indicator option for Discord output
+
+  Users can now disable the Discord typing indicator via `output.typing_indicator: false` in their agent's Discord config. This prevents spurious "An unknown error occurred" messages caused by Discord rate-limiting the typing indicator on long-running agent jobs. The default remains `true` to preserve existing behavior.
+
+### Patch Changes
+
+- Updated dependencies [[`ccdda22`](https://github.com/edspencer/herdctl/commit/ccdda2234e22c0275c8d3b27b991eb9a68ee53c8)]:
+  - @herdctl/core@5.8.3
+  - @herdctl/chat@0.3.11
+
 ## 1.0.16
 
 ### Patch Changes
