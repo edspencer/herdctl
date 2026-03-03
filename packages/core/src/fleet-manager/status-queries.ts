@@ -347,6 +347,7 @@ export function buildScheduleInfoList(
       lastRunAt: scheduleState?.last_run_at ?? null,
       nextRunAt: scheduleState?.next_run_at ?? null,
       lastError: scheduleState?.last_error ?? null,
+      source: "static" as const,
     };
   });
 }

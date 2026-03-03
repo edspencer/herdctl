@@ -7,6 +7,7 @@
  * @module schedule-management
  */
 
+import { loadAllDynamicSchedules } from "../scheduler/dynamic-schedules.js";
 import type { FleetManagerContext } from "./context.js";
 import { AgentNotFoundError, ScheduleNotFoundError } from "./errors.js";
 import { buildScheduleInfoList, type FleetStateSnapshot } from "./status-queries.js";
@@ -40,13 +41,52 @@ export class ScheduleManagement {
     const config = this.ctx.getConfig();
     const agents = config?.agents ?? [];
     const fleetState = await this.readFleetStateSnapshotFn();
+    const stateDir = this.ctx.getStateDir();
 
     const allSchedules: ScheduleInfo[] = [];
+
+    // Load dynamic schedules from disk
+    let dynamicSchedules = new Map<
+      string,
+      Record<
+        string,
+        { type: string; interval?: string; cron?: string; prompt?: string; enabled?: boolean }
+      >
+    >();
+    try {
+      dynamicSchedules = (await loadAllDynamicSchedules(stateDir)) as typeof dynamicSchedules;
+    } catch {
+      // Ignore errors loading dynamic schedules — show static ones at minimum
+    }
 
     for (const agent of agents) {
       const agentState = fleetState.agents[agent.qualifiedName];
       const schedules = buildScheduleInfoList(agent, agentState);
       allSchedules.push(...schedules);
+
+      // Add dynamic schedules for this agent
+      const agentDynamic = dynamicSchedules.get(agent.qualifiedName);
+      if (agentDynamic) {
+        const staticNames = new Set(agent.schedules ? Object.keys(agent.schedules) : []);
+        for (const [name, schedule] of Object.entries(agentDynamic)) {
+          // Skip if a static schedule with the same name exists (static wins)
+          if (staticNames.has(name)) continue;
+
+          const scheduleState = agentState?.schedules?.[name];
+          allSchedules.push({
+            name,
+            agentName: agent.qualifiedName,
+            type: schedule.type,
+            interval: schedule.interval,
+            cron: schedule.cron,
+            status: scheduleState?.status ?? "idle",
+            lastRunAt: scheduleState?.last_run_at ?? null,
+            nextRunAt: scheduleState?.next_run_at ?? null,
+            lastError: scheduleState?.last_error ?? null,
+            source: "dynamic",
+          });
+        }
+      }
     }
 
     return allSchedules;

@@ -229,6 +229,11 @@ export interface ScheduleInfo {
    * Last error message if the schedule encountered an error
    */
   lastError: string | null;
+
+  /**
+   * Source of this schedule: "static" (from agent config) or "dynamic" (agent-created at runtime)
+   */
+  source?: "static" | "dynamic";
 }
 
 /**

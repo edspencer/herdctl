@@ -839,6 +839,34 @@ export const AgentHooksSchema = z.object({
 export const AgentWorkingDirectorySchema = z.union([z.string(), WorkingDirectorySchema]);
 
 // =============================================================================
+// Self-Scheduling Schema
+// =============================================================================
+
+/**
+ * Configuration for agent self-scheduling capability
+ *
+ * When enabled, agents can create, update, and delete their own schedules
+ * at runtime via an auto-injected MCP server. The fleet operator controls
+ * which agents have this capability and sets safety limits.
+ *
+ * @example
+ * ```yaml
+ * self_scheduling:
+ *   enabled: true
+ *   max_schedules: 10
+ *   min_interval: "5m"
+ * ```
+ */
+export const SelfSchedulingSchema = z.object({
+  /** Whether self-scheduling is enabled for this agent */
+  enabled: z.boolean().default(false),
+  /** Maximum number of dynamic schedules this agent can create (default: 10) */
+  max_schedules: z.number().int().positive().optional().default(10),
+  /** Minimum interval between schedule triggers (default: "5m") */
+  min_interval: z.string().optional().default("5m"),
+});
+
+// =============================================================================
 // Agent Configuration Schema
 // =============================================================================
 
@@ -877,6 +905,8 @@ export const AgentConfigSchema = z
     denied_tools: z.array(z.string()).optional(),
     /** Path to metadata JSON file written by agent (default: metadata.json in workspace) */
     metadata_file: z.string().optional(),
+    /** Self-scheduling configuration — allows agent to create its own schedules at runtime */
+    self_scheduling: SelfSchedulingSchema.optional(),
     /**
      * Setting sources for Claude SDK configuration discovery.
      * Controls where Claude looks for CLAUDE.md, skills, commands, etc.
@@ -1076,6 +1106,7 @@ export type AgentChat = z.infer<typeof AgentChatSchema>;
 export type SlackChannel = z.infer<typeof SlackChannelSchema>;
 export type AgentChatSlack = z.infer<typeof AgentChatSlackSchema>;
 export type AgentWorkingDirectory = z.infer<typeof AgentWorkingDirectorySchema>;
+export type SelfScheduling = z.infer<typeof SelfSchedulingSchema>;
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
 // Hook types - Output types (after parsing with defaults applied)
 export type HookEvent = z.infer<typeof HookEventSchema>;

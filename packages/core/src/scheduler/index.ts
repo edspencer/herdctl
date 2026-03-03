@@ -14,6 +14,26 @@ export {
   type ParsedCronExpression,
   parseCronExpression,
 } from "./cron.js";
+// Dynamic schedules (agent self-scheduling)
+export {
+  type CreateScheduleInput,
+  createDynamicSchedule,
+  type DynamicSchedule,
+  DynamicScheduleError,
+  type DynamicScheduleFile,
+  type DynamicScheduleOptions,
+  deleteDynamicSchedule,
+  getDynamicScheduleFilePath,
+  getDynamicSchedulesDir,
+  listDynamicSchedules,
+  loadAllDynamicSchedules,
+  MinIntervalViolationError,
+  readDynamicSchedules,
+  ScheduleLimitExceededError,
+  ScheduleNameConflictError,
+  type UpdateScheduleInput,
+  updateDynamicSchedule,
+} from "./dynamic-schedules.js";
 // Errors
 export * from "./errors.js";
 // Interval parsing and scheduling
