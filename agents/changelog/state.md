@@ -1,8 +1,8 @@
 ---
-last_checked_commit: b167f14
-last_run: "2026-02-26T03:30:00Z"
+last_checked_commit: 9424f03
+last_run: "2026-03-01T18:00:00Z"
 entries_added: 3
-branches_created: ["docs/changelog-update-2026-02-22", "docs/changelog-update-2026-02-23-manual", "changelog/auto-update-2026-02-25", "changelog/auto-update-2026-02-26"]
+branches_created: ["docs/changelog-update-2026-02-22", "docs/changelog-update-2026-02-23-manual", "changelog/auto-update-2026-02-25", "changelog/auto-update-2026-02-26", "changelog/auto-update-2026-03-01"]
 status: completed
 ---
 
@@ -19,10 +19,10 @@ incremental reviews that analyze only new commits since the last check.
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Last checked commit | b167f14 | fix: return 500 for server errors in chat session routes |
-| Last run | 2026-02-26T03:30:00Z | Latest update completed successfully |
-| Entries added (last run) | 3 | All Chats page, web chat bug fixes, tool name fix |
-| Branches created | changelog/auto-update-2026-02-26 | Current update branch |
+| Last checked commit | 9424f03 | docs: document zero-config web-only startup mode in CLI reference |
+| Last run | 2026-03-01T18:00:00Z | Latest update completed successfully |
+| Entries added (last run) | 3 | Delegate-issue skills, sidebar refresh, session discovery fixes |
+| Branches created | changelog/auto-update-2026-03-01 | Current update branch |
 
 ---
 
@@ -30,7 +30,8 @@ incremental reviews that analyze only new commits since the last check.
 
 | Date | Commits Analyzed | Entries Added | Action | Branch |
 |------|-----------------|---------------|--------|--------|
-| 2026-02-26 | 11 | 3 | Creating PR | changelog/auto-update-2026-02-26 |
+| 2026-03-01 | 12 | 3 | Ready for PR | changelog/auto-update-2026-03-01 |
+| 2026-02-26 | 11 | 3 | Created PR | changelog/auto-update-2026-02-26 |
 | 2026-02-25 | 10 | 2 | Created PR #142 | changelog/auto-update-2026-02-25 |
 | 2026-02-23 | 12 | 2 | Created PR #134 | docs/changelog-update-2026-02-23-manual |
 | 2026-02-22 | 50 | 6 | Created PR | docs/changelog-update-2026-02-22 |

@@ -7,6 +7,27 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### GitHub Issue Delegation Skills
+**February 26, 2026**
+
+Added two new Claude Code skills for automated GitHub issue fixing. The `/delegate-issue <issue-number>` skill clones your repository, launches an autonomous Claude Code worker in a sandboxed directory, and monitors its progress while it fixes the issue and opens a PR. The `/delegate-issues <issue-1> <issue-2> ...` skill orchestrates parallel workers for batch issue fixing, launching one sub-agent per issue and providing a unified summary with all PR links when complete. Each worker operates independently with its own repository clone and session, making it safe to process multiple issues simultaneously without conflicts.
+
+---
+
+### Web Sidebar Session Refresh Improvements
+**February 26, 2026** · `@herdctl/web@0.9.6`
+
+Fixed sidebar session lists not updating when sessions are created or modified externally. The Fleet and Chats tabs now refresh automatically whenever any chat completes (not just new chats), with a 2-second debounce to prevent excessive updates during multi-turn conversations. Sessions created from the CLI, Discord, Slack, or other browser tabs now appear in the sidebar immediately without requiring a page reload.
+
+---
+
+### Session Discovery and Search Fixes
+**February 26, 2026** · `@herdctl/web@0.9.5` · `@herdctl/core@5.8.2`
+
+Fixed new web chat sessions not appearing in the sidebar due to stale attribution cache. The SessionDiscoveryService now invalidates its 30-second attribution cache immediately after creating a new session, ensuring getAgentSessions() includes the newly written session. Also fixed session search to include the autoName field, making sessions with auto-generated names (but no custom name) searchable. Extracted sessionMatchesQuery to a shared utility to prevent code duplication across components.
+
+---
+
 ### All Chats Page and Session Discovery
 **February 25, 2026** · `@herdctl/web@0.9.0` · `@herdctl/core@5.7.0`
 
