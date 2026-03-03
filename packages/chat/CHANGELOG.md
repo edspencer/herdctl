@@ -1,5 +1,12 @@
 # @herdctl/chat
 
+## 0.3.11
+
+### Patch Changes
+
+- Updated dependencies [[`ccdda22`](https://github.com/edspencer/herdctl/commit/ccdda2234e22c0275c8d3b27b991eb9a68ee53c8)]:
+  - @herdctl/core@5.8.3
+
 ## 0.3.10
 
 ### Patch Changes

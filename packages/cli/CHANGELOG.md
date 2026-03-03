@@ -1,5 +1,15 @@
 # herdctl
 
+## 1.5.5
+
+### Patch Changes
+
+- Updated dependencies [[`ccdda22`](https://github.com/edspencer/herdctl/commit/ccdda2234e22c0275c8d3b27b991eb9a68ee53c8)]:
+  - @herdctl/core@5.8.3
+  - @herdctl/discord@1.1.0
+  - @herdctl/slack@1.2.11
+  - @herdctl/web@0.9.7
+
 ## 1.5.4
 
 ### Patch Changes
