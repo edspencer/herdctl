@@ -163,6 +163,11 @@ export class CLIRuntime implements RuntimeInterface {
       args.push("--disallowedTools", options.agent.denied_tools.join(","));
     }
 
+    // Add tools if specified (direct passthrough to CLI)
+    if (options.agent.tools?.length) {
+      args.push("--tools", options.agent.tools.join(","));
+    }
+
     // Add setting sources if specified (comma-separated)
     if (options.agent.setting_sources?.length) {
       args.push("--setting-sources", options.agent.setting_sources.join(","));

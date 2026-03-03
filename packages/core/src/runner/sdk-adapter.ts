@@ -165,6 +165,11 @@ export function toSDKOptions(
     result.deniedTools = agent.denied_tools;
   }
 
+  // Tools whitelist (direct passthrough to SDK)
+  if (agent.tools?.length) {
+    result.tools = agent.tools;
+  }
+
   // System prompt
   result.systemPrompt = buildSystemPrompt(agent);
 

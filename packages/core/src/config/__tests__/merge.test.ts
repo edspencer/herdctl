@@ -227,6 +227,28 @@ describe("mergeAgentConfig", () => {
   });
 
   describe("tool permissions merging", () => {
+    it("uses defaults tools when agent has none", () => {
+      const defaults: ExtendedDefaults = {
+        tools: ["Read", "Write"],
+      };
+      const agent: AgentConfig = { name: "test-agent" };
+      const result = mergeAgentConfig(defaults, agent);
+      expect(result.tools).toEqual(["Read", "Write"]);
+    });
+
+    it("agent tools replaces defaults", () => {
+      const defaults: ExtendedDefaults = {
+        tools: ["Read", "Write", "Edit", "Bash", "Grep"],
+      };
+      const agent: AgentConfig = {
+        name: "test-agent",
+        tools: ["Read", "Write"],
+      };
+      const result = mergeAgentConfig(defaults, agent);
+      // Agent's tools should completely replace defaults (arrays are not merged)
+      expect(result.tools).toEqual(["Read", "Write"]);
+    });
+
     it("uses defaults allowed_tools when agent has none", () => {
       const defaults: ExtendedDefaults = {
         permission_mode: "acceptEdits",
