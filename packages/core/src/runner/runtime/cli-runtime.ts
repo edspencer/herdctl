@@ -272,7 +272,7 @@ export class CLIRuntime implements RuntimeInterface {
         // When starting new session, wait for a NEW file created after process start
         logger.debug("Waiting for new session file...");
         sessionFilePath = await waitForNewSessionFile(sessionDir, processStartTime, {
-          timeoutMs: 15000, // Increase timeout to 15 seconds for debugging
+          timeoutMs: 60000, // Allow up to 60s for MCP servers to initialize
           pollIntervalMs: 200,
         });
         logger.debug(`New session, watching newly created file: ${sessionFilePath}`);
