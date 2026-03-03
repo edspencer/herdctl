@@ -7,7 +7,7 @@
 
 import { mkdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { DiscordAttachmentsSchema } from "@herdctl/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DiscordConnector } from "../discord-connector.js";
@@ -344,9 +344,10 @@ describe("processAttachments", () => {
 
     expect(result.promptSections).toHaveLength(1);
     expect(result.promptSections[0]).toContain("[Image attached:");
-    expect(result.promptSections[0]).toContain("screenshot.png");
+    expect(result.promptSections[0]).toContain("att_1-screenshot.png");
     expect(result.promptSections[0]).toContain("Use the Read tool");
     expect(result.downloadedPaths).toHaveLength(1);
+    expect(basename(result.downloadedPaths[0])).toBe("att_1-screenshot.png");
 
     // Verify file was actually written
     const fileContents = await readFile(result.downloadedPaths[0]);
@@ -374,8 +375,9 @@ describe("processAttachments", () => {
 
     expect(result.promptSections).toHaveLength(1);
     expect(result.promptSections[0]).toContain("[PDF attached:");
-    expect(result.promptSections[0]).toContain("document.pdf");
+    expect(result.promptSections[0]).toContain("att_1-document.pdf");
     expect(result.downloadedPaths).toHaveLength(1);
+    expect(basename(result.downloadedPaths[0])).toBe("att_1-document.pdf");
 
     vi.unstubAllGlobals();
   });
@@ -423,6 +425,107 @@ describe("processAttachments", () => {
     expect(result.promptSections).toHaveLength(0);
     expect(result.skippedFiles).toHaveLength(1);
     expect(result.skippedFiles[0].reason).toContain("Network error");
+
+    vi.unstubAllGlobals();
+  });
+
+  it("uses different download directories across attachment runs", async () => {
+    const imageData = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: async () =>
+          imageData.buffer.slice(imageData.byteOffset, imageData.byteOffset + imageData.byteLength),
+      }),
+    );
+
+    const first = await processAttachments(
+      [
+        makeAttachment({
+          id: "run1",
+          name: "one.png",
+          contentType: "image/png",
+          category: "image",
+        }),
+      ],
+      defaultConfig,
+      testDir,
+      mockLogger,
+    );
+    const second = await processAttachments(
+      [
+        makeAttachment({
+          id: "run2",
+          name: "two.png",
+          contentType: "image/png",
+          category: "image",
+        }),
+      ],
+      defaultConfig,
+      testDir,
+      mockLogger,
+    );
+
+    expect(first.downloadedPaths).toHaveLength(1);
+    expect(second.downloadedPaths).toHaveLength(1);
+    expect(dirname(first.downloadedPaths[0])).not.toBe(dirname(second.downloadedPaths[0]));
+
+    vi.unstubAllGlobals();
+  });
+
+  it("preserves both binary attachments when filenames are duplicated", async () => {
+    const firstPayload = Buffer.from("first");
+    const secondPayload = Buffer.from("second");
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          arrayBuffer: async () =>
+            firstPayload.buffer.slice(
+              firstPayload.byteOffset,
+              firstPayload.byteOffset + firstPayload.byteLength,
+            ),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          arrayBuffer: async () =>
+            secondPayload.buffer.slice(
+              secondPayload.byteOffset,
+              secondPayload.byteOffset + secondPayload.byteLength,
+            ),
+        }),
+    );
+
+    const duplicatedName = "same-name.png";
+    const attachments = [
+      makeAttachment({
+        id: "att_101",
+        name: duplicatedName,
+        contentType: "image/png",
+        category: "image",
+      }),
+      makeAttachment({
+        id: "att_202",
+        name: duplicatedName,
+        contentType: "image/png",
+        category: "image",
+      }),
+    ];
+
+    const result = await processAttachments(attachments, defaultConfig, testDir, mockLogger);
+
+    expect(result.downloadedPaths).toHaveLength(2);
+    expect(result.downloadedPaths[0]).not.toBe(result.downloadedPaths[1]);
+    expect(basename(result.downloadedPaths[0])).toBe("att_101-same-name.png");
+    expect(basename(result.downloadedPaths[1])).toBe("att_202-same-name.png");
+
+    const firstBytes = await readFile(result.downloadedPaths[0]);
+    const secondBytes = await readFile(result.downloadedPaths[1]);
+    expect(Buffer.from(firstBytes)).toEqual(firstPayload);
+    expect(Buffer.from(secondBytes)).toEqual(secondPayload);
 
     vi.unstubAllGlobals();
   });

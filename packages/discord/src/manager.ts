@@ -10,8 +10,9 @@
  * @module manager
  */
 
+import { randomUUID } from "node:crypto";
 import { mkdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import {
   type ChatConnectorLogger,
@@ -1219,8 +1220,8 @@ export class DiscordManager implements IChatManager {
       }
     }
 
-    // Create timestamp directory for binary downloads
-    const timestamp = Date.now().toString();
+    // Create one collision-resistant directory per message processing run.
+    const messageDownloadDir = randomUUID();
 
     for (const attachment of toProcess) {
       // Check allowed types
@@ -1272,9 +1273,9 @@ export class DiscordManager implements IChatManager {
             throw new Error(`HTTP ${response.status}`);
           }
           const buffer = Buffer.from(await response.arrayBuffer());
-          const downloadDir = join(workingDir, config.download_dir, timestamp);
+          const downloadDir = join(workingDir, config.download_dir, messageDownloadDir);
           await mkdir(downloadDir, { recursive: true });
-          const filePath = join(downloadDir, attachment.name);
+          const filePath = join(downloadDir, `${attachment.id}-${basename(attachment.name)}`);
           await writeFile(filePath, buffer);
           downloadedPaths.push(filePath);
 
