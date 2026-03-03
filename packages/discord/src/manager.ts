@@ -426,8 +426,8 @@ export class DiscordManager implements IChatManager {
       platformName: "Discord",
     });
 
-    // Start typing indicator while processing (if not disabled via output.typing_indicator)
-    const stopTyping = outputConfig.typing_indicator !== false ? event.startTyping() : () => {};
+    // Start typing indicator while processing (configurable via output.typing_indicator)
+    const stopTyping = outputConfig.typing_indicator ? event.startTyping() : () => {};
 
     // Track if we've stopped typing to avoid multiple calls
     let typingStopped = false;
