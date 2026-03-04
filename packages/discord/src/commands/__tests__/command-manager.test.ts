@@ -25,6 +25,8 @@ vi.mock("discord.js", async () => {
     REST: MockREST,
     Routes: {
       applicationCommands: (clientId: string) => `/applications/${clientId}/commands`,
+      applicationGuildCommands: (clientId: string, guildId: string) =>
+        `/applications/${clientId}/guilds/${guildId}/commands`,
     },
   };
 });
@@ -157,6 +159,10 @@ describe("CommandManager", () => {
       expect(commands.has("help")).toBe(true);
       expect(commands.has("reset")).toBe(true);
       expect(commands.has("status")).toBe(true);
+      expect(commands.has("new")).toBe(true);
+      expect(commands.has("session")).toBe(true);
+      expect(commands.has("stop")).toBe(true);
+      expect(commands.has("retry")).toBe(true);
     });
   });
 
@@ -179,6 +185,28 @@ describe("CommandManager", () => {
         expect.objectContaining({
           body: expect.any(Array),
         }),
+      );
+    });
+
+    it("registers commands at guild scope when configured", async () => {
+      const manager = new CommandManager({
+        agentName: "test-agent",
+        client,
+        botToken: "test-token",
+        sessionManager,
+        getConnectorState: () => connectorState,
+        logger,
+        commandRegistration: {
+          scope: "guild",
+          guildId: "guild-123",
+        },
+      });
+
+      await manager.registerCommands();
+
+      expect(mockRestPut).toHaveBeenCalledWith(
+        expect.stringContaining("/guilds/guild-123/commands"),
+        expect.any(Object),
       );
     });
 
@@ -391,7 +419,7 @@ describe("CommandManager", () => {
       const commands = manager.getCommands();
 
       expect(commands).toBeInstanceOf(Map);
-      expect(commands.size).toBe(3);
+      expect(commands.size).toBe(7);
     });
   });
 });

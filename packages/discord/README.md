@@ -140,7 +140,7 @@ This allows you to run multiple agents with different Discord identities, each w
 - **DM Support** - Users can chat privately with agents
 - **Channel Support** - Agents can participate in server channels
 - **Per-Agent Bots** - Each agent can have its own Discord bot identity
-- **Slash Commands** - Built-in `/status`, `/reset`, and `/help` commands
+- **Slash Commands** - Built-in `/help`, `/status`, `/session`, `/reset`, `/new`, `/stop`, `/retry`
 - **Typing Indicators** - Visual feedback while agent is processing
 - **Message Splitting** - Long responses are automatically split to fit Discord's limits
 
@@ -150,7 +150,13 @@ This allows you to run multiple agents with different Discord identities, each w
 |---------|-------------|
 | `/help` | Show available commands and usage |
 | `/status` | Show agent status and current session info |
+| `/session` | Show session and run state for the current channel |
 | `/reset` | Clear conversation context (start fresh) |
+| `/new` | Start a fresh conversation (alias for reset behavior) |
+| `/stop` | Stop the active run in this channel |
+| `/retry` | Retry the last prompt in this channel |
+
+To invoke slash commands, type `/` in Discord and pick the command under your bot app in Discord's command picker. Slash commands are routed as interaction events, not regular text messages.
 
 ## Bot Setup
 

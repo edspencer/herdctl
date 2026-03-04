@@ -1,0 +1,96 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`embeds > builds result summary embeds 1`] = `
+{
+  "color": 2278750,
+  "description": "**Task complete** in 2s · 3 turns · $0.0123 · 1.5k tokens",
+  "footer": {
+    "text": "herdctl · test-agent",
+  },
+  "timestamp": "2026-03-04T12:00:00.000Z",
+}
+`;
+
+exports[`embeds > builds run card embeds with trace lines 1`] = `
+{
+  "color": 9133302,
+  "description": "Running · 🔧 Bash",
+  "fields": [
+    {
+      "inline": false,
+      "name": "Trace",
+      "value": "🔧 Bash · ls -la
+✓ Bash · completed",
+    },
+  ],
+  "footer": {
+    "text": "herdctl · test-agent",
+  },
+  "timestamp": "2026-03-04T12:00:00.000Z",
+}
+`;
+
+exports[`embeds > builds status and error embeds 1`] = `
+{
+  "color": 7041664,
+  "description": "Compacting context…",
+  "footer": {
+    "text": "herdctl · test-agent",
+  },
+}
+`;
+
+exports[`embeds > builds status and error embeds 2`] = `
+{
+  "color": 15680580,
+  "description": "**Error:** Boom",
+  "footer": {
+    "text": "herdctl · test-agent",
+  },
+  "timestamp": "2026-03-04T12:00:00.000Z",
+}
+`;
+
+exports[`embeds > builds tool result embed with truncated output 1`] = `
+{
+  "color": 5793266,
+  "description": "💻 **Bash** \`> echo hi\` — 2s",
+  "fields": [
+    {
+      "inline": false,
+      "name": "Output",
+      "value": "\`\`\`ansi
+line
+line
+line
+line
+line
+line
+line
+line
+line
+line
+line
+line
+line
+line
+line
+line
+line
+line
+line
+line
+line
+line
+line
+line
+
+… 999 chars total
+\`\`\`",
+    },
+  ],
+  "footer": {
+    "text": "herdctl · test-agent",
+  },
+}
+`;

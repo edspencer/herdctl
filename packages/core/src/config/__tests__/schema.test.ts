@@ -1748,6 +1748,33 @@ describe("AgentChatDiscordSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("accepts guild-scoped command registration when guild_id is provided", () => {
+    const result = AgentChatDiscordSchema.safeParse({
+      bot_token_env: "TOKEN",
+      guilds: [{ id: "123", channels: [{ id: "456" }] }],
+      command_registration: {
+        scope: "guild",
+        guild_id: "123",
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.command_registration?.scope).toBe("guild");
+      expect(result.data.command_registration?.guild_id).toBe("123");
+    }
+  });
+
+  it("rejects guild-scoped command registration without guild_id", () => {
+    const result = AgentChatDiscordSchema.safeParse({
+      bot_token_env: "TOKEN",
+      guilds: [{ id: "123", channels: [{ id: "456" }] }],
+      command_registration: {
+        scope: "guild",
+      },
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("AgentChatSchema", () => {

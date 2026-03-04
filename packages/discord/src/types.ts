@@ -7,6 +7,7 @@
 
 import type { IChatSessionManager } from "@herdctl/chat";
 import type { AgentChatDiscord, AgentConfig, FleetManager } from "@herdctl/core";
+import type { CommandActions } from "./commands/types.js";
 import type { ConversationContext } from "./mention-handler.js";
 
 // =============================================================================
@@ -80,6 +81,15 @@ export interface DiscordConnectorOptions {
    * Used for session persistence
    */
   stateDir?: string;
+
+  /** Optional manager-backed actions for slash commands */
+  commandActions?: CommandActions;
+
+  /** Optional slash command registration mode */
+  commandRegistration?: {
+    scope: "global" | "guild";
+    guildId?: string;
+  };
 }
 
 // =============================================================================

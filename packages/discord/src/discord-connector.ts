@@ -27,6 +27,7 @@ import {
 } from "discord.js";
 import { checkDMUserFilter, resolveChannelConfig } from "./auto-mode-handler.js";
 import { CommandManager, type ICommandManager } from "./commands/index.js";
+import type { CommandActions } from "./commands/types.js";
 import { ErrorHandler } from "./error-handler.js";
 import { AlreadyConnectedError, DiscordConnectionError, InvalidTokenError } from "./errors.js";
 import { createLoggerFromConfig } from "./logger.js";
@@ -80,6 +81,11 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
   private readonly _botToken: string;
   private readonly _logger: DiscordConnectorLogger;
   private readonly _sessionManager: IChatSessionManager;
+  private readonly _commandActions?: CommandActions;
+  private readonly _commandRegistration?: {
+    scope: "global" | "guild";
+    guildId?: string;
+  };
   private readonly _errorHandler: ErrorHandler;
   private _client: Client | null = null;
   private _commandManager: ICommandManager | null = null;
@@ -108,6 +114,8 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
     this._discordConfig = options.discordConfig;
     this._botToken = options.botToken;
     this._sessionManager = options.sessionManager;
+    this._commandActions = options.commandActions;
+    this._commandRegistration = options.commandRegistration;
 
     // Create logger from config if not provided
     this._logger =
@@ -514,6 +522,8 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
         sessionManager: this._sessionManager,
         getConnectorState: () => this.getState(),
         logger: this._logger,
+        commandActions: this._commandActions,
+        commandRegistration: this._commandRegistration,
       });
 
       await this._commandManager.registerCommands();

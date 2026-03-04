@@ -32,7 +32,16 @@ export type {
   SlashCommand,
 } from "./commands/index.js";
 // Commands
-export { CommandManager, helpCommand, resetCommand, statusCommand } from "./commands/index.js";
+export {
+  CommandManager,
+  helpCommand,
+  newCommand,
+  resetCommand,
+  retryCommand,
+  sessionCommand,
+  statusCommand,
+  stopCommand,
+} from "./commands/index.js";
 // Main connector class
 export { DiscordConnector } from "./discord-connector.js";
 export type { ErrorHandlerOptions } from "./error-handler.js";
@@ -81,6 +90,8 @@ export {
   stripBotRoleMentions,
   stripMentions,
 } from "./mention-handler.js";
+export type { DiscordNormalizedMessageEvent } from "./message-normalizer.js";
+export { normalizeDiscordMessage } from "./message-normalizer.js";
 // Types
 export type {
   DiscordConnectionStatus,

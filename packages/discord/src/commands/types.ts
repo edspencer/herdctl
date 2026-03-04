@@ -9,6 +9,21 @@ import type { IChatSessionManager } from "@herdctl/chat";
 import type { ChatInputCommandInteraction, Client } from "discord.js";
 import type { DiscordConnectorState } from "../types.js";
 
+export interface CommandActionResult {
+  success: boolean;
+  message: string;
+  jobId?: string;
+}
+
+export interface CommandActions {
+  stopRun?: (channelId: string) => Promise<CommandActionResult>;
+  retryRun?: (channelId: string) => Promise<CommandActionResult>;
+  getSessionInfo?: (channelId: string) => Promise<{
+    activeJobId?: string;
+    lastPrompt?: string;
+  }>;
+}
+
 // =============================================================================
 // Command Context
 // =============================================================================
@@ -31,6 +46,9 @@ export interface CommandContext {
 
   /** Current connector state */
   connectorState: DiscordConnectorState;
+
+  /** Optional manager-backed command actions */
+  commandActions?: CommandActions;
 }
 
 // =============================================================================
@@ -90,6 +108,15 @@ export interface CommandManagerOptions {
 
   /** Optional logger */
   logger?: CommandManagerLogger;
+
+  /** Optional manager-backed command actions */
+  commandActions?: CommandActions;
+
+  /** Registration mode for slash commands */
+  commandRegistration?: {
+    scope: "global" | "guild";
+    guildId?: string;
+  };
 }
 
 // =============================================================================

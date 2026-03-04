@@ -17,8 +17,6 @@ import { basename, dirname, join } from "node:path";
 import {
   type ChatConnectorLogger,
   ChatSessionManager,
-  extractMessageContent,
-  formatCompactNumber,
   StreamingResponder,
   splitMessage,
 } from "@herdctl/chat";
@@ -32,19 +30,25 @@ import type {
 } from "@herdctl/core";
 import {
   createFileSenderDef,
-  extractToolResults,
-  extractToolUseBlocks,
   type FileSenderContext,
   getToolInputSummary,
+  type SDKMessage,
   TOOL_EMOJIS,
 } from "@herdctl/core";
 
 import { DiscordConnector } from "./discord-connector.js";
+import {
+  buildErrorEmbed,
+  buildResultSummaryEmbed,
+  buildRunCardEmbed,
+  buildStatusEmbed,
+  buildToolResultEmbed,
+} from "./embeds.js";
+import { formatContextForPrompt } from "./mention-handler.js";
+import { normalizeDiscordMessage } from "./message-normalizer.js";
 import type {
   DiscordAttachmentInfo,
   DiscordConnectorEventMap,
-  DiscordReplyEmbed,
-  DiscordReplyEmbedField,
   DiscordReplyPayload,
 } from "./types.js";
 import { transcribeAudio } from "./voice-transcriber.js";
@@ -78,6 +82,8 @@ type DiscordErrorEvent = DiscordConnectorEventMap["error"];
  */
 export class DiscordManager implements IChatManager {
   private connectors: Map<string, DiscordConnector> = new Map();
+  private activeJobsByChannel: Map<string, string> = new Map();
+  private lastPromptByChannel: Map<string, string> = new Map();
   private initialized: boolean = false;
 
   constructor(private ctx: FleetManagerContext) {}
@@ -169,6 +175,18 @@ export class DiscordManager implements IChatManager {
           sessionManager,
           stateDir,
           logger: createAgentLogger(`[discord:${agent.qualifiedName}]`),
+          commandActions: {
+            stopRun: (channelId: string) => this.stopChannelRun(agent.qualifiedName, channelId),
+            retryRun: (channelId: string) => this.retryChannelRun(agent.qualifiedName, channelId),
+            getSessionInfo: async (channelId: string) =>
+              this.getChannelRunInfo(agent.qualifiedName, channelId),
+          },
+          commandRegistration: discordConfig.command_registration
+            ? {
+                scope: discordConfig.command_registration.scope,
+                guildId: discordConfig.command_registration.guild_id,
+              }
+            : { scope: "global" },
         });
 
         this.connectors.set(agent.qualifiedName, connector);
@@ -384,6 +402,10 @@ export class DiscordManager implements IChatManager {
     logger.info(
       `Discord message for agent '${qualifiedName}': ${event.prompt.substring(0, 50)}...`,
     );
+    this.lastPromptByChannel.set(
+      this.getChannelKey(qualifiedName, event.metadata.channelId),
+      event.prompt,
+    );
 
     // Get the agent configuration (lookup by qualifiedName)
     const config = this.ctx.getConfig();
@@ -511,10 +533,30 @@ export class DiscordManager implements IChatManager {
     const progressState: {
       handle: { edit: (c: any) => Promise<void>; delete: () => Promise<void> } | null;
     } = { handle: null };
+    const traceLines: string[] = [];
+
+    const pushTraceLine = (line: string) => {
+      traceLines.push(line);
+      if (traceLines.length > 24) {
+        traceLines.splice(0, traceLines.length - 24);
+      }
+    };
 
     try {
       // Handle voice messages: transcribe audio before triggering the agent
       let prompt = event.prompt;
+      if (!existingSessionId && event.context.messages.length > 0) {
+        const priorContext = formatContextForPrompt(event.context);
+        if (priorContext) {
+          prompt = [
+            "Recent conversation context from this Discord channel:",
+            priorContext,
+            "",
+            `Current user message: ${prompt}`,
+          ].join("\n");
+        }
+      }
+
       const voiceConfig = agent.chat?.discord?.voice;
       if (event.metadata.isVoiceMessage) {
         if (!voiceConfig?.enabled) {
@@ -618,12 +660,52 @@ export class DiscordManager implements IChatManager {
       // Capture the result text from the SDK's "result" message as a fallback
       // When all assistant messages are tool-only (no text), this is the last resort
       let resultText: string | undefined;
+      let sentAnswer = false;
+      let streamedDeltaSinceFinal = false;
 
       // Progress indicator: track tool names for in-place-updating embed
       const toolNamesRun: string[] = [];
       let lastProgressUpdate = 0;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let liveAnswerHandle: { edit: (c: any) => Promise<void> } | null = null;
+      let liveAnswerText = "";
+      let latestStatusText = "Preparing run…";
+
+      const refreshRunCard = async (status: "running" | "success" | "error") => {
+        if (!showProgressIndicator) {
+          return;
+        }
+        const now = Date.now();
+        if (status === "running" && now - lastProgressUpdate < 1500) {
+          return;
+        }
+        lastProgressUpdate = now;
+        const header =
+          toolNamesRun.length > 0 ? `Running · ${toolNamesRun.join("  →  ")}` : "Running";
+        const message = status === "running" ? `${header}\n${latestStatusText}` : latestStatusText;
+        const embedPayload = {
+          embeds: [
+            buildRunCardEmbed({
+              agentName: qualifiedName,
+              status,
+              message: message.length > 4000 ? `…${message.slice(-3997)}` : message,
+              traceLines,
+            }),
+          ],
+        };
+        try {
+          if (!progressState.handle) {
+            progressState.handle = await event.replyWithRef(embedPayload);
+          } else {
+            await progressState.handle.edit(embedPayload);
+          }
+        } catch (progressError) {
+          logger.warn(`Failed to update run card: ${(progressError as Error).message}`);
+        }
+      };
 
       const showToolResults = outputConfig.tool_results;
+      const enableDeltaStreaming = assistantMessages === "all";
 
       // Execute job via FleetManager.trigger() through the context
       // Pass resume option for conversation continuity
@@ -633,223 +715,215 @@ export class DiscordManager implements IChatManager {
         prompt,
         resume: existingSessionId,
         injectedMcpServers,
+        onJobCreated: async (jobId) => {
+          this.activeJobsByChannel.set(
+            this.getChannelKey(qualifiedName, event.metadata.channelId),
+            jobId,
+          );
+        },
         onMessage: async (message) => {
-          // Extract text content from assistant messages and stream to Discord
-          if (message.type === "assistant") {
-            // Cast to the SDKMessage shape expected by extractMessageContent
-            // The chat package's SDKMessage type expects a specific structure
-            const sdkMessage = message as unknown as Parameters<typeof extractMessageContent>[0];
-
-            // Always track tool_use blocks (even from duplicate messages)
-            // so tool results can be paired correctly
-            const toolUseBlocks = extractToolUseBlocks(sdkMessage);
-            for (const block of toolUseBlocks) {
-              if (block.id) {
-                pendingToolUses.set(block.id, {
-                  name: block.name,
-                  input: block.input,
-                  startTime: Date.now(),
-                });
+          for (const normalized of normalizeDiscordMessage(message as SDKMessage)) {
+            if (normalized.kind === "assistant_delta") {
+              if (!enableDeltaStreaming) {
+                continue;
               }
 
-              // Track tool names for progress indicator
-              if (block.name && showProgressIndicator) {
-                const emoji = TOOL_EMOJIS[block.name] ?? "\u{1F527}";
-                const displayName = `${emoji} ${block.name}`;
-                toolNamesRun.push(displayName);
-                // Cap to last 50 entries to avoid unbounded memory growth on long jobs
-                if (toolNamesRun.length > 50) {
-                  toolNamesRun.splice(0, toolNamesRun.length - 50);
+              streamedDeltaSinceFinal = true;
+              liveAnswerText += normalized.delta;
+              if (!liveAnswerText.trim()) {
+                continue;
+              }
+
+              const payload = { content: liveAnswerText };
+              try {
+                if (!liveAnswerHandle) {
+                  liveAnswerHandle = await event.replyWithRef(payload);
+                } else {
+                  await liveAnswerHandle.edit(payload);
+                }
+                sentAnswer = true;
+              } catch (deltaError) {
+                logger.warn(`Failed delta streaming update: ${(deltaError as Error).message}`);
+              }
+              continue;
+            }
+
+            if (normalized.kind === "assistant_final") {
+              for (const block of normalized.toolUses) {
+                if (block.id) {
+                  pendingToolUses.set(block.id, {
+                    name: block.name,
+                    input: block.input,
+                    startTime: Date.now(),
+                  });
                 }
 
-                // Update progress embed (throttled to every 2s)
-                const now = Date.now();
-                if (now - lastProgressUpdate >= 2000) {
-                  lastProgressUpdate = now;
-                  const description = toolNamesRun.join("  \u2192  ");
-                  const embedPayload = {
-                    embeds: [
-                      {
-                        description:
-                          description.length > 4000
-                            ? `\u2026${description.slice(-3997)}`
-                            : description,
-                        color: DiscordManager.EMBED_COLOR_WORKING,
-                        footer: DiscordManager.buildFooter(qualifiedName),
-                      },
-                    ],
-                  };
-
-                  try {
-                    if (!progressState.handle) {
-                      progressState.handle = await event.replyWithRef(embedPayload);
-                    } else {
-                      await progressState.handle.edit(embedPayload);
-                    }
-                  } catch (progressError) {
-                    logger.warn(
-                      `Failed to update progress embed: ${(progressError as Error).message}`,
-                    );
+                if (block.name && showProgressIndicator) {
+                  const emoji = TOOL_EMOJIS[block.name] ?? "\u{1F527}";
+                  const displayName = `${emoji} ${block.name}`;
+                  toolNamesRun.push(displayName);
+                  if (toolNamesRun.length > 50) {
+                    toolNamesRun.splice(0, toolNamesRun.length - 50);
                   }
+                  const inputSummary = getToolInputSummary(block.name, block.input);
+                  pushTraceLine(
+                    `${emoji} ${block.name}${inputSummary ? ` · ${inputSummary.slice(0, 60)}` : ""}`,
+                  );
+                  latestStatusText = `Executing ${block.name}`;
+                  await refreshRunCard("running");
                 }
               }
-            }
 
-            // Deduplicate assistant messages by message.id.
-            // Claude Code emits multiple JSONL lines per turn with the same id:
-            // intermediate snapshots (stop_reason: null) may lack text content,
-            // while the final (stop_reason: "end_turn") has the complete response.
-            // Skip intermediates, deliver and deduplicate finals.
-            const messageId = (message as { message?: { id?: string } }).message?.id;
-            const stopReason = (message as { message?: { stop_reason?: unknown } }).message
-              ?.stop_reason;
-            if (messageId && stopReason === null) {
-              return; // Skip intermediate snapshot — text may be incomplete
-            }
-            if (messageId) {
-              if (deliveredAssistantIds.has(messageId)) {
-                return;
+              if (normalized.messageId && normalized.stopReason === null) {
+                continue;
               }
-              deliveredAssistantIds.add(messageId);
-            }
+              if (normalized.messageId) {
+                if (deliveredAssistantIds.has(normalized.messageId)) {
+                  continue;
+                }
+                deliveredAssistantIds.add(normalized.messageId);
+              }
 
-            const content = extractMessageContent(sdkMessage);
-            if (content) {
+              const content = normalized.content;
+              if (!content) {
+                streamedDeltaSinceFinal = false;
+                continue;
+              }
+
               if (assistantMessages === "answers") {
-                // Only send turns with no tool_use blocks (answer turns)
-                if (toolUseBlocks.length === 0) {
+                if (normalized.toolUses.length === 0) {
                   await streamer.addMessageAndSend(content);
+                  sentAnswer = true;
+                }
+              } else if (streamedDeltaSinceFinal && enableDeltaStreaming) {
+                // Sync final content into the live delta message to avoid duplicates.
+                liveAnswerText = content;
+                try {
+                  if (!liveAnswerHandle) {
+                    liveAnswerHandle = await event.replyWithRef({ content });
+                  } else {
+                    await liveAnswerHandle.edit({ content });
+                  }
+                  sentAnswer = true;
+                } catch (syncError) {
+                  logger.warn(
+                    `Failed to sync final streamed answer: ${(syncError as Error).message}`,
+                  );
+                  await streamer.addMessageAndSend(content);
+                  sentAnswer = true;
                 }
               } else {
-                // "all" mode: send every turn with text
                 await streamer.addMessageAndSend(content);
+                sentAnswer = true;
               }
+              streamedDeltaSinceFinal = false;
+              continue;
             }
-          }
 
-          // Build and send embeds for tool results
-          if (message.type === "user" && showToolResults) {
-            // Cast to the shape expected by extractToolResults
-            const userMessage = message as {
-              type: string;
-              message?: { content?: unknown };
-              tool_use_result?: unknown;
-            };
-            const toolResults = extractToolResults(userMessage);
-            for (const toolResult of toolResults) {
-              // Look up the matching tool_use for name, input, and timing
-              const toolUse = toolResult.toolUseId
-                ? pendingToolUses.get(toolResult.toolUseId)
-                : undefined;
-              if (toolResult.toolUseId) {
-                pendingToolUses.delete(toolResult.toolUseId);
+            if (normalized.kind === "tool_results" && showToolResults) {
+              for (const toolResult of normalized.results) {
+                const toolUse = toolResult.toolUseId
+                  ? pendingToolUses.get(toolResult.toolUseId)
+                  : undefined;
+                if (toolResult.toolUseId) {
+                  pendingToolUses.delete(toolResult.toolUseId);
+                }
+                const toolName = toolUse?.name ?? "Tool";
+                const output = toolResult.output.trim();
+                const preview = output.length > 0 ? output.replace(/\s+/g, " ").slice(0, 90) : "";
+                pushTraceLine(
+                  `${toolResult.isError ? "✖" : "✓"} ${toolName}${preview ? ` · ${preview}` : ""}`,
+                );
+                latestStatusText = `${toolResult.isError ? "Error from" : "Completed"} ${toolName}`;
+                await refreshRunCard("running");
+
+                // Oversized output is attached as a file instead of flooding chat.
+                const maxOutputChars = outputConfig.tool_result_max_length ?? 900;
+                if (output.length > maxOutputChars) {
+                  await streamer.flush();
+                  const filename = `${toolName.toLowerCase().replace(/[^a-z0-9_-]+/g, "-") || "tool"}-output.txt`;
+                  const previewEmbed = buildToolResultEmbed({
+                    toolUse: toolUse ?? null,
+                    toolResult: {
+                      output: output.slice(0, Math.min(300, maxOutputChars)),
+                      isError: toolResult.isError,
+                    },
+                    agentName: qualifiedName,
+                    maxOutputChars: Math.min(300, maxOutputChars),
+                  });
+                  await event.reply({
+                    embeds: [previewEmbed],
+                    files: [{ attachment: Buffer.from(output, "utf8"), name: filename }],
+                  });
+                  embedsSent++;
+                }
               }
-
-              const embed = this.buildToolEmbed(
-                toolUse ?? null,
-                toolResult,
-                outputConfig.tool_result_max_length,
-                qualifiedName,
-              );
-
-              // Flush any buffered text before sending embed to preserve ordering
-              await streamer.flush();
-              await event.reply({ embeds: [embed] });
-              embedsSent++;
+              continue;
             }
-          }
 
-          // Show system status messages (e.g., "compacting context...")
-          if (message.type === "system" && outputConfig.system_status) {
-            const sysMessage = message as { subtype?: string; status?: string | null };
-            if (sysMessage.subtype === "status" && sysMessage.status) {
-              const statusText =
-                sysMessage.status === "compacting" ? "Compacting context\u2026" : sysMessage.status;
+            if (normalized.kind === "system_status" && outputConfig.system_status) {
+              latestStatusText =
+                normalized.status === "compacting" ? "Compacting context…" : normalized.status;
+              pushTraceLine(`ℹ ${latestStatusText}`);
+              await refreshRunCard("running");
+              continue;
+            }
+
+            if (normalized.kind === "tool_progress" && outputConfig.system_status) {
+              latestStatusText = normalized.content;
+              pushTraceLine(`ℹ ${normalized.content}`);
+              await refreshRunCard("running");
+              continue;
+            }
+
+            if (normalized.kind === "auth_status" && outputConfig.system_status) {
+              latestStatusText = normalized.content;
+              pushTraceLine(`${normalized.isError ? "✖" : "ℹ"} ${normalized.content}`);
+              if (normalized.isError) {
+                await streamer.flush();
+                await event.reply({
+                  embeds: [buildStatusEmbed(normalized.content, "error", qualifiedName)],
+                });
+                embedsSent++;
+              } else {
+                await refreshRunCard("running");
+              }
+              continue;
+            }
+
+            if (normalized.kind === "result") {
+              if (normalized.resultText) {
+                resultText = normalized.resultText;
+              }
+              latestStatusText = normalized.isError ? "Task failed" : "Task complete";
+              await refreshRunCard(normalized.isError ? "error" : "success");
+
+              if (outputConfig.result_summary) {
+                await streamer.flush();
+                await event.reply({
+                  embeds: [
+                    buildResultSummaryEmbed({
+                      agentName: qualifiedName,
+                      isError: normalized.isError,
+                      durationMs: normalized.durationMs,
+                      numTurns: normalized.numTurns,
+                      totalCostUsd: normalized.totalCostUsd,
+                      usage: normalized.usage,
+                    }),
+                  ],
+                });
+                embedsSent++;
+              }
+              continue;
+            }
+
+            if (normalized.kind === "error" && outputConfig.errors) {
               await streamer.flush();
               await event.reply({
-                embeds: [
-                  {
-                    description: statusText,
-                    color: DiscordManager.EMBED_COLOR_SYSTEM,
-                  },
-                ],
+                embeds: [buildErrorEmbed(normalized.message, qualifiedName)],
               });
               embedsSent++;
             }
-          }
-
-          // Capture result text from the SDK "result" message as a fallback answer.
-          // This covers cases where all assistant messages were tool-only (no text blocks).
-          if (message.type === "result") {
-            const resultMsg = message as { result?: string };
-            if (typeof resultMsg.result === "string" && resultMsg.result.trim()) {
-              resultText = resultMsg.result;
-            }
-          }
-
-          // Show result summary embed (cost, tokens, turns)
-          if (message.type === "result" && outputConfig.result_summary) {
-            const resultMessage = message as {
-              is_error?: boolean;
-              duration_ms?: number;
-              total_cost_usd?: number;
-              num_turns?: number;
-              usage?: { input_tokens?: number; output_tokens?: number };
-            };
-            const isError = resultMessage.is_error === true;
-
-            // Build compact summary: "**Task complete** in 45s · 3 turns · $0.0045 · 15.7k tokens"
-            const summaryParts: string[] = [];
-            summaryParts.push(isError ? "**Task failed**" : "**Task complete**");
-            if (resultMessage.duration_ms !== undefined) {
-              summaryParts[0] += ` in ${DiscordManager.formatDuration(resultMessage.duration_ms)}`;
-            }
-            if (resultMessage.num_turns !== undefined) {
-              summaryParts.push(
-                `${resultMessage.num_turns} turn${resultMessage.num_turns !== 1 ? "s" : ""}`,
-              );
-            }
-            if (resultMessage.total_cost_usd !== undefined) {
-              summaryParts.push(`$${resultMessage.total_cost_usd.toFixed(4)}`);
-            }
-            if (resultMessage.usage) {
-              const total =
-                (resultMessage.usage.input_tokens ?? 0) + (resultMessage.usage.output_tokens ?? 0);
-              summaryParts.push(`${formatCompactNumber(total)} tokens`);
-            }
-
-            await streamer.flush();
-            await event.reply({
-              embeds: [
-                {
-                  description: summaryParts.join(" \u00b7 "),
-                  color: isError
-                    ? DiscordManager.EMBED_COLOR_ERROR
-                    : DiscordManager.EMBED_COLOR_SUCCESS,
-                  footer: DiscordManager.buildFooter(qualifiedName),
-                  timestamp: new Date().toISOString(),
-                },
-              ],
-            });
-            embedsSent++;
-          }
-
-          // Show SDK error messages
-          if (message.type === "error" && outputConfig.errors) {
-            const errorText =
-              typeof message.content === "string" ? message.content : "An unknown error occurred";
-            await streamer.flush();
-            await event.reply({
-              embeds: [
-                {
-                  description: `**Error:** ${errorText.length > 4000 ? errorText.substring(0, 4000) + "\u2026" : errorText}`,
-                  color: DiscordManager.EMBED_COLOR_ERROR,
-                  footer: DiscordManager.buildFooter(qualifiedName),
-                  timestamp: new Date().toISOString(),
-                },
-              ],
-            });
-            embedsSent++;
           }
         },
       });
@@ -862,9 +936,10 @@ export class DiscordManager implements IChatManager {
       }
 
       // Fall back to SDK result text if no answer turns produced text
-      if (!streamer.hasSentMessages() && resultText) {
+      if (!sentAnswer && !streamer.hasSentMessages() && resultText) {
         logger.debug("No answer turns produced text — using SDK result text as fallback");
         await streamer.addMessageAndSend(resultText);
+        sentAnswer = true;
       }
 
       // Flush any remaining buffered content
@@ -884,18 +959,35 @@ export class DiscordManager implements IChatManager {
         `Discord job completed: ${result.jobId} for agent '${qualifiedName}'${result.sessionId ? ` (session: ${result.sessionId})` : ""}`,
       );
 
+      if (progressState.handle) {
+        try {
+          await progressState.handle.edit({
+            embeds: [
+              buildRunCardEmbed({
+                agentName: qualifiedName,
+                status: result.success ? "success" : "error",
+                message: result.success ? "Task complete" : "Task failed",
+                traceLines,
+              }),
+            ],
+          });
+        } catch (progressError) {
+          logger.warn(`Failed to finalize run card: ${(progressError as Error).message}`);
+        }
+      }
+
       // If no text messages were sent, send an appropriate fallback.
       // When embedsSent > 0 but no text was delivered, the user saw tool/result embeds
       // but may have missed the final answer. Show a brief completion indicator.
-      if (!streamer.hasSentMessages() && embedsSent === 0) {
+      if (!sentAnswer && !streamer.hasSentMessages() && embedsSent === 0) {
         if (result.success) {
           await event.reply({
             embeds: [
-              {
-                description: "Task completed \u2014 no additional output to share.",
-                color: DiscordManager.EMBED_COLOR_SUCCESS,
-                footer: DiscordManager.buildFooter(qualifiedName),
-              },
+              buildStatusEmbed(
+                "Task completed — no additional output to share.",
+                "info",
+                qualifiedName,
+              ),
             ],
           });
         } else {
@@ -904,12 +996,7 @@ export class DiscordManager implements IChatManager {
             result.errorDetails?.message ?? result.error?.message ?? "An unknown error occurred";
           await event.reply({
             embeds: [
-              {
-                description: `**Error:** ${errorMessage}\n\nThe task could not be completed.`,
-                color: DiscordManager.EMBED_COLOR_ERROR,
-                footer: DiscordManager.buildFooter(qualifiedName),
-                timestamp: new Date().toISOString(),
-              },
+              buildErrorEmbed(`${errorMessage}\n\nThe task could not be completed.`, qualifiedName),
             ],
           });
         }
@@ -953,6 +1040,23 @@ export class DiscordManager implements IChatManager {
       const err = error instanceof Error ? error : new Error(String(error));
       logger.error(`Discord message handling failed for agent '${qualifiedName}': ${err.message}`);
 
+      if (progressState.handle) {
+        try {
+          await progressState.handle.edit({
+            embeds: [
+              buildRunCardEmbed({
+                agentName: qualifiedName,
+                status: "error",
+                message: `Task failed · ${err.message}`,
+                traceLines,
+              }),
+            ],
+          });
+        } catch (progressError) {
+          logger.warn(`Failed to finalize failed run card: ${(progressError as Error).message}`);
+        }
+      }
+
       // Send user-friendly error message using the formatted error method
       try {
         await event.reply(this.formatErrorMessage(err, qualifiedName));
@@ -969,18 +1073,11 @@ export class DiscordManager implements IChatManager {
         timestamp: new Date().toISOString(),
       });
     } finally {
+      this.activeJobsByChannel.delete(this.getChannelKey(qualifiedName, event.metadata.channelId));
       // Safety net: stop typing indicator if not already stopped
       // (Should already be stopped after sending messages, but this ensures cleanup on errors)
       if (!typingStopped) {
         stopTyping();
-      }
-      // Clean up progress embed (on both success and error paths)
-      if (progressState.handle) {
-        try {
-          await progressState.handle.delete();
-        } catch (progressError) {
-          logger.warn(`Failed to delete progress embed: ${(progressError as Error).message}`);
-        }
       }
       // Remove acknowledgement reaction now that processing is complete
       if (ackEmoji) {
@@ -1007,105 +1104,6 @@ export class DiscordManager implements IChatManager {
     }
   }
 
-  // =============================================================================
-  // Tool Embed Support
-  // =============================================================================
-
-  /** Maximum characters for tool output in Discord embed fields */
-  private static readonly TOOL_OUTPUT_MAX_CHARS = 900;
-
-  /** Embed colors */
-  private static readonly EMBED_COLOR_BRAND = 0x5865f2; // Discord blurple (tool results)
-  private static readonly EMBED_COLOR_WORKING = 0x8b5cf6; // Soft violet (progress)
-  private static readonly EMBED_COLOR_SUCCESS = 0x22c55e; // Emerald (completion)
-  private static readonly EMBED_COLOR_ERROR = 0xef4444; // Red (errors)
-  private static readonly EMBED_COLOR_SYSTEM = 0x6b7280; // Cool gray (system status)
-  private static readonly EMBED_COLOR_INFO = 0x3b82f6; // Sky blue (slash commands)
-
-  /**
-   * Build a consistent footer for Discord embeds
-   */
-  private static buildFooter(agentName: string): { text: string } {
-    const shortName = agentName.includes(".") ? agentName.split(".").pop()! : agentName;
-    return { text: `herdctl \u00b7 ${shortName}` };
-  }
-
-  /**
-   * Format duration in milliseconds to a human-readable string
-   */
-  private static formatDuration(ms: number): string {
-    if (ms < 1000) return `${ms}ms`;
-    const seconds = Math.floor(ms / 1000);
-    if (seconds < 60) return `${seconds}s`;
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
-  }
-
-  /**
-   * Build a Discord embed for a tool call result
-   *
-   * Combines the tool_use info (name, input) with the tool_result
-   * (output, error status) into a compact Discord embed with a
-   * single-line description and optional output field.
-   *
-   * @param toolUse - The tool_use block info (name, input, startTime)
-   * @param toolResult - The tool result (output, isError)
-   * @param maxOutputChars - Maximum characters for output (defaults to TOOL_OUTPUT_MAX_CHARS)
-   * @param agentName - Agent name for the embed footer
-   */
-  private buildToolEmbed(
-    toolUse: { name: string; input?: unknown; startTime: number } | null,
-    toolResult: { output: string; isError: boolean },
-    maxOutputChars?: number,
-    agentName?: string,
-  ): DiscordReplyEmbed {
-    const toolName = toolUse?.name ?? "Tool";
-    const emoji = TOOL_EMOJIS[toolName] ?? "\u{1F527}"; // wrench fallback
-
-    // Build compact description: "💻 **Bash** `> ls -la` — 2s"
-    const parts: string[] = [`${emoji} **${toolName}**`];
-    const inputSummary = toolUse ? getToolInputSummary(toolUse.name, toolUse.input) : undefined;
-    if (inputSummary) {
-      const prefix = toolName === "Bash" || toolName === "bash" ? "> " : "";
-      const truncated =
-        inputSummary.length > 120 ? inputSummary.substring(0, 120) + "\u2026" : inputSummary;
-      parts.push(`\`${prefix}${truncated}\``);
-    }
-    if (toolUse) {
-      const durationMs = Date.now() - toolUse.startTime;
-      parts.push(`\u2014 ${DiscordManager.formatDuration(durationMs)}`);
-    }
-
-    // Build output field if non-empty
-    const fields: DiscordReplyEmbedField[] = [];
-    const trimmedOutput = toolResult.output.trim();
-    if (trimmedOutput.length > 0) {
-      const maxChars = maxOutputChars ?? DiscordManager.TOOL_OUTPUT_MAX_CHARS;
-      let outputText = trimmedOutput;
-      if (outputText.length > maxChars) {
-        outputText =
-          outputText.substring(0, maxChars) +
-          `\n\u2026 ${trimmedOutput.length.toLocaleString()} chars total`;
-      }
-      const lang = toolName === "Bash" || toolName === "bash" ? "ansi" : "";
-      fields.push({
-        name: toolResult.isError ? "Error" : "Output",
-        value: `\`\`\`${lang}\n${outputText}\n\`\`\``,
-        inline: false,
-      });
-    }
-
-    return {
-      description: parts.join(" "),
-      color: toolResult.isError
-        ? DiscordManager.EMBED_COLOR_ERROR
-        : DiscordManager.EMBED_COLOR_BRAND,
-      fields: fields.length > 0 ? fields : undefined,
-      footer: agentName ? DiscordManager.buildFooter(agentName) : undefined,
-    };
-  }
-
   /**
    * Handle errors from Discord connectors
    *
@@ -1129,6 +1127,95 @@ export class DiscordManager implements IChatManager {
     });
   }
 
+  private getChannelKey(qualifiedName: string, channelId: string): string {
+    return `${qualifiedName}:${channelId}`;
+  }
+
+  private async stopChannelRun(
+    qualifiedName: string,
+    channelId: string,
+  ): Promise<{ success: boolean; message: string; jobId?: string }> {
+    const key = this.getChannelKey(qualifiedName, channelId);
+    const jobId = this.activeJobsByChannel.get(key);
+    if (!jobId) {
+      return {
+        success: false,
+        message: "No active run found for this channel.",
+      };
+    }
+
+    try {
+      const fleetManager = this.ctx.getEmitter() as unknown as import("@herdctl/core").FleetManager;
+      await fleetManager.cancelJob(jobId);
+      this.activeJobsByChannel.delete(key);
+      return {
+        success: true,
+        message: `Stop requested for job \`${jobId}\`.`,
+        jobId,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to stop active run: ${(error as Error).message}`,
+        jobId,
+      };
+    }
+  }
+
+  private async retryChannelRun(
+    qualifiedName: string,
+    channelId: string,
+  ): Promise<{ success: boolean; message: string; jobId?: string }> {
+    const key = this.getChannelKey(qualifiedName, channelId);
+    const activeJobId = this.activeJobsByChannel.get(key);
+    if (activeJobId) {
+      return {
+        success: false,
+        message: `A run is already active in this channel (\`${activeJobId}\`).`,
+        jobId: activeJobId,
+      };
+    }
+
+    const lastPrompt = this.lastPromptByChannel.get(key);
+    if (!lastPrompt) {
+      return {
+        success: false,
+        message: "No previous prompt found to retry in this channel.",
+      };
+    }
+
+    // Fire-and-forget retry. Slash-command flows don't provide the same
+    // message reply hooks as the message pipeline, so we retry execution
+    // without channel streaming and return an immediate status response.
+    void this.ctx
+      .trigger(qualifiedName, undefined, {
+        triggerType: "discord",
+        prompt: lastPrompt,
+        onJobCreated: async (jobId) => {
+          this.activeJobsByChannel.set(key, jobId);
+        },
+      })
+      .finally(() => {
+        this.activeJobsByChannel.delete(key);
+      });
+
+    return {
+      success: true,
+      message: "Retry started in the background for this channel's last prompt.",
+    };
+  }
+
+  private async getChannelRunInfo(
+    qualifiedName: string,
+    channelId: string,
+  ): Promise<{ activeJobId?: string; lastPrompt?: string }> {
+    const key = this.getChannelKey(qualifiedName, channelId);
+    return {
+      activeJobId: this.activeJobsByChannel.get(key),
+      lastPrompt: this.lastPromptByChannel.get(key),
+    };
+  }
+
   // ===========================================================================
   // Response Formatting and Splitting
   // ===========================================================================
@@ -1150,12 +1237,10 @@ export class DiscordManager implements IChatManager {
     if (agentName) {
       return {
         embeds: [
-          {
-            description: `**Error:** ${error.message}\n\nTry again or use \`/reset\` to start a new session.`,
-            color: DiscordManager.EMBED_COLOR_ERROR,
-            footer: DiscordManager.buildFooter(agentName),
-            timestamp: new Date().toISOString(),
-          },
+          buildErrorEmbed(
+            `${error.message}\n\nTry again or use \`/reset\` to start a new session.`,
+            agentName,
+          ),
         ],
       };
     }

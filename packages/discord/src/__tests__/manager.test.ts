@@ -1169,7 +1169,7 @@ describe("DiscordManager handleMessage pipeline", () => {
 
   // ---- Tool result embeds ----
 
-  it("sends tool result embeds when showToolResults is true", async () => {
+  it("sends final answer without per-tool embed burst when tool results are enabled", async () => {
     const { manager, connector } = buildManagerWithTrigger(async (...args: unknown[]) => {
       const options = args[2] as { onMessage?: (m: unknown) => Promise<void> } | undefined;
       if (options?.onMessage) {
@@ -1218,17 +1218,13 @@ describe("DiscordManager handleMessage pipeline", () => {
     connector.emit("message", event);
     await new Promise((resolve) => setTimeout(resolve, 200));
 
-    // Should have sent: tool result embed + final text
+    // Should have sent final text without a per-tool embed burst.
     const embedCalls = reply.mock.calls.filter(
       (call: unknown[]) =>
         typeof call[0] === "object" && (call[0] as { embeds?: unknown[] }).embeds,
     );
     const textCalls = reply.mock.calls.filter((call: unknown[]) => typeof call[0] === "string");
-
-    expect(embedCalls.length).toBeGreaterThanOrEqual(1);
-    const toolEmbed = embedCalls[0][0] as { embeds: DiscordReplyEmbed[] };
-    expect(toolEmbed.embeds[0].description).toContain("Bash");
-
+    expect(embedCalls).toHaveLength(0);
     expect(textCalls).toHaveLength(1);
     expect(textCalls[0][0]).toBe("Found 2 files.");
   });

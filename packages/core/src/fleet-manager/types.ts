@@ -583,6 +583,14 @@ export interface TriggerOptions {
   onMessage?: (message: import("../runner/types.js").SDKMessage) => void | Promise<void>;
 
   /**
+   * Callback invoked as soon as a job ID is created.
+   *
+   * Useful for chat connectors that need immediate job control (for example,
+   * enabling /stop while output is still streaming).
+   */
+  onJobCreated?: (jobId: string) => void | Promise<void>;
+
+  /**
    * MCP servers to inject into the agent's runtime session
    *
    * These servers are merged with the agent's config-declared MCP servers

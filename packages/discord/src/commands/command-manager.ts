@@ -17,9 +17,14 @@ import {
 import { ErrorHandler, withRetry } from "../error-handler.js";
 import type { DiscordConnectorState } from "../types.js";
 import { helpCommand } from "./help.js";
+import { newCommand } from "./new.js";
 import { resetCommand } from "./reset.js";
+import { retryCommand } from "./retry.js";
+import { sessionCommand } from "./session.js";
 import { statusCommand } from "./status.js";
+import { stopCommand } from "./stop.js";
 import type {
+  CommandActions,
   CommandContext,
   CommandManagerLogger,
   CommandManagerOptions,
@@ -43,7 +48,15 @@ function createDefaultLogger(agentName: string): CommandManagerLogger {
  * Get all built-in commands
  */
 function getBuiltInCommands(): SlashCommand[] {
-  return [helpCommand, resetCommand, statusCommand];
+  return [
+    helpCommand,
+    statusCommand,
+    sessionCommand,
+    resetCommand,
+    newCommand,
+    stopCommand,
+    retryCommand,
+  ];
 }
 
 // =============================================================================
@@ -86,6 +99,8 @@ export class CommandManager implements ICommandManager {
   private readonly logger: CommandManagerLogger;
   private readonly commands: Map<string, SlashCommand>;
   private readonly errorHandler: ErrorHandler;
+  private readonly commandActions?: CommandActions;
+  private readonly commandRegistration: { scope: "global" | "guild"; guildId?: string };
 
   constructor(options: CommandManagerOptions) {
     this.agentName = options.agentName;
@@ -94,6 +109,8 @@ export class CommandManager implements ICommandManager {
     this.sessionManager = options.sessionManager;
     this.getConnectorState = options.getConnectorState;
     this.logger = options.logger ?? createDefaultLogger(options.agentName);
+    this.commandActions = options.commandActions;
+    this.commandRegistration = options.commandRegistration ?? { scope: "global" as const };
 
     // Initialize error handler
     this.errorHandler = new ErrorHandler({
@@ -137,7 +154,11 @@ export class CommandManager implements ICommandManager {
     // Use retry logic for command registration (handles rate limits, network issues)
     const result = await withRetry(
       async () => {
-        await rest.put(Routes.applicationCommands(clientId), {
+        const route =
+          this.commandRegistration.scope === "guild" && this.commandRegistration.guildId
+            ? Routes.applicationGuildCommands(clientId, this.commandRegistration.guildId)
+            : Routes.applicationCommands(clientId);
+        await rest.put(route, {
           body: commandData,
         });
       },
@@ -192,6 +213,7 @@ export class CommandManager implements ICommandManager {
       agentName: this.agentName,
       sessionManager: this.sessionManager,
       connectorState: this.getConnectorState(),
+      commandActions: this.commandActions,
     };
 
     try {

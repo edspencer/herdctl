@@ -9,10 +9,16 @@
 export { CommandManager } from "./command-manager.js";
 // Built-in Commands
 export { helpCommand } from "./help.js";
+export { newCommand } from "./new.js";
 export { resetCommand } from "./reset.js";
+export { retryCommand } from "./retry.js";
+export { sessionCommand } from "./session.js";
 export { statusCommand } from "./status.js";
+export { stopCommand } from "./stop.js";
 // Types
 export type {
+  CommandActionResult,
+  CommandActions,
   CommandContext,
   CommandManagerLogger,
   CommandManagerOptions,

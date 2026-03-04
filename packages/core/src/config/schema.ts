@@ -640,6 +640,24 @@ export const DiscordOutputSchema = ChatOutputSchema.extend({
 });
 
 /**
+ * Discord slash command registration settings
+ *
+ * Controls whether commands are registered globally (default) or per-guild.
+ * Guild registration propagates faster and is useful for local development.
+ */
+export const DiscordCommandRegistrationSchema = z
+  .object({
+    /** Command registration scope (default: global) */
+    scope: z.enum(["global", "guild"]).optional().default("global"),
+    /** Target guild ID when using scope: guild */
+    guild_id: z.string().optional(),
+  })
+  .refine((v) => v.scope !== "guild" || Boolean(v.guild_id), {
+    message: "guild_id is required when scope is 'guild'",
+    path: ["guild_id"],
+  });
+
+/**
  * Discord voice message transcription configuration
  *
  * When enabled, voice messages sent in Discord text channels are
@@ -759,6 +777,8 @@ export const AgentChatDiscordSchema = z.object({
   voice: DiscordVoiceSchema.optional(),
   /** File attachment handling configuration */
   attachments: DiscordAttachmentsSchema.optional(),
+  /** Slash command registration mode */
+  command_registration: DiscordCommandRegistrationSchema.optional(),
 });
 
 // =============================================================================

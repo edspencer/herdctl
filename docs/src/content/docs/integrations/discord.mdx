@@ -259,12 +259,19 @@ chat:
     # Log level: minimal, standard, verbose (default: standard)
     log_level: standard
 
+    # Optional: slash command registration mode
+    # global = available everywhere (slower to propagate)
+    # guild  = faster updates for one guild (recommended for local dev)
+    command_registration:
+      scope: global          # global | guild
+      # guild_id: "123456789012345678"  # required when scope: guild
+
     # Output configuration - control what SDK messages appear in Discord
     output:
       tool_results: true          # Show tool result embeds (default: true)
       tool_result_max_length: 900 # Max chars in tool output (default: 900, max: 1000)
       system_status: true         # Show system status embeds (default: true)
-      result_summary: false       # Show completion summary embed (default: false)
+      result_summary: true        # Show completion summary embed (default: true)
       errors: true                # Show error embeds (default: true)
 
     # Bot presence/activity (optional)
@@ -308,6 +315,7 @@ chat:
 | `bot_token_env` | string | — | **Required.** Environment variable name containing the bot token |
 | `session_expiry_hours` | number | `24` | Hours before a conversation session expires |
 | `log_level` | string | `standard` | Logging verbosity: `minimal`, `standard`, `verbose` |
+| `command_registration` | object | `{ scope: global }` | Slash command registration mode (`global` or `guild`) |
 | `presence` | object | — | Bot presence/activity configuration |
 | `guilds` | array | — | List of Discord servers to operate in |
 | `dm` | object | — | Global DM configuration |
@@ -318,6 +326,13 @@ chat:
 |-------|------|-------------|
 | `activity_type` | string | Activity type: `playing`, `watching`, `listening`, `competing` |
 | `activity_message` | string | Activity text shown in the bot's status |
+
+#### Command Registration Settings
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `scope` | string | `global` | `global` registers app commands globally; `guild` registers to one guild for faster propagation |
+| `guild_id` | string | — | Required when `scope: guild`; target guild for registration |
 
 #### Guild Settings
 
@@ -354,7 +369,7 @@ Control which SDK messages are surfaced in Discord. When your agent uses tools (
 | `output.tool_results` | boolean | `true` | Show tool result embeds when the agent uses tools |
 | `output.tool_result_max_length` | number | `900` | Maximum characters shown in tool output (max: 1000) |
 | `output.system_status` | boolean | `true` | Show system status embeds (e.g., "Compacting context...") |
-| `output.result_summary` | boolean | `false` | Show a summary embed when the agent finishes (duration, cost, tokens) |
+| `output.result_summary` | boolean | `true` | Show a summary embed when the agent finishes (duration, cost, tokens) |
 | `output.errors` | boolean | `true` | Show error embeds when the SDK reports errors |
 
 All output types appear as compact Discord embeds with color coding:
@@ -370,7 +385,7 @@ All output types appear as compact Discord embeds with color coding:
 Tool result embeds include the tool name with an emoji, the input summary (command, file path, or search pattern), execution duration, output length, and a truncated preview of the output in a code block.
 
 <Aside type="tip">
-  Set `result_summary: true` if you want to see how long each response took and how many tokens were used. This is useful during development but can be noisy in production.
+  Set `result_summary: false` if you want to hide response duration/token summaries in production.
 </Aside>
 
 **Minimal output (text responses only):**
@@ -563,7 +578,15 @@ herdctl automatically registers slash commands for every Discord-enabled agent:
 |---------|-------------|
 | `/help` | Show available commands and usage |
 | `/status` | Show bot connection status and session info |
+| `/session` | Show current session and run state for this channel |
 | `/reset` | Clear conversation context and start fresh |
+| `/new` | Alias for starting a fresh conversation |
+| `/stop` | Stop the active run in this channel |
+| `/retry` | Retry the last prompt in this channel |
+
+#### How slash commands are entered
+
+Discord slash commands are not regular chat messages. Type `/` in the message box, then pick the command under your bot's app name in Discord's command picker. Discord sends this as an interaction event (not a normal message), which herdctl handles via the command manager.
 
 Try them in any channel where the bot is active:
 

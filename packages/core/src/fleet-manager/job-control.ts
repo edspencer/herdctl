@@ -163,6 +163,7 @@ export class JobControl {
       schedule: scheduleName,
       outputToFile: schedule?.outputToFile ?? false,
       onMessage: options?.onMessage,
+      onJobCreated: options?.onJobCreated,
       resume: sessionId,
       injectedMcpServers: options?.injectedMcpServers,
       systemPromptAppend: options?.systemPromptAppend,
