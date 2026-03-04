@@ -185,13 +185,30 @@ export class CLIRuntime implements RuntimeInterface {
       args.push("--mcp-config", mcpConfig);
     }
 
+    // Track env mutation so we can restore it (see CLAUDE_CODE_STREAM_CLOSE_TIMEOUT below)
+    let savedStreamCloseTimeout: string | undefined | null = null; // null = not mutated
+
     // Start HTTP bridges for injected MCP servers (e.g., file sender)
     // Same pattern as container-runner: expose in-process handlers via HTTP,
     // then pass as HTTP-type MCP servers in --mcp-config
     const bridges: McpHttpBridge[] = [];
     if (options.injectedMcpServers && Object.keys(options.injectedMcpServers).length > 0) {
       for (const [name, def] of Object.entries(options.injectedMcpServers)) {
-        const bridge = await startMcpHttpBridge(def);
+        let bridge: McpHttpBridge;
+        try {
+          bridge = await startMcpHttpBridge(def);
+        } catch (bridgeError) {
+          // Clean up any bridges that started successfully before this failure
+          for (const b of bridges) {
+            try {
+              await b.close();
+            } catch {
+              // best-effort cleanup
+            }
+          }
+          bridges.length = 0;
+          throw bridgeError;
+        }
         bridges.push(bridge);
 
         // Build or extend the --mcp-config to include this HTTP server
@@ -221,7 +238,9 @@ export class CLIRuntime implements RuntimeInterface {
         logger.debug(`Started MCP HTTP bridge for '${name}' on port ${bridge.port}`);
       }
 
-      // Auto-add injected MCP tool patterns to allowedTools
+      // Auto-add injected MCP tool patterns to allowedTools.
+      // Only needed when the agent has an explicit allowlist — without one, all tools
+      // (including injected MCP tools) are allowed by default.
       const allowedToolsIdx = args.indexOf("--allowedTools");
       if (allowedToolsIdx !== -1 && allowedToolsIdx + 1 < args.length) {
         const existing = args[allowedToolsIdx + 1];
@@ -231,9 +250,12 @@ export class CLIRuntime implements RuntimeInterface {
         args[allowedToolsIdx + 1] = [existing, ...injectedPatterns].join(",");
       }
 
-      // File uploads via MCP tools can take longer than the default 60s timeout
+      // File uploads via MCP tools can take longer than the default 60s timeout.
+      // Save the original value so we can restore it in `finally` to avoid leaking
+      // state across concurrent jobs.
       if (options.injectedMcpServers["herdctl-file-sender"]) {
         if (!process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT) {
+          savedStreamCloseTimeout = undefined; // marker: was not set
           process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT = "120000";
         }
       }
@@ -538,6 +560,15 @@ export class CLIRuntime implements RuntimeInterface {
     } finally {
       // Cleanup
       watcher?.stop();
+
+      // Restore process.env if we mutated it
+      if (savedStreamCloseTimeout !== null) {
+        if (savedStreamCloseTimeout === undefined) {
+          delete process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT;
+        } else {
+          process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT = savedStreamCloseTimeout;
+        }
+      }
 
       // Close HTTP bridges for injected MCP servers
       for (const bridge of bridges) {

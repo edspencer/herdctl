@@ -532,7 +532,9 @@ export class DiscordManager implements IChatManager {
 
         try {
           logger.debug("Downloading voice message audio...");
-          const audioResponse = await fetch(event.metadata.voiceAttachmentUrl);
+          const audioResponse = await fetch(event.metadata.voiceAttachmentUrl, {
+            signal: AbortSignal.timeout(30_000),
+          });
           if (!audioResponse.ok) {
             throw new Error(`Failed to download audio: ${audioResponse.status}`);
           }
@@ -546,7 +548,7 @@ export class DiscordManager implements IChatManager {
             language: voiceConfig.language,
           });
 
-          prompt = transcription.text;
+          prompt = `[Voice message transcription]: ${transcription.text}`;
           logger.info(`Voice message transcribed: "${prompt.substring(0, 80)}..."`);
         } catch (transcribeError) {
           const errMsg =
@@ -613,7 +615,7 @@ export class DiscordManager implements IChatManager {
         delete: () => Promise<void>;
       }
       const toolNamesRun: string[] = [];
-      let progressEmbedHandle: ProgressEmbedHandle | null = null;
+      const progressState: { handle: ProgressEmbedHandle | null } = { handle: null };
       let lastProgressUpdate = 0;
 
       const showToolResults = outputConfig.tool_results;
@@ -650,6 +652,10 @@ export class DiscordManager implements IChatManager {
                 const emoji = TOOL_EMOJIS[block.name] ?? "\u{1F527}";
                 const displayName = `${emoji} ${block.name}`;
                 toolNamesRun.push(displayName);
+                // Cap to last 50 entries to avoid unbounded memory growth on long jobs
+                if (toolNamesRun.length > 50) {
+                  toolNamesRun.splice(0, toolNamesRun.length - 50);
+                }
 
                 // Update progress embed (throttled to every 2s)
                 const now = Date.now();
@@ -670,10 +676,10 @@ export class DiscordManager implements IChatManager {
                   };
 
                   try {
-                    if (!progressEmbedHandle) {
-                      progressEmbedHandle = await event.replyWithRef(embedPayload);
+                    if (!progressState.handle) {
+                      progressState.handle = await event.replyWithRef(embedPayload);
                     } else {
-                      await progressEmbedHandle.edit(embedPayload);
+                      await progressState.handle.edit(embedPayload);
                     }
                   } catch (progressError) {
                     logger.warn(
@@ -851,12 +857,9 @@ export class DiscordManager implements IChatManager {
       }
 
       // Clean up progress embed now that the job is done
-      // Note: progressEmbedHandle is assigned inside the onMessage async callback,
-      // so TypeScript's control flow analysis sees it as always null.
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      if ((progressEmbedHandle as unknown as ProgressEmbedHandle | null) !== null) {
+      if (progressState.handle) {
         try {
-          await progressEmbedHandle!.delete();
+          await progressState.handle.delete();
         } catch (progressError) {
           logger.warn(`Failed to delete progress embed: ${(progressError as Error).message}`);
         }
@@ -977,17 +980,25 @@ export class DiscordManager implements IChatManager {
       }
       // Remove acknowledgement reaction now that processing is complete
       if (ackEmoji) {
-        await event.removeReaction(ackEmoji);
+        try {
+          await event.removeReaction(ackEmoji);
+        } catch (reactionError) {
+          logger.warn(`Failed to remove ack reaction: ${(reactionError as Error).message}`);
+        }
       }
       // Clean up downloaded attachment files if configured
       if (
         attachmentDownloadedPaths.length > 0 &&
         attachmentConfig?.cleanup_after_processing !== false
       ) {
-        await DiscordManager.cleanupAttachments(
-          attachmentDownloadedPaths,
-          logger as ChatConnectorLogger,
-        );
+        try {
+          await DiscordManager.cleanupAttachments(
+            attachmentDownloadedPaths,
+            logger as ChatConnectorLogger,
+          );
+        } catch (cleanupError) {
+          logger.warn(`Failed to cleanup attachments: ${(cleanupError as Error).message}`);
+        }
       }
     }
   }
@@ -1275,7 +1286,7 @@ export class DiscordManager implements IChatManager {
       try {
         if (attachment.category === "text") {
           // Text/code: download and inline
-          const response = await fetch(attachment.url);
+          const response = await fetch(attachment.url, { signal: AbortSignal.timeout(30_000) });
           if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
           }
@@ -1295,7 +1306,7 @@ export class DiscordManager implements IChatManager {
             });
             continue;
           }
-          const response = await fetch(attachment.url);
+          const response = await fetch(attachment.url, { signal: AbortSignal.timeout(30_000) });
           if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
           }

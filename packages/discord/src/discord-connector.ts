@@ -325,7 +325,8 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
     }
 
     const attachment = new AttachmentBuilder(params.fileBuffer, { name: params.filename });
-    const sent = await (channel as TextChannel).send({
+    // Channel type is validated above via isTextBased() + "send" check
+    const sent = await (channel as TextChannel | DMChannel).send({
       content: params.message || undefined,
       files: [attachment],
     });

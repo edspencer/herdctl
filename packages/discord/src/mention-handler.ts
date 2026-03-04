@@ -247,7 +247,11 @@ export function processMessage(message: Message, botUserId: string): ContextMess
       if (parts.length > 0) embedTexts.push(parts.join("\n"));
     }
     if (embedTexts.length > 0) {
-      const embedContent = embedTexts.join("\n\n");
+      let embedContent = embedTexts.join("\n\n");
+      // Cap embed text to avoid extremely long context from rich messages
+      if (embedContent.length > 4000) {
+        embedContent = embedContent.substring(0, 4000) + "\n[embed text truncated]";
+      }
       content = content ? `${content}\n\n${embedContent}` : embedContent;
     }
   }
