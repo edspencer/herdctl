@@ -863,7 +863,13 @@ export const SelfSchedulingSchema = z.object({
   /** Maximum number of dynamic schedules this agent can create (default: 10) */
   max_schedules: z.number().int().positive().optional().default(10),
   /** Minimum interval between schedule triggers (default: "5m") */
-  min_interval: z.string().optional().default("5m"),
+  min_interval: z
+    .string()
+    .optional()
+    .default("5m")
+    .refine((value) => /^\d+\s*[smhd]$/i.test(value), {
+      message: "min_interval must be a valid duration (e.g. 5m, 1h, 30s)",
+    }),
 });
 
 // =============================================================================

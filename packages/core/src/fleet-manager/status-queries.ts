@@ -149,8 +149,9 @@ export class StatusQueries {
     let dynamicSchedules = new Map<string, Record<string, DynamicSchedule>>();
     try {
       dynamicSchedules = await loadAllDynamicSchedules(this.ctx.getStateDir());
-    } catch {
-      // Ignore — show static schedules at minimum
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.ctx.getLogger().warn(`Failed to load dynamic schedules: ${msg}`);
     }
 
     return agents.map((agent) => {
@@ -202,8 +203,11 @@ export class StatusQueries {
     try {
       const dynamic = await loadAllDynamicSchedules(this.ctx.getStateDir());
       agentDynamic = dynamic.get(agent.qualifiedName);
-    } catch {
-      // Ignore — show static schedules at minimum
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.ctx
+        .getLogger()
+        .warn(`Failed to load dynamic schedules for ${agent.qualifiedName}: ${msg}`);
     }
 
     return buildAgentInfo(agent, agentState, this.ctx.getScheduler(), chatManagers, agentDynamic);

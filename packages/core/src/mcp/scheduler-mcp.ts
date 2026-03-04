@@ -37,21 +37,25 @@ import {
 // Configuration from environment
 // =============================================================================
 
-const AGENT_NAME = process.env.HERDCTL_AGENT_NAME;
-const STATE_DIR = process.env.HERDCTL_STATE_DIR;
-const MAX_SCHEDULES = parseInt(process.env.HERDCTL_MAX_SCHEDULES ?? "10", 10);
-const MIN_INTERVAL = process.env.HERDCTL_MIN_INTERVAL ?? "5m";
-const STATIC_SCHEDULES = (process.env.HERDCTL_STATIC_SCHEDULES ?? "").split(",").filter(Boolean);
+const EnvSchema = z.object({
+  HERDCTL_AGENT_NAME: z.string().min(1, "HERDCTL_AGENT_NAME is required"),
+  HERDCTL_STATE_DIR: z.string().min(1, "HERDCTL_STATE_DIR is required"),
+  HERDCTL_MAX_SCHEDULES: z.coerce.number().int().positive().default(10),
+  HERDCTL_MIN_INTERVAL: z.string().default("5m"),
+  HERDCTL_STATIC_SCHEDULES: z.string().optional().default(""),
+});
 
-if (!AGENT_NAME) {
-  console.error("HERDCTL_AGENT_NAME environment variable is required");
+const envResult = EnvSchema.safeParse(process.env);
+if (!envResult.success) {
+  console.error(`Invalid environment: ${envResult.error.issues.map((i) => i.message).join(", ")}`);
   process.exit(1);
 }
 
-if (!STATE_DIR) {
-  console.error("HERDCTL_STATE_DIR environment variable is required");
-  process.exit(1);
-}
+const AGENT_NAME = envResult.data.HERDCTL_AGENT_NAME;
+const STATE_DIR = envResult.data.HERDCTL_STATE_DIR;
+const MAX_SCHEDULES = envResult.data.HERDCTL_MAX_SCHEDULES;
+const MIN_INTERVAL = envResult.data.HERDCTL_MIN_INTERVAL;
+const STATIC_SCHEDULES = envResult.data.HERDCTL_STATIC_SCHEDULES.split(",").filter(Boolean);
 
 const scheduleOptions = {
   maxSchedules: MAX_SCHEDULES,

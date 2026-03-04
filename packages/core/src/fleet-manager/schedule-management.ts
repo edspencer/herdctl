@@ -55,8 +55,9 @@ export class ScheduleManagement {
     >();
     try {
       dynamicSchedules = (await loadAllDynamicSchedules(stateDir)) as typeof dynamicSchedules;
-    } catch {
-      // Ignore errors loading dynamic schedules — show static ones at minimum
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.ctx.getLogger().warn(`Failed to load dynamic schedules: ${msg}`);
     }
 
     for (const agent of agents) {
@@ -137,8 +138,10 @@ export class ScheduleManagement {
 
     // Fall back to dynamic schedules
     const stateDir = this.ctx.getStateDir();
+    let dynamicScheduleNames: string[] = [];
     try {
       const dynamic = await listDynamicSchedules(stateDir, agent.qualifiedName);
+      dynamicScheduleNames = Object.keys(dynamic);
       if (scheduleName in dynamic) {
         const schedule = dynamic[scheduleName];
         const scheduleState = agentState?.schedules?.[scheduleName];
@@ -155,11 +158,15 @@ export class ScheduleManagement {
           source: "dynamic",
         };
       }
-    } catch {
-      // Ignore dynamic schedule load errors
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.ctx
+        .getLogger()
+        .warn(`Failed to load dynamic schedules for ${agent.qualifiedName}: ${msg}`);
     }
 
-    const availableSchedules = agent.schedules ? Object.keys(agent.schedules) : [];
+    const staticNames = agent.schedules ? Object.keys(agent.schedules) : [];
+    const availableSchedules = [...new Set([...staticNames, ...dynamicScheduleNames])];
     throw new ScheduleNotFoundError(agentName, scheduleName, {
       availableSchedules,
     });

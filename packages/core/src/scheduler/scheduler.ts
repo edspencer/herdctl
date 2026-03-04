@@ -115,7 +115,7 @@ export class Scheduler {
       { type: string; interval?: string; cron?: string; prompt?: string; enabled?: boolean }
     >
   > = new Map();
-  private dynamicScheduleLastLoad = 0;
+  private dynamicScheduleLastLoad = -10; // force immediate load (matches DYNAMIC_SCHEDULE_RELOAD_INTERVAL)
   private static readonly DYNAMIC_SCHEDULE_RELOAD_INTERVAL = 10; // reload every 10 ticks (~10s)
 
   constructor(options: SchedulerOptions) {
@@ -175,6 +175,8 @@ export class Scheduler {
     this.triggerCount = 0;
     this.runningSchedules.clear();
     this.runningJobs.clear();
+    this.dynamicScheduleCache.clear();
+    this.dynamicScheduleLastLoad = -Scheduler.DYNAMIC_SCHEDULE_RELOAD_INTERVAL;
 
     this.logger.debug(
       `Scheduler started with ${agents.length} agents, check interval: ${this.checkInterval}ms`,

@@ -16,8 +16,11 @@ import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import { atomicWriteYaml } from "../state/utils/atomic.js";
+import { createLogger } from "../utils/logger.js";
 import { calculateNextCronTrigger, isValidCronExpression } from "./cron.js";
 import { parseInterval } from "./interval.js";
+
+const logger = createLogger("dynamic-schedules");
 
 // =============================================================================
 // Schema
@@ -298,9 +301,9 @@ export async function createDynamicSchedule(
     throw new ScheduleLimitExceededError(agentName, options.maxSchedules);
   }
 
-  // Build the schedule
+  // Build and validate the schedule before persisting
   const now = new Date().toISOString();
-  const schedule: DynamicSchedule = {
+  const schedule = DynamicScheduleSchema.parse({
     type: input.type,
     ...(input.cron && { cron: input.cron }),
     ...(input.interval && { interval: input.interval }),
@@ -311,7 +314,7 @@ export async function createDynamicSchedule(
       ttl_hours: input.ttl_hours,
       expires_at: new Date(Date.now() + input.ttl_hours * 3600000).toISOString(),
     }),
-  };
+  });
 
   file.schedules[input.name] = schedule;
   await writeDynamicSchedules(stateDir, agentName, file);
@@ -379,10 +382,11 @@ export async function updateDynamicSchedule(
     }
   }
 
-  file.schedules[scheduleName] = updated;
+  const validated = DynamicScheduleSchema.parse(updated);
+  file.schedules[scheduleName] = validated;
   await writeDynamicSchedules(stateDir, agentName, file);
 
-  return updated;
+  return validated;
 }
 
 /**
@@ -467,9 +471,7 @@ export async function loadAllDynamicSchedules(
       // Skip files that fail to parse — don't crash the scheduler.
       // Log a warning so operators can diagnose corrupt files.
       const msg = parseError instanceof Error ? parseError.message : String(parseError);
-      // Use console.warn as a safety fallback — this code path should rarely fire
-      // and adding a logger dependency here would complicate the API surface.
-      console.warn(`[dynamic-schedules] Failed to load schedules for "${agentName}": ${msg}`);
+      logger.warn(`Failed to load schedules for "${agentName}": ${msg}`);
     }
   }
 
