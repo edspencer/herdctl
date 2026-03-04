@@ -160,4 +160,61 @@ describe("injectSchedulerMcpServers", () => {
     expect(agents[0].mcp_servers!["existing-server"]).toBeDefined();
     expect(agents[0].mcp_servers!["herdctl-scheduler"]).toBeDefined();
   });
+
+  it("injects self-scheduling system prompt when enabled", () => {
+    const agents = [
+      makeAgent({
+        self_scheduling: { enabled: true, max_schedules: 5, min_interval: "15m" },
+      }),
+    ];
+
+    injectSchedulerMcpServers(agents, "/tmp/.herdctl");
+
+    expect(agents[0].system_prompt).toBeDefined();
+    expect(agents[0].system_prompt).toContain("# Self-Scheduling");
+    expect(agents[0].system_prompt).toContain("herdctl_create_schedule");
+    expect(agents[0].system_prompt).toContain("up to 5 dynamic schedules");
+    expect(agents[0].system_prompt).toContain("Minimum interval is 15m");
+    expect(agents[0].system_prompt).toContain("Never edit agent.yaml");
+  });
+
+  it("appends scheduling prompt to existing system_prompt", () => {
+    const agents = [
+      makeAgent({
+        system_prompt: "You are a helpful assistant.",
+        self_scheduling: { enabled: true, max_schedules: 10, min_interval: "5m" },
+      }),
+    ];
+
+    injectSchedulerMcpServers(agents, "/tmp/.herdctl");
+
+    expect(agents[0].system_prompt).toMatch(/^You are a helpful assistant\.\n\n# Self-Scheduling/);
+  });
+
+  it("does not inject system prompt when self_scheduling is disabled", () => {
+    const agents = [makeAgent()];
+
+    injectSchedulerMcpServers(agents, "/tmp/.herdctl");
+
+    expect(agents[0].system_prompt).toBeUndefined();
+  });
+
+  it("does not inject system prompt when operator declared custom MCP server", () => {
+    const agents = [
+      makeAgent({
+        self_scheduling: { enabled: true, max_schedules: 10, min_interval: "5m" },
+        mcp_servers: {
+          "herdctl-scheduler": {
+            command: "custom-scheduler",
+            args: ["--custom"],
+          },
+        },
+      }),
+    ];
+
+    injectSchedulerMcpServers(agents, "/tmp/.herdctl");
+
+    // Custom MCP server preserved, no system prompt injected
+    expect(agents[0].system_prompt).toBeUndefined();
+  });
 });
