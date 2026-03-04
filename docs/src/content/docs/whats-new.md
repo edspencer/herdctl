@@ -7,6 +7,20 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Parallel GitHub Issue Delegation
+**February 26, 2026**
+
+New Claude Code skills for autonomous GitHub issue fixing. The `/delegate-issue` skill handles a single issue end-to-end: fetches issue details via `gh`, clones the repository to a temporary directory, launches an autonomous Claude Code worker to fix the issue, monitors progress by parsing JSONL session files, and reports the result with a link to the created PR. The `/delegate-issues` skill orchestrates multiple issues in parallel by launching one Task sub-agent per issue, each running `/delegate-issue` independently. Perfect for batch-processing bug backlogs or feature requests across your repository.
+
+---
+
+### Web Session List Improvements
+**February 26, 2026** · `@herdctl/web@0.9.6`
+
+Sidebar session lists now refresh automatically after any chat completes, not just when creating new chats. Sessions created from the CLI, Discord, Slack, or other browser tabs appear immediately without requiring a page reload. Includes a 2-second debounce to prevent excessive refreshes during multi-turn conversations. Additionally, fixed session search to include the `autoName` field — sessions with only auto-generated names (no custom name) are now searchable. Session search logic has been deduplicated and extracted to a shared utility.
+
+---
+
 ### All Chats Page and Session Discovery
 **February 25, 2026** · `@herdctl/web@0.9.0` · `@herdctl/core@5.7.0`
 
