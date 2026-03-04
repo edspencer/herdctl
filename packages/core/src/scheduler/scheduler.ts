@@ -12,6 +12,7 @@ import {
   calculatePreviousCronTrigger,
   isValidCronExpression,
 } from "./cron.js";
+import { type DynamicSchedule, loadAllDynamicSchedules } from "./dynamic-schedules.js";
 import { SchedulerShutdownError } from "./errors.js";
 import { calculateNextTrigger, isScheduleDue } from "./interval.js";
 import {
@@ -106,6 +107,11 @@ export class Scheduler {
   private lastCheckAt: string | null = null;
   private warnedSchedules = new Set<string>();
 
+  // Dynamic schedule cache — re-read from disk every N ticks to avoid excessive I/O
+  private dynamicScheduleCache: Map<string, Record<string, DynamicSchedule>> = new Map();
+  private dynamicScheduleLastLoad = -10; // force immediate load (matches DYNAMIC_SCHEDULE_RELOAD_INTERVAL)
+  private static readonly DYNAMIC_SCHEDULE_RELOAD_INTERVAL = 10; // reload every 10 ticks (~10s)
+
   constructor(options: SchedulerOptions) {
     this.checkInterval = options.checkInterval ?? DEFAULT_CHECK_INTERVAL;
     this.stateDir = options.stateDir;
@@ -163,6 +169,8 @@ export class Scheduler {
     this.triggerCount = 0;
     this.runningSchedules.clear();
     this.runningJobs.clear();
+    this.dynamicScheduleCache.clear();
+    this.dynamicScheduleLastLoad = -Scheduler.DYNAMIC_SCHEDULE_RELOAD_INTERVAL;
 
     this.logger.debug(
       `Scheduler started with ${agents.length} agents, check interval: ${this.checkInterval}ms`,
@@ -297,18 +305,41 @@ export class Scheduler {
   }
 
   /**
-   * Check all agents' schedules and trigger due ones
+   * Check all agents' schedules and trigger due ones.
+   * Merges static schedules from config with dynamic schedules from disk.
+   * Static schedules take precedence on name collision (operator has final say).
    */
   private async checkAllSchedules(): Promise<void> {
     this.checkCount++;
     this.lastCheckAt = new Date(Date.now()).toISOString();
 
+    // Periodically reload dynamic schedules from disk
+    if (
+      this.checkCount - this.dynamicScheduleLastLoad >=
+      Scheduler.DYNAMIC_SCHEDULE_RELOAD_INTERVAL
+    ) {
+      try {
+        this.dynamicScheduleCache = await loadAllDynamicSchedules(this.stateDir);
+        this.dynamicScheduleLastLoad = this.checkCount;
+      } catch (error) {
+        this.logger.error(
+          `Failed to load dynamic schedules: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
     for (const agent of this.agents) {
-      if (!agent.schedules) {
+      const staticSchedules = agent.schedules ?? {};
+      const agentDynamic = this.dynamicScheduleCache.get(agent.qualifiedName) ?? {};
+
+      // Merge: static takes precedence on name collision
+      const mergedSchedules = { ...agentDynamic, ...staticSchedules };
+
+      if (Object.keys(mergedSchedules).length === 0) {
         continue;
       }
 
-      for (const [scheduleName, schedule] of Object.entries(agent.schedules)) {
+      for (const [scheduleName, schedule] of Object.entries(mergedSchedules)) {
         const result = await this.checkSchedule(agent, scheduleName, schedule);
 
         if (result.shouldTrigger) {

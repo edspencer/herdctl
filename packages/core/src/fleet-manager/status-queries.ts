@@ -8,6 +8,8 @@
  */
 
 import type { ResolvedAgent } from "../config/index.js";
+import type { DynamicSchedule } from "../scheduler/dynamic-schedules.js";
+import { listDynamicSchedules, loadAllDynamicSchedules } from "../scheduler/dynamic-schedules.js";
 import type { Scheduler } from "../scheduler/index.js";
 import { readFleetState } from "../state/fleet-state.js";
 import type { AgentState, FleetState } from "../state/schemas/fleet-state.js";
@@ -143,9 +145,19 @@ export class StatusQueries {
     // Get chat managers for connection status
     const chatManagers = this.ctx.getChatManagers?.() ?? new Map<string, IChatManager>();
 
+    // Load dynamic schedules for all agents
+    let dynamicSchedules = new Map<string, Record<string, DynamicSchedule>>();
+    try {
+      dynamicSchedules = await loadAllDynamicSchedules(this.ctx.getStateDir());
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.ctx.getLogger().warn(`Failed to load dynamic schedules: ${msg}`);
+    }
+
     return agents.map((agent) => {
       const agentState = fleetState.agents[agent.qualifiedName];
-      return buildAgentInfo(agent, agentState, this.ctx.getScheduler(), chatManagers);
+      const agentDynamic = dynamicSchedules.get(agent.qualifiedName);
+      return buildAgentInfo(agent, agentState, this.ctx.getScheduler(), chatManagers, agentDynamic);
     });
   }
 
@@ -186,7 +198,21 @@ export class StatusQueries {
     // Get chat managers for connection status
     const chatManagers = this.ctx.getChatManagers?.() ?? new Map<string, IChatManager>();
 
-    return buildAgentInfo(agent, agentState, this.ctx.getScheduler(), chatManagers);
+    // Load dynamic schedules for this specific agent (avoids reading all agents' files)
+    let agentDynamic: Record<string, DynamicSchedule> | undefined;
+    try {
+      const dynamic = await listDynamicSchedules(this.ctx.getStateDir(), agent.qualifiedName);
+      if (Object.keys(dynamic).length > 0) {
+        agentDynamic = dynamic;
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.ctx
+        .getLogger()
+        .warn(`Failed to load dynamic schedules for ${agent.qualifiedName}: ${msg}`);
+    }
+
+    return buildAgentInfo(agent, agentState, this.ctx.getScheduler(), chatManagers, agentDynamic);
   }
 }
 
@@ -201,6 +227,7 @@ export class StatusQueries {
  * @param agentState - Runtime agent state (optional)
  * @param scheduler - Scheduler instance for running job counts (optional)
  * @param chatManagers - Map of chat managers for connection status (optional)
+ * @param dynamicSchedules - Dynamic schedules for this agent (optional)
  * @returns Complete AgentInfo object
  */
 export function buildAgentInfo(
@@ -208,9 +235,31 @@ export function buildAgentInfo(
   agentState?: AgentState,
   scheduler?: Scheduler | null,
   chatManagers?: Map<string, IChatManager>,
+  dynamicSchedules?: Record<string, DynamicSchedule>,
 ): AgentInfo {
-  // Build schedule info
+  // Build schedule info (static + dynamic)
   const schedules = buildScheduleInfoList(agent, agentState);
+
+  // Merge dynamic schedules (skip if a static schedule has the same name)
+  if (dynamicSchedules) {
+    const staticNames = new Set(schedules.map((s) => s.name));
+    for (const [name, schedule] of Object.entries(dynamicSchedules)) {
+      if (staticNames.has(name)) continue;
+      const scheduleState = agentState?.schedules?.[name];
+      schedules.push({
+        name,
+        agentName: agent.qualifiedName,
+        type: schedule.type,
+        interval: schedule.interval,
+        cron: schedule.cron,
+        status: scheduleState?.status ?? "idle",
+        lastRunAt: scheduleState?.last_run_at ?? null,
+        nextRunAt: scheduleState?.next_run_at ?? null,
+        lastError: scheduleState?.last_error ?? null,
+        source: "dynamic",
+      });
+    }
+  }
 
   // Get running count from scheduler or state (use qualifiedName as the key)
   const runningCount = scheduler?.getRunningJobCount(agent.qualifiedName) ?? 0;
@@ -347,6 +396,7 @@ export function buildScheduleInfoList(
       lastRunAt: scheduleState?.last_run_at ?? null,
       nextRunAt: scheduleState?.next_run_at ?? null,
       lastError: scheduleState?.last_error ?? null,
+      source: "static" as const,
     };
   });
 }

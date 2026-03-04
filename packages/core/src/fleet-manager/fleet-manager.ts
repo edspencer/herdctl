@@ -21,6 +21,7 @@ import {
   type ResolvedAgent,
   type ResolvedConfig,
 } from "../config/index.js";
+import { injectSchedulerMcpServers } from "../config/self-scheduling.js";
 import { Scheduler, type TriggerInfo } from "../scheduler/index.js";
 import { initStateDirectory, type StateDirectory } from "../state/index.js";
 import { createLogger } from "../utils/logger.js";
@@ -299,6 +300,9 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       this.stateDirInfo = await this.initializeStateDir();
       this.logger.debug("State directory initialized");
 
+      // Inject herdctl-scheduler MCP server into agents with self_scheduling enabled
+      injectSchedulerMcpServers(this.config.agents, this.stateDir);
+
       this.scheduler = new Scheduler({
         stateDir: this.stateDir,
         checkInterval: this.checkInterval,
@@ -522,6 +526,10 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       this,
       () => this.loadConfiguration(),
       (config) => {
+        // Re-inject scheduler MCP servers for agents with self_scheduling enabled
+        if (this.stateDirInfo) {
+          injectSchedulerMcpServers(config.agents, this.stateDir);
+        }
         this.config = config;
       },
     );
