@@ -222,6 +222,7 @@ export type SDKSystemPrompt = string | { type: "preset"; preset: "claude_code"; 
  * SDK query options (matching Claude Agent SDK types)
  */
 export interface SDKQueryOptions {
+  tools?: string[];
   allowedTools?: string[];
   deniedTools?: string[];
   permissionMode?:

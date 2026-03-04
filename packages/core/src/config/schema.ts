@@ -411,6 +411,7 @@ export const DefaultsSchema = z.object({
   model: z.string().optional(),
   max_turns: z.number().int().positive().optional(),
   permission_mode: PermissionModeSchema.optional(),
+  tools: z.array(z.string()).optional(),
   allowed_tools: z.array(z.string()).optional(),
   denied_tools: z.array(z.string()).optional(),
 });
@@ -876,6 +877,7 @@ export const AgentConfigSchema = z
     model: z.string().optional(),
     max_turns: z.number().int().positive().optional(),
     permission_mode: PermissionModeSchema.optional(),
+    tools: z.array(z.string()).optional(),
     allowed_tools: z.array(z.string()).optional(),
     denied_tools: z.array(z.string()).optional(),
     /** Path to metadata JSON file written by agent (default: metadata.json in workspace) */
