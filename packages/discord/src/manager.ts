@@ -12,7 +12,6 @@
 
 import { randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 
 import {
@@ -37,6 +36,7 @@ import {
   TOOL_EMOJIS,
 } from "@herdctl/core";
 
+import type { ChannelRunUsage, CumulativeUsage } from "./commands/types.js";
 import { DiscordConnector } from "./discord-connector.js";
 import {
   buildErrorEmbed,
@@ -1340,8 +1340,33 @@ export class DiscordManager implements IChatManager {
     skillName: string,
     input?: string,
   ): Promise<{ success: boolean; message: string; jobId?: string }> {
+    const agent = this.getAgentByQualifiedName(qualifiedName);
+    if (!agent) {
+      return {
+        success: false,
+        message: `Agent '${qualifiedName}' is not available.`,
+      };
+    }
+
+    const availableSkills = await this.discoverAgentSkills(agent);
+    if (availableSkills.length === 0) {
+      return {
+        success: false,
+        message:
+          "No skills are configured/discovered for this agent. Configure `chat.discord.skills` or ensure skills exist in the agent working directory.",
+      };
+    }
+
+    const matchedSkill = availableSkills.find((s) => s.name === skillName);
+    if (!matchedSkill) {
+      return {
+        success: false,
+        message: `Unknown skill \`${skillName}\`. Use \`/skills\` to see available skills.`,
+      };
+    }
+
     const instruction = [
-      `Use the "${skillName}" skill to handle this request.`,
+      `Use the "${matchedSkill.name}" skill to handle this request.`,
       "",
       input?.trim() ? input.trim() : "No additional input was provided.",
     ].join("\n");
@@ -1349,7 +1374,7 @@ export class DiscordManager implements IChatManager {
     if (result.success) {
       return {
         ...result,
-        message: `Skill \`${skillName}\` started. Output will be posted in this channel.`,
+        message: `Skill \`${matchedSkill.name}\` started. Output will be posted in this channel.`,
       };
     }
     return result;
@@ -1428,28 +1453,24 @@ export class DiscordManager implements IChatManager {
   private async discoverAgentSkills(
     agent: ResolvedAgent,
   ): Promise<Array<{ name: string; description?: string }>> {
-    const roots: string[] = [];
-    if (agent.working_directory) {
-      roots.push(
-        typeof agent.working_directory === "string"
-          ? agent.working_directory
-          : agent.working_directory.root,
-      );
-    }
-    roots.push(process.cwd());
-
-    const codexHome = process.env.CODEX_HOME;
-    if (codexHome) {
-      roots.push(codexHome);
-    } else {
-      roots.push(join(homedir(), ".codex"));
-    }
-
-    const candidateDirs = roots.flatMap((root) => [
-      join(root, ".codex", "skills"),
-      join(root, "skills"),
-    ]);
     const discovered = new Map<string, { name: string; description?: string }>();
+
+    // Step 1: explicit configured skills (deterministic source of truth).
+    for (const skill of this.getConfiguredDiscordSkills(agent)) {
+      if (skill.name.trim().length === 0) continue;
+      discovered.set(skill.name, { name: skill.name, description: skill.description });
+    }
+
+    // Step 2: auto-discover only from agent working directory paths.
+    const workingDir =
+      typeof agent.working_directory === "string"
+        ? agent.working_directory
+        : agent.working_directory?.root;
+    if (!workingDir) {
+      return Array.from(discovered.values()).sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    const candidateDirs = [join(workingDir, ".codex", "skills"), join(workingDir, "skills")];
 
     for (const dir of candidateDirs) {
       try {
@@ -1475,6 +1496,31 @@ export class DiscordManager implements IChatManager {
     }
 
     return Array.from(discovered.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  private getAgentByQualifiedName(qualifiedName: string): ResolvedAgent | undefined {
+    const config = this.ctx.getConfig();
+    return config?.agents.find((agent) => agent.qualifiedName === qualifiedName);
+  }
+
+  private getConfiguredDiscordSkills(
+    agent: ResolvedAgent,
+  ): Array<{ name: string; description?: string }> {
+    const skills = (
+      agent.chat?.discord as unknown as
+        | {
+            skills?: Array<{ name?: string; description?: string }>;
+          }
+        | undefined
+    )?.skills;
+    if (!Array.isArray(skills)) {
+      return [];
+    }
+    return skills
+      .filter(
+        (skill): skill is { name: string; description?: string } => typeof skill?.name === "string",
+      )
+      .map((skill) => ({ name: skill.name, description: skill.description }));
   }
 
   private async getAgentConfigSummary(agent: ResolvedAgent): Promise<{

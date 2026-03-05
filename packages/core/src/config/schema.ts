@@ -660,6 +660,16 @@ export const DiscordCommandRegistrationSchema = z
   });
 
 /**
+ * Explicit Discord skill entry used by /skills and /skill command UX.
+ */
+export const DiscordSkillSchema = z.object({
+  /** Skill name as shown in autocomplete and passed to /skill */
+  name: z.string().min(1),
+  /** Optional user-facing description */
+  description: z.string().optional(),
+});
+
+/**
  * Discord voice message transcription configuration
  *
  * When enabled, voice messages sent in Discord text channels are
@@ -781,6 +791,8 @@ export const AgentChatDiscordSchema = z.object({
   attachments: DiscordAttachmentsSchema.optional(),
   /** Slash command registration mode */
   command_registration: DiscordCommandRegistrationSchema.optional(),
+  /** Explicit skill list for slash command discovery (recommended in containerized deployments) */
+  skills: z.array(DiscordSkillSchema).optional(),
 });
 
 // =============================================================================
