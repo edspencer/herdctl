@@ -20,20 +20,35 @@ export interface CommandActionResult {
   jobId?: string;
 }
 
+export interface ChannelRunUsage {
+  timestamp: string;
+  numTurns?: number;
+  durationMs?: number;
+  totalCostUsd?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  isError?: boolean;
+}
+
+export interface CumulativeUsage {
+  totalRuns: number;
+  totalSuccesses: number;
+  totalFailures: number;
+  totalCostUsd: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalDurationMs: number;
+  firstRunAt: string;
+  lastRunAt: string;
+}
+
 export interface CommandActions {
   stopRun?: (channelId: string) => Promise<CommandActionResult>;
   retryRun?: (channelId: string) => Promise<CommandActionResult>;
   runSkill?: (channelId: string, skillName: string, input?: string) => Promise<CommandActionResult>;
   listSkills?: () => Promise<Array<{ name: string; description?: string }>>;
-  getUsage?: (channelId: string) => Promise<{
-    timestamp: string;
-    numTurns?: number;
-    durationMs?: number;
-    totalCostUsd?: number;
-    inputTokens?: number;
-    outputTokens?: number;
-    isError?: boolean;
-  } | null>;
+  getUsage?: (channelId: string) => Promise<ChannelRunUsage | null>;
+  getCumulativeUsage?: () => Promise<CumulativeUsage>;
   getAgentConfig?: () => Promise<{
     runtime?: string;
     model?: string;

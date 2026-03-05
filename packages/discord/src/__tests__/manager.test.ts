@@ -338,6 +338,82 @@ describe("DiscordManager", () => {
     });
   });
 
+  describe("skill discovery and validation", () => {
+    it("uses explicit chat.discord.skills when working_directory is not set", async () => {
+      const discordConfig: AgentChatDiscord = {
+        bot_token_env: "TEST_TOKEN",
+        session_expiry_hours: 24,
+        log_level: "standard",
+        output: {
+          tool_results: true,
+          tool_result_max_length: 900,
+          system_status: true,
+          result_summary: true,
+          typing_indicator: true,
+          errors: true,
+          acknowledge_emoji: "eyes",
+          assistant_messages: "answers" as const,
+          progress_indicator: true,
+        },
+        guilds: [{ id: "g1" }],
+        skills: [{ name: "pdf", description: "Work with PDFs" }],
+      } as unknown as AgentChatDiscord;
+      const config: ResolvedConfig = {
+        fleet: { name: "test-fleet" } as unknown as ResolvedConfig["fleet"],
+        agents: [createDiscordAgent("agent1", discordConfig)],
+        configPath: "/test/herdctl.yaml",
+        configDir: "/test",
+      };
+      const manager = new DiscordManager(createMockContext(config));
+      const managerAny = manager as unknown as {
+        discoverAgentSkills: (agent: ResolvedAgent) => Promise<Array<{ name: string }>>;
+      };
+
+      const skills = await managerAny.discoverAgentSkills(config.agents[0]);
+      expect(skills.map((s) => s.name)).toContain("pdf");
+    });
+
+    it("rejects unknown /skill before attempting execution", async () => {
+      const discordConfig: AgentChatDiscord = {
+        bot_token_env: "TEST_TOKEN",
+        session_expiry_hours: 24,
+        log_level: "standard",
+        output: {
+          tool_results: true,
+          tool_result_max_length: 900,
+          system_status: true,
+          result_summary: true,
+          typing_indicator: true,
+          errors: true,
+          acknowledge_emoji: "eyes",
+          assistant_messages: "answers" as const,
+          progress_indicator: true,
+        },
+        guilds: [{ id: "g1" }],
+        skills: [{ name: "pdf" }],
+      } as unknown as AgentChatDiscord;
+      const config: ResolvedConfig = {
+        fleet: { name: "test-fleet" } as unknown as ResolvedConfig["fleet"],
+        agents: [createDiscordAgent("agent1", discordConfig)],
+        configPath: "/test/herdctl.yaml",
+        configDir: "/test",
+      };
+      const manager = new DiscordManager(createMockContext(config));
+      const managerAny = manager as unknown as {
+        runChannelSkill: (
+          qualifiedName: string,
+          channelId: string,
+          skillName: string,
+          input?: string,
+        ) => Promise<{ success: boolean; message: string }>;
+      };
+
+      const result = await managerAny.runChannelSkill("agent1", "channel-1", "nonexistent");
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("Unknown skill");
+    });
+  });
+
   describe("getConnector", () => {
     it("returns undefined for non-existent agent", () => {
       const ctx = createMockContext(null);

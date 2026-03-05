@@ -1775,6 +1775,31 @@ describe("AgentChatDiscordSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("accepts explicit discord skills list", () => {
+    const result = AgentChatDiscordSchema.safeParse({
+      bot_token_env: "TOKEN",
+      guilds: [{ id: "123", channels: [{ id: "456" }] }],
+      skills: [
+        { name: "pdf", description: "Work with PDF files" },
+        { name: "cloudflare-deploy" },
+      ],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.skills).toHaveLength(2);
+      expect(result.data.skills?.[0]?.name).toBe("pdf");
+    }
+  });
+
+  it("rejects discord skills with empty name", () => {
+    const result = AgentChatDiscordSchema.safeParse({
+      bot_token_env: "TOKEN",
+      guilds: [{ id: "123", channels: [{ id: "456" }] }],
+      skills: [{ name: "" }],
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("AgentChatSchema", () => {
