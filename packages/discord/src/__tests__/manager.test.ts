@@ -575,9 +575,7 @@ describe("DiscordMessageEvent type", () => {
         wasMentioned: true,
         mode: "mention",
       },
-      reply: async (content) => {
-        console.log("Reply:", content);
-      },
+      reply: vi.fn().mockResolvedValue(undefined),
       startTyping: () => () => {},
       addReaction: vi.fn().mockResolvedValue(undefined),
       removeReaction: vi.fn().mockResolvedValue(undefined),

@@ -615,7 +615,7 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
         this._messagesIgnored++;
         const payload: DiscordConnectorEventMap["messageIgnored"] = {
           agentName: this.agentName,
-          reason: filterResult.reason === "dm_disabled" ? "not_configured" : "not_configured",
+          reason: "not_configured",
           channelId: message.channel.id,
           messageId: message.id,
         };
