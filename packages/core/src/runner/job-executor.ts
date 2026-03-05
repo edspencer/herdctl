@@ -37,6 +37,7 @@ import {
 } from "./errors.js";
 import { extractSummary, isTerminalMessage, processSDKMessage } from "./message-processor.js";
 import type { RuntimeInterface } from "./runtime/index.js";
+import { extractPromptText } from "./types.js";
 import type {
   ProcessedMessage,
   RunnerErrorDetails,
@@ -164,7 +165,7 @@ export class JobExecutor {
       job = await createJob(jobsDir, {
         agent: agent.qualifiedName,
         trigger_type: effectiveTriggerType,
-        prompt,
+        prompt: extractPromptText(prompt),
         schedule,
         forked_from: options.fork ? options.forkedFrom : undefined,
       });

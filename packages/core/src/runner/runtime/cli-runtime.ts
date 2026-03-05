@@ -17,6 +17,7 @@
 import { execa, type Subprocess } from "execa";
 import { createLogger } from "../../utils/logger.js";
 import { transformMcpServers } from "../sdk-adapter.js";
+import { extractPromptText } from "../types.js";
 import type { SDKMessage } from "../types.js";
 import { getCliSessionDir, getCliSessionFile, waitForNewSessionFile } from "./cli-session-path.js";
 import { CLISessionWatcher } from "./cli-session-watcher.js";
@@ -185,10 +186,12 @@ export class CLIRuntime implements RuntimeInterface {
     }
 
     // Note: Prompt is NOT added to args - it's provided via stdin (see processSpawner call below)
+    // CLI mode is text-only (stdin pipe), so extract text from content blocks
+    const promptText = extractPromptText(options.prompt);
 
     // DEBUG: Log the command being executed
     logger.debug(`Executing command: claude ${args.join(" ")}`);
-    logger.debug(`Prompt: ${options.prompt}`);
+    logger.debug(`Prompt: ${promptText}`);
 
     // Track process and watcher for cleanup
     let subprocess: Subprocess | undefined;
@@ -218,7 +221,7 @@ export class CLIRuntime implements RuntimeInterface {
       // Spawn claude subprocess with prompt via stdin
       // Uses custom spawner if provided (e.g., for Docker execution)
       // Note: processSpawner returns Subprocess directly (which is promise-like)
-      subprocess = this.processSpawner(args, cwd, options.prompt, options.abortController?.signal);
+      subprocess = this.processSpawner(args, cwd, promptText, options.abortController?.signal);
 
       logger.debug(`Subprocess spawned, PID: ${subprocess.pid}`);
 

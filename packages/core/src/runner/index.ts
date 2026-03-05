@@ -51,11 +51,14 @@ export {
 } from "./sdk-adapter.js";
 // Export types
 export type {
+  ContentBlock,
+  ImageBlock,
   InjectedMcpServerDef,
   InjectedMcpToolDef,
   McpToolCallResult,
   MessageCallback,
   ProcessedMessage,
+  PromptContent,
   RunnerErrorDetails,
   RunnerOptions,
   RunnerOptionsWithCallbacks,
@@ -64,4 +67,6 @@ export type {
   SDKMessage,
   SDKQueryOptions,
   SDKSystemPrompt,
+  TextBlock,
 } from "./types.js";
+export { extractPromptText } from "./types.js";

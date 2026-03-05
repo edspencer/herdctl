@@ -523,9 +523,10 @@ export interface TriggerOptions {
    * Override the prompt for this trigger
    *
    * This prompt will be used instead of the schedule's configured prompt
-   * or the agent's default prompt.
+   * or the agent's default prompt. Can be a plain string or an array of
+   * content blocks for multimodal input (text + images).
    */
-  prompt?: string;
+  prompt?: import("../runner/types.js").PromptContent;
 
   /**
    * Session ID to resume for conversation continuity

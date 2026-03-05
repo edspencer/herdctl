@@ -19,8 +19,10 @@ import {
 } from "@herdctl/chat";
 import type {
   ChatManagerConnectorState,
+  ContentBlock,
   FleetManagerContext,
   IChatManager,
+  PromptContent,
   ResolvedAgent,
 } from "@herdctl/core";
 import {
@@ -32,6 +34,7 @@ import {
 
 import { DiscordConnector } from "./discord-connector.js";
 import type {
+  DiscordAttachmentInfo,
   DiscordConnectorEventMap,
   DiscordReplyEmbed,
   DiscordReplyEmbedField,
@@ -432,6 +435,14 @@ export class DiscordManager implements IChatManager {
     let typingStopped = false;
 
     try {
+      // Build prompt: if images are attached, create multimodal ContentBlock[]
+      // Otherwise use plain string
+      const prompt = await DiscordManager.buildPromptWithAttachments(
+        event.prompt,
+        event.attachments,
+        logger as ChatConnectorLogger,
+      );
+
       // Track pending tool_use blocks so we can pair them with results
       const pendingToolUses = new Map<
         string,
@@ -444,7 +455,7 @@ export class DiscordManager implements IChatManager {
       // The onMessage callback streams output incrementally to Discord
       const result = await this.ctx.trigger(qualifiedName, undefined, {
         triggerType: "discord",
-        prompt: event.prompt,
+        prompt,
         resume: existingSessionId,
         onMessage: async (message) => {
           // Extract text content from assistant messages and stream to Discord
@@ -866,5 +877,95 @@ export class DiscordManager implements IChatManager {
     for (const chunk of chunks) {
       await reply(chunk);
     }
+  }
+
+  // ===========================================================================
+  // Attachment Handling
+  // ===========================================================================
+
+  /** MIME types that can be sent as native image content blocks */
+  private static readonly IMAGE_MIME_TYPES = new Set([
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+  ]);
+
+  /**
+   * Build a prompt with image attachments as multimodal content blocks.
+   *
+   * When the message includes image attachments (JPEG, PNG, GIF, WebP),
+   * downloads them as base64 and returns a ContentBlock[] with text + images.
+   * For non-image attachments or no attachments, returns the plain text prompt.
+   */
+  private static async buildPromptWithAttachments(
+    textPrompt: string,
+    attachments: DiscordAttachmentInfo[] | undefined,
+    logger: ChatConnectorLogger,
+  ): Promise<PromptContent> {
+    if (!attachments || attachments.length === 0) {
+      return textPrompt;
+    }
+
+    // Filter to supported image types
+    const imageAttachments = attachments.filter((a) =>
+      DiscordManager.IMAGE_MIME_TYPES.has(a.contentType),
+    );
+
+    if (imageAttachments.length === 0) {
+      return textPrompt;
+    }
+
+    // Download images and build content blocks
+    const blocks: ContentBlock[] = [];
+
+    // Add text block first
+    if (textPrompt.trim()) {
+      blocks.push({ type: "text", text: textPrompt });
+    }
+
+    for (const attachment of imageAttachments) {
+      try {
+        const response = await fetch(attachment.url, {
+          signal: AbortSignal.timeout(30_000),
+        });
+        if (!response.ok) {
+          logger.warn(`Failed to download attachment ${attachment.name}: HTTP ${response.status}`);
+          continue;
+        }
+        const buffer = Buffer.from(await response.arrayBuffer());
+        const base64 = buffer.toString("base64");
+        blocks.push({
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: attachment.contentType as
+              | "image/jpeg"
+              | "image/png"
+              | "image/gif"
+              | "image/webp",
+            data: base64,
+          },
+        });
+        logger.info(
+          `Attached image ${attachment.name} (${Math.round(buffer.length / 1024)}KB) as content block`,
+        );
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.warn(`Failed to download image attachment ${attachment.name}: ${errMsg}`);
+      }
+    }
+
+    // If no images were successfully downloaded, fall back to text
+    if (blocks.length === 0) {
+      return textPrompt;
+    }
+
+    // If only images (no text), add a minimal text block
+    if (!textPrompt.trim() && blocks.length > 0) {
+      blocks.unshift({ type: "text", text: "The user sent the following image(s):" });
+    }
+
+    return blocks;
   }
 }

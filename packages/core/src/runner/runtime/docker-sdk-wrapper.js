@@ -29,9 +29,21 @@ async function main() {
     const options = JSON.parse(optionsJson);
     console.error("[docker-sdk-wrapper] Calling SDK query()...");
 
+    // When prompt is an array of content blocks (multimodal), wrap it as
+    // an async iterable yielding a single user message with content blocks.
+    // The SDK's query() accepts prompt: string | AsyncIterable<UserMessage>.
+    let promptInput = options.prompt;
+    if (Array.isArray(promptInput)) {
+      const contentBlocks = promptInput;
+      async function* makeUserMessage() {
+        yield { message: { role: "user", content: contentBlocks } };
+      }
+      promptInput = makeUserMessage();
+    }
+
     // Execute SDK query
     const messages = query({
-      prompt: options.prompt,
+      prompt: promptInput,
       options: options.sdkOptions,
     });
 

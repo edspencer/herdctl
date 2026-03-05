@@ -10,14 +10,14 @@
  */
 
 import type { ResolvedAgent } from "../../config/index.js";
-import type { SDKMessage } from "../types.js";
+import type { PromptContent, SDKMessage } from "../types.js";
 
 /**
  * Options for executing a runtime
  */
 export interface RuntimeExecuteOptions {
-  /** The prompt to execute */
-  prompt: string;
+  /** The prompt to execute (string or multimodal content blocks) */
+  prompt: PromptContent;
 
   /** Resolved agent configuration */
   agent: ResolvedAgent;

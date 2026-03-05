@@ -8,6 +8,57 @@ import type { ResolvedAgent } from "../config/index.js";
 import type { JobOutputInput, TriggerType } from "../state/index.js";
 
 // =============================================================================
+// Multimodal Content Block Types
+// =============================================================================
+
+/** Text content block for multimodal prompts */
+export type TextBlock = { type: "text"; text: string };
+
+/** Image content block with base64-encoded data */
+export type ImageBlock = {
+  type: "image";
+  source: {
+    type: "base64";
+    media_type: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+    data: string; // base64-encoded
+  };
+};
+
+/** A single content block in a multimodal prompt */
+export type ContentBlock = TextBlock | ImageBlock;
+
+/**
+ * Prompt content: either a plain string or an array of content blocks
+ * (text + images) for multimodal input.
+ */
+export type PromptContent = string | ContentBlock[];
+
+/**
+ * Extract the text portion of a PromptContent value.
+ *
+ * When `prompt` is a string, returns it as-is.
+ * When `prompt` is ContentBlock[], joins all text blocks and adds
+ * "[N image(s) attached]" placeholders for image blocks.
+ */
+export function extractPromptText(prompt: PromptContent): string {
+  if (typeof prompt === "string") return prompt;
+
+  const parts: string[] = [];
+  let imageCount = 0;
+  for (const block of prompt) {
+    if (block.type === "text") {
+      parts.push(block.text);
+    } else if (block.type === "image") {
+      imageCount++;
+    }
+  }
+  if (imageCount > 0) {
+    parts.push(`[${imageCount} image(s) attached]`);
+  }
+  return parts.join("\n");
+}
+
+// =============================================================================
 // Runner Options Types
 // =============================================================================
 
@@ -17,8 +68,8 @@ import type { JobOutputInput, TriggerType } from "../state/index.js";
 export interface RunnerOptions {
   /** Fully resolved agent configuration */
   agent: ResolvedAgent;
-  /** The prompt to send to the agent */
-  prompt: string;
+  /** The prompt to send to the agent (string or multimodal content blocks) */
+  prompt: PromptContent;
   /** Path to the .herdctl directory */
   stateDir: string;
   /** How this run was triggered */

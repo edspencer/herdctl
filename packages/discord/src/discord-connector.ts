@@ -681,6 +681,18 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
       };
     };
 
+    // Extract file attachments from the Discord message
+    const attachments: DiscordConnectorEventMap["message"]["attachments"] =
+      message.attachments.size > 0
+        ? message.attachments.map((a) => ({
+            id: a.id,
+            name: a.name ?? "unknown",
+            url: a.url,
+            contentType: a.contentType ?? "application/octet-stream",
+            size: a.size,
+          }))
+        : undefined;
+
     // Emit message event
     const payload: DiscordConnectorEventMap["message"] = {
       agentName: this.agentName,
@@ -697,6 +709,7 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
       },
       reply,
       startTyping,
+      attachments,
     };
     this.emit("message", payload);
   }

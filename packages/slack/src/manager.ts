@@ -19,9 +19,11 @@ import {
 } from "@herdctl/chat";
 import type {
   ChatManagerConnectorState,
+  ContentBlock,
   FleetManagerContext,
   IChatManager,
   InjectedMcpServerDef,
+  PromptContent,
   ResolvedAgent,
   TriggerOptions,
 } from "@herdctl/core";
@@ -35,7 +37,7 @@ import {
 } from "@herdctl/core";
 import { markdownToMrkdwn } from "./formatting.js";
 import { SlackConnector } from "./slack-connector.js";
-import type { SlackConnectorEventMap, SlackMessageEvent } from "./types.js";
+import type { SlackAttachmentInfo, SlackConnectorEventMap, SlackMessageEvent } from "./types.js";
 
 // =============================================================================
 // Slack Manager
@@ -468,6 +470,14 @@ export class SlackManager implements IChatManager {
     let processingStopped = false;
 
     try {
+      // Build prompt: if images are attached, create multimodal ContentBlock[]
+      const prompt = await SlackManager.buildPromptWithAttachments(
+        event.prompt,
+        event.attachments,
+        this.getBotToken(qualifiedName),
+        logger as ChatConnectorLogger,
+      );
+
       // Track pending tool_use blocks so we can pair them with results
       const pendingToolUses = new Map<
         string,
@@ -479,7 +489,7 @@ export class SlackManager implements IChatManager {
       // The onMessage callback streams output incrementally to Slack
       const result = await this.ctx.trigger(qualifiedName, undefined, {
         triggerType: "slack",
-        prompt: event.prompt,
+        prompt,
         resume: existingSessionId,
         injectedMcpServers,
         onMessage: async (message) => {
@@ -726,6 +736,108 @@ export class SlackManager implements IChatManager {
     }
 
     return agent.working_directory.root;
+  }
+
+  /**
+   * Get the bot token for a specific agent's Slack connector
+   */
+  private getBotToken(qualifiedName: string): string | undefined {
+    const config = this.ctx.getConfig();
+    const agent = config?.agents.find((a) => a.qualifiedName === qualifiedName);
+    const tokenEnv = agent?.chat?.slack?.bot_token_env;
+    return tokenEnv ? process.env[tokenEnv] : undefined;
+  }
+
+  // ===========================================================================
+  // Attachment Handling
+  // ===========================================================================
+
+  /** MIME types that can be sent as native image content blocks */
+  private static readonly IMAGE_MIME_TYPES = new Set([
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+  ]);
+
+  /**
+   * Build a prompt with image attachments as multimodal content blocks.
+   *
+   * Downloads image files from Slack using the bot token for auth and
+   * returns a ContentBlock[] with text + images. Non-image files are ignored.
+   */
+  private static async buildPromptWithAttachments(
+    textPrompt: string,
+    attachments: SlackAttachmentInfo[] | undefined,
+    botToken: string | undefined,
+    logger: ChatConnectorLogger,
+  ): Promise<PromptContent> {
+    if (!attachments || attachments.length === 0 || !botToken) {
+      return textPrompt;
+    }
+
+    // Filter to supported image types
+    const imageAttachments = attachments.filter((a) =>
+      SlackManager.IMAGE_MIME_TYPES.has(a.mimetype),
+    );
+
+    if (imageAttachments.length === 0) {
+      return textPrompt;
+    }
+
+    // Download images and build content blocks
+    const blocks: ContentBlock[] = [];
+
+    // Add text block first
+    if (textPrompt.trim()) {
+      blocks.push({ type: "text", text: textPrompt });
+    }
+
+    for (const attachment of imageAttachments) {
+      try {
+        // Slack url_private requires Bearer token authentication
+        const response = await fetch(attachment.urlPrivate, {
+          headers: { Authorization: `Bearer ${botToken}` },
+          signal: AbortSignal.timeout(30_000),
+        });
+        if (!response.ok) {
+          logger.warn(`Failed to download Slack file ${attachment.name}: HTTP ${response.status}`);
+          continue;
+        }
+        const buffer = Buffer.from(await response.arrayBuffer());
+        const base64 = buffer.toString("base64");
+        blocks.push({
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: attachment.mimetype as
+              | "image/jpeg"
+              | "image/png"
+              | "image/gif"
+              | "image/webp",
+            data: base64,
+          },
+        });
+        logger.info(
+          `Attached Slack image ${attachment.name} (${Math.round(buffer.length / 1024)}KB) as content block`,
+        );
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.warn(`Failed to download Slack image ${attachment.name}: ${errMsg}`);
+      }
+    }
+
+    // If no images were successfully downloaded, fall back to text
+    if (blocks.length === 0) {
+      return textPrompt;
+    }
+
+    // If only images (no text), add a minimal text block
+    if (!textPrompt.trim() && blocks.length > 0) {
+      blocks.unshift({ type: "text", text: "The user sent the following image(s):" });
+    }
+
+    return blocks;
   }
 }
 

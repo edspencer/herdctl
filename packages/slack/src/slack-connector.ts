@@ -351,6 +351,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
           true,
           isDM,
           say,
+          event.files,
         );
 
         this.emit("message", messageEvent);
@@ -482,6 +483,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
         false,
         isDM,
         say,
+        event.files,
       );
 
       this.emit("message", messageEvent);
@@ -585,6 +587,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
     isDM: boolean,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     say: any,
+    files?: SlackFileInfo[],
   ): SlackMessageEvent {
     const reply = async (content: string): Promise<void> => {
       await say({
@@ -623,6 +626,17 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
       };
     };
 
+    // Extract file attachment info
+    const attachments: SlackMessageEvent["attachments"] = files
+      ?.filter((f) => f.url_private && f.mimetype)
+      .map((f) => ({
+        id: f.id,
+        name: f.name ?? "unknown",
+        mimetype: f.mimetype!,
+        size: f.size ?? 0,
+        urlPrivate: f.url_private!,
+      }));
+
     return {
       agentName: this.agentName,
       prompt,
@@ -635,6 +649,7 @@ export class SlackConnector extends EventEmitter implements ISlackConnector {
       },
       reply,
       startProcessingIndicator,
+      attachments: attachments && attachments.length > 0 ? attachments : undefined,
     };
   }
 
@@ -687,6 +702,15 @@ function isSlackDM(channelId: string): boolean {
 // Internal Slack Event Types (subset of Bolt types)
 // =============================================================================
 
+/** Slack file object attached to a message */
+interface SlackFileInfo {
+  id: string;
+  name?: string;
+  mimetype?: string;
+  size?: number;
+  url_private?: string;
+}
+
 interface AppMentionEvent {
   type: "app_mention";
   user: string;
@@ -694,6 +718,7 @@ interface AppMentionEvent {
   ts: string;
   channel: string;
   thread_ts?: string;
+  files?: SlackFileInfo[];
 }
 
 interface MessageEvent {
@@ -705,6 +730,7 @@ interface MessageEvent {
   ts: string;
   channel: string;
   thread_ts?: string;
+  files?: SlackFileInfo[];
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

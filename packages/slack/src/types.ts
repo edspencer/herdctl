@@ -154,6 +154,23 @@ export interface SlackMessageEvent {
 
   /** Add hourglass reaction while processing, returns remove function */
   startProcessingIndicator: () => () => void;
+
+  /** File attachments on the message (if any) */
+  attachments?: SlackAttachmentInfo[];
+}
+
+/** Information about a Slack file attachment */
+export interface SlackAttachmentInfo {
+  /** Slack file ID */
+  id: string;
+  /** Filename */
+  name: string;
+  /** MIME type */
+  mimetype: string;
+  /** File size in bytes */
+  size: number;
+  /** Authenticated URL to download the file */
+  urlPrivate: string;
 }
 
 /**

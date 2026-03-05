@@ -258,6 +258,24 @@ export interface DiscordReplyPayload {
 }
 
 // =============================================================================
+// Attachment Types
+// =============================================================================
+
+/** Information about a Discord message attachment */
+export interface DiscordAttachmentInfo {
+  /** Attachment ID */
+  id: string;
+  /** Filename */
+  name: string;
+  /** CDN URL to download the file */
+  url: string;
+  /** Content type (MIME type) */
+  contentType: string;
+  /** File size in bytes */
+  size: number;
+}
+
+// =============================================================================
 // Event Types
 // =============================================================================
 
@@ -346,6 +364,8 @@ export interface DiscordConnectorEventMap {
      * The indicator auto-refreshes every 8 seconds until stopped.
      */
     startTyping: () => () => void;
+    /** File attachments on the message (if any) */
+    attachments?: DiscordAttachmentInfo[];
   };
 
   /**

@@ -11,7 +11,7 @@
 import { createSdkMcpServer, query, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { toSDKOptions } from "../sdk-adapter.js";
-import type { InjectedMcpServerDef, SDKMessage } from "../types.js";
+import type { ContentBlock, InjectedMcpServerDef, SDKMessage } from "../types.js";
 import type { RuntimeExecuteOptions, RuntimeInterface } from "./interface.js";
 
 /**
@@ -146,8 +146,24 @@ export class SDKRuntime implements RuntimeInterface {
     // Execute via SDK query()
     // Note: SDK does not currently support AbortController for cancellation
     // This is tracked for future enhancement when SDK adds support
+
+    // When prompt is ContentBlock[], construct an async iterable that yields
+    // a single user message with multimodal content blocks (text + images).
+    // The SDK's query() accepts prompt: string | AsyncIterable<UserMessage>.
+    let promptInput: string | AsyncIterable<{ message: { role: "user"; content: ContentBlock[] } }>;
+
+    if (Array.isArray(options.prompt)) {
+      const contentBlocks = options.prompt;
+      async function* makeUserMessage() {
+        yield { message: { role: "user" as const, content: contentBlocks } };
+      }
+      promptInput = makeUserMessage();
+    } else {
+      promptInput = options.prompt;
+    }
+
     const messages = query({
-      prompt: options.prompt,
+      prompt: promptInput as Parameters<typeof query>[0]["prompt"],
       options: sdkOptions as Record<string, unknown>,
     });
 

@@ -11,7 +11,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { HookEvent, ResolvedAgent } from "../config/index.js";
 import { type HookContext, HookExecutor } from "../hooks/index.js";
-import { JobExecutor, RuntimeFactory } from "../runner/index.js";
+import { extractPromptText, JobExecutor, RuntimeFactory } from "../runner/index.js";
 import { createJob, getJob, getSessionInfo, readJobOutputAll, updateJob } from "../state/index.js";
 import type { JobMetadata } from "../state/schemas/job-metadata.js";
 import type { FleetManagerContext } from "./context.js";
@@ -218,7 +218,7 @@ export class JobControl {
       agentName,
       scheduleName: scheduleName ?? null,
       startedAt: jobMetadata?.started_at ?? timestamp,
-      prompt,
+      prompt: typeof prompt === "string" ? prompt : extractPromptText(prompt),
       success: result.success,
       sessionId: result.sessionId,
       error: result.error,
