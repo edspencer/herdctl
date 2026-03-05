@@ -581,6 +581,8 @@ export const DiscordChannelSchema = z.object({
 export const DiscordGuildSchema = z.object({
   id: z.string(),
   channels: z.array(DiscordChannelSchema).optional(),
+  /** Default mode for channels not explicitly listed. When set, the bot responds in any channel. */
+  default_channel_mode: z.enum(["mention", "auto"]).optional(),
   dm: ChatDMSchema.optional(),
 });
 
