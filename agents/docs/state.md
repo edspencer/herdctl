@@ -1,8 +1,8 @@
 ---
-last_checked_commit: 38a23bd6dc91656948a03bd10f81fc5556b8bc85
-last_run: "2026-03-01T03:02:16Z"
+last_checked_commit: de9f5571546e855a9ee0805dad0c4f0e639e79fd
+last_run: "2026-03-05T00:00:00Z"
 docs_gaps_found: 1
-branches_created: ["docs/auto-update-2026-02-21", "docs/auto-update-2026-03-01"]
+branches_created: ["docs/auto-update-2026-02-21", "docs/auto-update-2026-03-01", "docs/auto-update-2026-03-05"]
 status: completed
 ---
 
@@ -19,10 +19,10 @@ incremental reviews that analyze only new commits since the last check.
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Last checked commit | 38a23bd | chore(engineer): daily housekeeping |
-| Last run | 2026-03-01T03:02:16Z | Automated audit via /docs-audit-daily |
-| Gaps found (last run) | 1 | Zero-config web-only mode missing from CLI reference |
-| Branches created | docs/auto-update-2026-03-01 | Added zero-config start documentation |
+| Last checked commit | de9f557 | chore(engineer): daily housekeeping |
+| Last run | 2026-03-05T00:00:00Z | Manual invocation |
+| Gaps found (last run) | 1 | Discord typing_indicator output option |
+| Branches created | docs/auto-update-2026-03-05 | Added typing_indicator documentation |
 
 ---
 
@@ -30,6 +30,7 @@ incremental reviews that analyze only new commits since the last check.
 
 | Date | Commits Analyzed | Gaps Found | Action | Branch |
 |------|-----------------|------------|--------|--------|
+| 2026-03-05 | 10 | 1 | created-branch | docs/auto-update-2026-03-05 |
 | 2026-03-01 | 51 | 1 | created-branch | docs/auto-update-2026-03-01 |
 | 2026-02-21 | 18 | 3 | created-branch | docs/auto-update-2026-02-21 |
 | 2026-02-19 | 10 | 2 | created-branch | docs/audit-first-run |
