@@ -64,6 +64,14 @@ interface CLIRuntimeOptions {
    * container session files are visible (e.g., .herdctl/docker-sessions).
    */
   sessionDirOverride?: string;
+
+  /**
+   * Hostname for MCP HTTP bridge URLs
+   *
+   * Defaults to '127.0.0.1'. For Docker execution, set to 'host.docker.internal'
+   * so the container can reach host-side bridges.
+   */
+  mcpBridgeHost?: string;
 }
 
 /**
@@ -99,6 +107,7 @@ interface CLIRuntimeOptions {
 export class CLIRuntime implements RuntimeInterface {
   private processSpawner: ProcessSpawner;
   private sessionDirOverride?: string;
+  private mcpBridgeHost: string;
 
   constructor(options?: CLIRuntimeOptions) {
     // Default to local execa spawning with prompt via stdin
@@ -112,6 +121,7 @@ export class CLIRuntime implements RuntimeInterface {
         }));
 
     this.sessionDirOverride = options?.sessionDirOverride;
+    this.mcpBridgeHost = options?.mcpBridgeHost ?? "127.0.0.1";
   }
   /**
    * Execute an agent using the Claude CLI
@@ -225,7 +235,7 @@ export class CLIRuntime implements RuntimeInterface {
 
         mcpConfig.mcpServers[name] = {
           type: "http",
-          url: `http://127.0.0.1:${bridge.port}/mcp`,
+          url: `http://${this.mcpBridgeHost}:${bridge.port}/mcp`,
         };
 
         const configJson = JSON.stringify(mcpConfig);

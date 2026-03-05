@@ -197,6 +197,7 @@ export class ContainerRunner implements RuntimeInterface {
   ): AsyncIterable<SDKMessage> {
     // Create CLI runtime with Docker-specific spawner
     const cliRuntime = new CLIRuntime({
+      mcpBridgeHost: "host.docker.internal",
       processSpawner: (args, _cwd, prompt, signal) => {
         // Build docker exec command with prompt piped to stdin
         // Uses printf to avoid issues with newlines and special chars in prompt
