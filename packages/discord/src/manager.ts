@@ -199,8 +199,7 @@ export class DiscordManager implements IChatManager {
             listSkills: async () => this.discoverAgentSkills(agent),
             getUsage: async (channelId: string) =>
               this.getChannelUsage(agent.qualifiedName, channelId),
-            getCumulativeUsage: async () =>
-              this.getAgentCumulativeUsage(agent.qualifiedName),
+            getCumulativeUsage: async () => this.getAgentCumulativeUsage(agent.qualifiedName),
             getAgentConfig: async () => this.getAgentConfigSummary(agent),
             getSessionInfo: async (channelId: string) =>
               this.getChannelRunInfo(agent.qualifiedName, channelId),
@@ -1500,13 +1499,18 @@ export class DiscordManager implements IChatManager {
   ): Promise<Array<{ name: string; description?: string }>> {
     const discovered = new Map<string, { name: string; description?: string }>();
 
-    // Step 1: explicit configured skills (deterministic source of truth).
-    for (const skill of this.getConfiguredDiscordSkills(agent)) {
-      if (skill.name.trim().length === 0) continue;
-      discovered.set(skill.name, { name: skill.name, description: skill.description });
+    // Step 1: if skills are explicitly configured, use them as-is.
+    // - undefined → not configured, fall through to auto-discovery
+    // - [] → explicitly disabled, return empty
+    // - [...] → use exactly those skills
+    const configuredSkills = this.getConfiguredDiscordSkills(agent);
+    if (configuredSkills !== undefined) {
+      return configuredSkills
+        .filter((s) => s.name.trim().length > 0)
+        .sort((a, b) => a.name.localeCompare(b.name));
     }
 
-    // Step 2: auto-discover only from agent working directory paths.
+    // Step 2: auto-discover from agent working directory paths.
     const workingDir =
       typeof agent.working_directory === "string"
         ? agent.working_directory
@@ -1515,7 +1519,11 @@ export class DiscordManager implements IChatManager {
       return Array.from(discovered.values()).sort((a, b) => a.name.localeCompare(b.name));
     }
 
-    const candidateDirs = [join(workingDir, ".codex", "skills"), join(workingDir, "skills")];
+    const candidateDirs = [
+      join(workingDir, ".claude", "skills"),
+      join(workingDir, ".codex", "skills"),
+      join(workingDir, "skills"),
+    ];
 
     for (const dir of candidateDirs) {
       try {
@@ -1550,17 +1558,20 @@ export class DiscordManager implements IChatManager {
 
   private getConfiguredDiscordSkills(
     agent: ResolvedAgent,
-  ): Array<{ name: string; description?: string }> {
-    const skills = (
-      agent.chat?.discord as unknown as
-        | {
-            skills?: Array<{ name?: string; description?: string }>;
-          }
-        | undefined
-    )?.skills;
-    if (!Array.isArray(skills)) {
-      return [];
+  ): Array<{ name: string; description?: string }> | undefined {
+    const discord = agent.chat?.discord as unknown as
+      | {
+          skills?: Array<{ name?: string; description?: string }>;
+        }
+      | undefined;
+    if (!discord || !("skills" in discord)) {
+      return undefined; // not configured → auto-discover
     }
+    const skills = discord.skills;
+    if (!Array.isArray(skills)) {
+      return undefined;
+    }
+    // [] → explicitly empty (no skills); [...] → those exact skills
     return skills
       .filter(
         (skill): skill is { name: string; description?: string } => typeof skill?.name === "string",

@@ -157,9 +157,15 @@ describe("extended commands", () => {
     const ctx = makeContext();
     ctx.commandActions!.getUsage = vi.fn().mockResolvedValue(null);
     ctx.commandActions!.getCumulativeUsage = vi.fn().mockResolvedValue({
-      totalRuns: 0, totalSuccesses: 0, totalFailures: 0,
-      totalCostUsd: 0, totalInputTokens: 0, totalOutputTokens: 0,
-      totalDurationMs: 0, firstRunAt: "", lastRunAt: "",
+      totalRuns: 0,
+      totalSuccesses: 0,
+      totalFailures: 0,
+      totalCostUsd: 0,
+      totalInputTokens: 0,
+      totalOutputTokens: 0,
+      totalDurationMs: 0,
+      firstRunAt: "",
+      lastRunAt: "",
     });
     await usageCommand.execute(ctx);
     const call = (ctx.interaction.reply as ReturnType<typeof vi.fn>).mock.calls[0][0];

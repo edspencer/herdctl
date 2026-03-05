@@ -9,12 +9,8 @@ export const usageCommand: SlashCommand = {
     const { interaction, commandActions, agentName } = context;
 
     const [lastRun, cumulative] = await Promise.all([
-      commandActions?.getUsage
-        ? commandActions.getUsage(interaction.channelId)
-        : null,
-      commandActions?.getCumulativeUsage
-        ? commandActions.getCumulativeUsage()
-        : null,
+      commandActions?.getUsage ? commandActions.getUsage(interaction.channelId) : null,
+      commandActions?.getCumulativeUsage ? commandActions.getCumulativeUsage() : null,
     ]);
 
     if (!lastRun && (!cumulative || cumulative.totalRuns === 0)) {
