@@ -11,8 +11,9 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { mkdir, rm, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
 
 import {
   type ChatConnectorLogger,
@@ -97,6 +98,18 @@ export class DiscordManager implements IChatManager {
   private connectors: Map<string, DiscordConnector> = new Map();
   private activeJobsByChannel: Map<string, string> = new Map();
   private lastPromptByChannel: Map<string, string> = new Map();
+  private lastUsageByChannel: Map<
+    string,
+    {
+      timestamp: string;
+      numTurns?: number;
+      durationMs?: number;
+      totalCostUsd?: number;
+      inputTokens?: number;
+      outputTokens?: number;
+      isError?: boolean;
+    }
+  > = new Map();
   private initialized: boolean = false;
 
   constructor(private ctx: FleetManagerContext) {}
@@ -191,6 +204,12 @@ export class DiscordManager implements IChatManager {
           commandActions: {
             stopRun: (channelId: string) => this.stopChannelRun(agent.qualifiedName, channelId),
             retryRun: (channelId: string) => this.retryChannelRun(agent.qualifiedName, channelId),
+            runSkill: (channelId: string, skillName: string, input?: string) =>
+              this.runChannelSkill(agent.qualifiedName, channelId, skillName, input),
+            listSkills: async () => this.discoverAgentSkills(agent),
+            getUsage: async (channelId: string) =>
+              this.getChannelUsage(agent.qualifiedName, channelId),
+            getAgentConfig: async () => this.getAgentConfigSummary(agent),
             getSessionInfo: async (channelId: string) =>
               this.getChannelRunInfo(agent.qualifiedName, channelId),
           },
@@ -908,6 +927,18 @@ export class DiscordManager implements IChatManager {
               if (normalized.resultText) {
                 resultText = normalized.resultText;
               }
+              this.lastUsageByChannel.set(
+                this.getChannelKey(qualifiedName, event.metadata.channelId),
+                {
+                  timestamp: new Date().toISOString(),
+                  numTurns: normalized.numTurns,
+                  durationMs: normalized.durationMs,
+                  totalCostUsd: normalized.totalCostUsd,
+                  inputTokens: normalized.usage?.input_tokens,
+                  outputTokens: normalized.usage?.output_tokens,
+                  isError: normalized.isError,
+                },
+              );
               latestStatusText = normalized.isError ? "Task failed" : "Task complete";
               await refreshRunCard(normalized.isError ? "error" : "success");
 
@@ -1179,17 +1210,7 @@ export class DiscordManager implements IChatManager {
     qualifiedName: string,
     channelId: string,
   ): Promise<{ success: boolean; message: string; jobId?: string }> {
-    const logger = this.ctx.getLogger();
     const key = this.getChannelKey(qualifiedName, channelId);
-    const activeJobId = this.activeJobsByChannel.get(key);
-    if (activeJobId) {
-      return {
-        success: false,
-        message: `A run is already active in this channel (\`${activeJobId}\`).`,
-        jobId: activeJobId,
-      };
-    }
-
     const lastPrompt = this.lastPromptByChannel.get(key);
     if (!lastPrompt) {
       return {
@@ -1197,60 +1218,7 @@ export class DiscordManager implements IChatManager {
         message: "No previous prompt found to retry in this channel.",
       };
     }
-
-    const connector = this.connectors.get(qualifiedName);
-    if (!connector?.client?.isReady()) {
-      return {
-        success: false,
-        message: "Retry is unavailable because the Discord connector is not connected.",
-      };
-    }
-
-    const channel = await connector.client.channels.fetch(channelId);
-    if (
-      !channel ||
-      !("isTextBased" in channel) ||
-      typeof channel.isTextBased !== "function" ||
-      !channel.isTextBased() ||
-      !("send" in channel) ||
-      typeof channel.send !== "function"
-    ) {
-      return {
-        success: false,
-        message: "Retry failed because this channel is not text-capable.",
-      };
-    }
-
-    const textChannel = this.toTextChannel(channel);
-    const retryEvent = this.createSyntheticMessageEvent({
-      qualifiedName,
-      prompt: lastPrompt,
-      channelId,
-      channel,
-      textChannel,
-      logger,
-    });
-
-    // Execute retry through the same Discord message pipeline so users get
-    // the normal streamed answer/tool/status outputs in the channel.
-    void this.handleMessage(qualifiedName, retryEvent)
-      .catch(async (error: unknown) => {
-        const err = error instanceof Error ? error : new Error(String(error));
-        logger.error(`Background retry failed for '${qualifiedName}': ${err.message}`);
-        try {
-          await textChannel.send(this.formatErrorMessage(err, qualifiedName));
-        } catch (replyError) {
-          logger.error(`Failed to send retry failure message: ${(replyError as Error).message}`);
-        }
-      })
-      .finally(() => {
-        this.activeJobsByChannel.delete(key);
-      });
-
-    return {
-      success: true,
-      message: "Retry started. I will post the retried run output in this channel.",
-    };
+    return this.runChannelPrompt(qualifiedName, channelId, lastPrompt);
   }
 
   // ===========================================================================
@@ -1302,11 +1270,18 @@ export class DiscordManager implements IChatManager {
       },
       replyWithRef: async (
         content: string | DiscordReplyPayload,
-      ): Promise<{ edit: (c: string | DiscordReplyPayload) => Promise<void>; delete: () => Promise<void> }> => {
+      ): Promise<{
+        edit: (c: string | DiscordReplyPayload) => Promise<void>;
+        delete: () => Promise<void>;
+      }> => {
         const sent = await textChannel.send(content);
         return {
-          edit: async (c: string | DiscordReplyPayload) => { await sent.edit(c); },
-          delete: async () => { await sent.delete(); },
+          edit: async (c: string | DiscordReplyPayload) => {
+            await sent.edit(c);
+          },
+          delete: async () => {
+            await sent.delete();
+          },
         };
       },
       startTyping: (): (() => void) => {
@@ -1341,6 +1316,187 @@ export class DiscordManager implements IChatManager {
     return {
       activeJobId: this.activeJobsByChannel.get(key),
       lastPrompt: this.lastPromptByChannel.get(key),
+    };
+  }
+
+  private async getChannelUsage(
+    qualifiedName: string,
+    channelId: string,
+  ): Promise<{
+    timestamp: string;
+    numTurns?: number;
+    durationMs?: number;
+    totalCostUsd?: number;
+    inputTokens?: number;
+    outputTokens?: number;
+    isError?: boolean;
+  } | null> {
+    return this.lastUsageByChannel.get(this.getChannelKey(qualifiedName, channelId)) ?? null;
+  }
+
+  private async runChannelSkill(
+    qualifiedName: string,
+    channelId: string,
+    skillName: string,
+    input?: string,
+  ): Promise<{ success: boolean; message: string; jobId?: string }> {
+    const instruction = [
+      `Use the "${skillName}" skill to handle this request.`,
+      "",
+      input?.trim() ? input.trim() : "No additional input was provided.",
+    ].join("\n");
+    const result = await this.runChannelPrompt(qualifiedName, channelId, instruction);
+    if (result.success) {
+      return {
+        ...result,
+        message: `Skill \`${skillName}\` started. Output will be posted in this channel.`,
+      };
+    }
+    return result;
+  }
+
+  private async runChannelPrompt(
+    qualifiedName: string,
+    channelId: string,
+    prompt: string,
+  ): Promise<{ success: boolean; message: string; jobId?: string }> {
+    const logger = this.ctx.getLogger();
+    const key = this.getChannelKey(qualifiedName, channelId);
+    const activeJobId = this.activeJobsByChannel.get(key);
+    if (activeJobId) {
+      return {
+        success: false,
+        message: `A run is already active in this channel (\`${activeJobId}\`).`,
+        jobId: activeJobId,
+      };
+    }
+
+    const connector = this.connectors.get(qualifiedName);
+    if (!connector?.client?.isReady()) {
+      return {
+        success: false,
+        message: "Run cannot start because the Discord connector is not connected.",
+      };
+    }
+
+    const channel = await connector.client.channels.fetch(channelId);
+    if (
+      !channel ||
+      !("isTextBased" in channel) ||
+      typeof channel.isTextBased !== "function" ||
+      !channel.isTextBased() ||
+      !("send" in channel) ||
+      typeof channel.send !== "function"
+    ) {
+      return {
+        success: false,
+        message: "Run failed because this channel is not text-capable.",
+      };
+    }
+
+    const textChannel = this.toTextChannel(channel);
+    const syntheticEvent = this.createSyntheticMessageEvent({
+      qualifiedName,
+      prompt,
+      channelId,
+      channel,
+      textChannel,
+      logger,
+    });
+
+    this.lastPromptByChannel.set(key, prompt);
+    void this.handleMessage(qualifiedName, syntheticEvent)
+      .catch(async (error: unknown) => {
+        const err = error instanceof Error ? error : new Error(String(error));
+        logger.error(`Background slash run failed for '${qualifiedName}': ${err.message}`);
+        try {
+          await textChannel.send(this.formatErrorMessage(err, qualifiedName));
+        } catch (replyError) {
+          logger.error(`Failed to send slash failure message: ${(replyError as Error).message}`);
+        }
+      })
+      .finally(() => {
+        this.activeJobsByChannel.delete(key);
+      });
+
+    return {
+      success: true,
+      message: "Run started. Output will be posted in this channel.",
+    };
+  }
+
+  private async discoverAgentSkills(
+    agent: ResolvedAgent,
+  ): Promise<Array<{ name: string; description?: string }>> {
+    const roots: string[] = [];
+    if (agent.working_directory) {
+      roots.push(
+        typeof agent.working_directory === "string"
+          ? agent.working_directory
+          : agent.working_directory.root,
+      );
+    }
+    roots.push(process.cwd());
+
+    const codexHome = process.env.CODEX_HOME;
+    if (codexHome) {
+      roots.push(codexHome);
+    } else {
+      roots.push(join(homedir(), ".codex"));
+    }
+
+    const candidateDirs = roots.flatMap((root) => [
+      join(root, ".codex", "skills"),
+      join(root, "skills"),
+    ]);
+    const discovered = new Map<string, { name: string; description?: string }>();
+
+    for (const dir of candidateDirs) {
+      try {
+        const entries = await readdir(resolve(dir), { withFileTypes: true });
+        for (const entry of entries) {
+          if (!entry.isDirectory()) continue;
+          const skillName = entry.name;
+          const skillPath = join(dir, skillName, "SKILL.md");
+          try {
+            const raw = await readFile(skillPath, "utf8");
+            const lines = raw.split("\n").map((line) => line.trim());
+            const description =
+              lines.find((line) => line.length > 0 && !line.startsWith("#"))?.slice(0, 120) ??
+              undefined;
+            discovered.set(skillName, { name: skillName, description });
+          } catch {
+            // Ignore directories without readable SKILL.md
+          }
+        }
+      } catch {
+        // Directory does not exist or is unreadable; skip.
+      }
+    }
+
+    return Array.from(discovered.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  private async getAgentConfigSummary(agent: ResolvedAgent): Promise<{
+    runtime?: string;
+    model?: string;
+    permissionMode?: string;
+    workingDirectory?: string;
+    allowedTools?: string[];
+    deniedTools?: string[];
+    mcpServers?: string[];
+  }> {
+    return {
+      runtime: agent.runtime,
+      model: agent.model,
+      permissionMode: agent.permission_mode,
+      workingDirectory:
+        typeof agent.working_directory === "string"
+          ? agent.working_directory
+          : agent.working_directory?.root,
+      allowedTools: agent.allowed_tools,
+      deniedTools: agent.denied_tools,
+      mcpServers: agent.mcp_servers ? Object.keys(agent.mcp_servers) : [],
     };
   }
 

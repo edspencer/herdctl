@@ -8,6 +8,7 @@
 import type { IChatSessionManager } from "@herdctl/chat";
 import { createLogger } from "@herdctl/core";
 import {
+  type AutocompleteInteraction,
   type ChatInputCommandInteraction,
   type Client,
   REST,
@@ -16,13 +17,19 @@ import {
 } from "discord.js";
 import { ErrorHandler, withRetry } from "../error-handler.js";
 import type { DiscordConnectorState } from "../types.js";
+import { cancelCommand } from "./cancel.js";
+import { configCommand } from "./config.js";
 import { helpCommand } from "./help.js";
 import { newCommand } from "./new.js";
+import { pingCommand } from "./ping.js";
 import { resetCommand } from "./reset.js";
 import { retryCommand } from "./retry.js";
 import { sessionCommand } from "./session.js";
+import { skillCommand } from "./skill.js";
+import { skillsCommand } from "./skills.js";
 import { statusCommand } from "./status.js";
 import { stopCommand } from "./stop.js";
+import { toolsCommand } from "./tools.js";
 import type {
   CommandActions,
   CommandContext,
@@ -31,6 +38,7 @@ import type {
   ICommandManager,
   SlashCommand,
 } from "./types.js";
+import { usageCommand } from "./usage.js";
 
 // =============================================================================
 // Default Logger
@@ -50,11 +58,18 @@ function createDefaultLogger(agentName: string): CommandManagerLogger {
 function getBuiltInCommands(): SlashCommand[] {
   return [
     helpCommand,
+    pingCommand,
+    configCommand,
+    toolsCommand,
+    usageCommand,
+    skillsCommand,
+    skillCommand,
     statusCommand,
     sessionCommand,
     resetCommand,
     newCommand,
     stopCommand,
+    cancelCommand,
     retryCommand,
   ];
 }
@@ -136,9 +151,11 @@ export class CommandManager implements ICommandManager {
     const rest = new REST({ version: "10" }).setToken(this.botToken);
 
     // Build command data for Discord API
-    const commandData = Array.from(this.commands.values()).map((cmd) =>
-      new SlashCommandBuilder().setName(cmd.name).setDescription(cmd.description).toJSON(),
-    );
+    const commandData = Array.from(this.commands.values()).map((cmd) => {
+      const base = new SlashCommandBuilder().setName(cmd.name).setDescription(cmd.description);
+      const built = cmd.build ? cmd.build(base) : base;
+      return built.toJSON();
+    });
 
     const clientId = this.client.user?.id;
     if (!clientId) {
@@ -236,6 +253,32 @@ export class CommandManager implements ICommandManager {
         await interaction.editReply({
           content: userMessage,
         });
+      }
+    }
+  }
+
+  async handleAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
+    const commandName = interaction.commandName;
+    const command = this.commands.get(commandName);
+    if (!command?.autocomplete) {
+      await interaction.respond([]);
+      return;
+    }
+
+    const context: Omit<CommandContext, "interaction"> = {
+      client: this.client,
+      agentName: this.agentName,
+      sessionManager: this.sessionManager,
+      connectorState: this.getConnectorState(),
+      commandActions: this.commandActions,
+    };
+
+    try {
+      await command.autocomplete(interaction, context);
+    } catch (error) {
+      this.errorHandler.handleError(error, `autocomplete for command '${commandName}'`);
+      if (!interaction.responded) {
+        await interaction.respond([]);
       }
     }
   }

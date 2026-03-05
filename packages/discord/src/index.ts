@@ -34,13 +34,20 @@ export type {
 // Commands
 export {
   CommandManager,
+  cancelCommand,
+  configCommand,
   helpCommand,
   newCommand,
+  pingCommand,
   resetCommand,
   retryCommand,
   sessionCommand,
+  skillCommand,
+  skillsCommand,
   statusCommand,
   stopCommand,
+  toolsCommand,
+  usageCommand,
 } from "./commands/index.js";
 // Main connector class
 export { DiscordConnector } from "./discord-connector.js";

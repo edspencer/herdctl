@@ -18,11 +18,18 @@ export const helpCommand: SlashCommand = {
         {
           description: [
             "**/help** \u2014 Show this help message",
+            "**/ping** \u2014 Quick connector health check",
+            "**/config** \u2014 Show runtime-relevant agent configuration",
+            "**/tools** \u2014 Show allowed/denied tools and MCP servers",
+            "**/usage** \u2014 Show latest run usage for this channel",
+            "**/skills** \u2014 List discovered skills",
+            "**/skill** \u2014 Trigger a skill with optional input",
             "**/status** \u2014 Show agent status and session info",
             "**/reset** \u2014 Clear conversation context",
             "**/new** \u2014 Start a fresh conversation",
             "**/session** \u2014 Show current session and run state",
             "**/stop** \u2014 Stop the active run in this channel",
+            "**/cancel** \u2014 Alias for /stop",
             "**/retry** \u2014 Retry the last prompt in this channel",
             "",
             "**Usage**",

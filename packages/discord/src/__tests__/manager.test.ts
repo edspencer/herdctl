@@ -250,7 +250,10 @@ describe("DiscordManager", () => {
       const managerAny = manager as unknown as {
         lastPromptByChannel: Map<string, string>;
         connectors: Map<string, unknown>;
-        retryChannelRun: (qualifiedName: string, channelId: string) => Promise<{ success: boolean }>;
+        retryChannelRun: (
+          qualifiedName: string,
+          channelId: string,
+        ) => Promise<{ success: boolean }>;
         handleMessage: (qualifiedName: string, event: DiscordMessageEvent) => Promise<void>;
       };
 
@@ -296,7 +299,10 @@ describe("DiscordManager", () => {
       const managerAny = manager as unknown as {
         lastPromptByChannel: Map<string, string>;
         connectors: Map<string, unknown>;
-        retryChannelRun: (qualifiedName: string, channelId: string) => Promise<{ success: boolean }>;
+        retryChannelRun: (
+          qualifiedName: string,
+          channelId: string,
+        ) => Promise<{ success: boolean }>;
         handleMessage: (qualifiedName: string, event: DiscordMessageEvent) => Promise<void>;
       };
 

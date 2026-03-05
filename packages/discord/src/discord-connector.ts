@@ -541,17 +541,26 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
    * Handle an incoming interaction (slash command)
    */
   private async _handleInteraction(interaction: Interaction): Promise<void> {
-    // Only handle chat input (slash) commands
-    if (!interaction.isChatInputCommand()) {
+    // Only handle slash command chat input + autocomplete interactions.
+    if (!interaction.isChatInputCommand() && !interaction.isAutocomplete()) {
       return;
     }
 
     if (!this._commandManager) {
       this._logger.warn("Received command but command manager not initialized");
-      await interaction.reply({
-        content: "Commands are not available at this time.",
-        ephemeral: true,
-      });
+      if (interaction.isChatInputCommand()) {
+        await interaction.reply({
+          content: "Commands are not available at this time.",
+          ephemeral: true,
+        });
+      } else if (interaction.isAutocomplete()) {
+        await interaction.respond([]);
+      }
+      return;
+    }
+
+    if (interaction.isAutocomplete()) {
+      await this._commandManager.handleAutocomplete(interaction);
       return;
     }
 

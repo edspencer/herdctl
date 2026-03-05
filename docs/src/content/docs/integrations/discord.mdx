@@ -577,11 +577,18 @@ herdctl automatically registers slash commands for every Discord-enabled agent:
 | Command | Description |
 |---------|-------------|
 | `/help` | Show available commands and usage |
+| `/ping` | Quick health check |
+| `/config` | Show runtime-relevant agent configuration |
+| `/tools` | Show allowed/denied tools and MCP servers |
+| `/usage` | Show latest run usage for this channel |
+| `/skills` | List discovered skills for this agent |
+| `/skill` | Trigger a skill (with autocomplete) |
 | `/status` | Show bot connection status and session info |
 | `/session` | Show current session and run state for this channel |
 | `/reset` | Clear conversation context and start fresh |
 | `/new` | Alias for starting a fresh conversation |
 | `/stop` | Stop the active run in this channel |
+| `/cancel` | Alias for `/stop` |
 | `/retry` | Retry the last prompt in this channel |
 
 #### How slash commands are entered
@@ -607,6 +614,8 @@ Shows available commands and basic usage information:
 🤖 Support Bot Commands
 
 /help - Show this message
+/usage - Show latest run usage
+/skills - List discovered skills
 /status - Show bot status and stats
 /reset - Clear conversation context
 
