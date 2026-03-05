@@ -7,6 +7,34 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Tools Config Field for Tool Availability Restriction
+**March 5, 2026** · `@herdctl/core@5.9.0` · [PR #189](https://github.com/edspencer/herdctl/pull/189)
+
+Added a new `tools` config field that restricts which built-in tools are available to agents entirely, providing true capability control beyond permission prompts. Unlike `allowed_tools` (which only controls permission prompts), the `tools` field is a whitelist that removes unavailable tools from the agent's environment before execution. This enables strict sandboxing scenarios where you want agents to operate with a limited toolset regardless of permission mode.
+
+---
+
+### Security Hardening for Session ID Path Helpers
+**March 5, 2026** · `@herdctl/core@5.9.0` · [PR #191](https://github.com/edspencer/herdctl/pull/191)
+
+Session ID path helpers in `cli-session-path.ts` now validate session IDs against path traversal attacks before constructing file paths. Session IDs must contain only alphanumeric characters and hyphens — any ID containing `..`, `/`, or other invalid characters is rejected with a clear error. This prevents malicious session IDs from escaping `.herdctl/` state directories.
+
+---
+
+### Docker Agent Sessions Now Visible in Web UI
+**March 5, 2026** · `@herdctl/core@5.9.0` · `@herdctl/web@0.9.8` · [PR #186](https://github.com/edspencer/herdctl/pull/186)
+
+Fixed Docker agent sessions not appearing in the web dashboard. Docker agents store session JSONL files in `.herdctl/docker-sessions/` on the host (the container's `~/.claude/projects/` is ephemeral), but `SessionDiscoveryService` only scanned `~/.claude/projects/`. The service now scans the docker-sessions directory when `dockerEnabled` is true, making Docker agent sessions visible in both the agent's session list and the All Chats view.
+
+---
+
+### Discord Typing Indicator Configuration
+**March 5, 2026** · `@herdctl/core@5.8.3` · `@herdctl/discord@1.1.0` · [PR #178](https://github.com/edspencer/herdctl/pull/178)
+
+Discord agents can now disable the typing indicator via `output.typing_indicator: false` in their Discord config. This prevents spurious "An unknown error occurred" messages caused by Discord rate-limiting the typing indicator on long-running agent jobs. The default remains `true` to preserve existing behavior, but users experiencing issues with lengthy responses can now opt out.
+
+---
+
 ### GitHub Issue Delegation Skills
 **February 26, 2026**
 
