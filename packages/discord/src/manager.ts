@@ -98,18 +98,8 @@ export class DiscordManager implements IChatManager {
   private connectors: Map<string, DiscordConnector> = new Map();
   private activeJobsByChannel: Map<string, string> = new Map();
   private lastPromptByChannel: Map<string, string> = new Map();
-  private lastUsageByChannel: Map<
-    string,
-    {
-      timestamp: string;
-      numTurns?: number;
-      durationMs?: number;
-      totalCostUsd?: number;
-      inputTokens?: number;
-      outputTokens?: number;
-      isError?: boolean;
-    }
-  > = new Map();
+  private lastUsageByChannel: Map<string, ChannelRunUsage> = new Map();
+  private cumulativeUsageByAgent: Map<string, CumulativeUsage> = new Map();
   private initialized: boolean = false;
 
   constructor(private ctx: FleetManagerContext) {}
@@ -209,6 +199,8 @@ export class DiscordManager implements IChatManager {
             listSkills: async () => this.discoverAgentSkills(agent),
             getUsage: async (channelId: string) =>
               this.getChannelUsage(agent.qualifiedName, channelId),
+            getCumulativeUsage: async () =>
+              this.getAgentCumulativeUsage(agent.qualifiedName),
             getAgentConfig: async () => this.getAgentConfigSummary(agent),
             getSessionInfo: async (channelId: string) =>
               this.getChannelRunInfo(agent.qualifiedName, channelId),
@@ -927,10 +919,11 @@ export class DiscordManager implements IChatManager {
               if (normalized.resultText) {
                 resultText = normalized.resultText;
               }
+              const now = new Date().toISOString();
               this.lastUsageByChannel.set(
                 this.getChannelKey(qualifiedName, event.metadata.channelId),
                 {
-                  timestamp: new Date().toISOString(),
+                  timestamp: now,
                   numTurns: normalized.numTurns,
                   durationMs: normalized.durationMs,
                   totalCostUsd: normalized.totalCostUsd,
@@ -939,6 +932,14 @@ export class DiscordManager implements IChatManager {
                   isError: normalized.isError,
                 },
               );
+              this.accumulateUsage(qualifiedName, {
+                durationMs: normalized.durationMs,
+                totalCostUsd: normalized.totalCostUsd,
+                inputTokens: normalized.usage?.input_tokens,
+                outputTokens: normalized.usage?.output_tokens,
+                isError: normalized.isError,
+                timestamp: now,
+              });
               latestStatusText = normalized.isError ? "Task failed" : "Task complete";
               await refreshRunCard(normalized.isError ? "error" : "success");
 
@@ -1322,16 +1323,60 @@ export class DiscordManager implements IChatManager {
   private async getChannelUsage(
     qualifiedName: string,
     channelId: string,
-  ): Promise<{
-    timestamp: string;
-    numTurns?: number;
-    durationMs?: number;
-    totalCostUsd?: number;
-    inputTokens?: number;
-    outputTokens?: number;
-    isError?: boolean;
-  } | null> {
+  ): Promise<ChannelRunUsage | null> {
     return this.lastUsageByChannel.get(this.getChannelKey(qualifiedName, channelId)) ?? null;
+  }
+
+  private accumulateUsage(
+    qualifiedName: string,
+    run: {
+      durationMs?: number;
+      totalCostUsd?: number;
+      inputTokens?: number;
+      outputTokens?: number;
+      isError?: boolean;
+      timestamp: string;
+    },
+  ): void {
+    const existing = this.cumulativeUsageByAgent.get(qualifiedName);
+    if (existing) {
+      existing.totalRuns++;
+      if (run.isError) existing.totalFailures++;
+      else existing.totalSuccesses++;
+      existing.totalCostUsd += run.totalCostUsd ?? 0;
+      existing.totalInputTokens += run.inputTokens ?? 0;
+      existing.totalOutputTokens += run.outputTokens ?? 0;
+      existing.totalDurationMs += run.durationMs ?? 0;
+      existing.lastRunAt = run.timestamp;
+    } else {
+      this.cumulativeUsageByAgent.set(qualifiedName, {
+        totalRuns: 1,
+        totalSuccesses: run.isError ? 0 : 1,
+        totalFailures: run.isError ? 1 : 0,
+        totalCostUsd: run.totalCostUsd ?? 0,
+        totalInputTokens: run.inputTokens ?? 0,
+        totalOutputTokens: run.outputTokens ?? 0,
+        totalDurationMs: run.durationMs ?? 0,
+        firstRunAt: run.timestamp,
+        lastRunAt: run.timestamp,
+      });
+    }
+  }
+
+  private async getAgentCumulativeUsage(qualifiedName: string): Promise<CumulativeUsage> {
+    return (
+      this.cumulativeUsageByAgent.get(qualifiedName) ?? {
+        totalRuns: 0,
+        totalSuccesses: 0,
+        totalFailures: 0,
+        totalCostUsd: 0,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalDurationMs: 0,
+        firstRunAt: "",
+        lastRunAt: "",
+      }
+    );
   }
 
   private async runChannelSkill(

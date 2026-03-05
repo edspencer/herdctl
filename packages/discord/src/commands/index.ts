@@ -23,11 +23,13 @@ export { stopCommand } from "./stop.js";
 export { toolsCommand } from "./tools.js";
 // Types
 export type {
+  ChannelRunUsage,
   CommandActionResult,
   CommandActions,
   CommandContext,
   CommandManagerLogger,
   CommandManagerOptions,
+  CumulativeUsage,
   ICommandManager,
   SlashCommand,
 } from "./types.js";

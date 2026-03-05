@@ -63,6 +63,17 @@ function makeContext(): CommandContext {
         outputTokens: 30,
         isError: false,
       }),
+      getCumulativeUsage: vi.fn().mockResolvedValue({
+        totalRuns: 5,
+        totalSuccesses: 4,
+        totalFailures: 1,
+        totalCostUsd: 0.1234,
+        totalInputTokens: 5000,
+        totalOutputTokens: 1200,
+        totalDurationMs: 45000,
+        firstRunAt: new Date(Date.now() - 3600000).toISOString(),
+        lastRunAt: new Date().toISOString(),
+      }),
       getAgentConfig: vi.fn().mockResolvedValue({
         runtime: "sdk",
         model: "claude-sonnet-4",
@@ -119,5 +130,39 @@ describe("extended commands", () => {
     await configCommand.execute(ctx);
     await pingCommand.execute(ctx);
     expect(ctx.interaction.reply).toHaveBeenCalledTimes(4);
+  });
+
+  it("/usage shows both last run and cumulative embeds", async () => {
+    const ctx = makeContext();
+    await usageCommand.execute(ctx);
+    const call = (ctx.interaction.reply as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.embeds).toHaveLength(2);
+    expect(call.embeds[0].title).toBe("Last Run");
+    expect(call.embeds[1].title).toBe("Session Totals");
+    expect(call.embeds[1].description).toContain("5");
+    expect(call.embeds[1].description).toContain("4 ok");
+    expect(call.ephemeral).toBe(true);
+  });
+
+  it("/usage shows only cumulative when no last run", async () => {
+    const ctx = makeContext();
+    ctx.commandActions!.getUsage = vi.fn().mockResolvedValue(null);
+    await usageCommand.execute(ctx);
+    const call = (ctx.interaction.reply as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.embeds).toHaveLength(1);
+    expect(call.embeds[0].title).toBe("Session Totals");
+  });
+
+  it("/usage shows empty message when no data", async () => {
+    const ctx = makeContext();
+    ctx.commandActions!.getUsage = vi.fn().mockResolvedValue(null);
+    ctx.commandActions!.getCumulativeUsage = vi.fn().mockResolvedValue({
+      totalRuns: 0, totalSuccesses: 0, totalFailures: 0,
+      totalCostUsd: 0, totalInputTokens: 0, totalOutputTokens: 0,
+      totalDurationMs: 0, firstRunAt: "", lastRunAt: "",
+    });
+    await usageCommand.execute(ctx);
+    const call = (ctx.interaction.reply as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.content).toContain("No usage data");
   });
 });

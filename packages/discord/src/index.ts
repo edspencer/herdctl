@@ -25,9 +25,11 @@ export {
   resolveChannelConfig,
 } from "./auto-mode-handler.js";
 export type {
+  ChannelRunUsage,
   CommandContext,
   CommandManagerLogger,
   CommandManagerOptions,
+  CumulativeUsage,
   ICommandManager,
   SlashCommand,
 } from "./commands/index.js";
