@@ -1,4 +1,4 @@
-import { formatCompactNumber } from "@herdctl/chat";
+import { formatCompactNumber, formatDurationMs } from "@herdctl/chat";
 import { getToolInputSummary, TOOL_EMOJIS } from "@herdctl/core";
 import type { DiscordReplyEmbed, DiscordReplyEmbedField } from "./types.js";
 
@@ -16,14 +16,8 @@ export function buildFooter(agentName: string): { text: string } {
   return { text: `herdctl · ${shortName}` };
 }
 
-export function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
-  const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
-}
+// Re-export so existing callers (tests, snapshots) don't break.
+export const formatDuration = formatDurationMs;
 
 export function buildRunCardEmbed(params: {
   agentName: string;

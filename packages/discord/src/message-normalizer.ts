@@ -1,3 +1,12 @@
+/**
+ * Normalizes the loose SDKMessage union into typed Discord display events.
+ *
+ * SDKMessage uses `[key: string]: unknown` (an intentional design choice to
+ * stay compatible with both the SDK and CLI runtimes without a compile-time
+ * dependency). The casts in this file are a consequence of that — they narrow
+ * the runtime shape for each message type. If SDKMessage is ever refined into
+ * a proper discriminated union, these casts can be removed.
+ */
 import { extractMessageContent } from "@herdctl/chat";
 import {
   extractToolResults,

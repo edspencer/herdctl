@@ -67,6 +67,19 @@ import { transcribeAudio } from "./voice-transcriber.js";
 type DiscordMessageEvent = DiscordConnectorEventMap["message"];
 
 /**
+ * Minimal text-channel shape used when constructing synthetic message events
+ * (e.g. for /retry). Avoids coupling to the full discord.js Channel type.
+ */
+type SyntheticMessageRef = {
+  edit: (content: string | DiscordReplyPayload) => Promise<void>;
+  delete: () => Promise<void>;
+};
+type SyntheticTextChannel = {
+  send: (content: string | DiscordReplyPayload) => Promise<SyntheticMessageRef>;
+  sendTyping?: () => Promise<void>;
+};
+
+/**
  * Error event payload from DiscordConnector
  */
 type DiscordErrorEvent = DiscordConnectorEventMap["error"];
@@ -1208,76 +1221,15 @@ export class DiscordManager implements IChatManager {
       };
     }
 
-    type RetryMessageRef = {
-      edit: (content: string | DiscordReplyPayload) => Promise<void>;
-      delete: () => Promise<void>;
-    };
-    type RetryChannel = {
-      send: (content: string | DiscordReplyPayload) => Promise<RetryMessageRef>;
-      sendTyping?: () => Promise<void>;
-    };
-    const textChannel = channel as unknown as RetryChannel;
-
-    const retryEvent = {
-      agentName: qualifiedName,
+    const textChannel = this.toTextChannel(channel);
+    const retryEvent = this.createSyntheticMessageEvent({
+      qualifiedName,
       prompt: lastPrompt,
-      context: {
-        messages: [],
-        prompt: lastPrompt,
-        wasMentioned: false,
-      },
-      metadata: {
-        guildId:
-          "isDMBased" in channel && typeof channel.isDMBased === "function" && channel.isDMBased()
-            ? null
-            : "guildId" in channel && typeof channel.guildId === "string"
-              ? channel.guildId
-              : null,
-        channelId,
-        messageId: `retry-${randomUUID()}`,
-        userId: "retry-command",
-        username: "retry-command",
-        wasMentioned: false,
-        mode: "auto" as const,
-      },
-      reply: async (content: string | DiscordReplyPayload): Promise<void> => {
-        await textChannel.send(content);
-      },
-      replyWithRef: async (
-        content: string | DiscordReplyPayload,
-      ): Promise<{ edit: (c: string | DiscordReplyPayload) => Promise<void>; delete: () => Promise<void> }> => {
-        const sent = await textChannel.send(content);
-        return {
-          edit: async (newContent: string | DiscordReplyPayload) => {
-            await sent.edit(newContent);
-          },
-          delete: async () => {
-            await sent.delete();
-          },
-        };
-      },
-      startTyping: (): (() => void) => {
-        let typingInterval: ReturnType<typeof setInterval> | null = null;
-        if (textChannel.sendTyping) {
-          void textChannel.sendTyping().catch((err: unknown) => {
-            logger.debug(`Retry typing indicator failed: ${(err as Error).message}`);
-          });
-          typingInterval = setInterval(() => {
-            void textChannel.sendTyping?.().catch((err: unknown) => {
-              logger.debug(`Retry typing refresh failed: ${(err as Error).message}`);
-            });
-          }, 8000);
-        }
-        return () => {
-          if (typingInterval) {
-            clearInterval(typingInterval);
-            typingInterval = null;
-          }
-        };
-      },
-      addReaction: async () => {},
-      removeReaction: async () => {},
-    } as DiscordMessageEvent;
+      channelId,
+      channel,
+      textChannel,
+      logger,
+    });
 
     // Execute retry through the same Discord message pipeline so users get
     // the normal streamed answer/tool/status outputs in the channel.
@@ -1299,6 +1251,86 @@ export class DiscordManager implements IChatManager {
       success: true,
       message: "Retry started. I will post the retried run output in this channel.",
     };
+  }
+
+  // ===========================================================================
+  // Synthetic Event Helpers
+  // ===========================================================================
+
+  private toTextChannel(channel: { send?: unknown }): SyntheticTextChannel {
+    return channel as unknown as SyntheticTextChannel;
+  }
+
+  /**
+   * Build a DiscordMessageEvent from scratch for programmatic triggers
+   * (e.g. /retry). This keeps the boilerplate in one place so any new
+   * fields on DiscordMessageEvent only need updating here.
+   */
+  private createSyntheticMessageEvent(params: {
+    qualifiedName: string;
+    prompt: string;
+    channelId: string;
+    channel: { isDMBased?: () => boolean; guildId?: string };
+    textChannel: SyntheticTextChannel;
+    logger: { debug: (msg: string) => void };
+  }): DiscordMessageEvent {
+    const { qualifiedName, prompt, channelId, channel, textChannel, logger } = params;
+    return {
+      agentName: qualifiedName,
+      prompt,
+      context: {
+        messages: [],
+        prompt,
+        wasMentioned: false,
+      },
+      metadata: {
+        guildId:
+          typeof channel.isDMBased === "function" && channel.isDMBased()
+            ? null
+            : typeof channel.guildId === "string"
+              ? channel.guildId
+              : null,
+        channelId,
+        messageId: `synthetic-${randomUUID()}`,
+        userId: "system",
+        username: "system",
+        wasMentioned: false,
+        mode: "auto" as const,
+      },
+      reply: async (content: string | DiscordReplyPayload): Promise<void> => {
+        await textChannel.send(content);
+      },
+      replyWithRef: async (
+        content: string | DiscordReplyPayload,
+      ): Promise<{ edit: (c: string | DiscordReplyPayload) => Promise<void>; delete: () => Promise<void> }> => {
+        const sent = await textChannel.send(content);
+        return {
+          edit: async (c: string | DiscordReplyPayload) => { await sent.edit(c); },
+          delete: async () => { await sent.delete(); },
+        };
+      },
+      startTyping: (): (() => void) => {
+        let typingInterval: ReturnType<typeof setInterval> | null = null;
+        if (textChannel.sendTyping) {
+          void textChannel.sendTyping().catch((err: unknown) => {
+            logger.debug(`Synthetic typing indicator failed: ${(err as Error).message}`);
+          });
+          typingInterval = setInterval(() => {
+            void textChannel.sendTyping?.().catch((err: unknown) => {
+              logger.debug(`Synthetic typing refresh failed: ${(err as Error).message}`);
+            });
+          }, 8000);
+        }
+        return () => {
+          if (typingInterval) {
+            clearInterval(typingInterval);
+            typingInterval = null;
+          }
+        };
+      },
+      addReaction: async () => {},
+      removeReaction: async () => {},
+    } as DiscordMessageEvent;
   }
 
   private async getChannelRunInfo(
