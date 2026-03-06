@@ -1,8 +1,8 @@
 ---
-last_checked_commit: 9424f03
-last_run: "2026-03-01T18:00:00Z"
+last_checked_commit: b7fed00
+last_run: "2026-03-06T04:01:56Z"
 entries_added: 3
-branches_created: ["docs/changelog-update-2026-02-22", "docs/changelog-update-2026-02-23-manual", "changelog/auto-update-2026-02-25", "changelog/auto-update-2026-02-26", "changelog/auto-update-2026-03-01"]
+branches_created: ["docs/changelog-update-2026-02-22", "docs/changelog-update-2026-02-23-manual", "changelog/auto-update-2026-02-25", "changelog/auto-update-2026-02-26", "changelog/auto-update-2026-03-01", "changelog/auto-update-2026-03-06"]
 status: completed
 ---
 
@@ -19,10 +19,10 @@ incremental reviews that analyze only new commits since the last check.
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Last checked commit | 9424f03 | docs: document zero-config web-only startup mode in CLI reference |
-| Last run | 2026-03-01T18:00:00Z | Latest update completed successfully |
-| Entries added (last run) | 3 | Delegate-issue skills, sidebar refresh, session discovery fixes |
-| Branches created | changelog/auto-update-2026-03-01 | Current update branch |
+| Last checked commit | b7fed00 | chore(engineer): daily housekeeping |
+| Last run | 2026-03-06T04:01:56Z | Latest update completed successfully |
+| Entries added (last run) | 3 | Tool restriction, Discord typing indicator, Docker session/security fixes |
+| Branches created | changelog/auto-update-2026-03-06 | Current update branch |
 
 ---
 
@@ -30,6 +30,7 @@ incremental reviews that analyze only new commits since the last check.
 
 | Date | Commits Analyzed | Entries Added | Action | Branch |
 |------|-----------------|---------------|--------|--------|
+| 2026-03-06 | 11 | 3 | Ready for PR | changelog/auto-update-2026-03-06 |
 | 2026-03-01 | 12 | 3 | Ready for PR | changelog/auto-update-2026-03-01 |
 | 2026-02-26 | 11 | 3 | Created PR | changelog/auto-update-2026-02-26 |
 | 2026-02-25 | 10 | 2 | Created PR #142 | changelog/auto-update-2026-02-25 |
