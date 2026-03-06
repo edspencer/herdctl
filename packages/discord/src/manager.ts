@@ -625,6 +625,17 @@ export class DiscordManager implements IChatManager {
 
           prompt = `[Voice message transcription]: ${transcription.text}`;
           logger.info(`Voice message transcribed: "${prompt.substring(0, 80)}..."`);
+
+          // Echo the transcription to the channel so everyone can read the voice message
+          await event.reply({
+            embeds: [
+              {
+                description: transcription.text,
+                color: 0x95a5a6, // subtle grey
+                footer: { text: "Voice transcription" },
+              },
+            ],
+          });
         } catch (transcribeError) {
           const errMsg =
             transcribeError instanceof Error ? transcribeError.message : String(transcribeError);
