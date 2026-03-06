@@ -7,13 +7,14 @@ and manual review. Updated after each security review.
 
 | ID | Severity | Title | First Seen | Status | Location |
 |----|----------|-------|------------|--------|----------|
-| 011 | **MEDIUM** | **OAuth credential management in container-manager.ts** | 2026-02-20 | 🟡 YELLOW - Needs Review | container-manager.ts |
+| 012 | **HIGH** | **Web API lacks authentication** | 2026-03-06 | 🔴 OPEN - Document localhost-only | packages/web/src/server/routes/chat.ts |
+| 011 | **MEDIUM** | **OAuth credential management - risk elevated** | 2026-02-20 | 🟡 YELLOW - Session exposure risk | container-manager.ts + session files |
 | 010 | Medium | bypassPermissions in job files (22 files) | 2026-02-12 | 🟡 YELLOW - Retention needed | .herdctl/jobs/*.yaml |
 | 002 | High | hostConfigOverride can bypass Docker security | 2026-02-05 | ⚠️ Accepted Risk | container-manager.ts |
 | 005 | Medium | bypassPermissions in example config | 2026-02-05 | ℹ️ Intentional | examples/bragdoc-developer/ |
 | 006 | Medium | shell:true in hook runner | 2026-02-05 | ⚠️ Accepted Risk | hooks/runners/shell.ts |
 | 008 | Medium | npm audit parser error | 2026-02-05 | 📋 Manual Check Needed | dependencies |
-| 009 | Low | Incomplete shell escaping in Docker prompts | 2026-02-05 | 🔧 Tech Debt | container-runner.ts:157 |
+| 009 | Low | Incomplete shell escaping in Docker prompts | 2026-02-05 | 🔧 Partially Fixed | container-runner.ts (commit a0e7ad8) |
 
 ## Resolved Findings
 
@@ -188,19 +189,29 @@ Security audit agents use `bypassPermissions: true` to scan the codebase. Each a
 
 ---
 
-### ID 011: OAuth Credential Management 🟡 NEW
+### ID 011: OAuth Credential Management 🟡 RISK ELEVATED
 **Severity**: MEDIUM
 **First Seen**: 2026-02-20
-**Location**: `packages/core/src/runner/runtime/container-manager.ts`
-**Status**: 🟡 YELLOW - Needs security review
+**Updated**: 2026-03-06 (risk elevated)
+**Location**: `packages/core/src/runner/runtime/container-manager.ts` + session files
+**Status**: 🟡 YELLOW - Session exposure risk added
 
 OAuth token refresh functionality added to container-manager.ts reads/writes credentials from `~/.claude/.credentials.json` and refreshes tokens via HTTPS to console.anthropic.com.
 
-**Security Concerns**:
+**Original Security Concerns**:
 1. **File permissions**: No enforcement of 0600 on credentials file
 2. **Logging**: logger.error() calls may leak refresh tokens in error messages
 3. **Multi-user systems**: Reading from homedir may expose credentials if permissions wrong
 4. **Token lifecycle**: Need to verify old tokens are cleared after refresh
+
+**NEW Risk Vector (2026-03-06)**:
+Session discovery now reads all `.jsonl` files and exposes them via web API `/api/chat/session/:encodedPath/:sessionId`. These session files may contain:
+- OAuth tokens in error messages during auth failures
+- Debug output from container-manager.ts OAuth functions
+- Credential material in session metadata
+
+**Combined Impact**:
+Finding #011 (credentials in files) + Finding #012 (unauthenticated web API) = credential leakage risk if web dashboard exposed on network.
 
 **Code Added**:
 - `readCredentialsFile()` - Reads `~/.claude/.credentials.json`
@@ -209,25 +220,69 @@ OAuth token refresh functionality added to container-manager.ts reads/writes cre
 - `ensureValidOAuthToken()` - Token expiry check with 5-minute buffer
 
 **Recommended Actions (MEDIUM Priority)**:
-1. Add explicit `fs.chmodSync(credsPath, 0o600)` after writeCredentialsFile()
-2. Review all logger calls in OAuth functions - ensure no token data in messages
-3. Verify error handling doesn't expose refresh_token or access_token in logs
-4. Add comment documenting that credentials file must be user-readable only
+1. Audit existing session files for credential leaks
+2. Review `jsonl-parser.ts` to ensure it doesn't expose sensitive fields via web API
+3. Add credential redaction to session export/API functions
+4. Add explicit `fs.chmodSync(credsPath, 0o600)` after writeCredentialsFile()
+5. Review all logger calls in OAuth functions - ensure no token data in messages
 
 **Introduced In**: Commits fd8f39d, 0953e36 (2026-02-17 to 2026-02-20)
 
 ---
 
+### ID 012: Web API Lacks Authentication 🔴 NEW
+**Severity**: HIGH
+**First Seen**: 2026-03-06
+**Location**: `packages/web/src/server/routes/chat.ts`
+**Status**: 🔴 OPEN - Requires documentation
+
+The web dashboard added four new REST API endpoints in commit 01274a8 (PR #144) with no authentication:
+- `GET /api/chat/recent` - List recent sessions across all agents
+- `GET /api/chat/config` - Read fleet web config
+- `GET /api/chat/all` - List all discovered sessions
+- `GET /api/chat/session/:encodedPath/:sessionId` - Read arbitrary session files
+
+**Security Impact**:
+- **Information disclosure:** Full access to all chat session history
+- **Session enumeration:** Attacker can list all sessions and working directories
+- **Credential exposure:** Sessions may contain OAuth tokens (Finding #011)
+- **No audit trail:** No logging of who accessed what sessions
+
+**Risk Assessment**:
+- **Localhost deployment (default):** LOW risk - implicit trust boundary
+- **LAN/Internet deployment:** HIGH risk - unauthorized access to sensitive data
+
+**Evidence**:
+- Routes registered with no authentication middleware (chat.ts:22-27)
+- No JWT, session cookies, API keys, or authorization headers present
+- CORS allows localhost origins only (consistent with local dev use)
+- Default binding: `host: "localhost"` (safe)
+
+**Recommendation**:
+1. **IMMEDIATE:** Document that web dashboard is localhost-only by design
+2. **IMMEDIATE:** Add warning against binding to `0.0.0.0` or exposing on network
+3. **MEDIUM:** Add explicit validation of `encodedPath` parameter (defense-in-depth)
+4. If network deployment needed: implement JWT/session auth, path validation, audit logging, TLS
+
+**Related Findings**:
+- Finding #011 (OAuth credentials in sessions)
+- Q1 (webhook authentication)
+
+**Introduced In**: Commit 01274a8 (PR #144, 2026-03-06)
+
+---
+
 ## Statistics
 
-- **Total Findings**: 11
+- **Total Findings**: 12
 - **Resolved**: 2
 - **False Positives**: 2
-- **Active**: 7
+- **Active**: 8
   - Critical: 0
-  - High: 1 (accepted)
-  - **Medium: 4 (2 new, 1 accepted, 1 needs manual check)**
-  - Low: 1 (tech debt)
+  - **High: 1 (NEW - web API auth)**
+  - High: 1 (accepted - hostConfigOverride)
+  - **Medium: 4 (1 elevated, 1 retention, 1 accepted, 1 npm audit)**
+  - Low: 1 (partially fixed - shell escaping)
 
 ---
 
@@ -255,9 +310,10 @@ Based on false positives identified:
 | 2026-02-14 | Manual audit | 0 | 0 | #010 CRITICAL escalation (measurement ERROR) |
 | 2026-02-17 | /security-audit | 0 | 0 | **#010 DOWNGRADED** - corrected count: 21 files |
 | 2026-02-20 | /security-audit | 1 | 0 | **#011 NEW** - OAuth credential management |
+| 2026-03-06 | /security-audit | 1 | 0 | **#012 NEW** - Web API lacks auth; #011 risk elevated; 71 commits |
 
 ---
 
-**Last Updated:** 2026-02-20
-**Status:** 🟡 YELLOW - 1 new finding needs review
+**Last Updated:** 2026-03-06
+**Status:** 🟡 YELLOW - 1 HIGH finding needs documentation, 1 MEDIUM risk elevated
 
