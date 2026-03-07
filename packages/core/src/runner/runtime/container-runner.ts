@@ -30,6 +30,11 @@ import { buildContainerEnv, buildContainerMounts, ContainerManager } from "./con
 import type { DockerConfig } from "./docker-config.js";
 import type { RuntimeExecuteOptions, RuntimeInterface } from "./interface.js";
 import { type McpHttpBridge, startMcpHttpBridge } from "./mcp-http-bridge.js";
+import {
+  createMcpHostBridge,
+  type McpHostBridgeHandle,
+  partitionMcpServers,
+} from "./mcp-host-bridge.js";
 import { SDKRuntime } from "./sdk-runtime.js";
 
 const logger = createLogger("ContainerRunner");
@@ -83,6 +88,43 @@ export class ContainerRunner implements RuntimeInterface {
     // Get or create container
     const container = await this.manager.getOrCreateContainer(agent.name, this.config, mounts, env);
 
+    // Partition host: true MCP servers — these run on the host and get bridged
+    const hostBridges: McpHostBridgeHandle[] = [];
+    let effectiveOptions = options;
+
+    if (agent.mcp_servers) {
+      const [hostServers, containerServers] = partitionMcpServers(agent.mcp_servers);
+
+      if (Object.keys(hostServers).length > 0) {
+        // Start host-side MCP bridges
+        for (const [name, config] of Object.entries(hostServers)) {
+          const handle = await createMcpHostBridge(name, config);
+          hostBridges.push(handle);
+        }
+
+        // Build effective options with host servers moved to injectedMcpServers
+        const injected = { ...(options.injectedMcpServers ?? {}) };
+        for (const handle of hostBridges) {
+          injected[handle.serverDef.name] = handle.serverDef;
+        }
+
+        effectiveOptions = {
+          ...options,
+          agent: {
+            ...agent,
+            mcp_servers:
+              Object.keys(containerServers).length > 0 ? containerServers : undefined,
+          },
+          injectedMcpServers: injected,
+        };
+
+        logger.info(
+          `Partitioned MCP servers: ${Object.keys(hostServers).length} host, ` +
+            `${Object.keys(containerServers).length} container`,
+        );
+      }
+    }
+
     try {
       // Get container ID for docker exec
       const containerInfo = await container.inspect();
@@ -90,11 +132,11 @@ export class ContainerRunner implements RuntimeInterface {
 
       // Handle CLI runtime with session file watching
       if (this.wrapped instanceof CLIRuntime) {
-        yield* this.executeCLIRuntime(containerId, dockerSessionsDir, options);
+        yield* this.executeCLIRuntime(containerId, dockerSessionsDir, effectiveOptions);
       }
       // Handle SDK runtime with wrapper script
       else if (this.wrapped instanceof SDKRuntime) {
-        yield* this.executeSDKRuntime(container, options);
+        yield* this.executeSDKRuntime(container, effectiveOptions);
       }
       // Unknown runtime type
       else {
@@ -112,6 +154,15 @@ export class ContainerRunner implements RuntimeInterface {
 
       // Container cleanup happens in finally block
     } finally {
+      // Close host MCP bridges (kill subprocess + MCP client)
+      for (const handle of hostBridges) {
+        try {
+          await handle.close();
+        } catch (err) {
+          logger.error(`Failed to close host MCP bridge: ${err}`);
+        }
+      }
+
       // For ephemeral containers, stop immediately after execution
       // This triggers AutoRemove so the container is cleaned up automatically
       if (this.config.ephemeral) {
@@ -146,6 +197,7 @@ export class ContainerRunner implements RuntimeInterface {
   ): AsyncIterable<SDKMessage> {
     // Create CLI runtime with Docker-specific spawner
     const cliRuntime = new CLIRuntime({
+      mcpBridgeHost: "host.docker.internal",
       processSpawner: (args, _cwd, prompt, signal) => {
         // Build docker exec command with prompt piped to stdin
         // Uses printf to avoid issues with newlines and special chars in prompt
