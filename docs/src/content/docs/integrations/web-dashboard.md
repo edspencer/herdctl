@@ -277,6 +277,52 @@ The server registers these API endpoints:
 | `/api/health` | GET | Health check |
 | `/ws` | WebSocket | Real-time event stream |
 
+## Security
+
+:::caution
+The web dashboard has **no authentication layer**. It is designed for local use on `localhost` only.
+:::
+
+### Localhost-Only Deployment
+
+By default, the dashboard binds to `localhost` (only accessible from the machine running herdctl):
+
+```yaml
+web:
+  enabled: true
+  port: 3232
+  host: localhost  # Default - secure
+```
+
+**Never bind to `0.0.0.0` without additional security controls.** Doing so exposes all agent outputs, chat history, and fleet control to anyone on your network.
+
+The web API provides unrestricted access to:
+- Full chat history for all agents
+- All job outputs and logs
+- Ability to trigger jobs and modify schedules
+- Session files that may contain credentials in error messages
+
+### Remote Access
+
+If you need remote access, use an **authenticated reverse proxy**:
+
+**Recommended: Caddy with HTTP Basic Auth**
+
+```caddyfile
+# Caddyfile
+dashboard.yourdomain.com {
+  reverse_proxy localhost:3232
+  basicauth {
+    admin $2a$14$hashed_password_here
+  }
+  tls you@example.com
+}
+```
+
+This keeps herdctl bound to `localhost` while providing authenticated HTTPS access through Caddy.
+
+**See the [Web Dashboard Security](/security/#web-dashboard-security) section in the Security Guide for detailed guidance, alternative authentication patterns, and best practices.**
+
 ## Requirements
 
 - **Node.js 18+**
