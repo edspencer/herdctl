@@ -667,10 +667,17 @@ export class DiscordManager implements IChatManager {
         }
 
         if (result.promptSections.length > 0) {
+          // When agent runs in Docker, translate host paths to container paths
+          // (working_directory is mounted at /workspace inside the container)
+          let sections = result.promptSections;
+          if (agent.docker?.enabled && workingDir) {
+            sections = sections.map((s) => s.replaceAll(workingDir, "/workspace"));
+          }
+
           prompt = [
             "The user sent the following file attachment(s) with their message:",
             "",
-            ...result.promptSections,
+            ...sections,
             "",
             "---",
             "",
