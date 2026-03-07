@@ -637,6 +637,10 @@ Port for the web dashboard to listen on.
 
 Host to bind the web dashboard to.
 
+:::caution
+**Security:** The web dashboard has no authentication. Keep this set to `"localhost"` (default) to prevent network exposure. Use an authenticated reverse proxy (Caddy, Nginx + OAuth2 Proxy) for remote access instead of binding to `"0.0.0.0"`. See [Web Dashboard Security](/security/#web-dashboard-security).
+:::
+
 #### fleet.web.session_expiry_hours
 
 | Property | Value |

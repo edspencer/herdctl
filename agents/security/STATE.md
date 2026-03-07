@@ -1,11 +1,11 @@
 ---
-last_updated: 2026-02-20T00:00:00Z
+last_updated: 2026-03-06T00:00:00Z
 last_mapping: 2026-02-14
-last_audit: 2026-02-20
+last_audit: 2026-03-06
 commits_since_audit: 0
-commits_since_mapping: 40
-open_findings: 7
-open_questions: 7
+commits_since_mapping: 111
+open_findings: 8
+open_questions: 8
 status: audit_complete_yellow
 ---
 
@@ -22,19 +22,20 @@ This document provides persistent state for security audits, enabling incrementa
 | Metric | Value | Notes |
 |--------|-------|-------|
 | Last full mapping | 2026-02-14 | Comprehensive audit completed |
-| Last incremental audit | 2026-02-20 | Incremental - YELLOW - 1 new finding (#011 OAuth) |
-| Commits since last audit | 0 | At 5469008 (2026-02-20) |
-| Open findings | 7 | See [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
-| Open questions | 7 | Q1, Q3, Q4, Q5, Q7, Q8, Q9, Q10, Q11 |
+| Last incremental audit | 2026-03-06 | Incremental - YELLOW - 1 new HIGH finding (#012 Web API) |
+| Commits since last audit | 0 | At 5f79021 (2026-03-06) |
+| Open findings | 8 | See [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
+| Open questions | 8 | Q1, Q3, Q4, Q5, Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q14 (3 answered) |
 
-**Status:** YELLOW - Finding #011 (OAuth credential management) needs security review for credential leak vectors.
+**Status:** YELLOW - Finding #012 (Web API lacks authentication) needs documentation; Finding #011 risk elevated.
 
 ### Finding Breakdown
 
 - **Critical: 0**
+- **High: 1** (#012 NEW - web API auth missing)
 - High: 1 (accepted risk - hostConfigOverride #002)
-- **Medium: 4** (#011 NEW OAuth, #010 job retention, #008 npm audit, #006 accepted)
-- Low: 1 (tech debt - shell escaping #009)
+- **Medium: 4** (#011 OAuth risk elevated, #010 job retention, #008 npm audit, #006 accepted)
+- Low: 1 (partially fixed - shell escaping #009)
 - Intentional: 1 (#005 example config)
 
 ### Question Priorities
@@ -51,12 +52,12 @@ Security coverage by area with staleness tracking.
 
 | Area | Last Checked | Commits Since | Status | Notes |
 |------|--------------|---------------|--------|-------|
-| Attack surface | 2026-02-14 | 40 | STALE | Needs refresh - major features added |
-| Data flows | 2026-02-14 | 40 | STALE | OAuth flow added, needs mapping |
-| Security controls | 2026-02-20 | 0 | Current | Hot spots verified (container-manager.ts OAuth reviewed) |
-| Threat vectors | 2026-02-14 | 40 | STALE | New web UI and OAuth paths |
-| Hot spots | 2026-02-20 | 0 | Current | Scanner run complete - 2273ms |
-| Code patterns | 2026-02-20 | 0 | Current | All checks complete - FAIL (pre-existing) |
+| Attack surface | 2026-03-06 | 0 | ✅ Current | Agent distribution + session discovery analyzed |
+| Data flows | 2026-03-06 | 0 | ✅ Current | Web API flows traced, OAuth paths reviewed |
+| Security controls | 2026-03-06 | 0 | ✅ Current | Path validation + shell escaping verified |
+| Threat vectors | 2026-03-06 | 0 | ✅ Current | SSRF, traversal, unauth access assessed |
+| Hot spots | 2026-03-06 | 0 | ✅ Current | Scanner run complete - 4422ms |
+| Code patterns | 2026-03-06 | 0 | ✅ Current | buildSafeFilePath usage verified |
 
 ### Staleness Thresholds
 
@@ -72,26 +73,29 @@ Active findings and open questions requiring attention.
 
 | ID | Type | Summary | Priority | Status | Source |
 |----|------|---------|----------|--------|--------|
-| #011 | Finding | OAuth credential management in container-manager.ts | **MEDIUM** | YELLOW - Needs review for file permissions, logging leaks | [2026-02-20 Report](intel/2026-02-20.md) |
-| #010 | Finding | bypassPermissions in 22 job files | MEDIUM | YELLOW - Retention policy needed (stable growth) | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
-| #008 | Finding | npm audit parser error | Medium | Manual check needed | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
-| Q1 | Question | Webhook authentication | Medium | Partially answered - secret_env in schema; server impl unclear | [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
+| #012 | Finding | Web API lacks authentication | **HIGH** | OPEN - Needs documentation | [2026-03-06 Report](intel/2026-03-06.md) |
+| #011 | Finding | OAuth credential management - risk elevated | **MEDIUM** | YELLOW - Session exposure risk | [2026-03-06 Report](intel/2026-03-06.md) |
+| #010 | Finding | bypassPermissions in 22 job files | MEDIUM | YELLOW - Retention policy needed | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
+| #008 | Finding | npm audit - 4 HIGH, 4 MEDIUM vulns | Medium | Manual check needed | Scanner 2026-03-06 |
+| Q1 | Question | Webhook authentication | Medium | Related to #012 - web API has no auth | [2026-03-06 Report](intel/2026-03-06.md) |
+| Q13 | Question | encodedPath path traversal | Medium | Partially answered - indirect validation via groups | [2026-03-06 Report](intel/2026-03-06.md) |
+| Q11 | Question | GitHub SSRF in repo cloning | Medium | Confirmed - no allowlist; mitigations present | [2026-03-06 Report](intel/2026-03-06.md) |
 | Q4 | Question | Log injection via agent output | Medium | Open | [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
 | Q5 | Question | Fleet/agent config merge overrides | Medium | Open | [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
-| Q7 | Question | Docker container user (root?) | Medium | Partially answered - user field configurable; default = image default | [2026-02-17 Report](intel/2026-02-17.md) |
 | Q8 | Question | SDK wrapper prompt escaping | Medium | Open | [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
-| #009 | Finding | Incomplete shell escaping | Low | Tech debt | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
+| #009 | Finding | Incomplete shell escaping | Low | Partially fixed (commit a0e7ad8) | [2026-03-06 Report](intel/2026-03-06.md) |
 
 ### Priority Queue
 
 Ordered by urgency for next audit session:
 
-1. **MEDIUM P1:** Review OAuth logging for credential leaks (#011)
-2. **MEDIUM P2:** Add file permission enforcement for credentials.json (#011)
-3. **MEDIUM P3:** Implement job file retention policy (30 days) to resolve #010
-4. **MEDIUM P4:** Verify webhook server implementation for inbound auth (Q1)
-5. **LOW:** Docker container user configuration (Q7) - set explicit UID:GID
-6. **LOW:** #009 (shell escaping - fix when convenient)
+1. **HIGH P1:** Document web dashboard as localhost-only, warn against network exposure (#012)
+2. **HIGH P2:** Audit session files for OAuth credential leaks (#011 + #012 combined risk)
+3. **MEDIUM P1:** Add encodedPath explicit validation (Q13)
+4. **MEDIUM P2:** Review OAuth logging for credential leaks (#011)
+5. **MEDIUM P3:** Implement job file retention policy (30 days) to resolve #010
+6. **MEDIUM P4:** Consider GitHub URL allowlist for distribution system (Q11)
+7. **LOW:** Complete shell escaping verification (#009)
 
 ---
 
@@ -101,9 +105,15 @@ Ordered by urgency for next audit session:
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
+| 2026-03-06 | #012 HIGH - Web API lacks authentication | New web API routes have no auth; designed for localhost only; needs documentation |
+| 2026-03-06 | #011 risk ELEVATED | Session files exposed via web API may contain OAuth tokens; combined risk with #012 |
+| 2026-03-06 | #009 status updated to PARTIALLY FIXED | Commit a0e7ad8 escapes $ and backtick; full verification still needed |
+| 2026-03-06 | Q14 ANSWERED - Agent name validation SAFE | AGENT_NAME_PATTERN properly enforced before all file operations |
+| 2026-03-06 | Q13 ANSWERED - encodedPath validation PARTIAL | Indirect protection via groups lookup; recommend explicit validation |
+| 2026-03-06 | Q12 ANSWERED - Web API auth status NO | No authentication present; localhost-only design |
+| 2026-03-06 | Q11 CONFIRMED - GitHub SSRF potential | User controls GitHub URLs; mitigations present but no allowlist |
 | 2026-02-20 | #011 MEDIUM - OAuth credential review needed | New credential handling added to container-manager.ts; needs file permission and logging audit |
 | 2026-02-17 | #010 DOWNGRADED to MEDIUM; HALT LIFTED | 2026-02-15 audit correctly identified measurement error: 143 count included JSONL files; correct count is 21 YAML files |
-| 2026-02-15 | #010 measurement error identified | 143 count was wrong (included JSONL files); corrected to ~21 files; HALT was not justified |
 | 2026-02-14 | Comprehensive security audit completed | Full attack surface mapping, data flow tracing, controls assessment, threat modeling |
 | 2026-02-05 | #001 path traversal FIXED | buildSafeFilePath + AGENT_NAME_PATTERN in place |
 | 2026-02-05 | #002 hostConfigOverride ACCEPTED | Required for advanced Docker configurations at fleet level |
@@ -113,20 +123,22 @@ Ordered by urgency for next audit session:
 
 Security capabilities not yet implemented or areas needing investigation:
 
-- **MEDIUM NEW: OAuth credential file permissions not enforced** - writeCredentialsFile() doesn't set 0600 (#011)
-- **MEDIUM NEW: OAuth error logging may leak tokens** - logger.error() calls need review (#011)
+- **HIGH NEW: Web API has no authentication** - localhost-only by design but needs documentation (#012)
+- **HIGH NEW: Session files exposed via web API** - may contain OAuth tokens from error logs (#011 + #012)
+- **MEDIUM: encodedPath validation is indirect** - should add explicit regex validation (Q13)
+- **MEDIUM: OAuth credential file permissions not enforced** - writeCredentialsFile() doesn't set 0600 (#011)
+- **MEDIUM: OAuth error logging may leak tokens** - logger.error() calls need review (#011)
 - **MEDIUM: Job file retention policy not implemented** - 22 bypassPermissions files accumulating (#010)
-- **MEDIUM: Inbound webhook authentication status unclear** - secret_env in schema but server impl unknown (Q1)
-- **LOW: Container user not explicitly set** - default may be root depending on image (Q7)
+- **MEDIUM: GitHub SSRF potential** - no URL allowlist for repository cloning (Q11)
 - No secret detection in logs (output could leak sensitive data) - Q4
 - No rate limiting on triggers (DoS vector for scheduled jobs) - Q9
 
 ### Session Continuity
 
-- **Last session:** 2026-02-20 - Incremental audit covering 40 commits
-- **Completed:** Scanner run (FAIL - pre-existing), change analysis (OAuth added), hot spot verification (container-manager.ts), #011 discovery
-- **Resume from:** Normal operations; next scheduled audit ~2026-02-27
-- **Next priority:** OAuth logging review (#011), credential file permissions (#011), job retention policy (#010)
+- **Last session:** 2026-03-06 - Incremental audit covering 71 commits
+- **Completed:** Scanner run (FAIL - no regressions), change analysis (distribution + session discovery), web API auth review, agent name validation, encodedPath analysis, #012 discovery
+- **Resume from:** Normal operations; next scheduled audit ~2026-03-13
+- **Next priority:** Document web dashboard security model (#012), audit session files for credential leaks (#011), encodedPath validation (Q13)
 
 ---
 
