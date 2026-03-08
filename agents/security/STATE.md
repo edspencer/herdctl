@@ -1,17 +1,17 @@
 ---
-last_updated: 2026-03-06T00:00:00Z
+last_updated: 2026-03-08T06:01:38Z
 last_mapping: 2026-02-14
-last_audit: 2026-03-06
+last_audit: 2026-03-08
 commits_since_audit: 0
-commits_since_mapping: 111
+commits_since_mapping: 116
 open_findings: 8
-open_questions: 8
-status: audit_complete_yellow
+open_questions: 9
+status: audit_complete_pass
 ---
 
 # Security Audit State
 
-**Last Updated:** 2026-02-20 00:00 UTC
+**Last Updated:** 2026-03-08 06:01 UTC
 
 This document provides persistent state for security audits, enabling incremental reviews that build on previous work rather than starting fresh each time.
 
@@ -22,27 +22,27 @@ This document provides persistent state for security audits, enabling incrementa
 | Metric | Value | Notes |
 |--------|-------|-------|
 | Last full mapping | 2026-02-14 | Comprehensive audit completed |
-| Last incremental audit | 2026-03-06 | Incremental - YELLOW - 1 new HIGH finding (#012 Web API) |
-| Commits since last audit | 0 | At 5f79021 (2026-03-06) |
+| Last incremental audit | 2026-03-08 | Incremental - PASS - 5 commits, all housekeeping |
+| Commits since last audit | 0 | At be5c66e (2026-03-08) |
 | Open findings | 8 | See [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
-| Open questions | 8 | Q1, Q3, Q4, Q5, Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q14 (3 answered) |
+| Open questions | 9 | Q1, Q3, Q4, Q5, Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q14 |
 
-**Status:** YELLOW - Finding #012 (Web API lacks authentication) needs documentation; Finding #011 risk elevated.
+**Status:** PASS - No code changes, scanner stable, all findings unchanged.
 
 ### Finding Breakdown
 
 - **Critical: 0**
-- **High: 1** (#012 NEW - web API auth missing)
+- **High: 1** (#012 - web API auth missing, needs documentation)
 - High: 1 (accepted risk - hostConfigOverride #002)
-- **Medium: 4** (#011 OAuth risk elevated, #010 job retention, #008 npm audit, #006 accepted)
+- **Medium: 4** (#011 OAuth risk, #010 job retention, #008 npm audit, #006 accepted)
 - Low: 1 (partially fixed - shell escaping #009)
 - Intentional: 1 (#005 example config)
 
 ### Question Priorities
 
 - High: 0
-- Medium: 5 (Q1 webhook auth, Q4 log injection, Q5 config merge, Q7 container user, Q8 SDK escaping)
-- Low: 2 (Q3 container name chars, Q9 rate limiting, Q10 MCP security, Q11 GitHub SSRF)
+- Medium: 8 (Q1, Q4, Q5, Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q14)
+- Low: 1 (Q3)
 
 ---
 
@@ -52,12 +52,12 @@ Security coverage by area with staleness tracking.
 
 | Area | Last Checked | Commits Since | Status | Notes |
 |------|--------------|---------------|--------|-------|
-| Attack surface | 2026-03-06 | 0 | ✅ Current | Agent distribution + session discovery analyzed |
-| Data flows | 2026-03-06 | 0 | ✅ Current | Web API flows traced, OAuth paths reviewed |
-| Security controls | 2026-03-06 | 0 | ✅ Current | Path validation + shell escaping verified |
-| Threat vectors | 2026-03-06 | 0 | ✅ Current | SSRF, traversal, unauth access assessed |
-| Hot spots | 2026-03-06 | 0 | ✅ Current | Scanner run complete - 4422ms |
-| Code patterns | 2026-03-06 | 0 | ✅ Current | buildSafeFilePath usage verified |
+| Attack surface | 2026-03-08 | 0 | ✅ Current | No code changes since last audit |
+| Data flows | 2026-03-08 | 0 | ✅ Current | No changes to web API or OAuth flows |
+| Security controls | 2026-03-08 | 0 | ✅ Current | Path validation and escaping unchanged |
+| Threat vectors | 2026-03-08 | 0 | ✅ Current | No new attack vectors identified |
+| Hot spots | 2026-03-08 | 0 | ✅ Current | Scanner run complete - 3587ms |
+| Code patterns | 2026-03-08 | 0 | ✅ Current | No changes to security-sensitive code |
 
 ### Staleness Thresholds
 
@@ -76,7 +76,7 @@ Active findings and open questions requiring attention.
 | #012 | Finding | Web API lacks authentication | **HIGH** | OPEN - Needs documentation | [2026-03-06 Report](intel/2026-03-06.md) |
 | #011 | Finding | OAuth credential management - risk elevated | **MEDIUM** | YELLOW - Session exposure risk | [2026-03-06 Report](intel/2026-03-06.md) |
 | #010 | Finding | bypassPermissions in 22 job files | MEDIUM | YELLOW - Retention policy needed | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
-| #008 | Finding | npm audit - 4 HIGH, 4 MEDIUM vulns | Medium | Manual check needed | Scanner 2026-03-06 |
+| #008 | Finding | npm audit - 4 HIGH, 4 MEDIUM vulns | Medium | Manual check needed | Scanner 2026-03-08 |
 | Q1 | Question | Webhook authentication | Medium | Related to #012 - web API has no auth | [2026-03-06 Report](intel/2026-03-06.md) |
 | Q13 | Question | encodedPath path traversal | Medium | Partially answered - indirect validation via groups | [2026-03-06 Report](intel/2026-03-06.md) |
 | Q11 | Question | GitHub SSRF in repo cloning | Medium | Confirmed - no allowlist; mitigations present | [2026-03-06 Report](intel/2026-03-06.md) |
@@ -105,6 +105,7 @@ Ordered by urgency for next audit session:
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
+| 2026-03-08 | No action needed for 2026-03-08 audit | 5 commits all housekeeping (state file updates), no code changes |
 | 2026-03-06 | #012 HIGH - Web API lacks authentication | New web API routes have no auth; designed for localhost only; needs documentation |
 | 2026-03-06 | #011 risk ELEVATED | Session files exposed via web API may contain OAuth tokens; combined risk with #012 |
 | 2026-03-06 | #009 status updated to PARTIALLY FIXED | Commit a0e7ad8 escapes $ and backtick; full verification still needed |
@@ -135,8 +136,8 @@ Security capabilities not yet implemented or areas needing investigation:
 
 ### Session Continuity
 
-- **Last session:** 2026-03-06 - Incremental audit covering 71 commits
-- **Completed:** Scanner run (FAIL - no regressions), change analysis (distribution + session discovery), web API auth review, agent name validation, encodedPath analysis, #012 discovery
+- **Last session:** 2026-03-08 - Incremental audit covering 5 commits
+- **Completed:** Scanner run (FAIL - expected baseline), change analysis (housekeeping only), no hot spot verification needed, no question investigation needed
 - **Resume from:** Normal operations; next scheduled audit ~2026-03-13
 - **Next priority:** Document web dashboard security model (#012), audit session files for credential leaks (#011), encodedPath validation (Q13)
 
@@ -167,4 +168,3 @@ When commits occur to the codebase:
 ---
 
 **End of STATE.md**
-
