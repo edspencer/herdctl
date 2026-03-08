@@ -108,7 +108,7 @@ export const DEFAULT_MEMORY_LIMIT = "2g";
 /**
  * Default max containers to keep per agent
  */
-export const DEFAULT_MAX_CONTAINERS = 5;
+export const DEFAULT_MAX_CONTAINERS = 1;
 
 /**
  * Parse memory string (e.g., "2g", "512m") to bytes

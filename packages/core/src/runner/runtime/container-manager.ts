@@ -45,18 +45,42 @@ export class ContainerManager {
     mounts: PathMapping[],
     env: string[],
   ): Promise<Container> {
-    // For persistent containers, check if already running
+    // For persistent containers, try to reuse an existing container
     if (!config.ephemeral) {
-      const existing = this.runningContainers.get(agentName);
-      if (existing) {
+      // First check in-memory cache (same herdctl process)
+      const cached = this.runningContainers.get(agentName);
+      if (cached) {
         try {
-          const info = await existing.inspect();
+          const info = await cached.inspect();
           if (info.State.Running) {
-            return existing;
+            return cached;
           }
         } catch {
-          // Container no longer exists, remove from map
           this.runningContainers.delete(agentName);
+        }
+      }
+
+      // Query Docker for the most recent stopped container for this agent
+      // This handles herdctl restarts where the in-memory map is empty
+      const existing = await this.docker.listContainers({
+        all: true,
+        limit: 1,
+        filters: {
+          name: [`herdctl-${agentName}-`],
+          status: ["exited", "created"],
+        },
+      });
+
+      if (existing.length > 0) {
+        const container = this.docker.getContainer(existing[0].Id);
+        try {
+          await container.start();
+          this.runningContainers.set(agentName, container);
+          logger.info(`Restarted existing container for ${agentName}: ${existing[0].Names[0]}`);
+          return container;
+        } catch (err) {
+          logger.warn(`Failed to restart existing container for ${agentName}, creating new: ${err}`);
+          // Fall through to create a new container
         }
       }
     }
