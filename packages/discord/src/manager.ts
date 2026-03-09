@@ -449,7 +449,7 @@ export class DiscordManager implements IChatManager {
       tool_results: true,
       tool_result_max_length: 900,
       system_status: true,
-      result_summary: true,
+      result_summary: false,
       errors: true,
       typing_indicator: true,
       acknowledge_emoji: "👀",
@@ -649,40 +649,45 @@ export class DiscordManager implements IChatManager {
       // Images/PDFs are saved to disk (agent views via Read tool); text is inlined
       if (
         event.metadata.attachments &&
-        event.metadata.attachments.length > 0 &&
-        attachmentConfig?.enabled
+        event.metadata.attachments.length > 0
       ) {
-        const result = await DiscordManager.processAttachments(
-          event.metadata.attachments,
-          attachmentConfig,
-          workingDir,
-          logger as ChatConnectorLogger,
-        );
-        attachmentDownloadedPaths = result.downloadedPaths;
+        if (!attachmentConfig?.enabled) {
+          logger.warn(
+            `Message has ${event.metadata.attachments.length} attachment(s) but attachments.enabled is false — files will be ignored. Set chat.discord.attachments.enabled: true to process them.`,
+          );
+        } else {
+          const result = await DiscordManager.processAttachments(
+            event.metadata.attachments,
+            attachmentConfig,
+            workingDir,
+            logger as ChatConnectorLogger,
+          );
+          attachmentDownloadedPaths = result.downloadedPaths;
 
-        if (result.skippedFiles.length > 0) {
-          for (const skipped of result.skippedFiles) {
-            logger.debug(`Skipped attachment ${skipped.name}: ${skipped.reason}`);
-          }
-        }
-
-        if (result.promptSections.length > 0) {
-          // When agent runs in Docker, translate host paths to container paths
-          // (working_directory is mounted at /workspace inside the container)
-          let sections = result.promptSections;
-          if (agent.docker?.enabled && workingDir) {
-            sections = sections.map((s) => s.replaceAll(workingDir, "/workspace"));
+          if (result.skippedFiles.length > 0) {
+            for (const skipped of result.skippedFiles) {
+              logger.warn(`Skipped attachment ${skipped.name}: ${skipped.reason}`);
+            }
           }
 
-          prompt = [
-            "The user sent the following file attachment(s) with their message:",
-            "",
-            ...sections,
-            "",
-            "---",
-            "",
-            `User message: ${prompt}`,
-          ].join("\n");
+          if (result.promptSections.length > 0) {
+            // When agent runs in Docker, translate host paths to container paths
+            // (working_directory is mounted at /workspace inside the container)
+            let sections = result.promptSections;
+            if (agent.docker?.enabled && workingDir) {
+              sections = sections.map((s) => s.replaceAll(workingDir, "/workspace"));
+            }
+
+            prompt = [
+              "The user sent the following file attachment(s) with their message:",
+              "",
+              ...sections,
+              "",
+              "---",
+              "",
+              `User message: ${prompt}`,
+            ].join("\n");
+          }
         }
       }
 

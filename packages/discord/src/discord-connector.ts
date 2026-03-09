@@ -775,7 +775,12 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
     if (!isVoiceMessage && message.attachments.size > 0) {
       const extracted: DiscordAttachmentInfo[] = [];
       for (const [, attachment] of message.attachments) {
-        const contentType = attachment.contentType ?? "application/octet-stream";
+        // Discord may return null contentType (especially in DMs), so fall back
+        // to guessing from the file extension before giving up
+        const contentType =
+          attachment.contentType ??
+          DiscordConnector._guessContentType(attachment.name ?? "") ??
+          "application/octet-stream";
         const category = DiscordConnector._categorizeContentType(contentType);
         if (category !== "unsupported") {
           extracted.push({
@@ -864,6 +869,37 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
     ];
     if (codeTypes.includes(lower)) return "text";
     return "unsupported";
+  }
+
+  /**
+   * Guess MIME type from file extension when Discord doesn't provide contentType.
+   * Returns undefined if the extension is unrecognized.
+   */
+  private static _guessContentType(filename: string): string | undefined {
+    const ext = filename.split(".").pop()?.toLowerCase();
+    if (!ext) return undefined;
+    const map: Record<string, string> = {
+      pdf: "application/pdf",
+      png: "image/png",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      gif: "image/gif",
+      webp: "image/webp",
+      svg: "image/svg+xml",
+      txt: "text/plain",
+      md: "text/markdown",
+      json: "application/json",
+      js: "application/javascript",
+      ts: "application/typescript",
+      yaml: "application/x-yaml",
+      yml: "application/x-yaml",
+      xml: "application/xml",
+      sh: "application/x-sh",
+      csv: "text/csv",
+      html: "text/html",
+      css: "text/css",
+    };
+    return map[ext];
   }
 
   /**

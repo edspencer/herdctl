@@ -148,6 +148,44 @@ describe("_categorizeContentType", () => {
 });
 
 // =============================================================================
+// Guess Content Type Tests
+// =============================================================================
+
+describe("_guessContentType", () => {
+  const guess = ConnectorAny._guessContentType;
+
+  it("guesses PDF from .pdf extension", () => {
+    expect(guess("document.pdf")).toBe("application/pdf");
+  });
+
+  it("guesses image types from extensions", () => {
+    expect(guess("photo.png")).toBe("image/png");
+    expect(guess("photo.jpg")).toBe("image/jpeg");
+    expect(guess("photo.jpeg")).toBe("image/jpeg");
+    expect(guess("anim.gif")).toBe("image/gif");
+    expect(guess("img.webp")).toBe("image/webp");
+  });
+
+  it("guesses text/code types from extensions", () => {
+    expect(guess("readme.txt")).toBe("text/plain");
+    expect(guess("notes.md")).toBe("text/markdown");
+    expect(guess("data.json")).toBe("application/json");
+    expect(guess("config.yaml")).toBe("application/x-yaml");
+    expect(guess("config.yml")).toBe("application/x-yaml");
+  });
+
+  it("returns undefined for unknown extensions", () => {
+    expect(guess("archive.zip")).toBeUndefined();
+    expect(guess("video.mp4")).toBeUndefined();
+  });
+
+  it("returns undefined for files without extension", () => {
+    expect(guess("Makefile")).toBeUndefined();
+    expect(guess("")).toBeUndefined();
+  });
+});
+
+// =============================================================================
 // MIME Pattern Matching Tests
 // =============================================================================
 

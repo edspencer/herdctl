@@ -501,6 +501,8 @@ export const McpServerSchema = z.object({
   args: z.array(z.string()).optional(),
   env: z.record(z.string(), z.string()).optional(),
   url: z.string().optional(),
+  /** Custom headers for HTTP-based MCP servers (e.g. Authorization) */
+  headers: z.record(z.string(), z.string()).optional(),
   /** When true and Docker is enabled, run this MCP server on the host and bridge into the container */
   host: z.boolean().optional(),
 });
@@ -632,7 +634,7 @@ export const ChatOutputSchema = z.object({
  */
 export const DiscordOutputSchema = ChatOutputSchema.extend({
   /** Show a summary embed when the agent finishes a turn (cost, tokens, turns) (default: true) */
-  result_summary: z.boolean().optional().default(true),
+  result_summary: z.boolean().optional().default(false),
   /** Show typing indicator while the agent is processing (default: true) */
   typing_indicator: z.boolean().optional().default(true),
   /** Emoji to react with when a message is received (empty string to disable, default: "👀") */
