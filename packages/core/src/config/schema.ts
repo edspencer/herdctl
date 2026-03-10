@@ -630,8 +630,8 @@ export const ChatOutputSchema = z.object({
  * ```
  */
 export const DiscordOutputSchema = ChatOutputSchema.extend({
-  /** Show a summary embed when the agent finishes a turn (cost, tokens, turns) (default: true) */
-  result_summary: z.boolean().optional().default(true),
+  /** Show a summary embed when the agent finishes a turn (cost, tokens, turns) (default: false) */
+  result_summary: z.boolean().optional().default(false),
   /** Show typing indicator while the agent is processing (default: true) */
   typing_indicator: z.boolean().optional().default(true),
   /** Emoji to react with when a message is received (empty string to disable, default: "👀") */

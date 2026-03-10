@@ -1708,7 +1708,7 @@ describe("AgentChatDiscordSchema", () => {
         tool_results: true,
         tool_result_max_length: 900,
         system_status: true,
-        result_summary: true,
+        result_summary: false,
         errors: true,
         typing_indicator: true,
         acknowledge_emoji: "👀",
@@ -1780,10 +1780,7 @@ describe("AgentChatDiscordSchema", () => {
     const result = AgentChatDiscordSchema.safeParse({
       bot_token_env: "TOKEN",
       guilds: [{ id: "123", channels: [{ id: "456" }] }],
-      skills: [
-        { name: "pdf", description: "Work with PDF files" },
-        { name: "cloudflare-deploy" },
-      ],
+      skills: [{ name: "pdf", description: "Work with PDF files" }, { name: "cloudflare-deploy" }],
     });
     expect(result.success).toBe(true);
     if (result.success) {

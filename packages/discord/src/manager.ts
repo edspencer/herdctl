@@ -449,7 +449,7 @@ export class DiscordManager implements IChatManager {
       tool_results: true,
       tool_result_max_length: 900,
       system_status: true,
-      result_summary: true,
+      result_summary: false,
       errors: true,
       typing_indicator: true,
       acknowledge_emoji: "👀",
