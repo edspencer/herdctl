@@ -377,9 +377,20 @@ export class CLIRuntime implements RuntimeInterface {
 
       logger.debug(`Subprocess spawned, PID: ${subprocess.pid}`);
 
-      // Log subprocess output for debugging
+      // Capture stdout for session ID extraction and logging.
+      // Claude -p mode may not write a .jsonl session file, so we parse
+      // the session_id from stdout and create the file ourselves if needed.
+      let capturedSessionId: string | undefined;
       subprocess.stdout?.on("data", (data) => {
-        logger.info(data.toString());
+        const text = data.toString();
+        logger.info(text);
+        // Extract session_id from stream-json result lines
+        if (!capturedSessionId) {
+          const match = text.match(/"session_id"\s*:\s*"([0-9a-f-]{36})"/);
+          if (match) {
+            capturedSessionId = match[1];
+          }
+        }
       });
       subprocess.stderr?.on("data", (data) => {
         logger.warn(data.toString());
@@ -417,12 +428,33 @@ export class CLIRuntime implements RuntimeInterface {
         }
         logger.debug(`Resuming session, watching file: ${sessionFilePath}`);
       } else {
-        // When starting new session, wait for a NEW file created after process start
+        // When starting new session, wait for a NEW file created after process start.
+        // Claude -p mode may not write session files, so we race the file watcher
+        // against process completion and fall back to creating the file from stdout.
         logger.debug("Waiting for new session file...");
-        sessionFilePath = await waitForNewSessionFile(sessionDir, processStartTime, {
-          timeoutMs: 60000, // Allow up to 60s for MCP servers to initialize
+        const sessionFilePromise = waitForNewSessionFile(sessionDir, processStartTime, {
+          timeoutMs: 60000,
           pollIntervalMs: 200,
         });
+        // Race: session file appears OR process exits (whichever comes first)
+        const raceResult = await Promise.race([
+          sessionFilePromise.then((path) => ({ type: "file" as const, path })),
+          processExitPromise.then(() => ({ type: "process_done" as const, path: undefined })),
+        ]);
+        if (raceResult.type === "file") {
+          sessionFilePath = raceResult.path;
+        } else {
+          // Process finished without writing a session file.
+          // Create a stub using the session ID captured from stdout.
+          // Use captured session ID from stdout, or generate one if CLI didn't
+          // output structured JSON (e.g., -p mode in Claude CLI 2.1.71+).
+          const stubSessionId = capturedSessionId ?? crypto.randomUUID();
+          logger.info(`No session file written by CLI; creating stub for ${stubSessionId}`);
+          const { mkdir, writeFile } = await import("node:fs/promises");
+          await mkdir(sessionDir, { recursive: true });
+          sessionFilePath = `${sessionDir}/${stubSessionId}.jsonl`;
+          await writeFile(sessionFilePath, "");
+        }
         logger.debug(`New session, watching newly created file: ${sessionFilePath}`);
       }
 
