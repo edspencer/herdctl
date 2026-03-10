@@ -91,6 +91,10 @@ export function injectSchedulerMcpServers(agents: ResolvedAgent[], stateDir: str
             HERDCTL_STATIC_SCHEDULES: staticScheduleNames.join(","),
           }),
         },
+        // Always run on host — the scheduler needs host filesystem access to
+        // the state directory and the compiled MCP script. For Docker agents,
+        // this gets HTTP-bridged into the container automatically.
+        host: true,
       };
     }
 

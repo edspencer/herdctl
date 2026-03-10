@@ -29,6 +29,7 @@ describe("injectSchedulerMcpServers", () => {
     expect(server.command).toBe("node");
     expect(server.args).toHaveLength(1);
     expect(server.args![0]).toContain("scheduler-mcp.js");
+    expect(server.host).toBe(true);
     expect(server.env!.HERDCTL_AGENT_NAME).toBe("test-agent");
     expect(server.env!.HERDCTL_STATE_DIR).toBe("/tmp/.herdctl");
     expect(server.env!.HERDCTL_MAX_SCHEDULES).toBe("10");
