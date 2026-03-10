@@ -7,6 +7,7 @@
 
 import type { IChatSessionManager } from "@herdctl/chat";
 import type { AgentChatDiscord, AgentConfig, FleetManager } from "@herdctl/core";
+import type { CommandActions } from "./commands/types.js";
 import type { ConversationContext } from "./mention-handler.js";
 
 // =============================================================================
@@ -80,6 +81,15 @@ export interface DiscordConnectorOptions {
    * Used for session persistence
    */
   stateDir?: string;
+
+  /** Optional manager-backed actions for slash commands */
+  commandActions?: CommandActions;
+
+  /** Optional slash command registration mode */
+  commandRegistration?: {
+    scope: "global" | "guild";
+    guildId?: string;
+  };
 }
 
 // =============================================================================
@@ -177,6 +187,24 @@ export interface DiscordConnectorState {
 }
 
 // =============================================================================
+// File Upload Types
+// =============================================================================
+
+/**
+ * Parameters for uploading a file to a Discord channel
+ */
+export interface DiscordFileUploadParams {
+  /** Channel ID to upload to */
+  channelId: string;
+  /** File contents */
+  fileBuffer: Buffer;
+  /** Filename for the upload */
+  filename: string;
+  /** Optional message to accompany the file */
+  message?: string;
+}
+
+// =============================================================================
 // Connector Interface
 // =============================================================================
 
@@ -220,6 +248,11 @@ export interface IDiscordConnector {
   getState(): DiscordConnectorState;
 
   /**
+   * Upload a file to a Discord channel
+   */
+  uploadFile(params: DiscordFileUploadParams): Promise<{ fileId: string }>;
+
+  /**
    * Name of the agent this connector is for
    */
   readonly agentName: string;
@@ -242,7 +275,7 @@ export interface DiscordReplyEmbedField {
  * A Discord embed for rich message formatting
  */
 export interface DiscordReplyEmbed {
-  title: string;
+  title?: string;
   description?: string;
   color?: number;
   fields?: DiscordReplyEmbedField[];
@@ -251,10 +284,43 @@ export interface DiscordReplyEmbed {
 }
 
 /**
- * Payload for sending rich messages (embeds) via the reply function
+ * Payload for sending rich messages via the reply function.
+ *
+ * Supports embeds, plain text content, and file attachments.
+ * At least one of `content`, `embeds`, or `files` must be provided.
+ * Maps to discord.js MessageCreateOptions at runtime.
  */
 export interface DiscordReplyPayload {
-  embeds: DiscordReplyEmbed[];
+  content?: string;
+  embeds?: DiscordReplyEmbed[];
+  files?: Array<{ attachment: Buffer; name: string }>;
+}
+
+// =============================================================================
+// Attachment Types
+// =============================================================================
+
+/**
+ * Category of a Discord file attachment based on its MIME type
+ */
+export type AttachmentCategory = "image" | "pdf" | "text" | "unsupported";
+
+/**
+ * Metadata for a non-voice file attachment from a Discord message
+ */
+export interface DiscordAttachmentInfo {
+  /** Discord attachment ID */
+  id: string;
+  /** Original filename */
+  name: string;
+  /** Download URL */
+  url: string;
+  /** MIME content type */
+  contentType: string;
+  /** File size in bytes */
+  size: number;
+  /** Categorized type for processing */
+  category: AttachmentCategory;
 }
 
 // =============================================================================
@@ -337,6 +403,14 @@ export interface DiscordConnectorEventMap {
       wasMentioned: boolean;
       /** Channel mode that was applied */
       mode: "mention" | "auto";
+      /** Whether this message is a voice message (audio recording in text channel) */
+      isVoiceMessage?: boolean;
+      /** URL to download the voice message audio attachment */
+      voiceAttachmentUrl?: string;
+      /** Filename of the voice message attachment */
+      voiceAttachmentName?: string;
+      /** Non-voice file attachments (images, PDFs, text files) */
+      attachments?: DiscordAttachmentInfo[];
     };
     /** Function to send a reply in the same channel (text or embed) */
     reply: (content: string | DiscordReplyPayload) => Promise<void>;
@@ -346,6 +420,18 @@ export interface DiscordConnectorEventMap {
      * The indicator auto-refreshes every 8 seconds until stopped.
      */
     startTyping: () => () => void;
+    /** Add a Unicode emoji reaction to the user's message */
+    addReaction: (emoji: string) => Promise<void>;
+    /** Remove the bot's reaction from the user's message */
+    removeReaction: (emoji: string) => Promise<void>;
+    /**
+     * Send a reply and return a handle for editing or deleting it.
+     * Used for progress indicator embeds that update in-place.
+     */
+    replyWithRef: (content: string | DiscordReplyPayload) => Promise<{
+      edit: (content: string | DiscordReplyPayload) => Promise<void>;
+      delete: () => Promise<void>;
+    }>;
   };
 
   /**

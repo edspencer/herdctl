@@ -329,6 +329,7 @@ export class JobExecutor {
             fork: options.fork ? true : undefined,
             abortController: options.abortController,
             injectedMcpServers: options.injectedMcpServers,
+            systemPromptAppend: options.systemPromptAppend,
           });
         } catch (initError) {
           // Wrap initialization errors with context

@@ -2,7 +2,7 @@
  * /reset command - Clear conversation context
  *
  * Clears the session for the current channel, starting a fresh conversation.
- * Responds ephemerally with confirmation.
+ * Responds ephemerally with a color-coded embed confirmation.
  */
 
 import type { CommandContext, SlashCommand } from "./types.js";
@@ -17,16 +17,17 @@ export const resetCommand: SlashCommand = {
 
     const wasCleared = await sessionManager.clearSession(channelId);
 
-    if (wasCleared) {
-      await interaction.reply({
-        content: `Conversation context cleared for **${agentName}**. Starting fresh!`,
-        ephemeral: true,
-      });
-    } else {
-      await interaction.reply({
-        content: `No active session found for **${agentName}** in this channel. You're already starting fresh!`,
-        ephemeral: true,
-      });
-    }
+    await interaction.reply({
+      embeds: [
+        {
+          description: wasCleared
+            ? "Session cleared. Starting fresh."
+            : "No active session in this channel.",
+          color: wasCleared ? 0x22c55e : 0x6b7280,
+          footer: { text: `herdctl \u00b7 ${agentName}` },
+        },
+      ],
+      ephemeral: true,
+    });
   },
 };

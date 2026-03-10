@@ -46,3 +46,7 @@ agent-distribution.md
 docs/MANUAL-QA-TEST-PLAN.md.planning/
 
 .planning/phases
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db

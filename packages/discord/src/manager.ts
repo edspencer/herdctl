@@ -10,32 +10,53 @@
  * @module manager
  */
 
+import { randomUUID } from "node:crypto";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { basename, dirname, join, resolve } from "node:path";
+
 import {
   type ChatConnectorLogger,
   ChatSessionManager,
-  extractMessageContent,
   StreamingResponder,
   splitMessage,
 } from "@herdctl/chat";
 import type {
   ChatManagerConnectorState,
+  DiscordAttachments,
   FleetManagerContext,
   IChatManager,
+  InjectedMcpServerDef,
   ResolvedAgent,
 } from "@herdctl/core";
 import {
-  extractToolResults,
-  extractToolUseBlocks,
+  createFileSenderDef,
+  type FileSenderContext,
   getToolInputSummary,
+  type SDKMessage,
   TOOL_EMOJIS,
 } from "@herdctl/core";
 
+import type { ChannelRunUsage, CumulativeUsage } from "./commands/types.js";
 import { DiscordConnector } from "./discord-connector.js";
+import {
+  buildErrorEmbed,
+  buildResultSummaryEmbed,
+  buildRunCardEmbed,
+  buildStatusEmbed,
+  buildToolResultEmbed,
+} from "./embeds.js";
+import { formatContextForPrompt } from "./mention-handler.js";
+import { normalizeDiscordMessage } from "./message-normalizer.js";
 import type {
+  DiscordAttachmentInfo,
   DiscordConnectorEventMap,
-  DiscordReplyEmbed,
-  DiscordReplyEmbedField,
+  DiscordReplyPayload,
 } from "./types.js";
+import { transcribeAudio } from "./voice-transcriber.js";
+
+// =============================================================================
+// Constants
+// =============================================================================
 
 // =============================================================================
 // Discord Manager
@@ -45,6 +66,19 @@ import type {
  * Message event payload from DiscordConnector
  */
 type DiscordMessageEvent = DiscordConnectorEventMap["message"];
+
+/**
+ * Minimal text-channel shape used when constructing synthetic message events
+ * (e.g. for /retry). Avoids coupling to the full discord.js Channel type.
+ */
+type SyntheticMessageRef = {
+  edit: (content: string | DiscordReplyPayload) => Promise<void>;
+  delete: () => Promise<void>;
+};
+type SyntheticTextChannel = {
+  send: (content: string | DiscordReplyPayload) => Promise<SyntheticMessageRef>;
+  sendTyping?: () => Promise<void>;
+};
 
 /**
  * Error event payload from DiscordConnector
@@ -62,6 +96,10 @@ type DiscordErrorEvent = DiscordConnectorEventMap["error"];
  */
 export class DiscordManager implements IChatManager {
   private connectors: Map<string, DiscordConnector> = new Map();
+  private activeJobsByChannel: Map<string, string> = new Map();
+  private lastPromptByChannel: Map<string, string> = new Map();
+  private lastUsageByChannel: Map<string, ChannelRunUsage> = new Map();
+  private cumulativeUsageByAgent: Map<string, CumulativeUsage> = new Map();
   private initialized: boolean = false;
 
   constructor(private ctx: FleetManagerContext) {}
@@ -153,6 +191,25 @@ export class DiscordManager implements IChatManager {
           sessionManager,
           stateDir,
           logger: createAgentLogger(`[discord:${agent.qualifiedName}]`),
+          commandActions: {
+            stopRun: (channelId: string) => this.stopChannelRun(agent.qualifiedName, channelId),
+            retryRun: (channelId: string) => this.retryChannelRun(agent.qualifiedName, channelId),
+            runSkill: (channelId: string, skillName: string, input?: string) =>
+              this.runChannelSkill(agent.qualifiedName, channelId, skillName, input),
+            listSkills: async () => this.discoverAgentSkills(agent),
+            getUsage: async (channelId: string) =>
+              this.getChannelUsage(agent.qualifiedName, channelId),
+            getCumulativeUsage: async () => this.getAgentCumulativeUsage(agent.qualifiedName),
+            getAgentConfig: async () => this.getAgentConfigSummary(agent),
+            getSessionInfo: async (channelId: string) =>
+              this.getChannelRunInfo(agent.qualifiedName, channelId),
+          },
+          commandRegistration: discordConfig.command_registration
+            ? {
+                scope: discordConfig.command_registration.scope,
+                guildId: discordConfig.command_registration.guild_id,
+              }
+            : { scope: "global" },
         });
 
         this.connectors.set(agent.qualifiedName, connector);
@@ -368,6 +425,10 @@ export class DiscordManager implements IChatManager {
     logger.info(
       `Discord message for agent '${qualifiedName}': ${event.prompt.substring(0, 50)}...`,
     );
+    this.lastPromptByChannel.set(
+      this.getChannelKey(qualifiedName, event.metadata.channelId),
+      event.prompt,
+    );
 
     // Get the agent configuration (lookup by qualifiedName)
     const config = this.ctx.getConfig();
@@ -391,7 +452,14 @@ export class DiscordManager implements IChatManager {
       result_summary: false,
       errors: true,
       typing_indicator: true,
+      acknowledge_emoji: "👀",
+      assistant_messages: "answers" as const,
+      progress_indicator: true,
     };
+
+    // Resolve output modes
+    const assistantMessages = outputConfig.assistant_messages ?? "answers";
+    const showProgressIndicator = outputConfig.progress_indicator !== false;
 
     // Get existing session for this channel (for conversation continuity)
     const connector = this.connectors.get(qualifiedName);
@@ -416,9 +484,46 @@ export class DiscordManager implements IChatManager {
       }
     }
 
-    // Create streaming responder for incremental message delivery
+    // Buffer for files uploaded by the agent via MCP tool.
+    // Files are queued here and attached to the next answer message,
+    // so they appear below the text (not as standalone messages above it).
+    const pendingFiles: Array<{ buffer: Buffer; filename: string }> = [];
+
+    // Create file sender definition for this message context
+    let injectedMcpServers: Record<string, InjectedMcpServerDef> | undefined;
+    const workingDir = this.resolveWorkingDirectory(agent);
+    if (connector && workingDir) {
+      const fileSenderContext: FileSenderContext = {
+        workingDirectory: workingDir,
+        uploadFile: async (params) => {
+          // Queue the file — it will be attached to the next answer message
+          pendingFiles.push({
+            buffer: params.fileBuffer,
+            filename: params.filename,
+          });
+          const fileId = `buffered-${randomUUID()}`;
+          logger.debug(`Buffered file '${params.filename}' for attachment to next answer message`);
+          return { fileId };
+        },
+      };
+      const fileSenderDef = createFileSenderDef(fileSenderContext);
+      injectedMcpServers = { [fileSenderDef.name]: fileSenderDef };
+    }
+
+    // Create streaming responder for incremental message delivery.
+    // The reply closure drains pending files and attaches them to the message.
     const streamer = new StreamingResponder({
-      reply: (content: string) => event.reply(content),
+      reply: async (content: string) => {
+        if (pendingFiles.length > 0) {
+          const files = pendingFiles.splice(0);
+          await event.reply({
+            content,
+            files: files.map((f) => ({ attachment: f.buffer, name: f.filename })),
+          });
+        } else {
+          await event.reply(content);
+        }
+      },
       logger: logger as ChatConnectorLogger,
       agentName: qualifiedName,
       maxMessageLength: 2000, // Discord's limit
@@ -426,13 +531,161 @@ export class DiscordManager implements IChatManager {
       platformName: "Discord",
     });
 
-    // Start typing indicator while processing (configurable via output.typing_indicator)
-    const stopTyping = outputConfig.typing_indicator ? event.startTyping() : () => {};
+    // Start typing indicator while processing (if not disabled via output.typing_indicator)
+    const stopTyping = outputConfig.typing_indicator !== false ? event.startTyping() : () => {};
 
     // Track if we've stopped typing to avoid multiple calls
     let typingStopped = false;
 
+    // Add acknowledgement reaction if configured (non-fatal — don't abort message handling)
+    const ackEmoji = outputConfig.acknowledge_emoji;
+    if (ackEmoji) {
+      try {
+        await event.addReaction(ackEmoji);
+      } catch (reactionError) {
+        logger.warn(`Failed to add ack reaction: ${(reactionError as Error).message}`);
+      }
+    }
+
+    // Attachment state — declared here so the finally block can clean up
+    let attachmentDownloadedPaths: string[] = [];
+    const attachmentConfig = agent.chat?.discord?.attachments;
+
+    // Progress embed state — declared here so the finally block can clean up
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const progressState: {
+      handle: { edit: (c: any) => Promise<void>; delete: () => Promise<void> } | null;
+    } = { handle: null };
+    const traceLines: string[] = [];
+
+    const pushTraceLine = (line: string) => {
+      traceLines.push(line);
+      if (traceLines.length > 24) {
+        traceLines.splice(0, traceLines.length - 24);
+      }
+    };
+
     try {
+      // Handle voice messages: transcribe audio before triggering the agent
+      let prompt = event.prompt;
+      if (!existingSessionId && event.context.messages.length > 0) {
+        const priorContext = formatContextForPrompt(event.context);
+        if (priorContext) {
+          prompt = [
+            "Recent conversation context from this Discord channel:",
+            priorContext,
+            "",
+            `Current user message: ${prompt}`,
+          ].join("\n");
+        }
+      }
+
+      const voiceConfig = agent.chat?.discord?.voice;
+      if (event.metadata.isVoiceMessage) {
+        if (!voiceConfig?.enabled) {
+          await event.reply(
+            "Voice messages are not enabled for this agent. Please send a text message instead.",
+          );
+          return;
+        }
+
+        const apiKey = process.env[voiceConfig.api_key_env ?? "OPENAI_API_KEY"];
+        if (!apiKey) {
+          logger.error(
+            `Voice transcription API key not found in env var '${voiceConfig.api_key_env}'`,
+          );
+          await event.reply(
+            "Voice transcription is misconfigured. Please contact an administrator.",
+          );
+          return;
+        }
+
+        if (!event.metadata.voiceAttachmentUrl) {
+          await event.reply("Could not find audio attachment in voice message.");
+          return;
+        }
+
+        try {
+          logger.debug("Downloading voice message audio...");
+          const audioResponse = await fetch(event.metadata.voiceAttachmentUrl, {
+            signal: AbortSignal.timeout(30_000),
+          });
+          if (!audioResponse.ok) {
+            throw new Error(`Failed to download audio: ${audioResponse.status}`);
+          }
+          const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
+          const filename = event.metadata.voiceAttachmentName ?? "voice-message.ogg";
+
+          logger.debug("Transcribing voice message...");
+          const transcription = await transcribeAudio(audioBuffer, filename, {
+            apiKey,
+            model: voiceConfig.model,
+            language: voiceConfig.language,
+          });
+
+          prompt = `[Voice message transcription]: ${transcription.text}`;
+          logger.info(`Voice message transcribed: "${prompt.substring(0, 80)}..."`);
+
+          // Echo the transcription to the channel so everyone can read the voice message
+          await event.reply({
+            embeds: [
+              {
+                description: transcription.text,
+                color: 0x95a5a6, // subtle grey
+                footer: { text: "Voice transcription" },
+              },
+            ],
+          });
+        } catch (transcribeError) {
+          const errMsg =
+            transcribeError instanceof Error ? transcribeError.message : String(transcribeError);
+          logger.error(`Voice transcription failed: ${errMsg}`);
+          await event.reply(`Failed to transcribe voice message: ${errMsg}`);
+          return;
+        }
+      }
+
+      // Handle file attachments: download, process, and prepend to prompt
+      if (
+        event.metadata.attachments &&
+        event.metadata.attachments.length > 0 &&
+        attachmentConfig?.enabled
+      ) {
+        const result = await DiscordManager.processAttachments(
+          event.metadata.attachments,
+          attachmentConfig,
+          workingDir,
+          logger as ChatConnectorLogger,
+        );
+        attachmentDownloadedPaths = result.downloadedPaths;
+
+        if (result.skippedFiles.length > 0) {
+          for (const skipped of result.skippedFiles) {
+            logger.debug(`Skipped attachment ${skipped.name}: ${skipped.reason}`);
+          }
+        }
+
+        if (result.promptSections.length > 0) {
+          // When agent runs in Docker, translate host paths to container paths
+          // (working_directory is mounted at /workspace inside the container)
+          let sections = result.promptSections;
+          if (agent.docker?.enabled && workingDir) {
+            sections = sections.map((s) => s.replaceAll(workingDir, "/workspace"));
+          }
+
+          const attachmentBlock = [
+            "The user sent the following file attachment(s) with their message:",
+            "",
+            ...sections,
+            "",
+            "---",
+            "",
+            `User message: ${prompt}`,
+          ].join("\n");
+          prompt = attachmentBlock;
+        }
+      }
+
       // Track pending tool_use blocks so we can pair them with results
       const pendingToolUses = new Map<
         string,
@@ -440,168 +693,299 @@ export class DiscordManager implements IChatManager {
       >();
       let embedsSent = 0;
 
+      // Deduplicate assistant messages by finalized snapshot. Claude Code can emit
+      // intermediate snapshots (stop_reason: null) before the final assistant message.
+      // We skip intermediates and deliver the first finalized snapshot per message.id.
+      const deliveredAssistantIds = new Set<string>();
+
+      // Capture the result text from the SDK's "result" message as a fallback
+      // When all assistant messages are tool-only (no text), this is the last resort
+      let resultText: string | undefined;
+      let sentAnswer = false;
+      let streamedDeltaSinceFinal = false;
+
+      // Progress indicator: track tool names for in-place-updating embed
+      const toolNamesRun: string[] = [];
+      let lastProgressUpdate = 0;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let liveAnswerHandle: { edit: (c: any) => Promise<void> } | null = null;
+      let liveAnswerText = "";
+      let latestStatusText = "Preparing run…";
+
+      const refreshRunCard = async (status: "running" | "success" | "error") => {
+        if (!showProgressIndicator) {
+          return;
+        }
+        const now = Date.now();
+        if (status === "running" && now - lastProgressUpdate < 1500) {
+          return;
+        }
+        lastProgressUpdate = now;
+        const header =
+          toolNamesRun.length > 0 ? `Running · ${toolNamesRun.join("  →  ")}` : "Running";
+        const message = status === "running" ? `${header}\n${latestStatusText}` : latestStatusText;
+        const embedPayload = {
+          embeds: [
+            buildRunCardEmbed({
+              agentName: qualifiedName,
+              status,
+              message: message.length > 4000 ? `…${message.slice(-3997)}` : message,
+              traceLines,
+            }),
+          ],
+        };
+        try {
+          if (!progressState.handle) {
+            progressState.handle = await event.replyWithRef(embedPayload);
+          } else {
+            await progressState.handle.edit(embedPayload);
+          }
+        } catch (progressError) {
+          logger.warn(`Failed to update run card: ${(progressError as Error).message}`);
+        }
+      };
+
+      const showToolResults = outputConfig.tool_results;
+      const enableDeltaStreaming = assistantMessages === "all";
+
       // Execute job via FleetManager.trigger() through the context
       // Pass resume option for conversation continuity
       // The onMessage callback streams output incrementally to Discord
       const result = await this.ctx.trigger(qualifiedName, undefined, {
         triggerType: "discord",
-        prompt: event.prompt,
+        prompt,
         resume: existingSessionId,
+        injectedMcpServers,
+        onJobCreated: async (jobId) => {
+          this.activeJobsByChannel.set(
+            this.getChannelKey(qualifiedName, event.metadata.channelId),
+            jobId,
+          );
+        },
         onMessage: async (message) => {
-          // Extract text content from assistant messages and stream to Discord
-          if (message.type === "assistant") {
-            // Cast to the SDKMessage shape expected by extractMessageContent
-            // The chat package's SDKMessage type expects a specific structure
-            const sdkMessage = message as unknown as Parameters<typeof extractMessageContent>[0];
-            const content = extractMessageContent(sdkMessage);
-            if (content) {
-              // Each assistant message is a complete turn - send immediately
-              await streamer.addMessageAndSend(content);
+          for (const normalized of normalizeDiscordMessage(message as SDKMessage)) {
+            if (normalized.kind === "assistant_delta") {
+              if (!enableDeltaStreaming) {
+                continue;
+              }
+
+              streamedDeltaSinceFinal = true;
+              liveAnswerText += normalized.delta;
+              if (!liveAnswerText.trim()) {
+                continue;
+              }
+
+              const payload = { content: liveAnswerText };
+              try {
+                if (!liveAnswerHandle) {
+                  liveAnswerHandle = await event.replyWithRef(payload);
+                } else {
+                  await liveAnswerHandle.edit(payload);
+                }
+                sentAnswer = true;
+              } catch (deltaError) {
+                logger.warn(`Failed delta streaming update: ${(deltaError as Error).message}`);
+              }
+              continue;
             }
 
-            // Track tool_use blocks for pairing with results later
-            const toolUseBlocks = extractToolUseBlocks(sdkMessage);
-            for (const block of toolUseBlocks) {
-              if (block.id) {
-                pendingToolUses.set(block.id, {
-                  name: block.name,
-                  input: block.input,
-                  startTime: Date.now(),
+            if (normalized.kind === "assistant_final") {
+              for (const block of normalized.toolUses) {
+                if (block.id) {
+                  pendingToolUses.set(block.id, {
+                    name: block.name,
+                    input: block.input,
+                    startTime: Date.now(),
+                  });
+                }
+
+                if (block.name && showProgressIndicator) {
+                  const emoji = TOOL_EMOJIS[block.name] ?? "\u{1F527}";
+                  const displayName = `${emoji} ${block.name}`;
+                  toolNamesRun.push(displayName);
+                  if (toolNamesRun.length > 50) {
+                    toolNamesRun.splice(0, toolNamesRun.length - 50);
+                  }
+                  const inputSummary = getToolInputSummary(block.name, block.input);
+                  pushTraceLine(
+                    `${emoji} ${block.name}${inputSummary ? ` · ${inputSummary.slice(0, 60)}` : ""}`,
+                  );
+                  latestStatusText = `Executing ${block.name}`;
+                  await refreshRunCard("running");
+                }
+              }
+
+              if (normalized.messageId && normalized.stopReason === null) {
+                continue;
+              }
+              if (normalized.messageId) {
+                if (deliveredAssistantIds.has(normalized.messageId)) {
+                  continue;
+                }
+                deliveredAssistantIds.add(normalized.messageId);
+              }
+
+              const content = normalized.content;
+              if (!content) {
+                streamedDeltaSinceFinal = false;
+                continue;
+              }
+
+              if (assistantMessages === "answers") {
+                if (normalized.toolUses.length === 0) {
+                  await streamer.addMessageAndSend(content);
+                  sentAnswer = true;
+                }
+              } else if (streamedDeltaSinceFinal && enableDeltaStreaming) {
+                // Sync final content into the live delta message to avoid duplicates.
+                liveAnswerText = content;
+                try {
+                  if (!liveAnswerHandle) {
+                    liveAnswerHandle = await event.replyWithRef({ content });
+                  } else {
+                    await liveAnswerHandle.edit({ content });
+                  }
+                  sentAnswer = true;
+                } catch (syncError) {
+                  logger.warn(
+                    `Failed to sync final streamed answer: ${(syncError as Error).message}`,
+                  );
+                  await streamer.addMessageAndSend(content);
+                  sentAnswer = true;
+                }
+              } else {
+                await streamer.addMessageAndSend(content);
+                sentAnswer = true;
+              }
+              streamedDeltaSinceFinal = false;
+              continue;
+            }
+
+            if (normalized.kind === "tool_results" && showToolResults) {
+              for (const toolResult of normalized.results) {
+                const toolUse = toolResult.toolUseId
+                  ? pendingToolUses.get(toolResult.toolUseId)
+                  : undefined;
+                if (toolResult.toolUseId) {
+                  pendingToolUses.delete(toolResult.toolUseId);
+                }
+                const toolName = toolUse?.name ?? "Tool";
+                const output = toolResult.output.trim();
+                const preview = output.length > 0 ? output.replace(/\s+/g, " ").slice(0, 90) : "";
+                pushTraceLine(
+                  `${toolResult.isError ? "✖" : "✓"} ${toolName}${preview ? ` · ${preview}` : ""}`,
+                );
+                latestStatusText = `${toolResult.isError ? "Error from" : "Completed"} ${toolName}`;
+                await refreshRunCard("running");
+
+                // Oversized output is attached as a file instead of flooding chat.
+                const maxOutputChars = outputConfig.tool_result_max_length ?? 900;
+                if (output.length > maxOutputChars) {
+                  await streamer.flush();
+                  const filename = `${toolName.toLowerCase().replace(/[^a-z0-9_-]+/g, "-") || "tool"}-output.txt`;
+                  const previewEmbed = buildToolResultEmbed({
+                    toolUse: toolUse ?? null,
+                    toolResult: {
+                      output: output.slice(0, Math.min(300, maxOutputChars)),
+                      isError: toolResult.isError,
+                    },
+                    agentName: qualifiedName,
+                    maxOutputChars: Math.min(300, maxOutputChars),
+                  });
+                  await event.reply({
+                    embeds: [previewEmbed],
+                    files: [{ attachment: Buffer.from(output, "utf8"), name: filename }],
+                  });
+                  embedsSent++;
+                }
+              }
+              continue;
+            }
+
+            if (normalized.kind === "system_status" && outputConfig.system_status) {
+              latestStatusText =
+                normalized.status === "compacting" ? "Compacting context…" : normalized.status;
+              pushTraceLine(`ℹ ${latestStatusText}`);
+              await refreshRunCard("running");
+              continue;
+            }
+
+            if (normalized.kind === "tool_progress" && outputConfig.system_status) {
+              latestStatusText = normalized.content;
+              pushTraceLine(`ℹ ${normalized.content}`);
+              await refreshRunCard("running");
+              continue;
+            }
+
+            if (normalized.kind === "auth_status" && outputConfig.system_status) {
+              latestStatusText = normalized.content;
+              pushTraceLine(`${normalized.isError ? "✖" : "ℹ"} ${normalized.content}`);
+              if (normalized.isError) {
+                await streamer.flush();
+                await event.reply({
+                  embeds: [buildStatusEmbed(normalized.content, "error", qualifiedName)],
                 });
+                embedsSent++;
+              } else {
+                await refreshRunCard("running");
               }
+              continue;
             }
-          }
 
-          // Build and send embeds for tool results
-          if (message.type === "user" && outputConfig.tool_results) {
-            // Cast to the shape expected by extractToolResults
-            const userMessage = message as {
-              type: string;
-              message?: { content?: unknown };
-              tool_use_result?: unknown;
-            };
-            const toolResults = extractToolResults(userMessage);
-            for (const toolResult of toolResults) {
-              // Look up the matching tool_use for name, input, and timing
-              const toolUse = toolResult.toolUseId
-                ? pendingToolUses.get(toolResult.toolUseId)
-                : undefined;
-              if (toolResult.toolUseId) {
-                pendingToolUses.delete(toolResult.toolUseId);
+            if (normalized.kind === "result") {
+              if (normalized.resultText) {
+                resultText = normalized.resultText;
               }
-
-              const embed = this.buildToolEmbed(
-                toolUse ?? null,
-                toolResult,
-                outputConfig.tool_result_max_length,
+              const now = new Date().toISOString();
+              this.lastUsageByChannel.set(
+                this.getChannelKey(qualifiedName, event.metadata.channelId),
+                {
+                  timestamp: now,
+                  numTurns: normalized.numTurns,
+                  durationMs: normalized.durationMs,
+                  totalCostUsd: normalized.totalCostUsd,
+                  inputTokens: normalized.usage?.input_tokens,
+                  outputTokens: normalized.usage?.output_tokens,
+                  isError: normalized.isError,
+                },
               );
+              this.accumulateUsage(qualifiedName, {
+                durationMs: normalized.durationMs,
+                totalCostUsd: normalized.totalCostUsd,
+                inputTokens: normalized.usage?.input_tokens,
+                outputTokens: normalized.usage?.output_tokens,
+                isError: normalized.isError,
+                timestamp: now,
+              });
+              latestStatusText = normalized.isError ? "Task failed" : "Task complete";
+              await refreshRunCard(normalized.isError ? "error" : "success");
 
-              // Flush any buffered text before sending embed to preserve ordering
-              await streamer.flush();
-              await event.reply({ embeds: [embed] });
-              embedsSent++;
+              if (outputConfig.result_summary) {
+                await streamer.flush();
+                await event.reply({
+                  embeds: [
+                    buildResultSummaryEmbed({
+                      agentName: qualifiedName,
+                      isError: normalized.isError,
+                      durationMs: normalized.durationMs,
+                      numTurns: normalized.numTurns,
+                      totalCostUsd: normalized.totalCostUsd,
+                      usage: normalized.usage,
+                    }),
+                  ],
+                });
+                embedsSent++;
+              }
+              continue;
             }
-          }
 
-          // Show system status messages (e.g., "compacting context...")
-          if (message.type === "system" && outputConfig.system_status) {
-            const sysMessage = message as { subtype?: string; status?: string | null };
-            if (sysMessage.subtype === "status" && sysMessage.status) {
-              const statusText =
-                sysMessage.status === "compacting"
-                  ? "Compacting context..."
-                  : `Status: ${sysMessage.status}`;
+            if (normalized.kind === "error" && outputConfig.errors) {
               await streamer.flush();
               await event.reply({
-                embeds: [
-                  {
-                    title: "\u2699\uFE0F System",
-                    description: statusText,
-                    color: DiscordManager.EMBED_COLOR_SYSTEM,
-                  },
-                ],
+                embeds: [buildErrorEmbed(normalized.message, qualifiedName)],
               });
               embedsSent++;
             }
-          }
-
-          // Show result summary embed (cost, tokens, turns)
-          if (message.type === "result" && outputConfig.result_summary) {
-            const resultMessage = message as {
-              is_error?: boolean;
-              duration_ms?: number;
-              total_cost_usd?: number;
-              num_turns?: number;
-              usage?: { input_tokens?: number; output_tokens?: number };
-            };
-            const fields: DiscordReplyEmbedField[] = [];
-
-            if (resultMessage.duration_ms !== undefined) {
-              fields.push({
-                name: "Duration",
-                value: DiscordManager.formatDuration(resultMessage.duration_ms),
-                inline: true,
-              });
-            }
-
-            if (resultMessage.num_turns !== undefined) {
-              fields.push({
-                name: "Turns",
-                value: String(resultMessage.num_turns),
-                inline: true,
-              });
-            }
-
-            if (resultMessage.total_cost_usd !== undefined) {
-              fields.push({
-                name: "Cost",
-                value: `$${resultMessage.total_cost_usd.toFixed(4)}`,
-                inline: true,
-              });
-            }
-
-            if (resultMessage.usage) {
-              const inputTokens = resultMessage.usage.input_tokens ?? 0;
-              const outputTokens = resultMessage.usage.output_tokens ?? 0;
-              fields.push({
-                name: "Tokens",
-                value: `${inputTokens.toLocaleString()} in / ${outputTokens.toLocaleString()} out`,
-                inline: true,
-              });
-            }
-
-            const isError = resultMessage.is_error === true;
-            await streamer.flush();
-            await event.reply({
-              embeds: [
-                {
-                  title: isError ? "\u274C Task Failed" : "\u2705 Task Complete",
-                  color: isError
-                    ? DiscordManager.EMBED_COLOR_ERROR
-                    : DiscordManager.EMBED_COLOR_SUCCESS,
-                  fields,
-                },
-              ],
-            });
-            embedsSent++;
-          }
-
-          // Show SDK error messages
-          if (message.type === "error" && outputConfig.errors) {
-            const errorText =
-              typeof message.content === "string" ? message.content : "An unknown error occurred";
-            await streamer.flush();
-            await event.reply({
-              embeds: [
-                {
-                  title: "\u274C Error",
-                  description:
-                    errorText.length > 4000 ? `${errorText.substring(0, 4000)}...` : errorText,
-                  color: DiscordManager.EMBED_COLOR_ERROR,
-                },
-              ],
-            });
-            embedsSent++;
           }
         },
       });
@@ -613,26 +997,70 @@ export class DiscordManager implements IChatManager {
         typingStopped = true;
       }
 
+      // Fall back to SDK result text if no answer turns produced text
+      if (!sentAnswer && !streamer.hasSentMessages() && resultText) {
+        logger.debug("No answer turns produced text — using SDK result text as fallback");
+        await streamer.addMessageAndSend(resultText);
+        sentAnswer = true;
+      }
+
       // Flush any remaining buffered content
       await streamer.flush();
+
+      // Send any remaining buffered files that weren't attached to an answer.
+      // This handles the case where the agent uploaded files but produced no text answer.
+      if (pendingFiles.length > 0) {
+        const files = pendingFiles.splice(0);
+        logger.debug(`Sending ${files.length} remaining buffered file(s) as standalone message`);
+        await event.reply({
+          files: files.map((f) => ({ attachment: f.buffer, name: f.filename })),
+        });
+      }
 
       logger.debug(
         `Discord job completed: ${result.jobId} for agent '${qualifiedName}'${result.sessionId ? ` (session: ${result.sessionId})` : ""}`,
       );
 
-      // If no messages were sent (text or embeds), send an appropriate fallback
-      if (!streamer.hasSentMessages() && embedsSent === 0) {
+      if (progressState.handle) {
+        try {
+          await progressState.handle.edit({
+            embeds: [
+              buildRunCardEmbed({
+                agentName: qualifiedName,
+                status: result.success ? "success" : "error",
+                message: result.success ? "Task complete" : "Task failed",
+                traceLines,
+              }),
+            ],
+          });
+        } catch (progressError) {
+          logger.warn(`Failed to finalize run card: ${(progressError as Error).message}`);
+        }
+      }
+
+      // If no text messages were sent, send an appropriate fallback.
+      // When embedsSent > 0 but no text was delivered, the user saw tool/result embeds
+      // but may have missed the final answer. Show a brief completion indicator.
+      if (!sentAnswer && !streamer.hasSentMessages() && embedsSent === 0) {
         if (result.success) {
-          await event.reply(
-            "I've completed the task, but I don't have a specific response to share.",
-          );
+          await event.reply({
+            embeds: [
+              buildStatusEmbed(
+                "Task completed — no additional output to share.",
+                "info",
+                qualifiedName,
+              ),
+            ],
+          });
         } else {
           // Job failed without streaming any messages - send error details
           const errorMessage =
             result.errorDetails?.message ?? result.error?.message ?? "An unknown error occurred";
-          await event.reply(
-            `\u274C **Error:** ${errorMessage}\n\nThe task could not be completed. Please check the logs for more details.`,
-          );
+          await event.reply({
+            embeds: [
+              buildErrorEmbed(`${errorMessage}\n\nThe task could not be completed.`, qualifiedName),
+            ],
+          });
         }
 
         // Stop typing after sending fallback message (if not already stopped)
@@ -674,9 +1102,26 @@ export class DiscordManager implements IChatManager {
       const err = error instanceof Error ? error : new Error(String(error));
       logger.error(`Discord message handling failed for agent '${qualifiedName}': ${err.message}`);
 
+      if (progressState.handle) {
+        try {
+          await progressState.handle.edit({
+            embeds: [
+              buildRunCardEmbed({
+                agentName: qualifiedName,
+                status: "error",
+                message: `Task failed · ${err.message}`,
+                traceLines,
+              }),
+            ],
+          });
+        } catch (progressError) {
+          logger.warn(`Failed to finalize failed run card: ${(progressError as Error).message}`);
+        }
+      }
+
       // Send user-friendly error message using the formatted error method
       try {
-        await event.reply(this.formatErrorMessage(err));
+        await event.reply(this.formatErrorMessage(err, qualifiedName));
       } catch (replyError) {
         logger.error(`Failed to send error reply: ${(replyError as Error).message}`);
       }
@@ -690,114 +1135,35 @@ export class DiscordManager implements IChatManager {
         timestamp: new Date().toISOString(),
       });
     } finally {
+      this.activeJobsByChannel.delete(this.getChannelKey(qualifiedName, event.metadata.channelId));
       // Safety net: stop typing indicator if not already stopped
       // (Should already be stopped after sending messages, but this ensures cleanup on errors)
       if (!typingStopped) {
         stopTyping();
       }
-    }
-  }
-
-  // =============================================================================
-  // Tool Embed Support
-  // =============================================================================
-
-  /** Maximum characters for tool output in Discord embed fields */
-  private static readonly TOOL_OUTPUT_MAX_CHARS = 900;
-
-  /** Embed colors */
-  private static readonly EMBED_COLOR_DEFAULT = 0x5865f2; // Discord blurple
-  private static readonly EMBED_COLOR_ERROR = 0xef4444; // Red
-  private static readonly EMBED_COLOR_SYSTEM = 0x95a5a6; // Gray
-  private static readonly EMBED_COLOR_SUCCESS = 0x57f287; // Green
-
-  /**
-   * Format duration in milliseconds to a human-readable string
-   */
-  private static formatDuration(ms: number): string {
-    if (ms < 1000) return `${ms}ms`;
-    const seconds = Math.floor(ms / 1000);
-    if (seconds < 60) return `${seconds}s`;
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
-  }
-
-  /**
-   * Build a Discord embed for a tool call result
-   *
-   * Combines the tool_use info (name, input) with the tool_result
-   * (output, error status) into a compact Discord embed.
-   *
-   * @param toolUse - The tool_use block info (name, input, startTime)
-   * @param toolResult - The tool result (output, isError)
-   * @param maxOutputChars - Maximum characters for output (defaults to TOOL_OUTPUT_MAX_CHARS)
-   */
-  private buildToolEmbed(
-    toolUse: { name: string; input?: unknown; startTime: number } | null,
-    toolResult: { output: string; isError: boolean },
-    maxOutputChars?: number,
-  ): DiscordReplyEmbed {
-    const toolName = toolUse?.name ?? "Tool";
-    const emoji = TOOL_EMOJIS[toolName] ?? "\u{1F527}"; // wrench fallback
-    const isError = toolResult.isError;
-
-    // Build description from input summary
-    const inputSummary = toolUse ? getToolInputSummary(toolUse.name, toolUse.input) : undefined;
-    let description: string | undefined;
-    if (inputSummary) {
-      if (toolName === "Bash" || toolName === "bash") {
-        description = `\`> ${inputSummary}\``;
-      } else {
-        description = `\`${inputSummary}\``;
+      // Remove acknowledgement reaction now that processing is complete
+      if (ackEmoji) {
+        try {
+          await event.removeReaction(ackEmoji);
+        } catch (reactionError) {
+          logger.warn(`Failed to remove ack reaction: ${(reactionError as Error).message}`);
+        }
+      }
+      // Clean up downloaded attachment files if configured
+      if (
+        attachmentDownloadedPaths.length > 0 &&
+        attachmentConfig?.cleanup_after_processing !== false
+      ) {
+        try {
+          await DiscordManager.cleanupAttachments(
+            attachmentDownloadedPaths,
+            logger as ChatConnectorLogger,
+          );
+        } catch (cleanupError) {
+          logger.warn(`Failed to cleanup attachments: ${(cleanupError as Error).message}`);
+        }
       }
     }
-
-    // Build inline fields
-    const fields: DiscordReplyEmbedField[] = [];
-
-    if (toolUse) {
-      const durationMs = Date.now() - toolUse.startTime;
-      fields.push({
-        name: "Duration",
-        value: DiscordManager.formatDuration(durationMs),
-        inline: true,
-      });
-    }
-
-    const outputLength = toolResult.output.length;
-    fields.push({
-      name: "Output",
-      value:
-        outputLength >= 1000
-          ? `${(outputLength / 1000).toFixed(1)}k chars`
-          : `${outputLength} chars`,
-      inline: true,
-    });
-
-    // Add truncated output as a field if non-empty
-    const trimmedOutput = toolResult.output.trim();
-    if (trimmedOutput.length > 0) {
-      const maxChars = maxOutputChars ?? DiscordManager.TOOL_OUTPUT_MAX_CHARS;
-      let outputText = trimmedOutput;
-      if (outputText.length > maxChars) {
-        outputText =
-          outputText.substring(0, maxChars) +
-          `\n... (${outputLength.toLocaleString()} chars total)`;
-      }
-      fields.push({
-        name: isError ? "Error" : "Result",
-        value: `\`\`\`\n${outputText}\n\`\`\``,
-        inline: false,
-      });
-    }
-
-    return {
-      title: `${emoji} ${toolName}`,
-      description,
-      color: isError ? DiscordManager.EMBED_COLOR_ERROR : DiscordManager.EMBED_COLOR_DEFAULT,
-      fields,
-    };
   }
 
   /**
@@ -823,6 +1189,437 @@ export class DiscordManager implements IChatManager {
     });
   }
 
+  private getChannelKey(qualifiedName: string, channelId: string): string {
+    return `${qualifiedName}:${channelId}`;
+  }
+
+  private async stopChannelRun(
+    qualifiedName: string,
+    channelId: string,
+  ): Promise<{ success: boolean; message: string; jobId?: string }> {
+    const key = this.getChannelKey(qualifiedName, channelId);
+    const jobId = this.activeJobsByChannel.get(key);
+    if (!jobId) {
+      return {
+        success: false,
+        message: "No active run found for this channel.",
+      };
+    }
+
+    try {
+      const fleetManager = this.ctx.getEmitter() as unknown as import("@herdctl/core").FleetManager;
+      await fleetManager.cancelJob(jobId);
+      this.activeJobsByChannel.delete(key);
+      return {
+        success: true,
+        message: `Stop requested for job \`${jobId}\`.`,
+        jobId,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to stop active run: ${(error as Error).message}`,
+        jobId,
+      };
+    }
+  }
+
+  private async retryChannelRun(
+    qualifiedName: string,
+    channelId: string,
+  ): Promise<{ success: boolean; message: string; jobId?: string }> {
+    const key = this.getChannelKey(qualifiedName, channelId);
+    const lastPrompt = this.lastPromptByChannel.get(key);
+    if (!lastPrompt) {
+      return {
+        success: false,
+        message: "No previous prompt found to retry in this channel.",
+      };
+    }
+    return this.runChannelPrompt(qualifiedName, channelId, lastPrompt);
+  }
+
+  // ===========================================================================
+  // Synthetic Event Helpers
+  // ===========================================================================
+
+  private toTextChannel(channel: { send?: unknown }): SyntheticTextChannel {
+    return channel as unknown as SyntheticTextChannel;
+  }
+
+  /**
+   * Build a DiscordMessageEvent from scratch for programmatic triggers
+   * (e.g. /retry). This keeps the boilerplate in one place so any new
+   * fields on DiscordMessageEvent only need updating here.
+   */
+  private createSyntheticMessageEvent(params: {
+    qualifiedName: string;
+    prompt: string;
+    channelId: string;
+    channel: { isDMBased?: () => boolean; guildId?: string };
+    textChannel: SyntheticTextChannel;
+    logger: { debug: (msg: string) => void };
+  }): DiscordMessageEvent {
+    const { qualifiedName, prompt, channelId, channel, textChannel, logger } = params;
+    return {
+      agentName: qualifiedName,
+      prompt,
+      context: {
+        messages: [],
+        prompt,
+        wasMentioned: false,
+      },
+      metadata: {
+        guildId:
+          typeof channel.isDMBased === "function" && channel.isDMBased()
+            ? null
+            : typeof channel.guildId === "string"
+              ? channel.guildId
+              : null,
+        channelId,
+        messageId: `synthetic-${randomUUID()}`,
+        userId: "system",
+        username: "system",
+        wasMentioned: false,
+        mode: "auto" as const,
+      },
+      reply: async (content: string | DiscordReplyPayload): Promise<void> => {
+        await textChannel.send(content);
+      },
+      replyWithRef: async (
+        content: string | DiscordReplyPayload,
+      ): Promise<{
+        edit: (c: string | DiscordReplyPayload) => Promise<void>;
+        delete: () => Promise<void>;
+      }> => {
+        const sent = await textChannel.send(content);
+        return {
+          edit: async (c: string | DiscordReplyPayload) => {
+            await sent.edit(c);
+          },
+          delete: async () => {
+            await sent.delete();
+          },
+        };
+      },
+      startTyping: (): (() => void) => {
+        let typingInterval: ReturnType<typeof setInterval> | null = null;
+        if (textChannel.sendTyping) {
+          void textChannel.sendTyping().catch((err: unknown) => {
+            logger.debug(`Synthetic typing indicator failed: ${(err as Error).message}`);
+          });
+          typingInterval = setInterval(() => {
+            void textChannel.sendTyping?.().catch((err: unknown) => {
+              logger.debug(`Synthetic typing refresh failed: ${(err as Error).message}`);
+            });
+          }, 8000);
+        }
+        return () => {
+          if (typingInterval) {
+            clearInterval(typingInterval);
+            typingInterval = null;
+          }
+        };
+      },
+      addReaction: async () => {},
+      removeReaction: async () => {},
+    } as DiscordMessageEvent;
+  }
+
+  private async getChannelRunInfo(
+    qualifiedName: string,
+    channelId: string,
+  ): Promise<{ activeJobId?: string; lastPrompt?: string }> {
+    const key = this.getChannelKey(qualifiedName, channelId);
+    return {
+      activeJobId: this.activeJobsByChannel.get(key),
+      lastPrompt: this.lastPromptByChannel.get(key),
+    };
+  }
+
+  private async getChannelUsage(
+    qualifiedName: string,
+    channelId: string,
+  ): Promise<ChannelRunUsage | null> {
+    return this.lastUsageByChannel.get(this.getChannelKey(qualifiedName, channelId)) ?? null;
+  }
+
+  private accumulateUsage(
+    qualifiedName: string,
+    run: {
+      durationMs?: number;
+      totalCostUsd?: number;
+      inputTokens?: number;
+      outputTokens?: number;
+      isError?: boolean;
+      timestamp: string;
+    },
+  ): void {
+    const existing = this.cumulativeUsageByAgent.get(qualifiedName);
+    if (existing) {
+      existing.totalRuns++;
+      if (run.isError) existing.totalFailures++;
+      else existing.totalSuccesses++;
+      existing.totalCostUsd += run.totalCostUsd ?? 0;
+      existing.totalInputTokens += run.inputTokens ?? 0;
+      existing.totalOutputTokens += run.outputTokens ?? 0;
+      existing.totalDurationMs += run.durationMs ?? 0;
+      existing.lastRunAt = run.timestamp;
+    } else {
+      this.cumulativeUsageByAgent.set(qualifiedName, {
+        totalRuns: 1,
+        totalSuccesses: run.isError ? 0 : 1,
+        totalFailures: run.isError ? 1 : 0,
+        totalCostUsd: run.totalCostUsd ?? 0,
+        totalInputTokens: run.inputTokens ?? 0,
+        totalOutputTokens: run.outputTokens ?? 0,
+        totalDurationMs: run.durationMs ?? 0,
+        firstRunAt: run.timestamp,
+        lastRunAt: run.timestamp,
+      });
+    }
+  }
+
+  private async getAgentCumulativeUsage(qualifiedName: string): Promise<CumulativeUsage> {
+    return (
+      this.cumulativeUsageByAgent.get(qualifiedName) ?? {
+        totalRuns: 0,
+        totalSuccesses: 0,
+        totalFailures: 0,
+        totalCostUsd: 0,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalDurationMs: 0,
+        firstRunAt: "",
+        lastRunAt: "",
+      }
+    );
+  }
+
+  private async runChannelSkill(
+    qualifiedName: string,
+    channelId: string,
+    skillName: string,
+    input?: string,
+  ): Promise<{ success: boolean; message: string; jobId?: string }> {
+    const agent = this.getAgentByQualifiedName(qualifiedName);
+    if (!agent) {
+      return {
+        success: false,
+        message: `Agent '${qualifiedName}' is not available.`,
+      };
+    }
+
+    const availableSkills = await this.discoverAgentSkills(agent);
+    if (availableSkills.length === 0) {
+      return {
+        success: false,
+        message:
+          "No skills are configured/discovered for this agent. Configure `chat.discord.skills` or ensure skills exist in the agent working directory.",
+      };
+    }
+
+    const matchedSkill = availableSkills.find((s) => s.name === skillName);
+    if (!matchedSkill) {
+      return {
+        success: false,
+        message: `Unknown skill \`${skillName}\`. Use \`/skills\` to see available skills.`,
+      };
+    }
+
+    const instruction = [
+      `Use the "${matchedSkill.name}" skill to handle this request.`,
+      "",
+      input?.trim() ? input.trim() : "No additional input was provided.",
+    ].join("\n");
+    const result = await this.runChannelPrompt(qualifiedName, channelId, instruction);
+    if (result.success) {
+      return {
+        ...result,
+        message: `Skill \`${matchedSkill.name}\` started. Output will be posted in this channel.`,
+      };
+    }
+    return result;
+  }
+
+  private async runChannelPrompt(
+    qualifiedName: string,
+    channelId: string,
+    prompt: string,
+  ): Promise<{ success: boolean; message: string; jobId?: string }> {
+    const logger = this.ctx.getLogger();
+    const key = this.getChannelKey(qualifiedName, channelId);
+    const activeJobId = this.activeJobsByChannel.get(key);
+    if (activeJobId) {
+      return {
+        success: false,
+        message: `A run is already active in this channel (\`${activeJobId}\`).`,
+        jobId: activeJobId,
+      };
+    }
+
+    const connector = this.connectors.get(qualifiedName);
+    if (!connector?.client?.isReady()) {
+      return {
+        success: false,
+        message: "Run cannot start because the Discord connector is not connected.",
+      };
+    }
+
+    const channel = await connector.client.channels.fetch(channelId);
+    if (
+      !channel ||
+      !("isTextBased" in channel) ||
+      typeof channel.isTextBased !== "function" ||
+      !channel.isTextBased() ||
+      !("send" in channel) ||
+      typeof channel.send !== "function"
+    ) {
+      return {
+        success: false,
+        message: "Run failed because this channel is not text-capable.",
+      };
+    }
+
+    const textChannel = this.toTextChannel(channel);
+    const syntheticEvent = this.createSyntheticMessageEvent({
+      qualifiedName,
+      prompt,
+      channelId,
+      channel,
+      textChannel,
+      logger,
+    });
+
+    this.lastPromptByChannel.set(key, prompt);
+    void this.handleMessage(qualifiedName, syntheticEvent)
+      .catch(async (error: unknown) => {
+        const err = error instanceof Error ? error : new Error(String(error));
+        logger.error(`Background slash run failed for '${qualifiedName}': ${err.message}`);
+        try {
+          await textChannel.send(this.formatErrorMessage(err, qualifiedName));
+        } catch (replyError) {
+          logger.error(`Failed to send slash failure message: ${(replyError as Error).message}`);
+        }
+      })
+      .finally(() => {
+        this.activeJobsByChannel.delete(key);
+      });
+
+    return {
+      success: true,
+      message: "Run started. Output will be posted in this channel.",
+    };
+  }
+
+  private async discoverAgentSkills(
+    agent: ResolvedAgent,
+  ): Promise<Array<{ name: string; description?: string }>> {
+    const discovered = new Map<string, { name: string; description?: string }>();
+
+    // Step 1: if skills are explicitly configured, use them as-is.
+    // - undefined → not configured, fall through to auto-discovery
+    // - [] → explicitly disabled, return empty
+    // - [...] → use exactly those skills
+    const configuredSkills = this.getConfiguredDiscordSkills(agent);
+    if (configuredSkills !== undefined) {
+      return configuredSkills
+        .filter((s) => s.name.trim().length > 0)
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    // Step 2: auto-discover from agent working directory paths.
+    const workingDir =
+      typeof agent.working_directory === "string"
+        ? agent.working_directory
+        : agent.working_directory?.root;
+    if (!workingDir) {
+      return Array.from(discovered.values()).sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    const candidateDirs = [
+      join(workingDir, ".claude", "skills"),
+      join(workingDir, ".codex", "skills"),
+      join(workingDir, "skills"),
+    ];
+
+    for (const dir of candidateDirs) {
+      try {
+        const entries = await readdir(resolve(dir), { withFileTypes: true });
+        for (const entry of entries) {
+          if (!entry.isDirectory()) continue;
+          const skillName = entry.name;
+          const skillPath = join(dir, skillName, "SKILL.md");
+          try {
+            const raw = await readFile(skillPath, "utf8");
+            const lines = raw.split("\n").map((line) => line.trim());
+            const description =
+              lines.find((line) => line.length > 0 && !line.startsWith("#"))?.slice(0, 120) ??
+              undefined;
+            discovered.set(skillName, { name: skillName, description });
+          } catch {
+            // Ignore directories without readable SKILL.md
+          }
+        }
+      } catch {
+        // Directory does not exist or is unreadable; skip.
+      }
+    }
+
+    return Array.from(discovered.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  private getAgentByQualifiedName(qualifiedName: string): ResolvedAgent | undefined {
+    const config = this.ctx.getConfig();
+    return config?.agents.find((agent) => agent.qualifiedName === qualifiedName);
+  }
+
+  private getConfiguredDiscordSkills(
+    agent: ResolvedAgent,
+  ): Array<{ name: string; description?: string }> | undefined {
+    const discord = agent.chat?.discord as unknown as
+      | {
+          skills?: Array<{ name?: string; description?: string }>;
+        }
+      | undefined;
+    if (!discord || !("skills" in discord)) {
+      return undefined; // not configured → auto-discover
+    }
+    const skills = discord.skills;
+    if (!Array.isArray(skills)) {
+      return undefined;
+    }
+    // [] → explicitly empty (no skills); [...] → those exact skills
+    return skills
+      .filter(
+        (skill): skill is { name: string; description?: string } => typeof skill?.name === "string",
+      )
+      .map((skill) => ({ name: skill.name, description: skill.description }));
+  }
+
+  private async getAgentConfigSummary(agent: ResolvedAgent): Promise<{
+    runtime?: string;
+    model?: string;
+    permissionMode?: string;
+    workingDirectory?: string;
+    allowedTools?: string[];
+    deniedTools?: string[];
+    mcpServers?: string[];
+  }> {
+    return {
+      runtime: agent.runtime,
+      model: agent.model,
+      permissionMode: agent.permission_mode,
+      workingDirectory:
+        typeof agent.working_directory === "string"
+          ? agent.working_directory
+          : agent.working_directory?.root,
+      allowedTools: agent.allowed_tools,
+      deniedTools: agent.denied_tools,
+      mcpServers: agent.mcp_servers ? Object.keys(agent.mcp_servers) : [],
+    };
+  }
+
   // ===========================================================================
   // Response Formatting and Splitting
   // ===========================================================================
@@ -834,12 +1631,24 @@ export class DiscordManager implements IChatManager {
    * Format an error message for Discord display
    *
    * Creates a user-friendly error message with guidance on how to proceed.
+   * Returns an embed when agentName is provided, plain text otherwise.
    *
    * @param error - The error that occurred
-   * @returns Formatted error message string
+   * @param agentName - Optional agent name for embed footer
+   * @returns Formatted error message string or embed payload
    */
-  formatErrorMessage(error: Error): string {
-    return `\u274C **Error**: ${error.message}\n\nPlease try again or use \`/reset\` to start a new session.`;
+  formatErrorMessage(error: Error, agentName?: string): string | DiscordReplyPayload {
+    if (agentName) {
+      return {
+        embeds: [
+          buildErrorEmbed(
+            `${error.message}\n\nTry again or use \`/reset\` to start a new session.`,
+            agentName,
+          ),
+        ],
+      };
+    }
+    return `**Error:** ${error.message}\n\nTry again or use \`/reset\` to start a new session.`;
   }
 
   /**
@@ -866,6 +1675,187 @@ export class DiscordManager implements IChatManager {
 
     for (const chunk of chunks) {
       await reply(chunk);
+    }
+  }
+
+  // ===========================================================================
+  // Utility Methods
+  // ===========================================================================
+
+  /**
+   * Resolve the agent's working directory to an absolute path string
+   */
+  private resolveWorkingDirectory(agent: ResolvedAgent): string | undefined {
+    if (!agent.working_directory) {
+      return undefined;
+    }
+
+    if (typeof agent.working_directory === "string") {
+      return agent.working_directory;
+    }
+
+    return agent.working_directory.root;
+  }
+
+  // ===========================================================================
+  // Attachment Processing
+  // ===========================================================================
+
+  /** Maximum characters to inline for text/code file content */
+  private static readonly TEXT_INLINE_MAX_CHARS = 50_000;
+
+  /**
+   * Check if a content type matches a MIME pattern (supports wildcards like "image/*")
+   */
+  private static matchesMimePattern(contentType: string, pattern: string): boolean {
+    const ct = contentType.toLowerCase().split(";")[0].trim();
+    const pat = pattern.toLowerCase().trim();
+    if (pat === ct) return true;
+    if (pat.endsWith("/*")) {
+      const prefix = pat.slice(0, -1); // "image/*" → "image/"
+      return ct.startsWith(prefix);
+    }
+    return false;
+  }
+
+  /**
+   * Process file attachments: download, categorize, and prepare prompt sections.
+   *
+   * - Text/code files are inlined directly into the prompt
+   * - Images and PDFs are saved to disk so the agent can use its Read tool
+   *
+   * Returns prompt sections to prepend, paths of downloaded files for cleanup,
+   * and a list of skipped files with reasons.
+   */
+  private static async processAttachments(
+    attachments: DiscordAttachmentInfo[],
+    config: DiscordAttachments,
+    workingDir: string | undefined,
+    logger: ChatConnectorLogger,
+  ): Promise<{
+    promptSections: string[];
+    downloadedPaths: string[];
+    skippedFiles: { name: string; reason: string }[];
+  }> {
+    const promptSections: string[] = [];
+    const downloadedPaths: string[] = [];
+    const skippedFiles: { name: string; reason: string }[] = [];
+    const maxBytes = config.max_file_size_mb * 1024 * 1024;
+
+    // Limit to max_files_per_message
+    const toProcess = attachments.slice(0, config.max_files_per_message);
+    if (attachments.length > config.max_files_per_message) {
+      const skipped = attachments.slice(config.max_files_per_message);
+      for (const a of skipped) {
+        skippedFiles.push({ name: a.name, reason: "exceeded max_files_per_message" });
+      }
+    }
+
+    // Create one collision-resistant directory per message processing run.
+    const messageDownloadDir = randomUUID();
+
+    for (const attachment of toProcess) {
+      // Check allowed types
+      const allowed = config.allowed_types.some((pattern) =>
+        DiscordManager.matchesMimePattern(attachment.contentType, pattern),
+      );
+      if (!allowed) {
+        skippedFiles.push({
+          name: attachment.name,
+          reason: `type ${attachment.contentType} not in allowed_types`,
+        });
+        continue;
+      }
+
+      // Check file size
+      if (attachment.size > maxBytes) {
+        skippedFiles.push({
+          name: attachment.name,
+          reason: `size ${attachment.size} exceeds ${config.max_file_size_mb}MB limit`,
+        });
+        continue;
+      }
+
+      try {
+        if (attachment.category === "text") {
+          // Text/code: download and inline
+          const response = await fetch(attachment.url, { signal: AbortSignal.timeout(30_000) });
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          let text = await response.text();
+          if (text.length > DiscordManager.TEXT_INLINE_MAX_CHARS) {
+            text = `${text.substring(0, DiscordManager.TEXT_INLINE_MAX_CHARS)}\n... [truncated at ${DiscordManager.TEXT_INLINE_MAX_CHARS} chars]`;
+          }
+          promptSections.push(
+            `--- File: ${attachment.name} (${attachment.contentType}) ---\n${text}\n--- End of ${attachment.name} ---`,
+          );
+        } else {
+          // Image/PDF: download to disk
+          if (!workingDir) {
+            skippedFiles.push({
+              name: attachment.name,
+              reason: "no working_directory configured for binary attachments",
+            });
+            continue;
+          }
+          const response = await fetch(attachment.url, { signal: AbortSignal.timeout(30_000) });
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          const buffer = Buffer.from(await response.arrayBuffer());
+          const downloadDir = join(workingDir, config.download_dir, messageDownloadDir);
+          await mkdir(downloadDir, { recursive: true });
+          const filePath = join(downloadDir, `${attachment.id}-${basename(attachment.name)}`);
+          await writeFile(filePath, buffer);
+          downloadedPaths.push(filePath);
+
+          const typeLabel = attachment.category === "image" ? "Image" : "PDF";
+          promptSections.push(
+            `[${typeLabel} attached: ${filePath}] (Use the Read tool to view this file)`,
+          );
+        }
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.warn(`Failed to process attachment ${attachment.name}: ${errMsg}`);
+        skippedFiles.push({
+          name: attachment.name,
+          reason: `download/processing failed: ${errMsg}`,
+        });
+      }
+    }
+
+    return { promptSections, downloadedPaths, skippedFiles };
+  }
+
+  /**
+   * Clean up downloaded attachment files after processing
+   */
+  private static async cleanupAttachments(
+    paths: string[],
+    logger: ChatConnectorLogger,
+  ): Promise<void> {
+    const parentDirs = new Set<string>();
+    for (const filePath of paths) {
+      try {
+        await rm(filePath);
+        // Track parent directory for cleanup
+        const parent = dirname(filePath);
+        if (parent !== filePath && parent !== ".") {
+          parentDirs.add(parent);
+        }
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.debug(`Failed to clean up attachment file ${filePath}: ${errMsg}`);
+      }
+    }
+    // Try to remove empty timestamp directories
+    for (const dir of parentDirs) {
+      try {
+        await rm(dir, { recursive: true });
+      } catch {
+        // Directory may not be empty or already removed — ignore
+      }
     }
   }
 }

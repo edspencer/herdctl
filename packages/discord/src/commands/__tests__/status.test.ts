@@ -116,7 +116,7 @@ describe("statusCommand", () => {
     );
   });
 
-  it("includes agent name in response", async () => {
+  it("includes agent name in footer", async () => {
     const context = createMockContext({ agentName: "my-custom-agent" });
     const interaction = context.interaction as unknown as {
       reply: ReturnType<typeof vi.fn>;
@@ -124,11 +124,9 @@ describe("statusCommand", () => {
 
     await statusCommand.execute(context);
 
-    expect(interaction.reply).toHaveBeenCalledWith(
-      expect.objectContaining({
-        content: expect.stringContaining("my-custom-agent"),
-      }),
-    );
+    const call = interaction.reply.mock.calls[0][0];
+    expect(call.embeds).toBeDefined();
+    expect(call.embeds[0].footer.text).toContain("my-custom-agent");
   });
 
   it("includes connection status in response", async () => {
@@ -141,11 +139,9 @@ describe("statusCommand", () => {
 
     await statusCommand.execute(context);
 
-    expect(interaction.reply).toHaveBeenCalledWith(
-      expect.objectContaining({
-        content: expect.stringContaining("connected"),
-      }),
-    );
+    const call = interaction.reply.mock.calls[0][0];
+    expect(call.embeds).toBeDefined();
+    expect(call.embeds[0].description).toContain("Connected");
   });
 
   it("includes bot username in response", async () => {
@@ -164,11 +160,9 @@ describe("statusCommand", () => {
 
     await statusCommand.execute(context);
 
-    expect(interaction.reply).toHaveBeenCalledWith(
-      expect.objectContaining({
-        content: expect.stringContaining("MyBot"),
-      }),
-    );
+    const call = interaction.reply.mock.calls[0][0];
+    expect(call.embeds).toBeDefined();
+    expect(call.embeds[0].description).toContain("MyBot");
   });
 
   describe("when session exists", () => {
@@ -185,8 +179,9 @@ describe("statusCommand", () => {
       await statusCommand.execute(context);
 
       const call = interaction.reply.mock.calls[0][0];
-      expect(call.content).toContain("Session ID");
-      expect(call.content).toContain("Last Activity");
+      expect(call.embeds).toBeDefined();
+      expect(call.embeds[0].description).toContain("Session");
+      expect(call.embeds[0].description).toContain("`discord-test-agent-a");
     });
 
     it("queries session for correct channel", async () => {
@@ -214,11 +209,9 @@ describe("statusCommand", () => {
 
       await statusCommand.execute(context);
 
-      expect(interaction.reply).toHaveBeenCalledWith(
-        expect.objectContaining({
-          content: expect.stringContaining("No active session"),
-        }),
-      );
+      const call = interaction.reply.mock.calls[0][0];
+      expect(call.embeds).toBeDefined();
+      expect(call.embeds[0].description).toContain("No active session");
     });
   });
 
@@ -233,11 +226,9 @@ describe("statusCommand", () => {
 
       await statusCommand.execute(context);
 
-      expect(interaction.reply).toHaveBeenCalledWith(
-        expect.objectContaining({
-          content: expect.stringContaining("Reconnect Attempts"),
-        }),
-      );
+      const call = interaction.reply.mock.calls[0][0];
+      expect(call.embeds).toBeDefined();
+      expect(call.embeds[0].description).toContain("Reconnect attempts");
     });
 
     it("does not show reconnect attempts when 0", async () => {
@@ -251,7 +242,8 @@ describe("statusCommand", () => {
       await statusCommand.execute(context);
 
       const call = interaction.reply.mock.calls[0][0];
-      expect(call.content).not.toContain("Reconnect Attempts");
+      expect(call.embeds).toBeDefined();
+      expect(call.embeds[0].description).not.toContain("Reconnect attempts");
     });
 
     it("shows last error when present", async () => {
@@ -266,11 +258,9 @@ describe("statusCommand", () => {
 
       await statusCommand.execute(context);
 
-      expect(interaction.reply).toHaveBeenCalledWith(
-        expect.objectContaining({
-          content: expect.stringContaining("Connection timeout"),
-        }),
-      );
+      const call = interaction.reply.mock.calls[0][0];
+      expect(call.embeds).toBeDefined();
+      expect(call.embeds[0].description).toContain("Connection timeout");
     });
 
     it("shows uptime when connected", async () => {
@@ -284,11 +274,9 @@ describe("statusCommand", () => {
 
       await statusCommand.execute(context);
 
-      expect(interaction.reply).toHaveBeenCalledWith(
-        expect.objectContaining({
-          content: expect.stringContaining("Uptime"),
-        }),
-      );
+      const call = interaction.reply.mock.calls[0][0];
+      expect(call.embeds).toBeDefined();
+      expect(call.embeds[0].description).toContain("Uptime");
     });
   });
 });

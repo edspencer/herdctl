@@ -21,6 +21,7 @@ import type { SDKMessage } from "../types.js";
 import { getCliSessionDir, getCliSessionFile, waitForNewSessionFile } from "./cli-session-path.js";
 import { CLISessionWatcher } from "./cli-session-watcher.js";
 import type { RuntimeExecuteOptions, RuntimeInterface } from "./interface.js";
+import { type McpHttpBridge, startMcpHttpBridge } from "./mcp-http-bridge.js";
 
 const logger = createLogger("CLIRuntime");
 
@@ -146,9 +147,16 @@ export class CLIRuntime implements RuntimeInterface {
       args.push("--model", options.agent.model);
     }
 
-    // Add system prompt if specified
-    if (options.agent.system_prompt) {
+    // Add system prompt if specified, with optional append for chat platforms
+    if (options.agent.system_prompt && options.systemPromptAppend) {
+      args.push(
+        "--system-prompt",
+        options.agent.system_prompt + "\n\n" + options.systemPromptAppend,
+      );
+    } else if (options.agent.system_prompt) {
       args.push("--system-prompt", options.agent.system_prompt);
+    } else if (options.systemPromptAppend) {
+      args.push("--system-prompt", options.systemPromptAppend);
     }
 
     // Add allowed tools if specified (direct passthrough to CLI)
@@ -175,10 +183,87 @@ export class CLIRuntime implements RuntimeInterface {
 
     // Add MCP servers if specified
     // Transform agent config format to SDK format and serialize to JSON
+    // Claude CLI expects: {"mcpServers": { ... }} (same shape as .mcp.json)
     if (options.agent.mcp_servers && Object.keys(options.agent.mcp_servers).length > 0) {
       const mcpServers = transformMcpServers(options.agent.mcp_servers);
-      const mcpConfig = JSON.stringify(mcpServers);
+      const mcpConfig = JSON.stringify({ mcpServers });
       args.push("--mcp-config", mcpConfig);
+    }
+
+    // Track env mutation so we can restore it (see CLAUDE_CODE_STREAM_CLOSE_TIMEOUT below)
+    let savedStreamCloseTimeout: string | undefined | null = null; // null = not mutated
+
+    // Start HTTP bridges for injected MCP servers (e.g., file sender)
+    // Same pattern as container-runner: expose in-process handlers via HTTP,
+    // then pass as HTTP-type MCP servers in --mcp-config
+    const bridges: McpHttpBridge[] = [];
+    if (options.injectedMcpServers && Object.keys(options.injectedMcpServers).length > 0) {
+      for (const [name, def] of Object.entries(options.injectedMcpServers)) {
+        let bridge: McpHttpBridge;
+        try {
+          bridge = await startMcpHttpBridge(def);
+        } catch (bridgeError) {
+          // Clean up any bridges that started successfully before this failure
+          for (const b of bridges) {
+            try {
+              await b.close();
+            } catch {
+              // best-effort cleanup
+            }
+          }
+          bridges.length = 0;
+          throw bridgeError;
+        }
+        bridges.push(bridge);
+
+        // Build or extend the --mcp-config to include this HTTP server
+        // Find existing --mcp-config arg index to merge with it
+        const mcpConfigIdx = args.indexOf("--mcp-config");
+        let mcpConfig: { mcpServers: Record<string, unknown> };
+
+        if (mcpConfigIdx !== -1 && mcpConfigIdx + 1 < args.length) {
+          // Parse existing config and add the bridge
+          mcpConfig = JSON.parse(args[mcpConfigIdx + 1]);
+        } else {
+          mcpConfig = { mcpServers: {} };
+        }
+
+        mcpConfig.mcpServers[name] = {
+          type: "http",
+          url: `http://127.0.0.1:${bridge.port}/mcp`,
+        };
+
+        const configJson = JSON.stringify(mcpConfig);
+        if (mcpConfigIdx !== -1) {
+          args[mcpConfigIdx + 1] = configJson;
+        } else {
+          args.push("--mcp-config", configJson);
+        }
+
+        logger.debug(`Started MCP HTTP bridge for '${name}' on port ${bridge.port}`);
+      }
+
+      // Auto-add injected MCP tool patterns to allowedTools.
+      // Only needed when the agent has an explicit allowlist — without one, all tools
+      // (including injected MCP tools) are allowed by default.
+      const allowedToolsIdx = args.indexOf("--allowedTools");
+      if (allowedToolsIdx !== -1 && allowedToolsIdx + 1 < args.length) {
+        const existing = args[allowedToolsIdx + 1];
+        const injectedPatterns = Object.keys(options.injectedMcpServers).map(
+          (name) => `mcp__${name}__*`,
+        );
+        args[allowedToolsIdx + 1] = [existing, ...injectedPatterns].join(",");
+      }
+
+      // File uploads via MCP tools can take longer than the default 60s timeout.
+      // Save the original value so we can restore it in `finally` to avoid leaking
+      // state across concurrent jobs.
+      if (options.injectedMcpServers["herdctl-file-sender"]) {
+        if (!process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT) {
+          savedStreamCloseTimeout = undefined; // marker: was not set
+          process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT = "120000";
+        }
+      }
     }
 
     // Add session options
@@ -199,6 +284,63 @@ export class CLIRuntime implements RuntimeInterface {
     let subprocess: Subprocess | undefined;
     let watcher: CLISessionWatcher | undefined;
     let hasError = false;
+
+    // Track usage stats across all assistant turns for synthetic result message
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+    let numTurns = 0;
+    let lastAssistantText = "";
+    const seenAssistantMessageIds = new Set<string>();
+
+    // Helper to accumulate usage from each assistant message
+    const trackAssistantUsage = (message: SDKMessage) => {
+      if (message.type !== "assistant") {
+        return;
+      }
+
+      const assistantMeta = message as {
+        message?: {
+          id?: string;
+          stop_reason?: unknown;
+        };
+      };
+      const stopReason = assistantMeta.message?.stop_reason;
+
+      // Ignore intermediate assistant snapshots.
+      if (stopReason === null) {
+        return;
+      }
+
+      // Claude CLI can emit duplicate finalized snapshots for the same message id.
+      const messageId = assistantMeta.message?.id;
+      if (typeof messageId === "string" && messageId.length > 0) {
+        if (seenAssistantMessageIds.has(messageId)) {
+          return;
+        }
+        seenAssistantMessageIds.add(messageId);
+      }
+
+      numTurns++;
+      const msg = message as {
+        message?: {
+          content?: Array<{ type: string; text?: string }>;
+          usage?: { input_tokens?: number; output_tokens?: number };
+        };
+      };
+      const usage = msg.message?.usage;
+      if (usage) {
+        totalInputTokens += usage.input_tokens ?? 0;
+        totalOutputTokens += usage.output_tokens ?? 0;
+      }
+      // Capture last text content for result fallback
+      const content = msg.message?.content;
+      if (Array.isArray(content)) {
+        const textParts = content.filter((b) => b.type === "text" && b.text).map((b) => b.text!);
+        if (textParts.length > 0) {
+          lastAssistantText = textParts.join("");
+        }
+      }
+    };
 
     try {
       // Determine working directory root for cwd
@@ -270,7 +412,7 @@ export class CLIRuntime implements RuntimeInterface {
         // When starting new session, wait for a NEW file created after process start
         logger.debug("Waiting for new session file...");
         sessionFilePath = await waitForNewSessionFile(sessionDir, processStartTime, {
-          timeoutMs: 15000, // Increase timeout to 15 seconds for debugging
+          timeoutMs: 60000, // Allow up to 60s for MCP servers to initialize
           pollIntervalMs: 200,
         });
         logger.debug(`New session, watching newly created file: ${sessionFilePath}`);
@@ -328,9 +470,15 @@ export class CLIRuntime implements RuntimeInterface {
       logger.debug("Yielded synthetic system message with session ID");
 
       // Stream messages from the watcher as they arrive
+      let gotResultMessage = false;
       for await (const message of watcher.watch()) {
         logger.debug(`Received message type: ${message.type}`);
         yield message;
+
+        // Track assistant turn usage for synthetic result message
+        if (message.type === "assistant") {
+          trackAssistantUsage(message);
+        }
 
         // Track errors
         if (message.type === "error") {
@@ -340,6 +488,7 @@ export class CLIRuntime implements RuntimeInterface {
         // If this is a result message, we're done
         if (message.type === "result") {
           logger.debug("Got result message, stopping");
+          gotResultMessage = true;
           break;
         }
       }
@@ -364,9 +513,18 @@ export class CLIRuntime implements RuntimeInterface {
         logger.debug(`Yielding remaining message type: ${message.type}`);
         yield message;
 
+        // Track assistant turn usage for synthetic result message
+        if (message.type === "assistant") {
+          trackAssistantUsage(message);
+        }
+
         // Track errors
         if (message.type === "error") {
           hasError = true;
+        }
+
+        if (message.type === "result") {
+          gotResultMessage = true;
         }
       }
 
@@ -376,6 +534,27 @@ export class CLIRuntime implements RuntimeInterface {
           type: "error",
           message: `Claude CLI exited with code ${exitCode}`,
           code: `EXIT_${exitCode}`,
+        };
+      }
+
+      // Synthesize a result message for CLI runtime
+      // The Claude CLI doesn't emit "result" messages like the SDK does,
+      // so we aggregate usage stats from assistant turns and emit one.
+      if (!gotResultMessage) {
+        const durationMs = Date.now() - processStartTime;
+        logger.debug(
+          `Emitting synthetic result: ${numTurns} turns, ${totalInputTokens}+${totalOutputTokens} tokens, ${durationMs}ms`,
+        );
+        yield {
+          type: "result",
+          result: lastAssistantText || "",
+          is_error: hasError,
+          duration_ms: durationMs,
+          num_turns: numTurns,
+          usage: {
+            input_tokens: totalInputTokens,
+            output_tokens: totalOutputTokens,
+          },
         };
       }
     } catch (error) {
@@ -413,6 +592,24 @@ export class CLIRuntime implements RuntimeInterface {
     } finally {
       // Cleanup
       watcher?.stop();
+
+      // Restore process.env if we mutated it
+      if (savedStreamCloseTimeout !== null) {
+        if (savedStreamCloseTimeout === undefined) {
+          delete process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT;
+        } else {
+          process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT = savedStreamCloseTimeout;
+        }
+      }
+
+      // Close HTTP bridges for injected MCP servers
+      for (const bridge of bridges) {
+        try {
+          await bridge.close();
+        } catch (err) {
+          logger.error(`Failed to close MCP HTTP bridge: ${err}`);
+        }
+      }
     }
   }
 }

@@ -31,8 +31,11 @@ export interface RuntimeExecuteOptions {
   /** AbortController for cancellation support */
   abortController?: AbortController;
 
-  /** MCP servers to inject at runtime (SDK and Docker runtimes) */
+  /** MCP servers to inject at runtime (all runtimes: SDK, CLI, Docker) */
   injectedMcpServers?: Record<string, import("../types.js").InjectedMcpServerDef>;
+
+  /** Text to append to the agent's system prompt for this run */
+  systemPromptAppend?: string;
 }
 
 /**

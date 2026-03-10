@@ -474,6 +474,11 @@ export class SlackManager implements IChatManager {
         { name: string; input?: unknown; startTime: number }
       >();
 
+      // Deduplicate assistant messages by finalized snapshot. Claude Code can emit
+      // intermediate snapshots (stop_reason: null) before the final assistant message.
+      // We skip intermediates and deliver the first finalized snapshot per message.id.
+      const deliveredAssistantIds = new Set<string>();
+
       // Execute job via FleetManager.trigger() through the context
       // Pass resume option for conversation continuity
       // The onMessage callback streams output incrementally to Slack
@@ -487,13 +492,9 @@ export class SlackManager implements IChatManager {
           if (message.type === "assistant") {
             // Cast to the SDKMessage shape expected by extractMessageContent
             const sdkMessage = message as unknown as Parameters<typeof extractMessageContent>[0];
-            const content = extractMessageContent(sdkMessage);
-            if (content) {
-              // Each assistant message is a complete turn - send immediately
-              await streamer.addMessageAndSend(content);
-            }
 
-            // Track tool_use blocks for pairing with results later
+            // Always track tool_use blocks (even from duplicate messages)
+            // so tool results can be paired correctly
             const toolUseBlocks = extractToolUseBlocks(sdkMessage);
             for (const block of toolUseBlocks) {
               if (block.id) {
@@ -503,6 +504,30 @@ export class SlackManager implements IChatManager {
                   startTime: Date.now(),
                 });
               }
+            }
+
+            // Deduplicate assistant messages by message.id.
+            // Claude Code emits multiple JSONL lines per turn with the same id:
+            // intermediate snapshots (stop_reason: null) may lack text content,
+            // while the final (stop_reason: "end_turn") has the complete response.
+            // Skip intermediates, deliver and deduplicate finals.
+            const messageId = (message as { message?: { id?: string } }).message?.id;
+            const stopReason = (message as { message?: { stop_reason?: unknown } }).message
+              ?.stop_reason;
+            if (messageId && stopReason === null) {
+              return; // Skip intermediate snapshot — text may be incomplete
+            }
+            if (messageId) {
+              if (deliveredAssistantIds.has(messageId)) {
+                return;
+              }
+              deliveredAssistantIds.add(messageId);
+            }
+
+            const content = extractMessageContent(sdkMessage);
+            if (content) {
+              // Each assistant message is a complete turn - send immediately
+              await streamer.addMessageAndSend(content);
             }
           }
 

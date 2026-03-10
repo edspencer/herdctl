@@ -231,6 +231,31 @@ export function processMessage(message: Message, botUserId: string): ContextMess
   let content = stripBotMention(message.content, botUserId);
   content = stripBotRoleMentions(content, message, botUserId);
 
+  // Extract text from embeds so rich content (hook notifications, link
+  // previews, other bot output) is visible in conversation context
+  if (message.embeds?.length > 0) {
+    const embedTexts: string[] = [];
+    for (const embed of message.embeds) {
+      const parts: string[] = [];
+      if (embed.title) parts.push(embed.title);
+      if (embed.description) parts.push(embed.description);
+      if (embed.fields?.length) {
+        for (const field of embed.fields) {
+          parts.push(`${field.name}: ${field.value}`);
+        }
+      }
+      if (parts.length > 0) embedTexts.push(parts.join("\n"));
+    }
+    if (embedTexts.length > 0) {
+      let embedContent = embedTexts.join("\n\n");
+      // Cap embed text to avoid extremely long context from rich messages
+      if (embedContent.length > 4000) {
+        embedContent = embedContent.substring(0, 4000) + "\n[embed text truncated]";
+      }
+      content = content ? `${content}\n\n${embedContent}` : embedContent;
+    }
+  }
+
   return {
     authorId: message.author.id,
     authorName: message.author.displayName ?? message.author.username,

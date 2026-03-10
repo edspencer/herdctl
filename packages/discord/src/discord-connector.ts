@@ -11,6 +11,7 @@ import { type RateLimitData, RESTEvents } from "@discordjs/rest";
 import type { IChatSessionManager } from "@herdctl/chat";
 import type { AgentChatDiscord, AgentConfig } from "@herdctl/core";
 import {
+  AttachmentBuilder,
   Client,
   type ClientOptions,
   type DMChannel,
@@ -18,6 +19,7 @@ import {
   GatewayIntentBits,
   type Interaction,
   type Message,
+  MessageFlags,
   type NewsChannel,
   Partials,
   type TextChannel,
@@ -25,6 +27,7 @@ import {
 } from "discord.js";
 import { checkDMUserFilter, resolveChannelConfig } from "./auto-mode-handler.js";
 import { CommandManager, type ICommandManager } from "./commands/index.js";
+import type { CommandActions } from "./commands/types.js";
 import { ErrorHandler } from "./error-handler.js";
 import { AlreadyConnectedError, DiscordConnectionError, InvalidTokenError } from "./errors.js";
 import { createLoggerFromConfig } from "./logger.js";
@@ -34,12 +37,15 @@ import {
   type TextBasedChannel,
 } from "./mention-handler.js";
 import type {
+  AttachmentCategory,
+  DiscordAttachmentInfo,
   DiscordConnectionStatus,
   DiscordConnectorEventMap,
   DiscordConnectorEventName,
   DiscordConnectorLogger,
   DiscordConnectorOptions,
   DiscordConnectorState,
+  DiscordFileUploadParams,
   DiscordReplyPayload,
   IDiscordConnector,
 } from "./types.js";
@@ -75,6 +81,11 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
   private readonly _botToken: string;
   private readonly _logger: DiscordConnectorLogger;
   private readonly _sessionManager: IChatSessionManager;
+  private readonly _commandActions?: CommandActions;
+  private readonly _commandRegistration?: {
+    scope: "global" | "guild";
+    guildId?: string;
+  };
   private readonly _errorHandler: ErrorHandler;
   private _client: Client | null = null;
   private _commandManager: ICommandManager | null = null;
@@ -103,6 +114,8 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
     this._discordConfig = options.discordConfig;
     this._botToken = options.botToken;
     this._sessionManager = options.sessionManager;
+    this._commandActions = options.commandActions;
+    this._commandRegistration = options.commandRegistration;
 
     // Create logger from config if not provided
     this._logger =
@@ -305,6 +318,38 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
     };
   }
 
+  // ===========================================================================
+  // File Upload
+  // ===========================================================================
+
+  async uploadFile(params: DiscordFileUploadParams): Promise<{ fileId: string }> {
+    if (!this._client?.isReady()) {
+      throw new Error("Cannot upload file: not connected to Discord");
+    }
+
+    const channel = await this._client.channels.fetch(params.channelId);
+    if (!channel || !channel.isTextBased() || !("send" in channel)) {
+      throw new Error(`Channel ${params.channelId} is not a text channel`);
+    }
+
+    const attachment = new AttachmentBuilder(params.fileBuffer, { name: params.filename });
+    // Channel type is validated above via isTextBased() + "send" check
+    const sent = await (channel as TextChannel | DMChannel).send({
+      content: params.message || undefined,
+      files: [attachment],
+    });
+
+    const fileId = sent.attachments.first()?.id ?? sent.id;
+    this._logger.info("File uploaded to Discord", {
+      fileId,
+      filename: params.filename,
+      channelId: params.channelId,
+      size: params.fileBuffer.length,
+    });
+
+    return { fileId };
+  }
+
   /**
    * Set up event handlers for the discord.js client
    */
@@ -477,6 +522,8 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
         sessionManager: this._sessionManager,
         getConnectorState: () => this.getState(),
         logger: this._logger,
+        commandActions: this._commandActions,
+        commandRegistration: this._commandRegistration,
       });
 
       await this._commandManager.registerCommands();
@@ -494,17 +541,26 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
    * Handle an incoming interaction (slash command)
    */
   private async _handleInteraction(interaction: Interaction): Promise<void> {
-    // Only handle chat input (slash) commands
-    if (!interaction.isChatInputCommand()) {
+    // Only handle slash command chat input + autocomplete interactions.
+    if (!interaction.isChatInputCommand() && !interaction.isAutocomplete()) {
       return;
     }
 
     if (!this._commandManager) {
       this._logger.warn("Received command but command manager not initialized");
-      await interaction.reply({
-        content: "Commands are not available at this time.",
-        ephemeral: true,
-      });
+      if (interaction.isChatInputCommand()) {
+        await interaction.reply({
+          content: "Commands are not available at this time.",
+          ephemeral: true,
+        });
+      } else if (interaction.isAutocomplete()) {
+        await interaction.respond([]);
+      }
+      return;
+    }
+
+    if (interaction.isAutocomplete()) {
+      await this._commandManager.handleAutocomplete(interaction);
       return;
     }
 
@@ -559,7 +615,7 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
         this._messagesIgnored++;
         const payload: DiscordConnectorEventMap["messageIgnored"] = {
           agentName: this.agentName,
-          reason: filterResult.reason === "dm_disabled" ? "not_configured" : "not_configured",
+          reason: "not_configured",
           channelId: message.channel.id,
           messageId: message.id,
         };
@@ -654,6 +710,26 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
       });
     };
 
+    // Create reply-with-reference function for editable messages (progress embeds)
+    const replyWithRef = async (
+      content: string | DiscordReplyPayload,
+    ): Promise<{
+      edit: (c: string | DiscordReplyPayload) => Promise<void>;
+      delete: () => Promise<void>;
+    }> => {
+      const textChannel = channel as TextChannel | DMChannel | NewsChannel | ThreadChannel;
+      const sentMessage = await textChannel.send(content as Parameters<typeof textChannel.send>[0]);
+      this._messagesSent++;
+      return {
+        edit: async (newContent: string | DiscordReplyPayload) => {
+          await sentMessage.edit(newContent as Parameters<typeof sentMessage.edit>[0]);
+        },
+        delete: async () => {
+          await sentMessage.delete();
+        },
+      };
+    };
+
     // Create typing indicator function
     // Returns a stop function that should be called when done
     const startTyping = (): (() => void) => {
@@ -681,6 +757,67 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
       };
     };
 
+    // Detect voice messages (audio recordings in text channels)
+    // Discord sets the IsVoiceMessage flag (8192) on voice messages
+    const isVoiceMessage = message.flags?.has(MessageFlags.IsVoiceMessage) ?? false;
+    let voiceAttachmentUrl: string | undefined;
+    let voiceAttachmentName: string | undefined;
+    if (isVoiceMessage) {
+      const voiceAttachment = message.attachments.first();
+      if (voiceAttachment) {
+        voiceAttachmentUrl = voiceAttachment.url;
+        voiceAttachmentName = voiceAttachment.name;
+      }
+    }
+
+    // Extract non-voice file attachments (images, PDFs, text/code files)
+    let attachments: DiscordAttachmentInfo[] | undefined;
+    if (!isVoiceMessage && message.attachments.size > 0) {
+      const extracted: DiscordAttachmentInfo[] = [];
+      for (const [, attachment] of message.attachments) {
+        const contentType = attachment.contentType ?? "application/octet-stream";
+        const category = DiscordConnector._categorizeContentType(contentType);
+        if (category !== "unsupported") {
+          extracted.push({
+            id: attachment.id,
+            name: attachment.name ?? "unknown",
+            url: attachment.url,
+            contentType,
+            size: attachment.size,
+            category,
+          });
+        }
+      }
+      if (extracted.length > 0) {
+        attachments = extracted;
+      }
+    }
+
+    // Create reaction functions for acknowledgement emoji support
+    const addReaction = async (emoji: string): Promise<void> => {
+      try {
+        await message.react(emoji);
+      } catch (err) {
+        this._logger.debug("Failed to add reaction", {
+          emoji,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    };
+
+    const removeReaction = async (emoji: string): Promise<void> => {
+      try {
+        const reaction = message.reactions.cache.get(emoji);
+        if (reaction && this._botUser?.id) {
+          await reaction.users.remove(this._botUser.id);
+        }
+      } catch (err) {
+        this._logger.debug("Failed to remove reaction", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    };
+
     // Emit message event
     const payload: DiscordConnectorEventMap["message"] = {
       agentName: this.agentName,
@@ -694,11 +831,39 @@ export class DiscordConnector extends EventEmitter implements IDiscordConnector 
         username: message.author.username,
         wasMentioned: context.wasMentioned,
         mode,
+        isVoiceMessage,
+        voiceAttachmentUrl,
+        voiceAttachmentName,
+        attachments,
       },
       reply,
+      replyWithRef,
       startTyping,
+      addReaction,
+      removeReaction,
     };
     this.emit("message", payload);
+  }
+
+  /**
+   * Categorize a MIME content type into an attachment processing category
+   */
+  private static _categorizeContentType(contentType: string): AttachmentCategory {
+    const lower = contentType.toLowerCase().split(";")[0].trim();
+    if (lower.startsWith("image/")) return "image";
+    if (lower === "application/pdf") return "pdf";
+    if (lower.startsWith("text/")) return "text";
+    // Common code file MIME types that don't start with text/
+    const codeTypes = [
+      "application/json",
+      "application/javascript",
+      "application/typescript",
+      "application/x-yaml",
+      "application/x-sh",
+      "application/xml",
+    ];
+    if (codeTypes.includes(lower)) return "text";
+    return "unsupported";
   }
 
   /**

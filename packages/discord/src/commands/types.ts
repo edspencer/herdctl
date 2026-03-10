@@ -6,8 +6,63 @@
  */
 
 import type { IChatSessionManager } from "@herdctl/chat";
-import type { ChatInputCommandInteraction, Client } from "discord.js";
+import type {
+  AutocompleteInteraction,
+  ChatInputCommandInteraction,
+  Client,
+  SlashCommandBuilder,
+} from "discord.js";
 import type { DiscordConnectorState } from "../types.js";
+
+export interface CommandActionResult {
+  success: boolean;
+  message: string;
+  jobId?: string;
+}
+
+export interface ChannelRunUsage {
+  timestamp: string;
+  numTurns?: number;
+  durationMs?: number;
+  totalCostUsd?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  isError?: boolean;
+}
+
+export interface CumulativeUsage {
+  totalRuns: number;
+  totalSuccesses: number;
+  totalFailures: number;
+  totalCostUsd: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalDurationMs: number;
+  firstRunAt: string;
+  lastRunAt: string;
+}
+
+export interface CommandActions {
+  stopRun?: (channelId: string) => Promise<CommandActionResult>;
+  retryRun?: (channelId: string) => Promise<CommandActionResult>;
+  runSkill?: (channelId: string, skillName: string, input?: string) => Promise<CommandActionResult>;
+  listSkills?: () => Promise<Array<{ name: string; description?: string }>>;
+  getUsage?: (channelId: string) => Promise<ChannelRunUsage | null>;
+  getCumulativeUsage?: () => Promise<CumulativeUsage>;
+  getAgentConfig?: () => Promise<{
+    runtime?: string;
+    model?: string;
+    permissionMode?: string;
+    workingDirectory?: string;
+    allowedTools?: string[];
+    deniedTools?: string[];
+    mcpServers?: string[];
+  }>;
+  getSessionInfo?: (channelId: string) => Promise<{
+    activeJobId?: string;
+    lastPrompt?: string;
+  }>;
+}
 
 // =============================================================================
 // Command Context
@@ -31,6 +86,9 @@ export interface CommandContext {
 
   /** Current connector state */
   connectorState: DiscordConnectorState;
+
+  /** Optional manager-backed command actions */
+  commandActions?: CommandActions;
 }
 
 // =============================================================================
@@ -48,11 +106,24 @@ export interface SlashCommand {
   description: string;
 
   /**
+   * Optional slash-command builder customizations (options, autocomplete flags, etc.)
+   */
+  build?: (builder: SlashCommandBuilder) => SlashCommandBuilder;
+
+  /**
    * Execute the command
    *
    * @param context - Command execution context
    */
   execute(context: CommandContext): Promise<void>;
+
+  /**
+   * Optional autocomplete handler for command options
+   */
+  autocomplete?: (
+    interaction: AutocompleteInteraction,
+    context: Omit<CommandContext, "interaction">,
+  ) => Promise<void>;
 }
 
 // =============================================================================
@@ -90,6 +161,15 @@ export interface CommandManagerOptions {
 
   /** Optional logger */
   logger?: CommandManagerLogger;
+
+  /** Optional manager-backed command actions */
+  commandActions?: CommandActions;
+
+  /** Registration mode for slash commands */
+  commandRegistration?: {
+    scope: "global" | "guild";
+    guildId?: string;
+  };
 }
 
 // =============================================================================
@@ -113,6 +193,11 @@ export interface ICommandManager {
    * @param interaction - The command interaction to handle
    */
   handleInteraction(interaction: ChatInputCommandInteraction): Promise<void>;
+
+  /**
+   * Handle an autocomplete interaction for slash command option suggestions.
+   */
+  handleAutocomplete(interaction: AutocompleteInteraction): Promise<void>;
 
   /**
    * Get all registered commands

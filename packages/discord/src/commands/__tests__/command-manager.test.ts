@@ -1,5 +1,5 @@
 import type { IChatSessionManager } from "@herdctl/chat";
-import type { ChatInputCommandInteraction, Client } from "discord.js";
+import type { AutocompleteInteraction, ChatInputCommandInteraction, Client } from "discord.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DiscordConnectorState } from "../../types.js";
 
@@ -25,6 +25,8 @@ vi.mock("discord.js", async () => {
     REST: MockREST,
     Routes: {
       applicationCommands: (clientId: string) => `/applications/${clientId}/commands`,
+      applicationGuildCommands: (clientId: string, guildId: string) =>
+        `/applications/${clientId}/guilds/${guildId}/commands`,
     },
   };
 });
@@ -155,8 +157,19 @@ describe("CommandManager", () => {
 
       const commands = manager.getCommands();
       expect(commands.has("help")).toBe(true);
+      expect(commands.has("ping")).toBe(true);
+      expect(commands.has("config")).toBe(true);
+      expect(commands.has("tools")).toBe(true);
+      expect(commands.has("usage")).toBe(true);
+      expect(commands.has("skills")).toBe(true);
+      expect(commands.has("skill")).toBe(true);
       expect(commands.has("reset")).toBe(true);
       expect(commands.has("status")).toBe(true);
+      expect(commands.has("new")).toBe(true);
+      expect(commands.has("session")).toBe(true);
+      expect(commands.has("stop")).toBe(true);
+      expect(commands.has("cancel")).toBe(true);
+      expect(commands.has("retry")).toBe(true);
     });
   });
 
@@ -179,6 +192,28 @@ describe("CommandManager", () => {
         expect.objectContaining({
           body: expect.any(Array),
         }),
+      );
+    });
+
+    it("registers commands at guild scope when configured", async () => {
+      const manager = new CommandManager({
+        agentName: "test-agent",
+        client,
+        botToken: "test-token",
+        sessionManager,
+        getConnectorState: () => connectorState,
+        logger,
+        commandRegistration: {
+          scope: "guild",
+          guildId: "guild-123",
+        },
+      });
+
+      await manager.registerCommands();
+
+      expect(mockRestPut).toHaveBeenCalledWith(
+        expect.stringContaining("/guilds/guild-123/commands"),
+        expect.any(Object),
       );
     });
 
@@ -362,10 +397,16 @@ describe("CommandManager", () => {
       await manager.handleInteraction(interaction);
 
       const reply = interaction.reply as ReturnType<typeof vi.fn>;
-      // Help command should include agent name in response
+      // Help command should include agent name in embed footer
       expect(reply).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: expect.stringContaining("my-agent"),
+          embeds: expect.arrayContaining([
+            expect.objectContaining({
+              footer: expect.objectContaining({
+                text: expect.stringContaining("my-agent"),
+              }),
+            }),
+          ]),
         }),
       );
     });
@@ -385,7 +426,39 @@ describe("CommandManager", () => {
       const commands = manager.getCommands();
 
       expect(commands).toBeInstanceOf(Map);
-      expect(commands.size).toBe(3);
+      expect(commands.size).toBe(14);
+    });
+  });
+
+  describe("handleAutocomplete", () => {
+    it("responds with skill suggestions", async () => {
+      const manager = new CommandManager({
+        agentName: "test-agent",
+        client,
+        botToken: "test-token",
+        sessionManager,
+        getConnectorState: () => connectorState,
+        logger,
+        commandActions: {
+          listSkills: vi.fn().mockResolvedValue([
+            { name: "cloudflare-deploy", description: "Deploy apps to Cloudflare" },
+            { name: "pdf", description: "Work with PDF documents" },
+          ]),
+        },
+      });
+
+      const interaction = {
+        commandName: "skill",
+        options: { getFocused: vi.fn().mockReturnValue("pdf") },
+        respond: vi.fn().mockResolvedValue(undefined),
+        responded: false,
+      } as unknown as AutocompleteInteraction;
+
+      await manager.handleAutocomplete(interaction);
+
+      expect(interaction.respond).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ value: "pdf" })]),
+      );
     });
   });
 });

@@ -115,11 +115,8 @@ describe("helpCommand", () => {
 
     await helpCommand.execute(context);
 
-    expect(interaction.reply).toHaveBeenCalledWith(
-      expect.objectContaining({
-        content: expect.stringContaining("my-custom-agent"),
-      }),
-    );
+    const call = interaction.reply.mock.calls[0][0];
+    expect(call.embeds[0].footer.text).toContain("my-custom-agent");
   });
 
   it("includes command descriptions in response", async () => {
@@ -131,8 +128,8 @@ describe("helpCommand", () => {
     await helpCommand.execute(context);
 
     const call = interaction.reply.mock.calls[0][0];
-    expect(call.content).toContain("/help");
-    expect(call.content).toContain("/status");
-    expect(call.content).toContain("/reset");
+    expect(call.embeds[0].description).toContain("/help");
+    expect(call.embeds[0].description).toContain("/status");
+    expect(call.embeds[0].description).toContain("/reset");
   });
 });

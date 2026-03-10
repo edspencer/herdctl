@@ -118,11 +118,13 @@ describe("resetCommand", () => {
       await resetCommand.execute(context);
 
       expect(interaction.reply).toHaveBeenCalledWith({
-        content: expect.stringContaining("my-agent"),
-        ephemeral: true,
-      });
-      expect(interaction.reply).toHaveBeenCalledWith({
-        content: expect.stringContaining("cleared"),
+        embeds: [
+          expect.objectContaining({
+            description: "Session cleared. Starting fresh.",
+            color: 0x22c55e,
+            footer: { text: "herdctl \u00b7 my-agent" },
+          }),
+        ],
         ephemeral: true,
       });
     });
@@ -144,7 +146,13 @@ describe("resetCommand", () => {
       await resetCommand.execute(context);
 
       expect(interaction.reply).toHaveBeenCalledWith({
-        content: expect.stringContaining("No active session"),
+        embeds: [
+          expect.objectContaining({
+            description: "No active session in this channel.",
+            color: 0x6b7280,
+            footer: { text: "herdctl \u00b7 my-agent" },
+          }),
+        ],
         ephemeral: true,
       });
     });

@@ -1,11 +1,11 @@
 /**
  * /status command - Show agent status and session info
  *
- * Responds ephemerally with the current agent status, connection info,
+ * Responds ephemerally with a condensed embed showing connection status
  * and session information for the current channel.
  */
 
-import { formatDuration, formatTimestamp, getStatusEmoji } from "@herdctl/chat";
+import { formatDuration, getStatusEmoji } from "@herdctl/chat";
 import type { CommandContext, SlashCommand } from "./types.js";
 
 export const statusCommand: SlashCommand = {
@@ -19,40 +19,49 @@ export const statusCommand: SlashCommand = {
     // Get session info for this channel
     const session = await sessionManager.getSession(channelId);
 
-    // Build status message
+    // Build condensed status
     const statusEmoji = getStatusEmoji(connectorState.status);
     const botUsername = connectorState.botUser?.username ?? "Unknown";
+    const statusLabel =
+      connectorState.status.charAt(0).toUpperCase() + connectorState.status.slice(1);
 
-    let statusMessage = `**${agentName} Status**
+    const lines: string[] = [];
 
-${statusEmoji} **Connection:** ${connectorState.status}
-**Bot:** ${botUsername}`;
-
+    // Connection line: "🟢 **Connected** as MyBot · Uptime 2h 30m"
+    const connectionParts = [`${statusEmoji} **${statusLabel}**`, `as ${botUsername}`];
     if (connectorState.connectedAt) {
-      statusMessage += `\n**Connected:** ${formatTimestamp(connectorState.connectedAt)}`;
-      statusMessage += `\n**Uptime:** ${formatDuration(connectorState.connectedAt)}`;
+      connectionParts.push(`\u00b7 Uptime ${formatDuration(connectorState.connectedAt)}`);
     }
+    lines.push(connectionParts.join(" "));
 
     if (connectorState.reconnectAttempts > 0) {
-      statusMessage += `\n**Reconnect Attempts:** ${connectorState.reconnectAttempts}`;
+      lines.push(`Reconnect attempts: ${connectorState.reconnectAttempts}`);
     }
-
     if (connectorState.lastError) {
-      statusMessage += `\n**Last Error:** ${connectorState.lastError}`;
+      lines.push(`Last error: ${connectorState.lastError}`);
     }
 
-    // Session info
-    statusMessage += `\n\n**Session Info**`;
+    // Session section
+    lines.push("");
     if (session) {
-      statusMessage += `\n**Session ID:** \`${session.sessionId.substring(0, 20)}...\``;
-      statusMessage += `\n**Last Activity:** ${formatTimestamp(session.lastMessageAt)}`;
-      statusMessage += `\n**Session Age:** ${formatDuration(session.lastMessageAt)}`;
+      lines.push("**Session**");
+      lines.push(
+        `\`${session.sessionId.substring(0, 20)}\u2026\` \u00b7 Active ${formatDuration(session.lastMessageAt)} ago`,
+      );
     } else {
-      statusMessage += `\nNo active session in this channel.`;
+      lines.push("**Session**");
+      lines.push("No active session in this channel.");
     }
 
     await interaction.reply({
-      content: statusMessage,
+      embeds: [
+        {
+          description: lines.join("\n"),
+          color: 0x3b82f6,
+          footer: { text: `herdctl \u00b7 ${agentName}` },
+          timestamp: new Date().toISOString(),
+        },
+      ],
       ephemeral: true,
     });
   },

@@ -1711,6 +1711,9 @@ describe("AgentChatDiscordSchema", () => {
         result_summary: false,
         errors: true,
         typing_indicator: true,
+        acknowledge_emoji: "👀",
+        assistant_messages: "answers",
+        progress_indicator: true,
       });
     }
   });
@@ -1742,6 +1745,55 @@ describe("AgentChatDiscordSchema", () => {
       bot_token_env: "TOKEN",
       guilds: [{ id: "123", channels: [{ id: "456" }] }],
       output: { tool_result_max_length: 1500 },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts guild-scoped command registration when guild_id is provided", () => {
+    const result = AgentChatDiscordSchema.safeParse({
+      bot_token_env: "TOKEN",
+      guilds: [{ id: "123", channels: [{ id: "456" }] }],
+      command_registration: {
+        scope: "guild",
+        guild_id: "123",
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.command_registration?.scope).toBe("guild");
+      expect(result.data.command_registration?.guild_id).toBe("123");
+    }
+  });
+
+  it("rejects guild-scoped command registration without guild_id", () => {
+    const result = AgentChatDiscordSchema.safeParse({
+      bot_token_env: "TOKEN",
+      guilds: [{ id: "123", channels: [{ id: "456" }] }],
+      command_registration: {
+        scope: "guild",
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts explicit discord skills list", () => {
+    const result = AgentChatDiscordSchema.safeParse({
+      bot_token_env: "TOKEN",
+      guilds: [{ id: "123", channels: [{ id: "456" }] }],
+      skills: [{ name: "pdf", description: "Work with PDF files" }, { name: "cloudflare-deploy" }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.skills).toHaveLength(2);
+      expect(result.data.skills?.[0]?.name).toBe("pdf");
+    }
+  });
+
+  it("rejects discord skills with empty name", () => {
+    const result = AgentChatDiscordSchema.safeParse({
+      bot_token_env: "TOKEN",
+      guilds: [{ id: "123", channels: [{ id: "456" }] }],
+      skills: [{ name: "" }],
     });
     expect(result.success).toBe(false);
   });

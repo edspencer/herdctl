@@ -94,6 +94,8 @@ export {
   ChatSchema,
   type Defaults,
   DefaultsSchema,
+  type DiscordAttachments,
+  DiscordAttachmentsSchema,
   type DiscordChannel,
   DiscordChannelSchema,
   type DiscordChat,
@@ -109,6 +111,8 @@ export {
   type DiscordPresence,
   // Agent Chat Discord schemas
   DiscordPresenceSchema,
+  type DiscordVoice,
+  DiscordVoiceSchema,
   type Docker,
   DockerSchema,
   // Types

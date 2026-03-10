@@ -111,6 +111,25 @@ export class SDKRuntime implements RuntimeInterface {
       fork: options.fork,
     });
 
+    // Apply system prompt append if provided (e.g., concise mode for chat platforms)
+    if (options.systemPromptAppend) {
+      const current = sdkOptions.systemPrompt;
+      if (typeof current === "string") {
+        sdkOptions.systemPrompt = current + "\n\n" + options.systemPromptAppend;
+      } else if (current && typeof current === "object" && current.type === "preset") {
+        sdkOptions.systemPrompt = {
+          ...current,
+          append: (current.append ? current.append + "\n\n" : "") + options.systemPromptAppend,
+        };
+      } else {
+        sdkOptions.systemPrompt = {
+          type: "preset",
+          preset: "claude_code",
+          append: options.systemPromptAppend,
+        };
+      }
+    }
+
     // Convert injected MCP server defs to in-process SDK MCP servers
     if (options.injectedMcpServers && Object.keys(options.injectedMcpServers).length > 0) {
       const configServers = sdkOptions.mcpServers ?? {};

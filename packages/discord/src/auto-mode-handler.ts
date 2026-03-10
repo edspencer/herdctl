@@ -178,6 +178,15 @@ export function resolveChannelConfig(
 
   const channelConfig = guildConfig.channels?.find((c) => c.id === channelId);
   if (!channelConfig) {
+    // Fall back to guild-level default mode (e.g., respond to @mentions in any channel)
+    if (guildConfig.default_channel_mode) {
+      return {
+        mode: guildConfig.default_channel_mode,
+        contextMessages: DEFAULT_CHANNEL_CONTEXT_MESSAGES,
+        isDM: false,
+        guildId,
+      };
+    }
     return null;
   }
 

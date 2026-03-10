@@ -25,14 +25,32 @@ export {
   resolveChannelConfig,
 } from "./auto-mode-handler.js";
 export type {
+  ChannelRunUsage,
   CommandContext,
   CommandManagerLogger,
   CommandManagerOptions,
+  CumulativeUsage,
   ICommandManager,
   SlashCommand,
 } from "./commands/index.js";
 // Commands
-export { CommandManager, helpCommand, resetCommand, statusCommand } from "./commands/index.js";
+export {
+  CommandManager,
+  cancelCommand,
+  configCommand,
+  helpCommand,
+  newCommand,
+  pingCommand,
+  resetCommand,
+  retryCommand,
+  sessionCommand,
+  skillCommand,
+  skillsCommand,
+  statusCommand,
+  stopCommand,
+  toolsCommand,
+  usageCommand,
+} from "./commands/index.js";
 // Main connector class
 export { DiscordConnector } from "./discord-connector.js";
 export type { ErrorHandlerOptions } from "./error-handler.js";
@@ -81,6 +99,8 @@ export {
   stripBotRoleMentions,
   stripMentions,
 } from "./mention-handler.js";
+export type { DiscordNormalizedMessageEvent } from "./message-normalizer.js";
+export { normalizeDiscordMessage } from "./message-normalizer.js";
 // Types
 export type {
   DiscordConnectionStatus,
@@ -108,3 +128,6 @@ export {
   sendWithTyping,
   startTypingIndicator,
 } from "./utils/index.js";
+// Voice transcription
+export type { TranscribeOptions, TranscribeResult } from "./voice-transcriber.js";
+export { transcribeAudio } from "./voice-transcriber.js";
