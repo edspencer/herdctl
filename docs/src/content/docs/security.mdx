@@ -557,6 +557,131 @@ When agents have network access:
 3. **Review regularly** — Audit network logs for anomalies
 4. **Use rate limits** — Prevent excessive API calls
 
+## Web Dashboard Security
+
+The web dashboard (`@herdctl/web`) provides browser-based monitoring and chat interfaces for your fleet. Understanding its security model is critical when deploying herdctl.
+
+### Localhost-Only Design
+
+**The web dashboard has no authentication layer.** It is designed for local use on `localhost` only, with network binding providing the security boundary.
+
+**Default configuration:**
+
+```yaml
+# herdctl.yaml
+web:
+  enabled: true
+  port: 3232
+  host: localhost  # Default - only accessible from the local machine
+```
+
+With this configuration, the dashboard is only accessible via `http://localhost:3232`. Requests from other machines on your network are rejected at the network layer.
+
+### Security Implications
+
+The web API provides unrestricted access to sensitive data:
+
+- **Full chat history** — All chat sessions across all agents
+- **Session enumeration** — Discovery of all working directories and sessions
+- **Job outputs** — Complete logs of all agent activity
+- **Fleet control** — Ability to trigger jobs, cancel operations, modify schedules
+
+<Aside type="danger">
+  Sessions may contain credential material in error messages (e.g., OAuth tokens during authentication failures). Exposing the web dashboard to untrusted networks creates a credential leakage risk.
+</Aside>
+
+### Network Exposure Risks
+
+**Never bind to `0.0.0.0` without additional security controls.** Binding to `0.0.0.0` makes the dashboard accessible to any machine that can reach your network:
+
+```yaml
+# ❌ DANGEROUS - Exposes dashboard to your entire network
+web:
+  enabled: true
+  host: 0.0.0.0  # DO NOT use without authentication
+  port: 3232
+```
+
+**Risk factors:**
+- Anyone on your LAN can access all agent outputs
+- No audit trail of who accessed what data
+- Credential exposure through session history
+- Ability to trigger arbitrary agent jobs
+
+### Secure Remote Access Pattern
+
+If you need to access the dashboard remotely, use a **reverse proxy with authentication** instead of exposing the web server directly.
+
+#### Recommended: Caddy with HTTP Basic Auth
+
+```caddyfile
+# Caddyfile
+dashboard.yourdomain.com {
+  reverse_proxy localhost:3232
+
+  basicauth {
+    # Generate with: caddy hash-password
+    admin $2a$14$hashed_password_here
+  }
+
+  tls you@example.com
+}
+```
+
+Start Caddy and keep herdctl bound to `localhost`:
+
+```bash
+# Terminal 1: herdctl stays on localhost
+herdctl start
+
+# Terminal 2: Caddy provides authenticated access
+caddy run
+```
+
+Now `https://dashboard.yourdomain.com` requires a username/password and proxies to your local herdctl instance.
+
+#### Alternative: OAuth2 Proxy + Nginx
+
+For enterprise SSO integration:
+
+```yaml
+# docker-compose.yml
+services:
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:latest
+    environment:
+      OAUTH2_PROXY_UPSTREAMS: "http://host.docker.internal:3232"
+      OAUTH2_PROXY_CLIENT_ID: "your-client-id"
+      OAUTH2_PROXY_CLIENT_SECRET: "your-client-secret"
+      OAUTH2_PROXY_COOKIE_SECRET: "random-32-char-string"
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+      OAUTH2_PROXY_PROVIDER: "google"
+    ports:
+      - "4180:4180"
+```
+
+Access the dashboard at `http://localhost:4180`. OAuth2 Proxy handles Google authentication and passes authenticated requests to herdctl.
+
+### Best Practices
+
+1. **Keep default binding** — Use `host: localhost` unless you have a specific need and proper authentication
+2. **Use reverse proxies** — Layer authentication at the proxy level (Caddy, Nginx, Traefik)
+3. **Audit session files** — Review `.herdctl/web/chat-history/` for credential leaks
+4. **Monitor access logs** — Watch reverse proxy logs for unauthorized access attempts
+5. **Rotate credentials** — If sessions contain leaked tokens (see Finding #011 in security audits), rotate those credentials immediately
+
+### Authentication Roadmap
+
+Future versions of herdctl will include native authentication options:
+
+- **Bearer token** — Simple `auth_token` config field for API access
+- **API keys** — Token-based auth for scripts and CI/CD integrations
+- **OIDC/OAuth** — Enterprise SSO for multi-user deployments
+
+Until then, use the reverse proxy pattern for remote access.
+
+**See [HTTP API Authentication](/architecture/http-api/#authentication) for technical details.**
+
 ## Audit & Monitoring
 
 Track agent activity for security analysis.
@@ -635,6 +760,8 @@ Use this checklist when deploying herdctl agents:
 - [ ] Workspace restricted to project directory
 - [ ] Permission mode appropriate for trust level
 - [ ] Logs monitored regularly
+- [ ] Web dashboard bound to `localhost` (default, do not change without auth)
+- [ ] Session files reviewed for credential leaks
 
 ### High Security (Production/Untrusted)
 
@@ -646,6 +773,8 @@ Use this checklist when deploying herdctl agents:
 - [ ] Permission mode set to `ask` or `allowlist`
 - [ ] Network activity monitored
 - [ ] Credential rotation schedule established
+- [ ] Web dashboard disabled or behind authenticated reverse proxy
+- [ ] Session history regularly audited for leaked credentials
 
 ### Optional (Defense in Depth)
 
