@@ -1,5 +1,25 @@
 # @herdctl/core
 
+## 5.10.0
+
+### Minor Changes
+
+- [#194](https://github.com/edspencer/herdctl/pull/194) [`3f947a0`](https://github.com/edspencer/herdctl/commit/3f947a01ed797170c88064cc7e60ec0d9741f74a) Thanks [@oheckmann74](https://github.com/oheckmann74)! - Add injected MCP server support to CLI runtime via HTTP bridges
+
+  CLI runtime now supports `injectedMcpServers` (e.g., file sender for Discord/Slack uploads).
+  Previously only SDK and Docker runtimes handled injected MCP servers — CLI silently ignored them.
+
+  The fix reuses existing `mcp-http-bridge.ts` infrastructure: starts HTTP bridges on localhost
+  for each injected server and passes them via `--mcp-config` as HTTP-type MCP servers.
+
+- [#194](https://github.com/edspencer/herdctl/pull/194) [`3f947a0`](https://github.com/edspencer/herdctl/commit/3f947a01ed797170c88064cc7e60ec0d9741f74a) Thanks [@oheckmann74](https://github.com/oheckmann74)! - feat(discord): support file attachments (images, PDFs, text/code files) in Discord messages
+
+  When users upload files alongside a Discord message, the connector now detects and processes them:
+
+  - Text/code files are downloaded and inlined directly into the agent's prompt
+  - Images and PDFs are saved to the agent's working directory with a file path reference so the agent can use its Read tool to view them
+  - Configurable via `chat.discord.attachments` with options for file size limits, allowed types, and automatic cleanup
+
 ## 5.9.0
 
 ### Minor Changes
