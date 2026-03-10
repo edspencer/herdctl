@@ -46,6 +46,9 @@ export function transformMcpServer(server: McpServer): SDKMcpServerConfig {
   if (server.url) {
     result.type = "http";
     result.url = server.url;
+    if (server.headers && Object.keys(server.headers).length > 0) {
+      result.headers = server.headers;
+    }
   }
 
   // Process-based MCP server
