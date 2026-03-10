@@ -7,6 +7,55 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Tool Availability Restriction
+**March 5, 2026** · `@herdctl/core@5.9.0` · `herdctl@1.5.6`
+
+Added a new `tools` configuration field for restricting which built-in tools are available to agents. Unlike `allowed_tools` (which only controls permission prompts), the `tools` field completely removes tools from the agent's environment. This is a whitelist approach — only the tools you specify will be available. For example, setting `tools: [Bash, Read, Write]` ensures the agent cannot use Grep, Edit, or any other tools regardless of permission settings. Use this when you need hard enforcement of tool availability rather than soft permission boundaries.
+
+---
+
+### Discord Typing Indicator Control
+**March 5, 2026** · `@herdctl/discord@1.1.0` · `herdctl@1.5.5`
+
+Discord bots can now disable the typing indicator via `output.typing_indicator: false` in their agent config. The typing indicator can cause spurious "An unknown error occurred" messages in Discord when the bot's processing time exceeds Discord's rate limit window, particularly on long-running jobs. Disabling the indicator prevents these confusing error messages while the agent continues working normally in the background. The default remains `true` to preserve existing behavior.
+
+---
+
+### Docker Session Discovery and Security Fixes
+**March 5, 2026** · `@herdctl/core@5.9.0` · `herdctl@1.5.6`
+
+Fixed Docker agent sessions not appearing in the web dashboard. Docker agents store session JSONL files in `.herdctl/docker-sessions/` on the host (the container's `~/.claude/projects/` is ephemeral), but the session discovery service only scanned the latter. The web UI now correctly discovers and displays Docker agent conversations. Session message retrieval, metadata, and usage statistics all work properly for containerized agents. Additionally, session ID path helpers now validate against path traversal attacks — session IDs must contain only alphanumeric characters and hyphens to prevent malicious IDs like `../../etc/passwd` from escaping intended directories.
+
+---
+
+### AutoCLAUDE - Automated CLAUDE.md Maintenance
+**March 3, 2026**
+
+Introduced AutoCLAUDE, a repeatable audit system that measures all CLAUDE.md files against the gold standard (`canon/claude-md-gold-standard.md`). The audit checks six dimensions: inventory (file presence vs. declared list), size compliance (line count targets by file level), style (imperative vs. descriptive phrasing), content appropriateness (no duplication from parent files), staleness (broken references to moved/deleted code), and coverage gaps (directories missing CLAUDE.md when they need one). Run via the `/audit-claude-md` skill, which spawns four specialized sub-agents in parallel and produces a consolidated report in `.reports/claude/`. The first audit run found 19 issues across 8 files. Audit and remediation are separate steps — the system identifies problems but doesn't auto-fix them.
+
+---
+
+### GitHub Issue Delegation Skills
+**February 26, 2026**
+
+Added two new Claude Code skills for automated GitHub issue fixing. The `/delegate-issue <issue-number>` skill clones your repository, launches an autonomous Claude Code worker in a sandboxed directory, and monitors its progress while it fixes the issue and opens a PR. The `/delegate-issues <issue-1> <issue-2> ...` skill orchestrates parallel workers for batch issue fixing, launching one sub-agent per issue and providing a unified summary with all PR links when complete. Each worker operates independently with its own repository clone and session, making it safe to process multiple issues simultaneously without conflicts.
+
+---
+
+### Web Sidebar Session Refresh Improvements
+**February 26, 2026** · `@herdctl/web@0.9.6`
+
+Fixed sidebar session lists not updating when sessions are created or modified externally. The Fleet and Chats tabs now refresh automatically whenever any chat completes (not just new chats), with a 2-second debounce to prevent excessive updates during multi-turn conversations. Sessions created from the CLI, Discord, Slack, or other browser tabs now appear in the sidebar immediately without requiring a page reload.
+
+---
+
+### Session Discovery and Search Fixes
+**February 26, 2026** · `@herdctl/web@0.9.5` · `@herdctl/core@5.8.2`
+
+Fixed new web chat sessions not appearing in the sidebar due to stale attribution cache. The SessionDiscoveryService now invalidates its 30-second attribution cache immediately after creating a new session, ensuring getAgentSessions() includes the newly written session. Also fixed session search to include the autoName field, making sessions with auto-generated names (but no custom name) searchable. Extracted sessionMatchesQuery to a shared utility to prevent code duplication across components.
+
+---
+
 ### All Chats Page and Session Discovery
 **February 25, 2026** · `@herdctl/web@0.9.0` · `@herdctl/core@5.7.0`
 

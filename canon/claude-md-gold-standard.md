@@ -188,9 +188,11 @@ This table is the authoritative list of CLAUDE.md files that should exist in the
 | `CLAUDE.md` (root) | ~102 | Project overview, shared conventions, quality gates |
 | `packages/core/CLAUDE.md` | ~44 | Unique module structure, relative imports, specific coverage thresholds |
 | `packages/cli/CLAUDE.md` | ~41 | Thin-client boundary enforcement — prevents business logic in CLI handlers |
-| `packages/web/CLAUDE.md` | ~61 | Different tech stack (React/Vite/Tailwind), design system, Zustand/Router |
+| `packages/web/CLAUDE.md` | ~60 | Different tech stack (React/Vite/Tailwind), design system, Zustand/Router |
 | `packages/chat/CLAUDE.md` | ~46 | Dependency-injected logger, session management, typed ChatErrorCode |
-| `packages/discord/CLAUDE.md` | ~40 | Custom DiscordLogger, discord.js mocking, DiscordErrorCode hierarchy |
+| `packages/discord/CLAUDE.md` | ~31 | Custom DiscordLogger, discord.js mocking, DiscordErrorCode hierarchy |
 | `packages/slack/CLAUDE.md` | ~39 | Socket Mode, mrkdwn formatting, SlackErrorCode hierarchy |
+| `agents/engineer/CLAUDE.md` | ~60 | Agent persona and behavior configuration, distinct from package conventions |
+| `docs/CLAUDE.md` | ~25 | Different tech stack (Astro/Starlight), distinct build/preview workflow, sidebar management, landing page conventions |
 
 Additional CLAUDE.md files may be added at the module level (e.g., `packages/core/src/scheduler/CLAUDE.md`) following the three-question test and reactive principle described above.

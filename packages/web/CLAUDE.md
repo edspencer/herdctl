@@ -11,7 +11,7 @@ Web dashboard for herdctl fleet management. Vite + React 19 + Tailwind v4, with 
 - **Colors**: Always use `herd-*` tokens (`bg-herd-bg`, `text-herd-fg`, `border-herd-border`, etc.). Never use raw Tailwind colors (`bg-gray-800`) or hex values.
 - **Fonts**: IBM Plex Sans (`font-sans`), IBM Plex Mono (`font-mono`), Lora (`font-serif` for chat agent responses). Never use Inter, Roboto, or Arial.
 - **Icons**: Lucide React (`lucide-react`), sized `w-4 h-4` (standard) or `w-3.5 h-3.5` (compact).
-- **Dark mode**: Handled entirely via CSS custom properties on `:root` / `.dark`. Never use Tailwind's `dark:` prefix in component classes.
+- **Dark mode**: Use CSS custom properties on `:root` / `.dark` for dark mode. Never use Tailwind's `dark:` prefix in component classes.
 - **Border radius**: `rounded-[10px]` for cards/panels, `rounded-lg` for buttons/inputs, `rounded-full` only for circles.
 - **State management**: Zustand slices in `src/client/src/store/`.
 - **Routing**: React Router v7.
@@ -45,7 +45,6 @@ src/
 
 - **Framework**: Vitest with `jsdom` environment for client tests, `node` environment for server tests.
 - **Libraries**: `@testing-library/react`, `@testing-library/jest-dom`.
-- **Test location**: `__tests__/` directories adjacent to source (currently under `src/server/__tests__/`).
 - **Path alias**: `@` maps to `./src/client/src` in tests and source.
 
 ## Development Commands

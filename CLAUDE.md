@@ -4,7 +4,7 @@ This file provides guidance for Claude Code when working in this repository.
 
 ## LIVE PROJECT - Follow Semver
 
-We are a live project. Breaking changes require a major version bump.
+Follow Semver. Breaking changes require a major version bump.
 
 ## Project Overview
 
@@ -58,7 +58,7 @@ pnpm dev                # Development mode (watch)
 ### Testing
 - Tests live in `__tests__/` directories adjacent to source
 - Use Vitest for unit tests
-- Coverage thresholds: 85% lines/functions/statements, 65% branches
+- Coverage thresholds vary per package — see each package's `vitest.config.ts`
 - Mock external dependencies (SDK, file system, GitHub API)
 
 ### Logging
@@ -79,7 +79,7 @@ pnpm dev                # Development mode (watch)
 
 | File | Purpose |
 |------|---------|
-| `docs/src/content/docs/architecture/` | Architecture documentation (14 pages) |
+| `docs/src/content/docs/architecture/` | Architecture documentation |
 | `packages/core/src/fleet-manager/` | FleetManager orchestration layer |
 | `packages/core/src/config/` | Configuration parsing and validation |
 | `packages/core/src/scheduler/` | Job scheduling |
@@ -96,7 +96,7 @@ Before merging:
 
 ## Documentation
 
-Documentation lives in `docs/` and deploys to herdctl.dev. When adding features:
+Keep documentation in `docs/`. It deploys to herdctl.dev automatically. When adding features:
 1. Update relevant docs in `docs/src/content/docs/`
 2. Run `pnpm build` in docs/ to verify
 3. Docs deploy automatically on merge to main

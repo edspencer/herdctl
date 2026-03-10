@@ -106,6 +106,7 @@ export interface MergeableDefaults {
   model?: string;
   max_turns?: number;
   permission_mode?: PermissionMode;
+  tools?: string[];
   allowed_tools?: string[];
   denied_tools?: string[];
 }
@@ -123,6 +124,7 @@ export interface ExtendedDefaults {
   model?: string;
   max_turns?: number;
   permission_mode?: PermissionMode;
+  tools?: string[];
   allowed_tools?: string[];
   denied_tools?: string[];
   mcp_servers?: Record<string, McpServer>;
@@ -144,6 +146,7 @@ export interface ExtendedDefaults {
  * - model: Agent value overrides default
  * - max_turns: Agent value overrides default
  * - permission_mode: Agent value overrides default
+ * - tools: Agent array replaces default (arrays are not merged)
  * - allowed_tools: Agent array replaces default (arrays are not merged)
  * - denied_tools: Agent array replaces default (arrays are not merged)
  *
@@ -229,6 +232,10 @@ export function mergeAgentConfig(
   }
 
   // Merge array values (agent takes precedence if defined - arrays are replaced, not merged)
+  if (defaults.tools !== undefined && result.tools === undefined) {
+    result.tools = defaults.tools;
+  }
+
   if (defaults.allowed_tools !== undefined && result.allowed_tools === undefined) {
     result.allowed_tools = defaults.allowed_tools;
   }

@@ -273,6 +273,7 @@ chat:
       system_status: true         # Show system status embeds (default: true)
       result_summary: true        # Show completion summary embed (default: true)
       errors: true                # Show error embeds (default: true)
+      typing_indicator: true      # Show typing indicator while processing (default: true)
 
     # Bot presence/activity (optional)
     presence:
@@ -371,6 +372,7 @@ Control which SDK messages are surfaced in Discord. When your agent uses tools (
 | `output.system_status` | boolean | `true` | Show system status embeds (e.g., "Compacting context...") |
 | `output.result_summary` | boolean | `true` | Show a summary embed when the agent finishes (duration, cost, tokens) |
 | `output.errors` | boolean | `true` | Show error embeds when the SDK reports errors |
+| `output.typing_indicator` | boolean | `true` | Show typing indicator while processing. Set to `false` on long-running jobs to prevent Discord timeout errors |
 
 All output types appear as compact Discord embeds with color coding:
 

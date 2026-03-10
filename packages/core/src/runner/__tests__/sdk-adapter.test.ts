@@ -74,6 +74,50 @@ describe("toSDKOptions", () => {
     });
   });
 
+  describe("tools whitelist", () => {
+    it("passes tools as tools (direct passthrough)", () => {
+      const agent = createTestAgent({
+        tools: ["Read", "Write", "Edit"],
+      });
+      const result = toSDKOptions(agent);
+      expect(result.tools).toEqual(["Read", "Write", "Edit"]);
+    });
+
+    it("does not include tools when empty array", () => {
+      const agent = createTestAgent({
+        tools: [],
+      });
+      const result = toSDKOptions(agent);
+      expect(result.tools).toBeUndefined();
+    });
+
+    it("does not include tools when not specified", () => {
+      const agent = createTestAgent();
+      const result = toSDKOptions(agent);
+      expect(result.tools).toBeUndefined();
+    });
+
+    it("supports MCP tool wildcards in tools whitelist", () => {
+      const agent = createTestAgent({
+        tools: ["Read", "Write", "mcp__posthog__*"],
+      });
+      const result = toSDKOptions(agent);
+      expect(result.tools).toContain("Read");
+      expect(result.tools).toContain("Write");
+      expect(result.tools).toContain("mcp__posthog__*");
+    });
+
+    it("tools whitelist can be used alongside allowed_tools", () => {
+      const agent = createTestAgent({
+        tools: ["Read", "Write"], // Only these tools are available
+        allowed_tools: ["Read"], // Of those available, only Read skips permission prompts
+      });
+      const result = toSDKOptions(agent);
+      expect(result.tools).toEqual(["Read", "Write"]);
+      expect(result.allowedTools).toEqual(["Read"]);
+    });
+  });
+
   describe("allowed and denied tools", () => {
     it("passes allowed_tools as allowedTools (direct passthrough)", () => {
       const agent = createTestAgent({
@@ -301,6 +345,7 @@ describe("toSDKOptions", () => {
         name: "full-agent",
         system_prompt: "You are a specialized test agent.",
         permission_mode: "bypassPermissions",
+        tools: ["Read", "Write", "Bash", "Grep"],
         allowed_tools: ["Read", "Write", "Bash(git *)"],
         denied_tools: ["WebFetch", "Bash(sudo *)"],
         mcp_servers: {
@@ -319,6 +364,7 @@ describe("toSDKOptions", () => {
 
       expect(result).toEqual({
         permissionMode: "bypassPermissions",
+        tools: ["Read", "Write", "Bash", "Grep"],
         allowedTools: ["Read", "Write", "Bash(git *)"],
         deniedTools: ["WebFetch", "Bash(sudo *)"],
         systemPrompt: "You are a specialized test agent.", // Custom prompts are plain strings

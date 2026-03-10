@@ -17,13 +17,13 @@ bin/
 
 ## Key Convention
 
-**This is a thin client.** All orchestration, config parsing, scheduling, and state management belong in `@herdctl/core`. Command files here should only:
+**Treat this as a thin client.** Delegate all orchestration, config parsing, scheduling, and state management to `@herdctl/core`. Command files must only:
 1. Parse CLI options
 2. Create a `FleetManager` instance
 3. Call FleetManager methods
 4. Format and print output
 
-If you find yourself writing business logic, it belongs in `@herdctl/core` instead.
+Move any business logic to `@herdctl/core`.
 
 ## Development
 
@@ -38,4 +38,4 @@ pnpm lint              # Biome linter
 
 ## Testing
 
-Tests live in `src/commands/__tests__/` adjacent to the command files. A top-level smoke test (`src/__tests__/smoke.test.ts`) validates the built binary. Tests use Vitest and mock `@herdctl/core` dependencies.
+Place tests in `src/commands/__tests__/` adjacent to command files. Use the smoke test at `src/__tests__/smoke.test.ts` to validate the built binary. Mock `@herdctl/core` dependencies in tests.

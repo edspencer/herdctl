@@ -71,10 +71,48 @@ export function getCliSessionDir(workspacePath: string): string {
  * @param workspacePath - Absolute path to workspace directory
  * @param sessionId - CLI session ID (UUID format)
  * @returns Absolute path to session JSONL file
+ * @throws {Error} If sessionId contains invalid characters
  */
 export function getCliSessionFile(workspacePath: string, sessionId: string): string {
+  // Validate sessionId to prevent path traversal
+  if (!/^[A-Za-z0-9-]+$/.test(sessionId)) {
+    throw new Error(`Invalid session ID: ${sessionId}`);
+  }
   const sessionDir = getCliSessionDir(workspacePath);
   return path.join(sessionDir, `${sessionId}.jsonl`);
+}
+
+/**
+ * Get the docker-sessions directory path
+ *
+ * Docker sessions are stored in .herdctl/docker-sessions/ on the host.
+ * The container runner mounts the Claude session directory from the container
+ * to this host path so session files survive container exit.
+ *
+ * @param stateDir - Path to the .herdctl state directory
+ * @returns Absolute path to the docker-sessions directory
+ */
+export function getDockerSessionDir(stateDir: string): string {
+  return path.join(stateDir, "docker-sessions");
+}
+
+/**
+ * Get the path to a specific Docker session file
+ *
+ * Docker sessions are stored flat in .herdctl/docker-sessions/{session-id}.jsonl
+ * (not nested by workspace path like CLI sessions).
+ *
+ * @param stateDir - Path to the .herdctl state directory
+ * @param sessionId - Session ID (UUID format)
+ * @returns Absolute path to the Docker session JSONL file
+ * @throws {Error} If sessionId contains invalid characters
+ */
+export function getDockerSessionFile(stateDir: string, sessionId: string): string {
+  // Validate sessionId to prevent path traversal
+  if (!/^[A-Za-z0-9-]+$/.test(sessionId)) {
+    throw new Error(`Invalid session ID: ${sessionId}`);
+  }
+  return path.join(getDockerSessionDir(stateDir), `${sessionId}.jsonl`);
 }
 
 /**

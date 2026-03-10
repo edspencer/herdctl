@@ -25,16 +25,7 @@ Discord bot connector for herdctl fleets. Lets agents join Discord servers, resp
 ## Conventions
 
 - **Errors**: All errors extend `DiscordConnectorError` with a `DiscordErrorCode` enum and `agentName`. Use `isDiscordConnectorError()` type guard for discrimination.
-- **Logging**: Use `DiscordLogger` (not `createLogger` from core). It supports three levels (`minimal`, `standard`, `verbose`) and auto-redacts sensitive fields in verbose mode.
+- **Logging**: Use `DiscordLogger` (not `createLogger` from core). Supports three levels (`minimal`, `standard`, `verbose`). Auto-redacts sensitive fields in verbose mode.
 - **Exports**: Everything public goes through `src/index.ts`. Keep types and implementations co-exported.
 
-## Commands
-
-```
-pnpm test              # run tests with coverage
-pnpm build             # compile TypeScript
-pnpm typecheck         # type-check without emitting
-pnpm lint              # biome check
-```
-
-Tests live in `__tests__/` directories adjacent to source files. Mock discord.js clients and channels in tests.
+Mock discord.js clients and channels in tests.

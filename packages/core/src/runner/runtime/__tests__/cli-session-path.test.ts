@@ -1,7 +1,12 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { encodePathForCli, getCliSessionDir, getCliSessionFile } from "../cli-session-path.js";
+import {
+  encodePathForCli,
+  getCliSessionDir,
+  getCliSessionFile,
+  getDockerSessionFile,
+} from "../cli-session-path.js";
 
 describe("encodePathForCli", () => {
   describe("Unix path encoding", () => {
@@ -186,5 +191,140 @@ describe("getCliSessionFile", () => {
 
     expect(result).toContain(sessionId);
     expect(result).toMatch(/dda6da5b-8788-4990-a582-d5a2c63fbfba\.jsonl$/);
+  });
+
+  describe("path traversal protection", () => {
+    it("throws error for session ID with path traversal sequences", () => {
+      const workspacePath = "/workspace/project";
+      expect(() => getCliSessionFile(workspacePath, "../etc/passwd")).toThrow(
+        "Invalid session ID: ../etc/passwd",
+      );
+      expect(() => getCliSessionFile(workspacePath, "../../etc/passwd")).toThrow(
+        "Invalid session ID: ../../etc/passwd",
+      );
+      expect(() => getCliSessionFile(workspacePath, "..\\windows\\system32")).toThrow(
+        "Invalid session ID: ..\\windows\\system32",
+      );
+    });
+
+    it("throws error for session ID with slashes", () => {
+      const workspacePath = "/workspace/project";
+      expect(() => getCliSessionFile(workspacePath, "sessions/malicious")).toThrow(
+        "Invalid session ID: sessions/malicious",
+      );
+      expect(() => getCliSessionFile(workspacePath, "sessions\\malicious")).toThrow(
+        "Invalid session ID: sessions\\malicious",
+      );
+    });
+
+    it("throws error for session ID with special characters", () => {
+      const workspacePath = "/workspace/project";
+      expect(() => getCliSessionFile(workspacePath, "session!@#")).toThrow(
+        "Invalid session ID: session!@#",
+      );
+      expect(() => getCliSessionFile(workspacePath, "session$%^")).toThrow(
+        "Invalid session ID: session$%^",
+      );
+      expect(() => getCliSessionFile(workspacePath, "session_id")).toThrow(
+        "Invalid session ID: session_id",
+      );
+    });
+
+    it("allows valid session IDs with alphanumeric and hyphens", () => {
+      const workspacePath = "/workspace/project";
+      const validSessionIds = [
+        "dda6da5b-8788-4990-a582-d5a2c63fbfba",
+        "abc123",
+        "SESSION-123",
+        "test-session-id",
+        "123456789",
+        "AbCdEf123",
+      ];
+
+      validSessionIds.forEach((sessionId) => {
+        expect(() => getCliSessionFile(workspacePath, sessionId)).not.toThrow();
+      });
+    });
+  });
+});
+
+describe("getDockerSessionFile", () => {
+  it("returns Docker session file path with .jsonl extension", () => {
+    const stateDir = "/home/user/.herdctl";
+    const sessionId = "dda6da5b-8788-4990-a582-d5a2c63fbfba";
+    const result = getDockerSessionFile(stateDir, sessionId);
+
+    expect(result).toBe(join(stateDir, "docker-sessions", `${sessionId}.jsonl`));
+    expect(result.endsWith(".jsonl")).toBe(true);
+  });
+
+  it("handles different session IDs", () => {
+    const stateDir = "/home/user/.herdctl";
+    const sessionIds = ["session-1", "session-2", "dda6da5b-8788-4990-a582-d5a2c63fbfba"];
+
+    const results = sessionIds.map((id) => getDockerSessionFile(stateDir, id));
+
+    // Each should be unique
+    expect(new Set(results).size).toBe(sessionIds.length);
+
+    // All should end with .jsonl and be in docker-sessions
+    results.forEach((r) => {
+      expect(r.endsWith(".jsonl")).toBe(true);
+      expect(r).toContain("docker-sessions");
+    });
+  });
+
+  describe("path traversal protection", () => {
+    it("throws error for session ID with path traversal sequences", () => {
+      const stateDir = "/home/user/.herdctl";
+      expect(() => getDockerSessionFile(stateDir, "../etc/passwd")).toThrow(
+        "Invalid session ID: ../etc/passwd",
+      );
+      expect(() => getDockerSessionFile(stateDir, "../../etc/passwd")).toThrow(
+        "Invalid session ID: ../../etc/passwd",
+      );
+      expect(() => getDockerSessionFile(stateDir, "..\\windows\\system32")).toThrow(
+        "Invalid session ID: ..\\windows\\system32",
+      );
+    });
+
+    it("throws error for session ID with slashes", () => {
+      const stateDir = "/home/user/.herdctl";
+      expect(() => getDockerSessionFile(stateDir, "sessions/malicious")).toThrow(
+        "Invalid session ID: sessions/malicious",
+      );
+      expect(() => getDockerSessionFile(stateDir, "sessions\\malicious")).toThrow(
+        "Invalid session ID: sessions\\malicious",
+      );
+    });
+
+    it("throws error for session ID with special characters", () => {
+      const stateDir = "/home/user/.herdctl";
+      expect(() => getDockerSessionFile(stateDir, "session!@#")).toThrow(
+        "Invalid session ID: session!@#",
+      );
+      expect(() => getDockerSessionFile(stateDir, "session$%^")).toThrow(
+        "Invalid session ID: session$%^",
+      );
+      expect(() => getDockerSessionFile(stateDir, "session_id")).toThrow(
+        "Invalid session ID: session_id",
+      );
+    });
+
+    it("allows valid session IDs with alphanumeric and hyphens", () => {
+      const stateDir = "/home/user/.herdctl";
+      const validSessionIds = [
+        "dda6da5b-8788-4990-a582-d5a2c63fbfba",
+        "abc123",
+        "SESSION-123",
+        "test-session-id",
+        "123456789",
+        "AbCdEf123",
+      ];
+
+      validSessionIds.forEach((sessionId) => {
+        expect(() => getDockerSessionFile(stateDir, sessionId)).not.toThrow();
+      });
+    });
   });
 });

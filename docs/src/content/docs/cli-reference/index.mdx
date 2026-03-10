@@ -147,7 +147,7 @@ herdctl logs --job job-2024-01-15-abc123
 
 ### start
 
-Start the fleet daemon to run scheduled jobs.
+Start the fleet daemon to run scheduled jobs and optional web dashboard.
 
 ```bash
 herdctl start [options]
@@ -181,6 +181,27 @@ herdctl start --verbose
 # Start with web dashboard
 herdctl start --web
 ```
+
+**Zero-Config Mode:**
+
+When no `herdctl.yaml` configuration file is found, `herdctl start` automatically launches in web-only mode. This enables session browsing without any fleet configuration:
+
+```bash
+# Start web dashboard without fleet config
+npx herdctl start
+
+# Output:
+# No fleet configuration found — starting web UI only.
+# Browse your Claude Code sessions at http://localhost:3232
+```
+
+In web-only mode, you can:
+- Browse all Claude Code sessions from `~/.claude/` on your machine
+- View session details and conversation history
+- Resume CLI sessions as ad hoc chats
+- Use the All Chats page to discover sessions across all projects
+
+This is particularly useful when you want to explore and interact with your Claude Code sessions without setting up a full herdctl fleet.
 
 ### stop
 

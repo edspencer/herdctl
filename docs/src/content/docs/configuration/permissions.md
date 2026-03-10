@@ -10,6 +10,17 @@ Permissions control what an agent can do within its session. Herdctl provides fi
 ```yaml
 # agents/my-agent.yaml
 permission_mode: acceptEdits
+
+# Restrict available tools (whitelist)
+tools:
+  - Read
+  - Write
+  - Edit
+  - Bash
+  - Glob
+  - Grep
+
+# Pre-approve permissions (skip prompts)
 allowed_tools:
   - Read
   - Write
@@ -17,6 +28,8 @@ allowed_tools:
   - "Bash(git *)"
   - "Bash(npm *)"
   - "Bash(pnpm *)"
+
+# Block dangerous patterns
 denied_tools:
   - WebSearch
   - "Bash(rm -rf *)"
@@ -104,11 +117,28 @@ permission_mode: plan
 
 ## Tool Permissions
 
-Control which Claude Code tools an agent can use with `allowed_tools` and `denied_tools` arrays. These are top-level configuration fields.
+Control which Claude Code tools an agent can use with `tools`, `allowed_tools`, and `denied_tools` arrays. These are top-level configuration fields.
 
-### Allowed Tools
+### Tools (Availability Whitelist)
 
-Explicitly list tools the agent can use:
+Use `tools` to restrict which tools are available to the agent. Only listed tools exist in the agent's context:
+
+```yaml
+tools:
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+```
+
+:::caution
+The `tools` field is a **whitelist for tool availability**. When specified, only the listed tools are available to the agent. Other tools are completely removed from the model's context.
+:::
+
+### Allowed Tools (Permission Pre-approval)
+
+Use `allowed_tools` to pre-approve permissions for specific tools. These tools won't prompt for permission:
 
 ```yaml
 allowed_tools:
@@ -122,6 +152,10 @@ allowed_tools:
   - "Bash(git *)"
   - "Bash(npm *)"
 ```
+
+:::important
+`allowed_tools` only controls permission prompts, NOT tool availability. To restrict which tools exist, use `tools` instead.
+:::
 
 ### Denied Tools
 
@@ -184,6 +218,20 @@ denied_tools:
   - "Bash(> /dev/*)"
 ```
 
+### Understanding the Three Tool Fields
+
+| Field | What it does | Example behavior |
+|-------|-------------|------------------|
+| `tools` | **Whitelist** — only these tools exist | `tools: [Read, Write]` → Agent can ONLY use Read and Write |
+| `denied_tools` | **Blocklist** — these tools are removed | `denied_tools: [Bash]` → Agent cannot use Bash |
+| `allowed_tools` | **Permission pre-approval** — skip prompts | `allowed_tools: [Read]` → Read won't require permission |
+
+:::tip
+Common confusion: `allowed_tools` does NOT restrict which tools are available. Under `permission_mode: bypassPermissions`, `allowed_tools` has no effect since all permissions are already bypassed.
+
+To restrict tool availability, use `tools` (whitelist) or `denied_tools` (blocklist).
+:::
+
 ### MCP Tool Permissions
 
 MCP (Model Context Protocol) server tools use the `mcp__<server>__<tool>` naming convention:
@@ -242,15 +290,13 @@ Can read and search but cannot modify:
 
 ```yaml
 permission_mode: default
-allowed_tools:
+# Only these tools exist
+tools:
   - Read
   - Glob
   - Grep
   - WebFetch
-denied_tools:
-  - Write
-  - Edit
-  - Bash
+# No need for denied_tools when using tools whitelist
 ```
 
 ### Content Writer
@@ -259,7 +305,8 @@ Can read/write files, no shell access:
 
 ```yaml
 permission_mode: acceptEdits
-allowed_tools:
+# Whitelist only content tools
+tools:
   - Read
   - Write
   - Edit
@@ -267,9 +314,8 @@ allowed_tools:
   - Grep
   - WebFetch
   - WebSearch
-denied_tools:
-  - Bash
-  - Task
+  - TodoWrite
+# Bash and Task don't exist for this agent
 ```
 
 ### Isolated Full-Access Agent
@@ -278,11 +324,26 @@ Maximum permissions in a Docker container:
 
 ```yaml
 permission_mode: bypassPermissions
-allowed_tools: []  # Empty = all tools allowed
+# No tools restriction - agent has all tools
 
 docker:
   enabled: true
   base_image: node:20-slim
+```
+
+### Restricted Auto-Approve Agent
+
+Auto-approve but limit available tools:
+
+```yaml
+permission_mode: bypassPermissions
+# Only these tools are available
+tools:
+  - Read
+  - Write
+  - Edit
+  - Bash
+# allowed_tools has no effect with bypassPermissions
 ```
 
 ### Research/Planning Agent
@@ -494,6 +555,7 @@ herdctl config show --agent my-agent --section permissions
 ```typescript
 // Top-level permission fields (not nested)
 permission_mode?: "default" | "acceptEdits" | "bypassPermissions" | "plan"
+tools?: string[]
 allowed_tools?: string[]
 denied_tools?: string[]
 ```
@@ -501,7 +563,8 @@ denied_tools?: string[]
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `permission_mode` | string | `"acceptEdits"` | Permission approval mode |
-| `allowed_tools` | string[] | — | Tools the agent can use (including `Bash()` patterns) |
+| `tools` | string[] | — | Tool availability whitelist - only these tools exist |
+| `allowed_tools` | string[] | — | Tools that skip permission prompts (including `Bash()` patterns) |
 | `denied_tools` | string[] | — | Tools explicitly blocked (including `Bash()` patterns) |
 
 ### Bash Pattern Syntax

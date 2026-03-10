@@ -1,5 +1,38 @@
 # @herdctl/core
 
+## 5.9.0
+
+### Minor Changes
+
+- [#189](https://github.com/edspencer/herdctl/pull/189) [`7a75d61`](https://github.com/edspencer/herdctl/commit/7a75d617c7dfd515409e3cf41cf3da92176c7f45) Thanks [@edspencer](https://github.com/edspencer)! - Add `tools` config field for tool availability restriction (whitelist). Unlike `allowed_tools` which only controls permission prompts, `tools` restricts which built-in tools are available to the agent entirely.
+
+### Patch Changes
+
+- [#186](https://github.com/edspencer/herdctl/pull/186) [`62a938d`](https://github.com/edspencer/herdctl/commit/62a938d2177433d8a2b2b6b404a62f1775171c20) Thanks [@edspencer](https://github.com/edspencer)! - fix: discover Docker agent sessions from .herdctl/docker-sessions/
+
+  Docker agents store session JSONL files in `.herdctl/docker-sessions/` on the
+  host (the container's `~/.claude/projects/` is ephemeral and gone after exit).
+  `SessionDiscoveryService` only scanned `~/.claude/projects/`, so Docker agent
+  sessions were invisible in the UI despite existing on disk.
+
+  Now `getAgentSessions()` scans the docker-sessions directory when
+  `dockerEnabled` is true. `getAllSessions()` also includes Docker session groups
+  so they appear in the All Chats view. Session message/metadata/usage retrieval
+  methods accept an optional `{ dockerEnabled }` option to resolve the correct
+  file path.
+
+- [#191](https://github.com/edspencer/herdctl/pull/191) [`6e8d143`](https://github.com/edspencer/herdctl/commit/6e8d1438569fff390d44a1dbf79d178d6dca8266) Thanks [@edspencer](https://github.com/edspencer)! - fix: harden session ID path helpers against path traversal
+
+  Add validation to `getDockerSessionFile()` and `getCliSessionFile()` functions in cli-session-path.ts to reject session IDs containing path traversal sequences or invalid characters. Session IDs must now contain only alphanumeric characters and hyphens.
+
+## 5.8.3
+
+### Patch Changes
+
+- [#178](https://github.com/edspencer/herdctl/pull/178) [`ccdda22`](https://github.com/edspencer/herdctl/commit/ccdda2234e22c0275c8d3b27b991eb9a68ee53c8) Thanks [@oheckmann74](https://github.com/oheckmann74)! - Add configurable typing_indicator option for Discord output
+
+  Users can now disable the Discord typing indicator via `output.typing_indicator: false` in their agent's Discord config. This prevents spurious "An unknown error occurred" messages caused by Discord rate-limiting the typing indicator on long-running agent jobs. The default remains `true` to preserve existing behavior.
+
 ## 5.8.2
 
 ### Patch Changes
