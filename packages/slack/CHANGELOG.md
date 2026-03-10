@@ -1,5 +1,19 @@
 # @herdctl/slack
 
+## 1.2.13
+
+### Patch Changes
+
+- [#194](https://github.com/edspencer/herdctl/pull/194) [`3f947a0`](https://github.com/edspencer/herdctl/commit/3f947a01ed797170c88064cc7e60ec0d9741f74a) Thanks [@oheckmann74](https://github.com/oheckmann74)! - fix(slack): deduplicate assistant messages by finalized snapshot
+
+  Claude Code can emit intermediate JSONL snapshots (stop_reason: null) before the
+  final assistant message. The Slack manager now skips intermediates and deduplicates
+  by message.id to prevent duplicate messages in channels.
+
+- Updated dependencies [[`3f947a0`](https://github.com/edspencer/herdctl/commit/3f947a01ed797170c88064cc7e60ec0d9741f74a), [`3f947a0`](https://github.com/edspencer/herdctl/commit/3f947a01ed797170c88064cc7e60ec0d9741f74a)]:
+  - @herdctl/core@5.10.0
+  - @herdctl/chat@0.3.13
+
 ## 1.2.12
 
 ### Patch Changes

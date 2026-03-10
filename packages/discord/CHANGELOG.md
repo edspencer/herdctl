@@ -1,5 +1,23 @@
 # @herdctl/discord
 
+## 1.2.0
+
+### Minor Changes
+
+- [#194](https://github.com/edspencer/herdctl/pull/194) [`3f947a0`](https://github.com/edspencer/herdctl/commit/3f947a01ed797170c88064cc7e60ec0d9741f74a) Thanks [@oheckmann74](https://github.com/oheckmann74)! - feat(discord): support file attachments (images, PDFs, text/code files) in Discord messages
+
+  When users upload files alongside a Discord message, the connector now detects and processes them:
+
+  - Text/code files are downloaded and inlined directly into the agent's prompt
+  - Images and PDFs are saved to the agent's working directory with a file path reference so the agent can use its Read tool to view them
+  - Configurable via `chat.discord.attachments` with options for file size limits, allowed types, and automatic cleanup
+
+### Patch Changes
+
+- Updated dependencies [[`3f947a0`](https://github.com/edspencer/herdctl/commit/3f947a01ed797170c88064cc7e60ec0d9741f74a), [`3f947a0`](https://github.com/edspencer/herdctl/commit/3f947a01ed797170c88064cc7e60ec0d9741f74a)]:
+  - @herdctl/core@5.10.0
+  - @herdctl/chat@0.3.13
+
 ## 1.1.1
 
 ### Patch Changes
