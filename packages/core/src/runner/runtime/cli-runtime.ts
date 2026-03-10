@@ -445,15 +445,13 @@ export class CLIRuntime implements RuntimeInterface {
           sessionFilePath = raceResult.path;
         } else {
           // Process finished without writing a session file.
-          // Create a stub using the session ID captured from stdout.
-          // Use captured session ID from stdout, or generate one if CLI didn't
-          // output structured JSON (e.g., -p mode in Claude CLI 2.1.71+).
-          const stubSessionId = capturedSessionId ?? crypto.randomUUID();
-          logger.info(`No session file written by CLI; creating stub for ${stubSessionId}`);
-          const { mkdir, writeFile } = await import("node:fs/promises");
-          await mkdir(sessionDir, { recursive: true });
-          sessionFilePath = `${sessionDir}/${stubSessionId}.jsonl`;
-          await writeFile(sessionFilePath, "");
+          // This can happen if the CLI exits quickly or if the session directory
+          // isn't writable from inside the container. Don't create stub files —
+          // they break resume. Instead, generate a synthetic session ID so the
+          // current run can complete, but the session won't be resumable.
+          const syntheticId = capturedSessionId ?? crypto.randomUUID();
+          logger.warn(`No session file written by CLI (session ${syntheticId}). Run will complete but session cannot be resumed.`);
+          sessionFilePath = `${sessionDir}/${syntheticId}.jsonl`;
         }
         logger.debug(`New session, watching newly created file: ${sessionFilePath}`);
       }

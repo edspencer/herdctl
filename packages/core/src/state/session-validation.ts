@@ -5,7 +5,7 @@
  * unexpected logouts when resuming expired sessions.
  */
 
-import { access } from "node:fs/promises";
+import { access, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { getCliSessionFile } from "../runner/runtime/cli-session-path.js";
 import type { SessionInfo } from "./schemas/session-info.js";
@@ -141,8 +141,9 @@ export async function dockerSessionFileExists(
     const stateDir = dirname(sessionsDir);
     const dockerSessionsDir = join(stateDir, "docker-sessions");
     const sessionFile = join(dockerSessionsDir, `${sessionId}.jsonl`);
-    await access(sessionFile);
-    return true;
+    const stats = await stat(sessionFile);
+    // Empty files (0 bytes) are invalid — they can't be resumed
+    return stats.size > 0;
   } catch {
     return false;
   }
