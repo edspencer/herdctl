@@ -53,7 +53,7 @@ schedules:
 # Discord chat integration - users can ask about security status
 chat:
   discord:
-    bot_token_env: DISCORD_BOT_TOKEN
+    bot_token_env: SECURITY_AGENT_DISCORD_BOT_TOKEN
     session_expiry_hours: 24
     guilds:
       - id: "${DISCORD_GUILD_ID}"
@@ -62,6 +62,26 @@ chat:
             name: "#security"
             mode: mention
             context_messages: 10
+
+    output:
+      assistant_messages: "answers"   # only send final answers, not intermediate reasoning
+      typing_indicator: true
+      acknowledge_emoji: "👀"
+      progress_indicator: true
+      result_summary: true
+
+    attachments:
+      enabled: true
+      max_files_per_message: 10
+      max_file_size_mb: 10
+      allowed_types: ["image/*", "application/pdf", "text/*", "application/json"]
+      cleanup_after_processing: true
+
+    # voice requires OPENAI_API_KEY in your environment
+    voice:
+      enabled: true
+      api_key_env: OPENAI_API_KEY
+      language: en
     dm:
       enabled: true
       mode: auto
