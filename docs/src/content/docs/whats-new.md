@@ -7,6 +7,13 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Discord Connector Overhaul
+**March 9, 2026** · `@herdctl/discord@1.2.0` · `@herdctl/core@5.9.1` · `herdctl@1.5.7`
+
+Comprehensive Discord integration improvements delivering a premium chat experience: **concise answers** (agents skip narration and reasoning, give only final answers), **voice message transcription** (Whisper API integration), **file attachments** (images, PDFs, code files processed automatically), **acknowledgment reactions** (configurable emoji confirms receipt), **message deduplication** (filters duplicate assistant turns), **progress indicators** (live "Working..." embed with tool names), **visual polish** (title-less embeds, refined color palette, branded footer), **file uploads** (agents can send files back via MCP), **slash commands** (`/help`, `/status`, `/reset`, `/retry`, `/stop`, `/usage`, `/session`, `/tools`, `/skills`, `/config`, `/new`, `/cancel`, `/ping`), **answer-only mode** (suppresses tool reasoning turns), **result summaries** (optional stats embed), **default channel mode** (respond to @mentions server-wide), **attachment path translation for Docker**, and **CLI runtime injected MCP support**. Each improvement is independently configurable. The Discord connector now rivals native Claude Code UX while maintaining full fleet control. Includes 60+ new tests across pipeline, attachments, commands, runtime parity, and embeds.
+
+---
+
 ### Tool Availability Restriction
 **March 5, 2026** · `@herdctl/core@5.9.0` · `herdctl@1.5.6`
 
