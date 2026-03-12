@@ -7,6 +7,20 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Discord File Attachments
+**March 10, 2026** · `@herdctl/discord@1.2.0` · `@herdctl/core@5.10.0` · `herdctl@1.5.7`
+
+Discord agents can now receive and process file attachments uploaded alongside messages. Text and code files are automatically downloaded and inlined directly into the agent's prompt for immediate analysis. Images and PDFs are saved to the agent's working directory with a file path reference, allowing the agent to use its Read tool to view them. File handling is configurable via the `chat.discord.attachments` field with options for file size limits, allowed file types, and automatic cleanup. This feature pairs with the new CLI runtime MCP bridge support — injected MCP servers (like the file sender for Discord/Slack uploads) now work across all runtime modes (SDK, Docker, and CLI), fixing a previous gap where CLI agents silently ignored injected servers.
+
+---
+
+### Slack Message Deduplication
+**March 10, 2026** · `@herdctl/slack@1.2.13`
+
+Fixed duplicate assistant messages appearing in Slack channels. Claude Code emits intermediate JSONL snapshots (`stop_reason: null`) during long-running tasks before the final assistant message. The Slack connector now filters intermediates and deduplicates by message ID, ensuring only finalized responses appear in channels. This prevents confusing duplicate messages when agents are processing complex multi-turn conversations.
+
+---
+
 ### Tool Availability Restriction
 **March 5, 2026** · `@herdctl/core@5.9.0` · `herdctl@1.5.6`
 
