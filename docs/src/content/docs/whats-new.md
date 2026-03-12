@@ -7,17 +7,37 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
-### Discord File Attachments
-**March 10, 2026** · `@herdctl/discord@1.2.0` · `@herdctl/core@5.10.0` · `herdctl@1.5.7`
+### Discord Connector Enhancements
+**March 10, 2026** · `@herdctl/discord@1.2.0` · `@herdctl/core@5.10.0` · `@herdctl/slack@1.2.13`
 
-Discord agents can now receive and process file attachments uploaded alongside messages. Text and code files are automatically downloaded and inlined directly into the agent's prompt for immediate analysis. Images and PDFs are saved to the agent's working directory with a file path reference, allowing the agent to use its Read tool to view them. File handling is configurable via the `chat.discord.attachments` field with options for file size limits, allowed file types, and automatic cleanup. This feature pairs with the new CLI runtime MCP bridge support — injected MCP servers (like the file sender for Discord/Slack uploads) now work across all runtime modes (SDK, Docker, and CLI), fixing a previous gap where CLI agents silently ignored injected servers.
+A major overhaul of the Discord integration brings it to feature parity with professional chat bots. The user experience is now conversational and polished, while new capabilities make Discord agents more powerful and flexible.
 
----
+**Conversational UX improvements:**
+- **Concise responses** — New `assistant_messages: "answers"` mode suppresses intermediate reasoning turns (text + tool_use) and sends only answer turns (text without tool_use), eliminating verbose narration without degrading answer quality
+- **Progress indicators** — A single "Working..." embed updates in-place with tool names as they run, providing live feedback without message spam
+- **Message deduplication** — Skip intermediate JSONL snapshots that lack finalized content, preventing duplicate or incomplete messages
+- **Visual polish** — Redesigned embeds with title-less layouts, refined color palette (soft violet, emerald, cool gray, sky blue), branded footer ("herdctl · agent-name"), and horizontal result summaries
 
-### Slack Message Deduplication
-**March 10, 2026** · `@herdctl/slack@1.2.13`
+**New capabilities:**
+- **Voice message transcription** — Discord voice messages are automatically transcribed via OpenAI Whisper API and posted as text embeds so all channel members can read them. Configurable via `chat.discord.voice` with provider, API key, model, and language settings
+- **File attachment support** — Images, PDFs, and text/code files uploaded alongside messages are processed automatically. Text files are inlined into the prompt; images and PDFs are saved to the working directory with path references so agents can use the Read tool. Configurable size limits, allowed types, and automatic cleanup via `chat.discord.attachments`
+- **Slash commands** — New `/help`, `/status`, `/reset`, `/retry`, `/stop`, `/cancel`, `/skills`, `/skill <name>`, `/usage`, and utility commands provide Discord-native controls for managing agent conversations
+- **Session usage tracking** — The `/usage` command shows per-channel last-run stats and cumulative session totals (lifetime runs, cost, tokens, duration)
+- **Acknowledgement reactions** — Configurable emoji reaction (default: eyes) appears on message receipt and is removed after the response is sent, providing instant feedback
 
-Fixed duplicate assistant messages appearing in Slack channels. Claude Code emits intermediate JSONL snapshots (`stop_reason: null`) during long-running tasks before the final assistant message. The Slack connector now filters intermediates and deduplicates by message ID, ensuring only finalized responses appear in channels. This prevents confusing duplicate messages when agents are processing complex multi-turn conversations.
+**Technical improvements:**
+- **CLI runtime MCP support** — CLI runtime (used for preserving Claude Max tokens) now supports injected MCP servers via HTTP bridges, enabling file uploads from Discord to CLI-based agents
+- **Docker path translation** — Attachment paths are automatically translated from host paths to container `/workspace` paths when Docker is enabled, so containerized agents can access uploaded files
+- **Skill discovery** — Discord agents now discover skills from `.claude/skills/` (previously only scanned `.codex/skills/` and `skills/`), and the `skills` config field allows explicit skill lists or complete disablement
+- **Concise mode without prompt injection** — Replaced the previous system prompt append approach with turn classification (answers vs reasoning), eliminating quality degradation from prompt modifications
+
+**Config changes:**
+- New output fields: `assistant_messages`, `progress_indicator`, `acknowledge_emoji`, `result_summary` (defaults to false for backward compatibility)
+- New voice transcription config block with `enabled`, `provider`, `api_key_env`, `model`, `language`
+- New attachments config block with `max_size`, `allowed_types`, `download_dir`, `cleanup_after_run`
+- New `default_channel_mode` field in guild config enables guild-wide mention response (bot responds in any channel, not just explicitly listed ones)
+
+Also includes Slack message deduplication fix to prevent duplicate messages from intermediate JSONL snapshots.
 
 ---
 
