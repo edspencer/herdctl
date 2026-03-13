@@ -7,6 +7,27 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Discord File Attachment Support
+**March 10, 2026** · `@herdctl/discord@1.2.0` · `@herdctl/core@5.10.0`
+
+Discord bots can now process file attachments uploaded alongside messages. When users attach files to their Discord messages, the connector automatically detects and processes them based on file type. Text and code files are downloaded and inlined directly into the agent's prompt, while images and PDFs are saved to the agent's working directory with a file path reference so the agent can use its Read tool to view them. File handling is fully configurable via `chat.discord.attachments` settings, including file size limits, allowed file types, and automatic cleanup after processing. [#194](https://github.com/edspencer/herdctl/pull/194)
+
+---
+
+### CLI Runtime MCP Server Support
+**March 10, 2026** · `@herdctl/core@5.10.0`
+
+The CLI runtime now supports injected MCP servers, enabling features like file uploads for Discord and Slack agents running with `runtime: cli`. Previously, only SDK and Docker runtimes handled injected MCP servers while CLI silently ignored them. The implementation reuses existing MCP-HTTP-bridge infrastructure by starting HTTP bridges on localhost for each injected server and passing them via `--mcp-config` as HTTP-type MCP servers. This brings CLI runtime to feature parity with SDK and Docker runtimes for chat platform integrations. [#194](https://github.com/edspencer/herdctl/pull/194)
+
+---
+
+### Slack Message Deduplication Fix
+**March 10, 2026** · `@herdctl/slack@1.2.13`
+
+Fixed duplicate messages appearing in Slack channels when agents respond. Claude Code can emit intermediate JSONL snapshots (with `stop_reason: null`) before the final assistant message. The Slack manager now skips these intermediate snapshots and deduplicates by `message.id` to ensure only finalized messages are sent to channels. [#194](https://github.com/edspencer/herdctl/pull/194)
+
+---
+
 ### Tool Availability Restriction
 **March 5, 2026** · `@herdctl/core@5.9.0` · `herdctl@1.5.6`
 
