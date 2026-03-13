@@ -274,15 +274,49 @@ chat:
       result_summary: true        # Show completion summary embed (default: true)
       errors: true                # Show error embeds (default: true)
       typing_indicator: true      # Show typing indicator while processing (default: true)
+      acknowledge_emoji: "👀"     # Emoji reaction on receipt (default: "👀", empty to disable)
+      assistant_messages: answers # Which assistant turns to send: "answers" or "all" (default: answers)
+      progress_indicator: true    # Show progress embed with tool names (default: true)
 
     # Bot presence/activity (optional)
     presence:
       activity_type: watching  # playing, watching, listening, competing
       activity_message: "for support requests"
 
+    # Voice message transcription (optional)
+    voice:
+      enabled: true               # Enable voice message transcription (default: false)
+      provider: openai            # Transcription provider (default: openai)
+      api_key_env: OPENAI_API_KEY # Environment variable with API key (default: OPENAI_API_KEY)
+      model: whisper-1            # Whisper model to use (default: whisper-1)
+      language: en                # Language hint for accuracy (ISO 639-1, optional)
+
+    # File attachments (optional)
+    attachments:
+      enabled: true               # Enable file attachment processing (default: false)
+      max_file_size_mb: 10        # Maximum file size in MB (default: 10)
+      max_files_per_message: 5    # Maximum files per message (default: 5)
+      allowed_types:              # Allowed MIME types (default: image/*, pdf, text/*)
+        - "image/*"
+        - "application/pdf"
+        - "text/*"
+      download_dir: ".discord-attachments"  # Directory for downloaded files (default: .discord-attachments)
+      cleanup_after_processing: true        # Delete files after processing (default: true)
+
+    # Skill discovery (optional, recommended in containerized deployments)
+    skills:
+      - name: "security-audit"
+        description: "Run a comprehensive security audit"
+      - name: "docs-update"
+        description: "Update documentation"
+
     # Guild (server) configurations
     guilds:
       - id: "123456789012345678"  # Discord server ID
+        # Default channel mode for unlisted channels (optional)
+        # When set, bot responds to @mentions (or all messages if "auto") in any channel
+        default_channel_mode: mention  # mention or auto (optional)
+
         channels:
           - id: "987654321098765432"  # Channel ID
             name: "#support"           # For documentation (optional)
@@ -320,6 +354,9 @@ chat:
 | `presence` | object | — | Bot presence/activity configuration |
 | `guilds` | array | — | List of Discord servers to operate in |
 | `dm` | object | — | Global DM configuration |
+| `voice` | object | — | Voice message transcription configuration |
+| `attachments` | object | — | File attachment handling configuration |
+| `skills` | array | — | Explicit skill list for `/skills` and `/skill` commands |
 
 #### Presence Settings
 
@@ -341,6 +378,7 @@ chat:
 |-------|------|-------------|
 | `id` | string | **Required.** Discord server (guild) ID |
 | `channels` | array | Channels to monitor in this guild |
+| `default_channel_mode` | string | Default mode for channels not explicitly listed. When set, bot responds to @mentions (or all messages if `auto`) in any channel in this guild |
 | `dm` | object | DM settings for members of this guild |
 
 #### Channel Settings
@@ -373,6 +411,9 @@ Control which SDK messages are surfaced in Discord. When your agent uses tools (
 | `output.result_summary` | boolean | `true` | Show a summary embed when the agent finishes (duration, cost, tokens) |
 | `output.errors` | boolean | `true` | Show error embeds when the SDK reports errors |
 | `output.typing_indicator` | boolean | `true` | Show typing indicator while processing. Set to `false` on long-running jobs to prevent Discord timeout errors |
+| `output.acknowledge_emoji` | string | `"👀"` | Emoji reaction added when message is received. Removed automatically after response is sent. Set to empty string to disable |
+| `output.assistant_messages` | string | `"answers"` | Which assistant turns to send to Discord: `"answers"` (only text responses) or `"all"` (includes tool_use blocks) |
+| `output.progress_indicator` | boolean | `true` | Show a "Working..." embed that updates in real-time with tool names as the agent works |
 
 All output types appear as compact Discord embeds with color coding:
 
@@ -415,6 +456,232 @@ chat:
       result_summary: true
       errors: true
 ```
+
+### Voice Message Transcription
+
+herdctl can automatically transcribe voice messages sent in Discord text channels using OpenAI's Whisper API. When enabled, users can send voice recordings and the agent receives the transcribed text as the prompt.
+
+#### How Voice Messages Work
+
+1. User sends a voice message in a Discord channel
+2. herdctl downloads the audio file
+3. Audio is transcribed via OpenAI Whisper API
+4. Transcription text is used as the agent's prompt
+5. Bot sends a grey embed showing the transcription
+6. Agent responds based on the transcribed text
+
+#### Voice Configuration
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `voice.enabled` | boolean | `false` | Enable voice message transcription |
+| `voice.provider` | string | `"openai"` | Transcription provider (currently only `openai` supported) |
+| `voice.api_key_env` | string | `"OPENAI_API_KEY"` | Environment variable containing the OpenAI API key |
+| `voice.model` | string | `"whisper-1"` | Whisper model to use for transcription |
+| `voice.language` | string | — | Language hint for better accuracy (ISO 639-1 code like `"en"`, `"es"`, `"fr"`) |
+
+#### Example Voice Configuration
+
+```yaml
+chat:
+  discord:
+    bot_token_env: DISCORD_BOT_TOKEN
+    voice:
+      enabled: true
+      provider: openai
+      api_key_env: OPENAI_API_KEY
+      model: whisper-1
+      language: en  # Improves accuracy for English
+```
+
+#### Setting Up Voice Transcription
+
+<Steps>
+
+1. **Get an OpenAI API key**
+
+   Sign up at [platform.openai.com](https://platform.openai.com/) and create an API key with access to the Whisper API.
+
+2. **Add the API key to your environment**
+
+   ```bash
+   export OPENAI_API_KEY="sk-..."
+   ```
+
+3. **Enable voice in your agent config**
+
+   ```yaml
+   chat:
+     discord:
+       bot_token_env: DISCORD_BOT_TOKEN
+       voice:
+         enabled: true
+   ```
+
+4. **Start herdctl**
+
+   ```bash
+   herdctl start
+   ```
+
+5. **Test with a voice message**
+
+   In Discord, hold the microphone button to record a voice message and send it in a channel where the bot is active.
+
+</Steps>
+
+<Aside type="tip">
+  The `language` parameter is optional but recommended for better transcription accuracy. Use ISO 639-1 language codes like `"en"` for English, `"es"` for Spanish, etc.
+</Aside>
+
+### File Attachments
+
+herdctl can process file attachments (images, PDFs, text files) uploaded by users alongside their messages. When enabled, agents can view and analyze files, and agents can also send files back to users.
+
+#### How File Attachments Work
+
+**User uploads to agent:**
+1. User sends a message with file attachments (images, PDFs, code files, etc.)
+2. herdctl downloads and categorizes the files
+3. Text files are inlined directly in the prompt
+4. Images and PDFs are saved to the agent's working directory
+5. Agent receives file metadata and can use the Read tool to access saved files
+
+**Agent sends to user:**
+1. Agent uploads a file via MCP `upload_file` operation
+2. herdctl buffers the file in memory
+3. File is automatically attached to the next Discord message (the agent's answer)
+
+#### Attachments Configuration
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `attachments.enabled` | boolean | `false` | Enable file attachment processing |
+| `attachments.max_file_size_mb` | number | `10` | Maximum file size in megabytes |
+| `attachments.max_files_per_message` | number | `5` | Maximum number of files per message |
+| `attachments.allowed_types` | array | `["image/*", "application/pdf", "text/*"]` | Allowed MIME type patterns (supports wildcards) |
+| `attachments.download_dir` | string | `".discord-attachments"` | Directory for downloaded files (relative to agent's working_directory) |
+| `attachments.cleanup_after_processing` | boolean | `true` | Delete downloaded files after agent run completes |
+
+#### Example Attachments Configuration
+
+```yaml
+chat:
+  discord:
+    bot_token_env: DISCORD_BOT_TOKEN
+    attachments:
+      enabled: true
+      max_file_size_mb: 10
+      max_files_per_message: 5
+      allowed_types:
+        - "image/*"      # PNG, JPG, GIF, etc.
+        - "application/pdf"
+        - "text/*"       # .txt, .md, .json, .yaml, etc.
+        - "text/x-python"  # Specific MIME type for .py files
+      download_dir: ".discord-attachments"
+      cleanup_after_processing: true
+```
+
+#### Supported File Types
+
+| Category | MIME Pattern | Examples | Processing |
+|----------|-------------|----------|------------|
+| Images | `image/*` | PNG, JPG, GIF, WebP | Saved to download directory, accessible via Read tool |
+| PDFs | `application/pdf` | PDF documents | Saved to download directory, accessible via Read tool |
+| Text | `text/*` | .txt, .md, .json, .yaml, .py, .js | Content inlined directly in prompt |
+
+#### Docker Path Translation
+
+When running in Docker, herdctl automatically translates file paths:
+- Files are saved to the download directory inside the container
+- Paths in prompts reference the container filesystem
+- Cleanup happens inside the container after the run
+
+<Aside type="caution">
+  Set appropriate `max_file_size_mb` limits based on your OpenAI plan. Large files consume more tokens and may cause rate limiting or high costs.
+</Aside>
+
+#### Example: Image Analysis
+
+```yaml
+chat:
+  discord:
+    bot_token_env: DISCORD_BOT_TOKEN
+    attachments:
+      enabled: true
+      allowed_types: ["image/*"]
+```
+
+User sends:
+```
+Check this screenshot for errors
+[screenshot.png]
+```
+
+Agent receives prompt with file metadata:
+```
+Check this screenshot for errors
+
+Files attached:
+- screenshot.png (image/png, 245 KB)
+  Path: /agent-working-dir/.discord-attachments/screenshot.png
+```
+
+Agent can then use the Read tool to view the image.
+
+### Skills Configuration
+
+herdctl can discover and expose skills via the `/skills` and `/skill` slash commands. By default, skills are discovered from the filesystem, but you can override this with an explicit list.
+
+#### Skill Discovery
+
+Skills are discovered from these directories (in order):
+1. `.claude/skills/` (recommended location)
+2. `.codex/skills/` (legacy location)
+3. `skills/` (alternative location)
+
+Each skill is a subdirectory containing a `skill.json` or `skill.yaml` file with metadata.
+
+#### Explicit Skills List
+
+Override filesystem discovery by providing an explicit skills array:
+
+```yaml
+chat:
+  discord:
+    bot_token_env: DISCORD_BOT_TOKEN
+    skills:
+      - name: "security-audit"
+        description: "Run a comprehensive security audit"
+      - name: "docs-update"
+        description: "Update documentation with latest changes"
+      - name: "review-pr"
+        description: "Review a GitHub pull request"
+```
+
+#### When to Use Explicit Skills
+
+| Scenario | Recommendation |
+|----------|----------------|
+| **Containerized deployment** | Use explicit skills list (filesystem may not be available) |
+| **Disable skill discovery** | Set `skills: []` to disable `/skills` and `/skill` commands |
+| **Curated skill list** | List only the skills you want exposed in Discord |
+| **Development** | Omit `skills` field to auto-discover from filesystem |
+
+#### Disabling Skills
+
+To disable skill commands entirely:
+
+```yaml
+chat:
+  discord:
+    bot_token_env: DISCORD_BOT_TOKEN
+    skills: []  # Empty array disables skill discovery
+```
+
+<Aside type="tip">
+  In production or containerized environments, use an explicit skills list to avoid filesystem dependency and ensure consistent behavior.
+</Aside>
 
 ## Environment Variables
 
@@ -706,6 +973,36 @@ chat:
             name: "#dev-chat"
             mode: auto
 ```
+
+### Guild-Wide Mention Response
+
+You can configure a bot to respond to @mentions in any channel in a guild, without explicitly listing each channel:
+
+```yaml
+chat:
+  discord:
+    bot_token_env: DISCORD_BOT_TOKEN
+    guilds:
+      - id: "123456789012345678"
+        # Respond to @mentions in any channel (no explicit channel list needed)
+        default_channel_mode: mention
+
+        # Optionally, override mode for specific channels
+        channels:
+          - id: "987654321098765432"
+            name: "#support"
+            mode: auto  # Auto mode in this specific channel
+```
+
+This is useful for:
+- Support bots that should be accessible everywhere via @mention
+- Bots that need to respond in channels created after deployment
+- Keeping auto mode in specific channels while allowing mentions elsewhere
+
+**How it works:**
+- If a channel is explicitly listed in `channels`, that configuration takes precedence
+- If a channel is not listed, `default_channel_mode` applies
+- If `default_channel_mode` is not set, the bot ignores unlisted channels
 
 ### Best Practices for Multiple Bots
 
