@@ -7,6 +7,27 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Discord File Attachments
+**March 10, 2026** · `@herdctl/discord@1.2.0` · `@herdctl/core@5.10.0` · `herdctl@1.5.7`
+
+Discord agents can now receive and process file attachments (images, PDFs, text files, code files) uploaded alongside messages. Text and code files are automatically downloaded and inlined into the agent's prompt for immediate context. Images and PDFs are saved to the agent's working directory with a file path reference, allowing the agent to use its Read tool to view them. Configure via the `chat.discord.attachments` field with options for file size limits, allowed file types, and automatic cleanup. This enables workflows like "here's a screenshot of the bug" or "review this PDF spec" directly in Discord without manual file transfers.
+
+---
+
+### CLI Runtime MCP Server Support
+**March 10, 2026** · `@herdctl/core@5.10.0` · `herdctl@1.5.7`
+
+The CLI runtime now supports injected MCP servers (Model Context Protocol servers), enabling features like file sending for Discord and Slack file uploads. Previously only SDK and Docker runtimes handled injected MCP servers — CLI runtime agents silently ignored them, breaking file attachment features for CLI-based chat agents. The fix reuses existing HTTP bridge infrastructure: herdctl starts HTTP bridges on localhost for each injected server and passes them to the CLI via `--mcp-config` as HTTP-type MCP servers. This brings feature parity across all three runtime modes.
+
+---
+
+### Slack Message Deduplication Fix
+**March 10, 2026** · `@herdctl/slack@1.2.13` · `herdctl@1.5.7`
+
+Fixed duplicate assistant messages appearing in Slack channels. Claude Code can emit intermediate JSONL snapshots (with `stop_reason: null`) before the final assistant message, and the Slack manager was treating each snapshot as a separate message. The connector now skips intermediate snapshots and deduplicates by `message.id`, ensuring only the final, complete assistant response appears in the channel. This eliminates confusing duplicate messages during long-running agent operations.
+
+---
+
 ### Tool Availability Restriction
 **March 5, 2026** · `@herdctl/core@5.9.0` · `herdctl@1.5.6`
 
