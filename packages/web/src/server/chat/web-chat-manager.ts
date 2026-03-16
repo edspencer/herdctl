@@ -431,6 +431,7 @@ export class WebChatManager {
       working_directory: workingDirectory,
       runtime: "cli",
       permission_mode: "default",
+      self_scheduling: { enabled: true, max_schedules: 10, min_interval: "5m" },
     } as ResolvedAgent;
   }
 

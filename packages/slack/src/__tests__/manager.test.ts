@@ -70,6 +70,7 @@ function createSlackAgent(name: string, slackConfig: AgentChatSlack): ResolvedAg
     configPath: "/test/herdctl.yaml",
     fleetPath: [],
     qualifiedName: name,
+    self_scheduling: { enabled: true, max_schedules: 10, min_interval: "5m" },
   } as ResolvedAgent;
 }
 
@@ -81,6 +82,7 @@ function createNonSlackAgent(name: string): ResolvedAgent {
     configPath: "/test/herdctl.yaml",
     fleetPath: [],
     qualifiedName: name,
+    self_scheduling: { enabled: true, max_schedules: 10, min_interval: "5m" },
   } as ResolvedAgent;
 }
 

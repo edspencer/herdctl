@@ -112,6 +112,7 @@ function createMockAgentConfig(): AgentConfig {
   return {
     name: "test-agent",
     description: "Test agent for Discord connector tests",
+    self_scheduling: { enabled: true, max_schedules: 10, min_interval: "5m" },
   };
 }
 

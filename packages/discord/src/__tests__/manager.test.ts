@@ -76,6 +76,7 @@ function createDiscordAgent(name: string, discordConfig: AgentChatDiscord): Reso
     configPath: "/test/herdctl.yaml",
     fleetPath: [],
     qualifiedName: name,
+    self_scheduling: { enabled: true, max_schedules: 10, min_interval: "5m" },
   } as ResolvedAgent;
 }
 
@@ -88,6 +89,7 @@ function createNonDiscordAgent(name: string): ResolvedAgent {
     configPath: "/test/herdctl.yaml",
     fleetPath: [],
     qualifiedName: name,
+    self_scheduling: { enabled: true, max_schedules: 10, min_interval: "5m" },
   } as ResolvedAgent;
 }
 
@@ -4976,6 +4978,7 @@ describe.skip("DiscordManager output configuration", () => {
           configPath: "/test/herdctl.yaml",
           fleetPath: [],
           qualifiedName: "no-tool-results-agent",
+          self_scheduling: { enabled: true, max_schedules: 10, min_interval: "5m" },
         } as ResolvedAgent,
       ],
       configPath: "/test/herdctl.yaml",
@@ -5148,6 +5151,7 @@ describe.skip("DiscordManager output configuration", () => {
           configPath: "/test/herdctl.yaml",
           fleetPath: [],
           qualifiedName: "system-status-agent",
+          self_scheduling: { enabled: true, max_schedules: 10, min_interval: "5m" },
         } as ResolvedAgent,
       ],
       configPath: "/test/herdctl.yaml",
@@ -5319,6 +5323,7 @@ describe.skip("DiscordManager output configuration", () => {
           configPath: "/test/herdctl.yaml",
           fleetPath: [],
           qualifiedName: "no-system-status-agent",
+          self_scheduling: { enabled: true, max_schedules: 10, min_interval: "5m" },
         } as ResolvedAgent,
       ],
       configPath: "/test/herdctl.yaml",
@@ -5491,6 +5496,7 @@ describe.skip("DiscordManager output configuration", () => {
           configPath: "/test/herdctl.yaml",
           fleetPath: [],
           qualifiedName: "result-summary-agent",
+          self_scheduling: { enabled: true, max_schedules: 10, min_interval: "5m" },
         } as ResolvedAgent,
       ],
       configPath: "/test/herdctl.yaml",
@@ -5666,6 +5672,7 @@ describe.skip("DiscordManager output configuration", () => {
           configPath: "/test/herdctl.yaml",
           fleetPath: [],
           qualifiedName: "error-agent",
+          self_scheduling: { enabled: true, max_schedules: 10, min_interval: "5m" },
         } as ResolvedAgent,
       ],
       configPath: "/test/herdctl.yaml",
@@ -5836,6 +5843,7 @@ describe.skip("DiscordManager output configuration", () => {
           configPath: "/test/herdctl.yaml",
           fleetPath: [],
           qualifiedName: "no-errors-agent",
+          self_scheduling: { enabled: true, max_schedules: 10, min_interval: "5m" },
         } as ResolvedAgent,
       ],
       configPath: "/test/herdctl.yaml",

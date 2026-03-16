@@ -312,7 +312,7 @@ describe("agentAddCommand", () => {
     mockedValidateRepository.mockResolvedValue({
       valid: true,
       agentName,
-      agentConfig: { name: agentName, permission_mode: "default", runtime: "sdk" },
+      agentConfig: { name: agentName, permission_mode: "default", runtime: "sdk", self_scheduling: { enabled: true, max_schedules: 10, min_interval: "5m" } },
       repoMetadata: null,
       errors: [],
       warnings: [],
@@ -368,7 +368,7 @@ describe("agentAddCommand", () => {
     mockedValidateRepository.mockResolvedValue({
       valid: true,
       agentName,
-      agentConfig: { name: agentName, permission_mode: "default", runtime: "sdk" },
+      agentConfig: { name: agentName, permission_mode: "default", runtime: "sdk", self_scheduling: { enabled: true, max_schedules: 10, min_interval: "5m" } },
       repoMetadata: null,
       errors: [],
       warnings: [],
@@ -566,7 +566,7 @@ describe("agentAddCommand", () => {
       mockedValidateRepository.mockResolvedValue({
         valid: true,
         agentName: "existing-agent",
-        agentConfig: { name: "existing-agent", permission_mode: "default", runtime: "sdk" },
+        agentConfig: { name: "existing-agent", permission_mode: "default", runtime: "sdk", self_scheduling: { enabled: true, max_schedules: 10, min_interval: "5m" } },
         repoMetadata: null,
         errors: [],
         warnings: [],
@@ -629,7 +629,7 @@ describe("agentAddCommand", () => {
       mockedValidateRepository.mockResolvedValue({
         valid: true,
         agentName: "warning-agent",
-        agentConfig: { name: "warning-agent", permission_mode: "default", runtime: "sdk" },
+        agentConfig: { name: "warning-agent", permission_mode: "default", runtime: "sdk", self_scheduling: { enabled: true, max_schedules: 10, min_interval: "5m" } },
         repoMetadata: null,
         errors: [],
         warnings: [

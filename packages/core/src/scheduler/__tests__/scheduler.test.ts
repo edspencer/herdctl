@@ -54,6 +54,7 @@ function createTestAgent(
     fleetPath: [],
     configPath: `/fake/path/${name}.yaml`,
     schedules,
+    self_scheduling: { enabled: true, max_schedules: 10, min_interval: "5m" },
   } as ResolvedAgent;
 }
 

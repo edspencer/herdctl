@@ -3,6 +3,9 @@ import type { ExtendedDefaults } from "../merge.js";
 import { deepMerge, mergeAgentConfig, mergeAllAgentConfigs } from "../merge.js";
 import type { AgentConfig } from "../schema.js";
 
+/** Default self_scheduling value matching the Zod schema default */
+const DEFAULT_SELF_SCHEDULING = { enabled: true, max_schedules: 10, min_interval: "5m" } as const;
+
 describe("deepMerge", () => {
   describe("basic behavior", () => {
     it("returns undefined when both inputs are undefined", () => {
@@ -220,6 +223,7 @@ describe("mergeAgentConfig", () => {
       const agent: AgentConfig = {
         name: "test-agent",
         model: "claude-sonnet-4-20250514",
+        self_scheduling: DEFAULT_SELF_SCHEDULING,
       };
       const result = mergeAgentConfig(undefined, agent);
       expect(result).toEqual(agent);
@@ -232,7 +236,7 @@ describe("mergeAgentConfig", () => {
         permission_mode: "acceptEdits",
         allowed_tools: ["Read", "Write"],
       };
-      const agent: AgentConfig = { name: "test-agent" };
+      const agent: AgentConfig = { name: "test-agent", self_scheduling: DEFAULT_SELF_SCHEDULING };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.permission_mode).toBe("acceptEdits");
       expect(result.allowed_tools).toEqual(["Read", "Write"]);
@@ -245,6 +249,7 @@ describe("mergeAgentConfig", () => {
       const agent: AgentConfig = {
         name: "test-agent",
         allowed_tools: ["Bash(git *)"],
+        self_scheduling: DEFAULT_SELF_SCHEDULING,
       };
       const result = mergeAgentConfig(defaults, agent);
       // Agent's allowed_tools should completely replace defaults (arrays are not merged)
@@ -255,7 +260,7 @@ describe("mergeAgentConfig", () => {
       const defaults: ExtendedDefaults = {
         denied_tools: ["WebFetch", "Bash(rm *)"],
       };
-      const agent: AgentConfig = { name: "test-agent" };
+      const agent: AgentConfig = { name: "test-agent", self_scheduling: DEFAULT_SELF_SCHEDULING };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.denied_tools).toEqual(["WebFetch", "Bash(rm *)"]);
     });
@@ -267,6 +272,7 @@ describe("mergeAgentConfig", () => {
       const agent: AgentConfig = {
         name: "test-agent",
         denied_tools: ["Bash(sudo *)"],
+        self_scheduling: DEFAULT_SELF_SCHEDULING,
       };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.denied_tools).toEqual(["Bash(sudo *)"]);
@@ -281,7 +287,7 @@ describe("mergeAgentConfig", () => {
           labels: { ready: "ready", in_progress: "in-progress" },
         },
       };
-      const agent: AgentConfig = { name: "test-agent" };
+      const agent: AgentConfig = { name: "test-agent", self_scheduling: DEFAULT_SELF_SCHEDULING };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.work_source?.type).toBe("github");
       expect(result.work_source?.labels?.ready).toBe("ready");
@@ -300,6 +306,7 @@ describe("mergeAgentConfig", () => {
           type: "github",
           labels: { ready: "custom-ready" },
         },
+        self_scheduling: DEFAULT_SELF_SCHEDULING,
       };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.work_source?.labels?.ready).toBe("custom-ready");
@@ -316,7 +323,7 @@ describe("mergeAgentConfig", () => {
           model: "claude-sonnet-4-20250514",
         },
       };
-      const agent: AgentConfig = { name: "test-agent" };
+      const agent: AgentConfig = { name: "test-agent", self_scheduling: DEFAULT_SELF_SCHEDULING };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.session?.max_turns).toBe(50);
       expect(result.session?.timeout).toBe("30m");
@@ -335,6 +342,7 @@ describe("mergeAgentConfig", () => {
         session: {
           max_turns: 100,
         },
+        self_scheduling: DEFAULT_SELF_SCHEDULING,
       };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.session?.max_turns).toBe(100);
@@ -355,7 +363,7 @@ describe("mergeAgentConfig", () => {
           image: "herdctl-base:latest",
         },
       };
-      const agent: AgentConfig = { name: "test-agent" };
+      const agent: AgentConfig = { name: "test-agent", self_scheduling: DEFAULT_SELF_SCHEDULING };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.docker?.enabled).toBe(true);
       // Fleet-level image is preserved in merged result
@@ -384,6 +392,7 @@ describe("mergeAgentConfig", () => {
           max_containers: 10,
           workspace_mode: "ro" as const,
         },
+        self_scheduling: DEFAULT_SELF_SCHEDULING,
       };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.docker?.enabled).toBe(false);
@@ -400,7 +409,7 @@ describe("mergeAgentConfig", () => {
           max_concurrent: 3,
         },
       };
-      const agent: AgentConfig = { name: "test-agent" };
+      const agent: AgentConfig = { name: "test-agent", self_scheduling: DEFAULT_SELF_SCHEDULING };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.instances?.max_concurrent).toBe(3);
     });
@@ -416,6 +425,7 @@ describe("mergeAgentConfig", () => {
         instances: {
           max_concurrent: 5,
         },
+        self_scheduling: DEFAULT_SELF_SCHEDULING,
       };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.instances?.max_concurrent).toBe(5);
@@ -425,7 +435,7 @@ describe("mergeAgentConfig", () => {
       const defaults: ExtendedDefaults = {
         model: "claude-sonnet-4-20250514",
       };
-      const agent: AgentConfig = { name: "test-agent" };
+      const agent: AgentConfig = { name: "test-agent", self_scheduling: DEFAULT_SELF_SCHEDULING };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.instances).toBeUndefined();
     });
@@ -436,7 +446,7 @@ describe("mergeAgentConfig", () => {
       const defaults: ExtendedDefaults = {
         model: "claude-sonnet-4-20250514",
       };
-      const agent: AgentConfig = { name: "test-agent" };
+      const agent: AgentConfig = { name: "test-agent", self_scheduling: DEFAULT_SELF_SCHEDULING };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.model).toBe("claude-sonnet-4-20250514");
     });
@@ -448,6 +458,7 @@ describe("mergeAgentConfig", () => {
       const agent: AgentConfig = {
         name: "test-agent",
         model: "claude-opus-4-20250514",
+        self_scheduling: DEFAULT_SELF_SCHEDULING,
       };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.model).toBe("claude-opus-4-20250514");
@@ -457,7 +468,7 @@ describe("mergeAgentConfig", () => {
       const defaults: ExtendedDefaults = {
         max_turns: 50,
       };
-      const agent: AgentConfig = { name: "test-agent" };
+      const agent: AgentConfig = { name: "test-agent", self_scheduling: DEFAULT_SELF_SCHEDULING };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.max_turns).toBe(50);
     });
@@ -469,6 +480,7 @@ describe("mergeAgentConfig", () => {
       const agent: AgentConfig = {
         name: "test-agent",
         max_turns: 100,
+        self_scheduling: DEFAULT_SELF_SCHEDULING,
       };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.max_turns).toBe(100);
@@ -478,7 +490,7 @@ describe("mergeAgentConfig", () => {
       const defaults: ExtendedDefaults = {
         permission_mode: "acceptEdits",
       };
-      const agent: AgentConfig = { name: "test-agent" };
+      const agent: AgentConfig = { name: "test-agent", self_scheduling: DEFAULT_SELF_SCHEDULING };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.permission_mode).toBe("acceptEdits");
     });
@@ -490,6 +502,7 @@ describe("mergeAgentConfig", () => {
       const agent: AgentConfig = {
         name: "test-agent",
         permission_mode: "bypassPermissions",
+        self_scheduling: DEFAULT_SELF_SCHEDULING,
       };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.permission_mode).toBe("bypassPermissions");
@@ -499,7 +512,7 @@ describe("mergeAgentConfig", () => {
   describe("preserves non-mergeable fields", () => {
     it("preserves agent name", () => {
       const defaults: ExtendedDefaults = { model: "default-model" };
-      const agent: AgentConfig = { name: "my-agent" };
+      const agent: AgentConfig = { name: "my-agent", self_scheduling: DEFAULT_SELF_SCHEDULING };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.name).toBe("my-agent");
     });
@@ -509,6 +522,7 @@ describe("mergeAgentConfig", () => {
       const agent: AgentConfig = {
         name: "my-agent",
         description: "A test agent",
+        self_scheduling: DEFAULT_SELF_SCHEDULING,
       };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.description).toBe("A test agent");
@@ -519,6 +533,7 @@ describe("mergeAgentConfig", () => {
       const agent: AgentConfig = {
         name: "my-agent",
         working_directory: "/path/to/workspace",
+        self_scheduling: DEFAULT_SELF_SCHEDULING,
       };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.working_directory).toBe("/path/to/workspace");
@@ -529,6 +544,7 @@ describe("mergeAgentConfig", () => {
       const agent: AgentConfig = {
         name: "my-agent",
         identity: { name: "Claude", role: "assistant" },
+        self_scheduling: DEFAULT_SELF_SCHEDULING,
       };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.identity?.name).toBe("Claude");
@@ -547,6 +563,7 @@ describe("mergeAgentConfig", () => {
             resume_session: false,
           },
         },
+        self_scheduling: DEFAULT_SELF_SCHEDULING,
       };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.schedules?.main.type).toBe("interval");
@@ -560,6 +577,7 @@ describe("mergeAgentConfig", () => {
         mcp_servers: {
           github: { command: "npx", args: ["-y", "@mcp/github"] },
         },
+        self_scheduling: DEFAULT_SELF_SCHEDULING,
       };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.mcp_servers?.github.command).toBe("npx");
@@ -587,6 +605,7 @@ describe("mergeAgentConfig", () => {
       const agent: AgentConfig = {
         name: "my-agent",
         system_prompt: "You are helpful.",
+        self_scheduling: DEFAULT_SELF_SCHEDULING,
       };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.system_prompt).toBe("You are helpful.");
@@ -597,6 +616,7 @@ describe("mergeAgentConfig", () => {
       const agent: AgentConfig = {
         name: "my-agent",
         repo: "https://github.com/example/repo",
+        self_scheduling: DEFAULT_SELF_SCHEDULING,
       };
       const result = mergeAgentConfig(defaults, agent);
       expect(result.repo).toBe("https://github.com/example/repo");
@@ -644,6 +664,7 @@ describe("mergeAgentConfig", () => {
           },
         },
         model: "claude-opus-4-20250514",
+        self_scheduling: DEFAULT_SELF_SCHEDULING,
       };
 
       const result = mergeAgentConfig(defaults, agent);
@@ -687,9 +708,9 @@ describe("mergeAllAgentConfigs", () => {
       max_turns: 50,
     };
     const agents: AgentConfig[] = [
-      { name: "agent-1" },
-      { name: "agent-2", model: "claude-opus-4-20250514" },
-      { name: "agent-3", max_turns: 100 },
+      { name: "agent-1", self_scheduling: DEFAULT_SELF_SCHEDULING },
+      { name: "agent-2", model: "claude-opus-4-20250514", self_scheduling: DEFAULT_SELF_SCHEDULING },
+      { name: "agent-3", max_turns: 100, self_scheduling: DEFAULT_SELF_SCHEDULING },
     ];
 
     const result = mergeAllAgentConfigs(defaults, agents);
@@ -714,25 +735,25 @@ describe("mergeAllAgentConfigs", () => {
 
   it("returns agents unchanged when defaults is undefined", () => {
     const agents: AgentConfig[] = [
-      { name: "agent-1", model: "model-1" },
-      { name: "agent-2", model: "model-2" },
+      { name: "agent-1", model: "model-1", self_scheduling: DEFAULT_SELF_SCHEDULING },
+      { name: "agent-2", model: "model-2", self_scheduling: DEFAULT_SELF_SCHEDULING },
     ];
 
     const result = mergeAllAgentConfigs(undefined, agents);
 
     expect(result).toHaveLength(2);
-    expect(result[0]).toEqual({ name: "agent-1", model: "model-1" });
-    expect(result[1]).toEqual({ name: "agent-2", model: "model-2" });
+    expect(result[0]).toEqual({ name: "agent-1", model: "model-1", self_scheduling: DEFAULT_SELF_SCHEDULING });
+    expect(result[1]).toEqual({ name: "agent-2", model: "model-2", self_scheduling: DEFAULT_SELF_SCHEDULING });
   });
 
   it("does not mutate original agents array", () => {
     const defaults: ExtendedDefaults = { model: "default-model" };
-    const agents: AgentConfig[] = [{ name: "agent-1" }];
+    const agents: AgentConfig[] = [{ name: "agent-1", self_scheduling: DEFAULT_SELF_SCHEDULING }];
 
     const result = mergeAllAgentConfigs(defaults, agents);
 
     expect(result).not.toBe(agents);
-    expect(agents[0]).toEqual({ name: "agent-1" });
+    expect(agents[0]).toEqual({ name: "agent-1", self_scheduling: DEFAULT_SELF_SCHEDULING });
     expect(result[0].model).toBe("default-model");
   });
 });

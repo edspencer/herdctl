@@ -32,6 +32,7 @@ function createTestAgent(overrides: Partial<ResolvedAgent> = {}): ResolvedAgent 
     configPath: "/path/to/agent.yaml",
     fleetPath: [],
     qualifiedName: overrides.name ?? "test-agent",
+    self_scheduling: { enabled: true, max_schedules: 10, min_interval: "5m" },
     ...overrides,
   };
 }

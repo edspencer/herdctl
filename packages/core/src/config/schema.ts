@@ -988,7 +988,7 @@ export const AgentWorkingDirectorySchema = z.union([z.string(), WorkingDirectory
  */
 export const SelfSchedulingSchema = z.object({
   /** Whether self-scheduling is enabled for this agent */
-  enabled: z.boolean().default(false),
+  enabled: z.boolean().default(true),
   /** Maximum number of dynamic schedules this agent can create (default: 10) */
   max_schedules: z.number().int().positive().optional().default(10),
   /** Minimum interval between schedule triggers (default: "5m") */
@@ -1040,8 +1040,9 @@ export const AgentConfigSchema = z
     denied_tools: z.array(z.string()).optional(),
     /** Path to metadata JSON file written by agent (default: metadata.json in workspace) */
     metadata_file: z.string().optional(),
-    /** Self-scheduling configuration — allows agent to create its own schedules at runtime */
-    self_scheduling: SelfSchedulingSchema.optional(),
+    /** Self-scheduling configuration — allows agent to create its own schedules at runtime.
+     *  Defaults to enabled with standard limits when omitted. Set enabled: false to disable. */
+    self_scheduling: SelfSchedulingSchema.optional().default({}),
     /**
      * Setting sources for Claude SDK configuration discovery.
      * Controls where Claude looks for CLAUDE.md, skills, commands, etc.
