@@ -5,7 +5,7 @@
  * when constructing file paths from user-controlled identifiers.
  */
 
-import { join, resolve } from "node:path";
+import { join, resolve, sep } from "node:path";
 
 /**
  * Error thrown when a path traversal attempt is detected
@@ -84,7 +84,8 @@ export function buildSafeFilePath(baseDir: string, identifier: string, extension
   const resolvedBase = resolve(baseDir);
   const resolvedPath = resolve(filePath);
 
-  if (!resolvedPath.startsWith(`${resolvedBase}/`) && resolvedPath !== resolvedBase) {
+  const basePrefix = resolvedBase.endsWith(sep) ? resolvedBase : `${resolvedBase}${sep}`;
+  if (!resolvedPath.startsWith(basePrefix) && resolvedPath !== resolvedBase) {
     throw new PathTraversalError(baseDir, identifier, resolvedPath);
   }
 

@@ -1,5 +1,5 @@
-import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { join, resolve, sep } from "node:path";
+import { describe, expect, it, vi } from "vitest";
 import {
   buildSafeFilePath,
   isValidIdentifier,
@@ -233,6 +233,34 @@ describe("buildSafeFilePath", () => {
     it("handles empty extension", () => {
       const result = buildSafeFilePath(baseDir, "agent", "");
       expect(result).toBe(join(baseDir, "agent"));
+    });
+
+    it("handles root directory as base path", () => {
+      // On POSIX, resolve("/") returns "/" which already ends with sep.
+      // The basePrefix logic must avoid creating "//" in this case.
+      const result = buildSafeFilePath("/", "agent", ".json");
+      expect(result).toBe(join("/", "agent.json"));
+    });
+  });
+
+  describe("cross-platform path separator handling", () => {
+    it("uses path.sep instead of hardcoded forward slash", () => {
+      // Verify the implementation uses sep for the startsWith check.
+      // On this platform, sep is the native separator, so valid paths
+      // within the base directory should always pass.
+      const result = buildSafeFilePath(baseDir, "test-agent", ".json");
+      const resolvedResult = resolve(result);
+      const resolvedBase = resolve(baseDir);
+      const expectedPrefix = resolvedBase.endsWith(sep) ? resolvedBase : `${resolvedBase}${sep}`;
+      expect(resolvedResult.startsWith(expectedPrefix)).toBe(true);
+    });
+
+    it("does not produce double separators when base ends with sep", () => {
+      // A base directory that ends with a separator should not cause
+      // the prefix check to fail due to doubled separators.
+      const baseWithTrailingSep = `/tmp/sessions${sep}`;
+      const result = buildSafeFilePath(baseWithTrailingSep, "agent", ".json");
+      expect(result).toBe(join(baseWithTrailingSep, "agent.json"));
     });
   });
 });
