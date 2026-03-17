@@ -1,5 +1,11 @@
 # @herdctl/core
 
+## 5.10.1
+
+### Patch Changes
+
+- [#210](https://github.com/edspencer/herdctl/pull/210) [`31c675c`](https://github.com/edspencer/herdctl/commit/31c675cbd3cc73c039abe083aa8314dee266acf9) Thanks [@mblua](https://github.com/mblua)! - Fix path traversal check to use platform-specific path separator for Windows compatibility
+
 ## 5.10.0
 
 ### Minor Changes
