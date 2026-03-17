@@ -84,7 +84,8 @@ export function buildSafeFilePath(baseDir: string, identifier: string, extension
   const resolvedBase = resolve(baseDir);
   const resolvedPath = resolve(filePath);
 
-  if (!resolvedPath.startsWith(`${resolvedBase}${sep}`) && resolvedPath !== resolvedBase) {
+  const basePrefix = resolvedBase.endsWith(sep) ? resolvedBase : `${resolvedBase}${sep}`;
+  if (!resolvedPath.startsWith(basePrefix) && resolvedPath !== resolvedBase) {
     throw new PathTraversalError(baseDir, identifier, resolvedPath);
   }
 
