@@ -150,6 +150,15 @@ export interface HookContext {
   };
 
   /**
+   * How the job was triggered (e.g. "manual", "schedule", "discord", "slack")
+   *
+   * Used to prevent duplicate notifications - for example, Discord hooks are
+   * skipped when triggerType is "discord" because the Discord manager already
+   * streams output to the channel in real-time.
+   */
+  triggerType?: string;
+
+  /**
    * Agent-provided metadata (from metadata.json or configured metadata_file)
    *
    * This is arbitrary structured data that the agent can write during execution.
