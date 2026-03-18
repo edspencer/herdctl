@@ -7,6 +7,13 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Windows Path Traversal Fix
+**March 17, 2026** · `@herdctl/core@5.10.1`
+
+Fixed a critical bug affecting Windows users where path traversal security checks were using hardcoded forward slashes (`/`) instead of platform-specific path separators. On Windows, `path.resolve` returns paths with backslashes (`\`), so the `startsWith` check in `buildSafeFilePath` always failed, causing false positive `PathTraversalError` exceptions on every state file operation. This made herdctl completely unusable on Windows. The fix uses `path.sep` for cross-platform compatibility and handles edge cases where base paths already end with a separator (e.g., root directories like `/` or `C:\`). This brings full Windows support to herdctl with all features (fleet management, scheduling, chat integrations, Docker runtime, web dashboard) now working correctly on Windows. [#210](https://github.com/edspencer/herdctl/pull/210)
+
+---
+
 ### Discord File Attachment Support
 **March 10, 2026** · `@herdctl/discord@1.2.0` · `@herdctl/core@5.10.0`
 

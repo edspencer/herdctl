@@ -15,6 +15,14 @@ Before you begin, ensure you have:
 - **Claude Code CLI** - Agents use Claude Code under the hood ([install instructions](https://docs.anthropic.com/en/docs/claude-code))
 - **Git** - For workspace management and repo cloning
 
+### Platform Support
+
+herdctl works on **macOS, Linux, and Windows**. All core features (fleet management, agent scheduling, chat integrations, Docker runtime, and the web dashboard) are fully supported across all three platforms.
+
+<Aside type="note">
+  Windows compatibility was significantly improved in `@herdctl/core@5.10.1` with a fix to path traversal security checks that previously caused false positives on Windows due to platform-specific path separators.
+</Aside>
+
 ## Installation
 
 <Tabs>
