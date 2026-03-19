@@ -9,8 +9,6 @@
  * This file contains only runtime types not derived from Zod schemas.
  */
 
-import type { TriggerType } from "../state/schemas/job-metadata.js";
-
 // Import config types that are validated by Zod
 // We import both output types (after defaults) and input types (for construction)
 import type {
@@ -28,6 +26,7 @@ import type {
   WebhookHookConfig,
   WebhookHookConfigInput,
 } from "../config/schema.js";
+import type { TriggerType } from "../state/schemas/job-metadata.js";
 
 // Re-export for convenience within the hooks module
 // Export input types (used by tests and runners)
