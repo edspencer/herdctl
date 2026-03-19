@@ -9,6 +9,8 @@
  * This file contains only runtime types not derived from Zod schemas.
  */
 
+import type { TriggerType } from "../state/schemas/job-metadata.js";
+
 // Import config types that are validated by Zod
 // We import both output types (after defaults) and input types (for construction)
 import type {
@@ -156,7 +158,7 @@ export interface HookContext {
    * skipped when triggerType is "discord" because the Discord manager already
    * streams output to the channel in real-time.
    */
-  triggerType?: string;
+  triggerType?: TriggerType;
 
   /**
    * Agent-provided metadata (from metadata.json or configured metadata_file)
