@@ -26,6 +26,7 @@ import type {
   WebhookHookConfig,
   WebhookHookConfigInput,
 } from "../config/schema.js";
+import type { TriggerType } from "../state/schemas/job-metadata.js";
 
 // Re-export for convenience within the hooks module
 // Export input types (used by tests and runners)
@@ -148,6 +149,15 @@ export interface HookContext {
      */
     name?: string;
   };
+
+  /**
+   * How the job was triggered (e.g. "manual", "schedule", "discord", "slack")
+   *
+   * Used to prevent duplicate notifications - for example, Discord hooks are
+   * skipped when triggerType is "discord" because the Discord manager already
+   * streams output to the channel in real-time.
+   */
+  triggerType?: TriggerType;
 
   /**
    * Agent-provided metadata (from metadata.json or configured metadata_file)

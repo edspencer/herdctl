@@ -509,9 +509,24 @@ export class JobControl {
     });
 
     // Execute after_run hooks (run for all events)
-    if (agent.hooks.after_run && agent.hooks.after_run.length > 0) {
-      logger.debug(`Executing ${agent.hooks.after_run.length} after_run hook(s)`);
-      const afterRunResult = await hookExecutor.executeHooks(agent.hooks, context, "after_run");
+    // Skip Discord hooks when the job was triggered from Discord, since the
+    // Discord manager already streams output to the channel in real-time.
+    const filteredAfterRun =
+      context.triggerType === "discord"
+        ? (agent.hooks.after_run ?? []).filter((h) => h.type !== "discord")
+        : agent.hooks.after_run;
+    if (filteredAfterRun && filteredAfterRun.length > 0) {
+      if (filteredAfterRun.length !== (agent.hooks.after_run ?? []).length) {
+        logger.debug(
+          "Skipping Discord after_run hook(s) for Discord-triggered job to prevent duplicates",
+        );
+      }
+      logger.debug(`Executing ${filteredAfterRun.length} after_run hook(s)`);
+      const afterRunResult = await hookExecutor.executeHooks(
+        { ...agent.hooks, after_run: filteredAfterRun },
+        context,
+        "after_run",
+      );
 
       if (afterRunResult.shouldFailJob) {
         logger.warn(`Hook failure with continue_on_error=false detected for job ${jobMetadata.id}`);
@@ -519,9 +534,23 @@ export class JobControl {
     }
 
     // Execute on_error hooks (only for failed events)
-    if (event === "failed" && agent.hooks.on_error && agent.hooks.on_error.length > 0) {
-      logger.debug(`Executing ${agent.hooks.on_error.length} on_error hook(s)`);
-      const onErrorResult = await hookExecutor.executeHooks(agent.hooks, context, "on_error");
+    // Also skip Discord hooks for Discord-triggered jobs here
+    const filteredOnError =
+      context.triggerType === "discord"
+        ? (agent.hooks.on_error ?? []).filter((h) => h.type !== "discord")
+        : agent.hooks.on_error;
+    if (event === "failed" && filteredOnError && filteredOnError.length > 0) {
+      if (filteredOnError.length !== (agent.hooks.on_error ?? []).length) {
+        logger.debug(
+          "Skipping Discord on_error hook(s) for Discord-triggered job to prevent duplicates",
+        );
+      }
+      logger.debug(`Executing ${filteredOnError.length} on_error hook(s)`);
+      const onErrorResult = await hookExecutor.executeHooks(
+        { ...agent.hooks, on_error: filteredOnError },
+        context,
+        "on_error",
+      );
 
       if (onErrorResult.shouldFailJob) {
         logger.warn(
@@ -556,6 +585,7 @@ export class JobControl {
 
     return {
       event,
+      triggerType: jobMetadata.trigger_type,
       job: {
         id: jobMetadata.id,
         agentId: agent.qualifiedName,
