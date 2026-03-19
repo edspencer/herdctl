@@ -176,5 +176,5 @@ The daily agent compares its report against the previous report in `.reports/cla
 |------|--------|-------------|
 | 1. Gold standard | ✅ Done | `canon/claude-md-gold-standard.md` |
 | 2. Audit process | ✅ This document | Repeatable audit producing gap reports |
-| 3. One-time alignment | Pending | Run audit, fix all gaps, establish baseline |
-| 4. Daily scheduled agent | Pending | Runs audit daily, opens PRs for new issues |
+| 3. One-time alignment | ✅ Done | All 19 issues fixed, baseline at 0 issues |
+| 4. Daily scheduled agent | ✅ Done | `.claude/commands/claude-md-audit-daily.md` |
