@@ -86,6 +86,8 @@ Your agents are now running. Check their status:
 herdctl status
 ```
 
+**Platform Support**: herdctl works on Linux, macOS, and Windows. All packages are fully cross-platform.
+
 ## Web Dashboard
 
 <div align="center">
