@@ -7,6 +7,13 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Windows Path Separator Compatibility Fix
+**March 17, 2026** · `@herdctl/core@5.10.1`
+
+Fixed a critical bug that prevented herdctl from functioning on Windows systems. The path traversal security check in state file operations used a hardcoded forward slash (`/`) separator, but Windows `path.resolve()` returns paths with backslashes (`\`). This caused every state file operation to fail with false positive `PathTraversalError` exceptions, making herdctl completely non-functional on Windows. The fix uses `path.sep` to correctly handle platform-specific path separators on both Windows and Unix systems. Also handles edge cases where base paths already end with a separator to prevent double-separator bugs. [#210](https://github.com/edspencer/herdctl/pull/210)
+
+---
+
 ### Discord File Attachment Support
 **March 10, 2026** · `@herdctl/discord@1.2.0` · `@herdctl/core@5.10.0`
 
