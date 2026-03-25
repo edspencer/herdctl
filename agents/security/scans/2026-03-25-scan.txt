@@ -1,0 +1,87 @@
+Running security checks...
+
+  Checking npm-audit... FAIL (3632ms, 2 findings)
+  Checking docker-config... FAIL (201ms, 3 findings)
+  Checking permission-modes... WARN (58ms, 2 findings)
+  Checking subprocess-patterns... WARN (46ms, 6 findings)
+  Checking path-safety... PASS (3ms, 0 findings)
+  Checking env-handling... PASS (128ms, 0 findings)
+════════════════════════════════════════════════════════════
+  HERDCTL SECURITY SCAN REPORT
+════════════════════════════════════════════════════════════
+
+  Date:    2026-03-25
+  Commit:  7da72a6
+  Branch:  main
+  Status:  FAIL
+
+────────────────────────────────────────────────────────────
+  SUMMARY
+────────────────────────────────────────────────────────────
+  Total checks: 6  |  Passed: 2  |  Warned: 2  |  Failed: 2
+
+────────────────────────────────────────────────────────────
+  NPM-AUDIT (fail)
+────────────────────────────────────────────────────────────
+  [!] [HIGH] 8 high severity vulnerabilities found in dependencies
+      Recommendation: Run `pnpm audit fix` or manually update affected packages
+
+  [~] [MEDIUM] 11 moderate vulnerabilities found in dependencies
+      Recommendation: Review and update affected packages when possible
+
+────────────────────────────────────────────────────────────
+  DOCKER-CONFIG (fail)
+────────────────────────────────────────────────────────────
+  [!] [HIGH] hostConfigOverride can bypass Docker security hardening
+      Location: packages/core/src/runner/runtime/docker-config.ts:259
+      Recommendation: Ensure this is only used at fleet-level config, never from agent input
+
+  [!] [HIGH] hostConfigOverride can bypass Docker security hardening
+      Location: packages/core/src/runner/runtime/container-manager.ts:144
+      Recommendation: Ensure this is only used at fleet-level config, never from agent input
+
+  [!] [HIGH] hostConfigOverride can bypass Docker security hardening
+      Location: packages/core/src/runner/runtime/container-manager.ts:145
+      Recommendation: Ensure this is only used at fleet-level config, never from agent input
+
+────────────────────────────────────────────────────────────
+  PERMISSION-MODES (warn)
+────────────────────────────────────────────────────────────
+  [.] [LOW] bypassPermissions used in 1 example config(s) - consider adding Docker isolation
+      Location: examples/bragdoc-developer/agents/developer.yaml:47
+      Recommendation: Example configs with bypassPermissions should demonstrate Docker isolation for security.
+
+  [~] [MEDIUM] bypassPermissions referenced in code
+      Location: packages/cli/src/index.ts:107
+      Recommendation: Ensure this is only for schema/type definitions, not setting the value
+
+────────────────────────────────────────────────────────────
+  SUBPROCESS-PATTERNS (warn)
+────────────────────────────────────────────────────────────
+  [.] [LOW] Direct child_process import - consider using execa instead
+      Location: packages/core/src/distribution/repository-fetcher.ts:8
+      Recommendation: execa provides better escaping and cross-platform support
+
+  [.] [LOW] Direct child_process import - consider using execa instead
+      Location: packages/core/src/hooks/runners/shell.ts:8
+      Recommendation: execa provides better escaping and cross-platform support
+
+  [.] [LOW] Direct child_process import - consider using execa instead
+      Location: packages/cli/src/commands/sessions.ts:12
+      Recommendation: execa provides better escaping and cross-platform support
+
+  [.] [LOW] Direct child_process import - consider using execa instead
+      Location: packages/cli/src/commands/init-agent.ts:12
+      Recommendation: execa provides better escaping and cross-platform support
+
+  [~] [MEDIUM] shell: true option enables shell interpretation
+      Location: packages/core/src/hooks/runners/shell.ts:154
+      Recommendation: Avoid shell: true unless necessary - it enables shell metacharacter processing
+
+  [~] [MEDIUM] shell: true option enables shell interpretation
+      Location: packages/cli/src/commands/sessions.ts:421
+      Recommendation: Avoid shell: true unless necessary - it enables shell metacharacter processing
+
+════════════════════════════════════════════════════════════
+  Completed in 4082ms
+════════════════════════════════════════════════════════════
