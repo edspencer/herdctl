@@ -1,9 +1,9 @@
 ---
-last_updated: 2026-03-25T00:00:00Z
+last_updated: 2026-03-27T00:00:00Z
 last_mapping: 2026-02-14
-last_audit: 2026-03-25
+last_audit: 2026-03-27
 commits_since_audit: 0
-commits_since_mapping: 129
+commits_since_mapping: 132
 open_findings: 8
 open_questions: 8
 status: audit_complete_green
@@ -11,7 +11,7 @@ status: audit_complete_green
 
 # Security Audit State
 
-**Last Updated:** 2026-02-20 00:00 UTC
+**Last Updated:** 2026-03-27 00:00 UTC
 
 This document provides persistent state for security audits, enabling incremental reviews that build on previous work rather than starting fresh each time.
 
@@ -22,19 +22,19 @@ This document provides persistent state for security audits, enabling incrementa
 | Metric | Value | Notes |
 |--------|-------|-------|
 | Last full mapping | 2026-02-14 | Comprehensive audit completed |
-| Last incremental audit | 2026-03-25 | Incremental - GREEN - Path traversal strengthened, Discord validated |
-| Commits since last audit | 0 | At 7da72a6 (2026-03-25) |
+| Last incremental audit | 2026-03-27 | Incremental - GREEN - No code changes, npm audit degraded |
+| Commits since last audit | 0 | At 6b44cf1 (2026-03-27) |
 | Open findings | 8 | See [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
-| Open questions | 8 | Q1, Q3, Q4, Q5, Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q14 (3 answered) |
+| Open questions | 8 | Q1, Q3, Q4, Q5, Q7, Q8, Q9, Q10, Q11, Q13 (2 answered) |
 
-**Status:** GREEN - No new vulnerabilities; positive security progress (path traversal fix, Discord validation).
+**Status:** GREEN - No security-relevant code changes; npm audit degradation requires attention (10 HIGH, 17 MEDIUM).
 
 ### Finding Breakdown
 
 - **Critical: 0**
-- **High: 1** (#012 NEW - web API auth missing)
+- **High: 2** (#012 web API auth missing, #008 npm audit ELEVATED)
 - High: 1 (accepted risk - hostConfigOverride #002)
-- **Medium: 4** (#011 OAuth risk elevated, #010 job retention, #008 npm audit, #006 accepted)
+- **Medium: 3** (#011 OAuth risk elevated, #010 job retention, #006 accepted)
 - Low: 1 (partially fixed - shell escaping #009)
 - Intentional: 1 (#005 example config)
 
@@ -52,12 +52,12 @@ Security coverage by area with staleness tracking.
 
 | Area | Last Checked | Commits Since | Status | Notes |
 |------|--------------|---------------|--------|-------|
-| Attack surface | 2026-03-25 | 0 | ✅ Current | Discord connector expansion (voice, files, slash cmds) analyzed |
-| Data flows | 2026-03-25 | 0 | ✅ Current | Discord voice/file flows traced and validated |
-| Security controls | 2026-03-25 | 0 | ✅ Current | Path traversal fix verified (Windows compat), Discord validation reviewed |
-| Threat vectors | 2026-03-25 | 0 | ✅ Current | Voice transcription, file upload, slash command vectors assessed |
-| Hot spots | 2026-03-25 | 0 | ✅ Current | Scanner run complete - 4533ms |
-| Code patterns | 2026-03-25 | 0 | ✅ Current | buildSafeFilePath fix verified (path.sep cross-platform) |
+| Attack surface | 2026-03-27 | 0 | ✅ Current | No new entry points (housekeeping commits only) |
+| Data flows | 2026-03-27 | 0 | ✅ Current | No new data paths (housekeeping commits only) |
+| Security controls | 2026-03-27 | 0 | ✅ Current | All controls unchanged (housekeeping commits only) |
+| Threat vectors | 2026-03-27 | 0 | ✅ Current | No new threat scenarios (housekeeping commits only) |
+| Hot spots | 2026-03-27 | 0 | ✅ Current | Scanner run complete - 4977ms - npm audit degraded |
+| Code patterns | 2026-03-27 | 0 | ✅ Current | No code changes (housekeeping commits only) |
 
 ### Staleness Thresholds
 
@@ -74,9 +74,9 @@ Active findings and open questions requiring attention.
 | ID | Type | Summary | Priority | Status | Source |
 |----|------|---------|----------|--------|--------|
 | #012 | Finding | Web API lacks authentication | **HIGH** | OPEN - Needs documentation | [2026-03-06 Report](intel/2026-03-06.md) |
+| #008 | Finding | npm audit - 10 HIGH, 17 MEDIUM vulns | **HIGH** | ELEVATED - Degradation from 8/11 | Scanner 2026-03-27 |
 | #011 | Finding | OAuth credential management - risk elevated | **MEDIUM** | YELLOW - Session exposure risk | [2026-03-06 Report](intel/2026-03-06.md) |
 | #010 | Finding | bypassPermissions in 22 job files | MEDIUM | YELLOW - Retention policy needed | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
-| #008 | Finding | npm audit - 8 HIGH, 11 MEDIUM vulns | Medium | Unchanged from 2026-03-06 | Scanner 2026-03-25 |
 | Q1 | Question | Webhook authentication | Medium | Related to #012 - web API has no auth | [2026-03-06 Report](intel/2026-03-06.md) |
 | Q13 | Question | encodedPath path traversal | Medium | Partially answered - indirect validation via groups | [2026-03-06 Report](intel/2026-03-06.md) |
 | Q11 | Question | GitHub SSRF in repo cloning | Medium | Confirmed - no allowlist; mitigations present | [2026-03-06 Report](intel/2026-03-06.md) |
@@ -90,15 +90,16 @@ Active findings and open questions requiring attention.
 
 Ordered by urgency for next audit session:
 
-1. **HIGH P1:** Document web dashboard as localhost-only, warn against network exposure (#012)
-2. **HIGH P2:** Audit session files for OAuth credential leaks (#011 + #012 combined risk)
-3. **MEDIUM P1:** Document Discord voice transcription privacy (new in 2026-03-25)
-4. **MEDIUM P2:** Add encodedPath explicit validation (Q13)
-5. **MEDIUM P3:** Review OAuth logging for credential leaks (#011)
-6. **MEDIUM P4:** Implement job file retention policy (30 days) to resolve #010
-7. **MEDIUM P5:** Consider GitHub URL allowlist for distribution system (Q11)
-8. **LOW P1:** Review Discord slash command output for sensitive data
-9. **LOW P2:** Complete shell escaping verification (#009)
+1. **HIGH P1:** Run npm audit analysis and assess remediation (#008 ELEVATED)
+2. **HIGH P2:** Document web dashboard as localhost-only, warn against network exposure (#012)
+3. **HIGH P3:** Audit session files for OAuth credential leaks (#011 + #012 combined risk)
+4. **MEDIUM P1:** Document Discord voice transcription privacy (from 2026-03-25)
+5. **MEDIUM P2:** Add encodedPath explicit validation (Q13)
+6. **MEDIUM P3:** Review OAuth logging for credential leaks (#011)
+7. **MEDIUM P4:** Implement job file retention policy (30 days) to resolve #010
+8. **MEDIUM P5:** Consider GitHub URL allowlist for distribution system (Q11)
+9. **LOW P1:** Review Discord slash command output for sensitive data
+10. **LOW P2:** Complete shell escaping verification (#009)
 
 ---
 
@@ -108,6 +109,8 @@ Ordered by urgency for next audit session:
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
+| 2026-03-27 | #008 ELEVATED to HIGH - npm audit degradation | 10 HIGH (was 8), 17 MEDIUM (was 11) vulnerabilities; upstream dependency issue |
+| 2026-03-27 | Audit status GREEN - No code changes | Only engineer housekeeping commits; no security-relevant changes |
 | 2026-03-25 | #001 STRENGTHENED - Path traversal fix for Windows | Commit 31c675c fixes cross-platform path separator handling; includes test coverage |
 | 2026-03-25 | Discord expansion VALIDATED - New attack surface assessed | Voice transcription, file attachments, slash commands include proper validation |
 | 2026-03-25 | Discord privacy note needed | Voice transcriptions posted publicly; needs documentation |
@@ -130,25 +133,26 @@ Ordered by urgency for next audit session:
 
 Security capabilities not yet implemented or areas needing investigation:
 
-- **HIGH NEW: Web API has no authentication** - localhost-only by design but needs documentation (#012)
-- **HIGH NEW: Session files exposed via web API** - may contain OAuth tokens from error logs (#011 + #012)
-- **MEDIUM NEW: Discord voice transcription privacy** - transcriptions posted publicly; needs documentation
+- **HIGH: npm audit 10 HIGH/17 MEDIUM vulnerabilities** - upstream dependency issue; needs remediation analysis (#008 ELEVATED)
+- **HIGH: Web API has no authentication** - localhost-only by design but needs documentation (#012)
+- **HIGH: Session files exposed via web API** - may contain OAuth tokens from error logs (#011 + #012)
+- **MEDIUM: Discord voice transcription privacy** - transcriptions posted publicly; needs documentation
 - **MEDIUM: encodedPath validation is indirect** - should add explicit regex validation (Q13)
 - **MEDIUM: OAuth credential file permissions not enforced** - writeCredentialsFile() doesn't set 0600 (#011)
 - **MEDIUM: OAuth error logging may leak tokens** - logger.error() calls need review (#011)
 - **MEDIUM: Job file retention policy not implemented** - 22 bypassPermissions files accumulating (#010)
 - **MEDIUM: GitHub SSRF potential** - no URL allowlist for repository cloning (Q11)
-- **LOW NEW: Discord slash command info disclosure** - /config, /tools, /status reveal agent metadata
-- **LOW NEW: Discord file upload DoS potential** - no rate limiting (size/count limits in place)
+- **LOW: Discord slash command info disclosure** - /config, /tools, /status reveal agent metadata
+- **LOW: Discord file upload DoS potential** - no rate limiting (size/count limits in place)
 - No secret detection in logs (output could leak sensitive data) - Q4
 - No rate limiting on triggers (DoS vector for scheduled jobs + new Discord features) - Q9
 
 ### Session Continuity
 
-- **Last session:** 2026-03-25 - Incremental audit covering 18 commits
-- **Completed:** Scanner run (FAIL - unchanged), change analysis (path traversal fix + Discord expansion), validation review (voice/files/slash cmds), #001 strengthening verified
-- **Resume from:** Normal operations; next scheduled audit ~2026-03-26
-- **Next priority:** Document web dashboard security model (#012), document Discord voice privacy, audit session files for credential leaks (#011)
+- **Last session:** 2026-03-27 - Incremental audit covering 3 commits
+- **Completed:** Scanner run (FAIL - npm audit degraded), change analysis (no security changes - housekeeping only), #008 elevated to HIGH priority
+- **Resume from:** Normal operations; next scheduled audit ~2026-03-28
+- **Next priority:** npm audit remediation analysis (#008), document web dashboard security model (#012), document Discord voice privacy
 
 ---
 
