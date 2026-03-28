@@ -7,6 +7,13 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Windows Platform Support Fix
+**March 20, 2026** · `@herdctl/core@5.10.1`
+
+Fixed a critical Windows compatibility bug that caused state file operations to fail with false positive `PathTraversalError` on every operation. The path traversal safety check used a hardcoded `/` separator, but Windows `path.resolve()` returns paths with `\`, causing the `startsWith` check to always fail. The fix uses `path.sep` to work correctly on both Windows and Unix systems, and handles edge cases like root directory base paths. herdctl now works reliably on Windows 10/11 and Windows Server 2019+. [#210](https://github.com/edspencer/herdctl/pull/210)
+
+---
+
 ### Discord File Attachment Support
 **March 10, 2026** · `@herdctl/discord@1.2.0` · `@herdctl/core@5.10.0`
 

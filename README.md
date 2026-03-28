@@ -69,6 +69,8 @@ In which we try to cover all of the main parts of herdctl in 20 minutes:
 
 ## Quick Start
 
+**Requirements:** Node.js 20+, Claude Code CLI, Git. Runs on Linux, macOS, and Windows.
+
 ```bash
 # Install herdctl globally
 npm install -g herdctl
