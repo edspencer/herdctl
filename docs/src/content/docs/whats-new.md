@@ -7,6 +7,13 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Windows Path Separator Fix
+**March 17, 2026** · `@herdctl/core@5.10.1`
+
+Fixed a critical bug that made herdctl completely unusable on Windows. The path traversal check in `buildSafeFilePath` was using a hardcoded forward slash (`/`) as the path separator when validating that file paths stay within their intended directories. On Windows, Node.js `path.resolve` returns paths with backslashes (`\`), causing the security check to always fail with false positive `PathTraversalError` exceptions on every state file operation. All state operations (job tracking, session persistence, fleet state) would fail immediately, making herdctl unable to run on Windows systems. The fix uses `path.sep` for platform-specific separator detection and handles edge cases like root directory base paths. [#210](https://github.com/edspencer/herdctl/pull/210)
+
+---
+
 ### Discord File Attachment Support
 **March 10, 2026** · `@herdctl/discord@1.2.0` · `@herdctl/core@5.10.0`
 
