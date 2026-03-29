@@ -7,6 +7,13 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Windows Compatibility Fix
+**March 17, 2026** · `@herdctl/core@5.10.1` · `herdctl@1.5.8`
+
+Fixed a critical Windows compatibility issue where herdctl would fail on all state file operations due to incorrect path separator handling. The path traversal security check now uses platform-specific separators (`\` on Windows, `/` on Unix), allowing Windows users to run fleets without encountering false-positive PathTraversalError exceptions. This patch also handles edge cases with root directory paths that could trigger the same error on any platform. [#210](https://github.com/edspencer/herdctl/pull/210)
+
+---
+
 ### Discord File Attachment Support
 **March 10, 2026** · `@herdctl/discord@1.2.0` · `@herdctl/core@5.10.0`
 
