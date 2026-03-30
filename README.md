@@ -67,6 +67,13 @@ In which we try to cover all of the main parts of herdctl in 20 minutes:
   <p><em>Watch the demo</em></p>
 </div>
 
+## Prerequisites
+
+- **Node.js 20+** — herdctl requires Node.js 20 or later
+- **Claude Code CLI** — Agents use Claude Code under the hood ([install instructions](https://docs.anthropic.com/en/docs/claude-code))
+- **Git** — For workspace management and repo cloning
+- **Platform Support** — macOS, Linux, and Windows
+
 ## Quick Start
 
 ```bash
