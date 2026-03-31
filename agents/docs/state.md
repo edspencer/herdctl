@@ -1,14 +1,14 @@
 ---
-last_checked_commit: 1114870f5bcf4d2b7ce74e0df7e1f7d5e3f3b6b9
-last_run: "2026-03-13T07:08:30Z"
-docs_gaps_found: 5
-branches_created: ["docs/auto-update-2026-02-21", "docs/auto-update-2026-03-01", "docs/auto-update-2026-03-05", "docs/auto-update-2026-03-07", "docs/auto-update-2026-03-13"]
+last_checked_commit: d3eee49fba8e4b2a8f5e6c7d8e9f0a1b2c3d4e5f
+last_run: "2026-03-31T03:04:33Z"
+docs_gaps_found: 1
+branches_created: ["docs/auto-update-2026-02-21", "docs/auto-update-2026-03-01", "docs/auto-update-2026-03-05", "docs/auto-update-2026-03-07", "docs/auto-update-2026-03-13", "docs/auto-update-2026-03-31"]
 status: completed
 ---
 
 # Documentation Audit State
 
-**Last Updated:** 2026-03-13
+**Last Updated:** 2026-03-31
 
 This document tracks the state of the documentation audit agent, enabling
 incremental reviews that analyze only new commits since the last check.
@@ -19,10 +19,10 @@ incremental reviews that analyze only new commits since the last check.
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Last checked commit | 1114870 | docs: auto-update documentation (2026-03-07) |
-| Last run | 2026-03-13T07:08:30Z | Manual invocation |
-| Gaps found (last run) | 5 | Discord improvements features |
-| Branches created | docs/auto-update-2026-03-13 | Added Discord voice, attachments, output, guild, skills docs |
+| Last checked commit | d3eee49 | chore(engineer): daily housekeeping |
+| Last run | 2026-03-31T03:04:33Z | Scheduled run |
+| Gaps found (last run) | 1 | Windows compatibility fix |
+| Branches created | docs/auto-update-2026-03-31 | Added Windows support to What's New |
 
 ---
 
@@ -30,6 +30,7 @@ incremental reviews that analyze only new commits since the last check.
 
 | Date | Commits Analyzed | Gaps Found | Action | Branch |
 |------|-----------------|------------|--------|--------|
+| 2026-03-31 | 2 | 1 | created-branch | docs/auto-update-2026-03-31 |
 | 2026-03-13 | 3 | 5 | created-branch | docs/auto-update-2026-03-13 |
 | 2026-03-07 | 4 | 1 | created-branch | docs/auto-update-2026-03-07 |
 | 2026-03-05 | 10 | 1 | created-branch | docs/auto-update-2026-03-05 |
