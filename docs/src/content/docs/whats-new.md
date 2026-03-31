@@ -14,6 +14,13 @@ Discord bots can now process file attachments uploaded alongside messages. When 
 
 ---
 
+### Windows Compatibility Fix
+**March 17, 2026** · `@herdctl/core@5.9.1`
+
+Fixed a critical bug that prevented herdctl from functioning on Windows. The state file path traversal check was using hardcoded "/" as the path separator, which didn't match Windows paths (which use "\"). This caused false positive `PathTraversalError` on every state file operation in Windows environments. Path checks now use `path.sep` for cross-platform compatibility, making herdctl fully functional on Windows for the first time. [#210](https://github.com/edspencer/herdctl/pull/210)
+
+---
+
 ### CLI Runtime MCP Server Support
 **March 10, 2026** · `@herdctl/core@5.10.0`
 
