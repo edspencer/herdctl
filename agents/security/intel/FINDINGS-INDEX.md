@@ -7,13 +7,14 @@ and manual review. Updated after each security review.
 
 | ID | Severity | Title | First Seen | Status | Location |
 |----|----------|-------|------------|--------|----------|
+| 013 | **HIGH** | **npm dependency vulnerability escalation** | 2026-04-11 | 🔴 OPEN - Triage needed | dependencies |
 | 012 | **HIGH** | **Web API lacks authentication** | 2026-03-06 | 🔴 OPEN - Document localhost-only | packages/web/src/server/routes/chat.ts |
 | 011 | **MEDIUM** | **OAuth credential management - risk elevated** | 2026-02-20 | 🟡 YELLOW - Session exposure risk | container-manager.ts + session files |
 | 010 | Medium | bypassPermissions in job files (22 files) | 2026-02-12 | 🟡 YELLOW - Retention needed | .herdctl/jobs/*.yaml |
 | 002 | High | hostConfigOverride can bypass Docker security | 2026-02-05 | ⚠️ Accepted Risk | container-manager.ts |
 | 005 | Medium | bypassPermissions in example config | 2026-02-05 | ℹ️ Intentional | examples/bragdoc-developer/ |
 | 006 | Medium | shell:true in hook runner | 2026-02-05 | ⚠️ Accepted Risk | hooks/runners/shell.ts |
-| 008 | Medium | npm audit parser error | 2026-02-05 | 📋 Manual Check Needed | dependencies |
+| 008 | Medium | npm audit parser error (superseded by #013) | 2026-02-05 | 📋 Manual Check Needed | dependencies |
 | 009 | Low | Incomplete shell escaping in Docker prompts | 2026-02-05 | 🔧 Partially Fixed | container-runner.ts (commit a0e7ad8) |
 
 ## Resolved Findings
@@ -272,17 +273,71 @@ The web dashboard added four new REST API endpoints in commit 01274a8 (PR #144) 
 
 ---
 
+### ID 013: npm Dependency Vulnerability Escalation 🆕 🔴 HIGH
+**Severity**: HIGH
+**First Seen**: 2026-04-11
+**Location**: Package dependencies
+**Status**: 🔴 OPEN - Requires immediate triage
+
+**Vulnerability Count:**
+- **2 CRITICAL** vulnerabilities (new)
+- **15 HIGH** vulnerabilities (up from 4)
+- **24 MODERATE** vulnerabilities (up from 4)
+- **Total: 41 vulnerabilities**
+
+**Growth Trend:**
+```
+2026-03-06:  0 critical,  4 high,  4 moderate
+2026-04-11:  2 critical, 15 high, 24 moderate
+```
+
+**Impact:**
+- Dependency risk significantly increased since last audit
+- Critical vulnerabilities require immediate review
+- May affect production deployments depending on affected packages
+
+**Scanner Output:**
+```
+npm-audit: 3 findings
+  - CRITICAL: 2 critical vulnerabilities in dependencies
+  - HIGH: 15 high severity vulnerabilities in dependencies
+  - MEDIUM: 24 moderate vulnerabilities in dependencies
+```
+
+**Recommended Actions (Priority Order):**
+1. **IMMEDIATE (24 hours):** Run `pnpm audit` to identify affected packages
+2. **IMMEDIATE (24 hours):** Review critical vulnerabilities for exploitability
+3. **HIGH (7 days):** Update vulnerable dependencies with `pnpm audit fix`
+4. **HIGH (7 days):** Assess if vulnerabilities affect runtime vs. dev/build tools
+5. **MEDIUM (30 days):** Address moderate severity issues
+6. **MEDIUM (30 days):** Implement automated dependency scanning in CI/CD
+7. **MEDIUM (30 days):** Set up security advisory alerts (GitHub Dependabot)
+
+**Investigation Needed:**
+- Which packages are affected?
+- Are vulnerabilities in runtime dependencies or dev dependencies?
+- Are there available patches/updates?
+- What is the exploitability in herdctl's context?
+- Do any affect the Docker container runtime, web dashboard, or CLI?
+
+**Related Findings:**
+- Finding #008 (npm audit parser error) - superseded by this finding
+
+**Introduced Between:** 2026-03-06 and 2026-04-11 (22 commits)
+
+---
+
 ## Statistics
 
-- **Total Findings**: 12
+- **Total Findings**: 13
 - **Resolved**: 2
 - **False Positives**: 2
-- **Active**: 8
+- **Active**: 9
   - Critical: 0
-  - **High: 1 (NEW - web API auth)**
+  - **High: 2 (npm vulns #013, web API auth #012)**
   - High: 1 (accepted - hostConfigOverride)
-  - **Medium: 4 (1 elevated, 1 retention, 1 accepted, 1 npm audit)**
-  - Low: 1 (partially fixed - shell escaping)
+  - **Medium: 4 (1 elevated #011, 1 retention #010, 1 accepted #006, 1 superseded #008)**
+  - Low: 1 (partially fixed - shell escaping #009)
 
 ---
 
@@ -311,9 +366,10 @@ Based on false positives identified:
 | 2026-02-17 | /security-audit | 0 | 0 | **#010 DOWNGRADED** - corrected count: 21 files |
 | 2026-02-20 | /security-audit | 1 | 0 | **#011 NEW** - OAuth credential management |
 | 2026-03-06 | /security-audit | 1 | 0 | **#012 NEW** - Web API lacks auth; #011 risk elevated; 71 commits |
+| 2026-04-11 | /security-audit | 1 | 0 | **#013 NEW** - npm vulns escalated (2 crit, 15 high); 22 commits; GREEN status |
 
 ---
 
-**Last Updated:** 2026-03-06
+**Last Updated:** 2026-04-11
 **Status:** 🟡 YELLOW - 1 HIGH finding needs documentation, 1 MEDIUM risk elevated
 
