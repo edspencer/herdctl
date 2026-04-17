@@ -7,7 +7,7 @@ and manual review. Updated after each security review.
 
 | ID | Severity | Title | First Seen | Status | Location |
 |----|----------|-------|------------|--------|----------|
-| 013 | **HIGH** | **npm dependency vulnerability escalation** | 2026-04-11 | 🔴 OPEN - Triage needed | dependencies |
+| 013 | **HIGH** | **npm dependency vulnerabilities (DEGRADED)** | 2026-04-11 | 🔴 OPEN - lodash runtime vuln urgent | dependencies |
 | 012 | **HIGH** | **Web API lacks authentication** | 2026-03-06 | 🔴 OPEN - Document localhost-only | packages/web/src/server/routes/chat.ts |
 | 011 | **MEDIUM** | **OAuth credential management - risk elevated** | 2026-02-20 | 🟡 YELLOW - Session exposure risk | container-manager.ts + session files |
 | 010 | Medium | bypassPermissions in job files (22 files) | 2026-02-12 | 🟡 YELLOW - Retention needed | .herdctl/jobs/*.yaml |
@@ -273,57 +273,67 @@ The web dashboard added four new REST API endpoints in commit 01274a8 (PR #144) 
 
 ---
 
-### ID 013: npm Dependency Vulnerability Escalation 🆕 🔴 HIGH
+### ID 013: npm Dependency Vulnerabilities (DEGRADED) 🔴 HIGH
 **Severity**: HIGH
 **First Seen**: 2026-04-11
 **Location**: Package dependencies
-**Status**: 🔴 OPEN - Requires immediate triage
+**Status**: 🔴 OPEN - lodash runtime vulnerability urgent
 
-**Vulnerability Count:**
-- **2 CRITICAL** vulnerabilities (new)
-- **15 HIGH** vulnerabilities (up from 4)
-- **24 MODERATE** vulnerabilities (up from 4)
-- **Total: 41 vulnerabilities**
-
-**Growth Trend:**
+**Vulnerability Count History:**
 ```
-2026-03-06:  0 critical,  4 high,  4 moderate
-2026-04-11:  2 critical, 15 high, 24 moderate
+2026-03-06:  0 critical,  4 high,  4 moderate                  =  8 total
+2026-04-11:  2 critical, 15 high, 24 moderate                  = 41 total (↑33)
+2026-04-17:  1 critical, 16 high, 30 moderate, 4 low           = 51 total (↑10)
 ```
 
-**Impact:**
-- Dependency risk significantly increased since last audit
-- Critical vulnerabilities require immediate review
-- May affect production deployments depending on affected packages
+**Current Status (2026-04-17):**
+- **1 CRITICAL** (↓1 from previous - improvement)
+- **16 HIGH** (↑1 from previous - regression)
+- **30 MODERATE** (↑6 from previous - regression)
+- **4 LOW** (new)
+- **Total: 51 vulnerabilities** (↑10 since last audit)
 
-**Scanner Output:**
+**Most Affected Packages:**
+1. **lodash** (discord.js dependency) - 3 vulnerabilities - **RUNTIME IMPACT**
+2. **devalue** (Astro docs) - 7+ vulnerabilities - dev-only
+3. **picomatch** (Astro/unstorage) - 2+ vulnerabilities - dev-only
+4. **h3** (Astro/unstorage) - 4 vulnerabilities - dev-only
+5. **dompurify** (Mermaid) - 5+ vulnerabilities - dev-only
+
+**Impact Assessment:**
+- **CRITICAL:** lodash vulnerability affects Discord connector runtime (production impact)
+- **MEDIUM:** Most other vulnerabilities are in documentation build dependencies (dev-only)
+- **POSITIVE:** 1 critical vulnerability resolved since last audit
+
+**Scanner Output (2026-04-17):**
 ```
-npm-audit: 3 findings
-  - CRITICAL: 2 critical vulnerabilities in dependencies
-  - HIGH: 15 high severity vulnerabilities in dependencies
-  - MEDIUM: 24 moderate vulnerabilities in dependencies
+npm-audit: 4 findings
+  - CRITICAL: 1 critical vulnerability in dependencies
+  - HIGH: 16 high severity vulnerabilities in dependencies
+  - MEDIUM: 30 moderate vulnerabilities in dependencies
+  - LOW: 4 low severity vulnerabilities in dependencies
 ```
 
-**Recommended Actions (Priority Order):**
-1. **IMMEDIATE (24 hours):** Run `pnpm audit` to identify affected packages
-2. **IMMEDIATE (24 hours):** Review critical vulnerabilities for exploitability
-3. **HIGH (7 days):** Update vulnerable dependencies with `pnpm audit fix`
-4. **HIGH (7 days):** Assess if vulnerabilities affect runtime vs. dev/build tools
-5. **MEDIUM (30 days):** Address moderate severity issues
+**Recommended Actions (Updated Priority):**
+1. **URGENT (24-48 hours):** Triage lodash vulnerability in Discord connector (runtime impact)
+2. **URGENT (24-48 hours):** Update Discord dependencies to resolve lodash vulnerability
+3. **HIGH (7 days):** Run `pnpm update` to pull latest patches
+4. **HIGH (7 days):** Update Astro dependencies (dev-only impact)
+5. **MEDIUM (30 days):** Review if Mermaid/dompurify vulnerabilities affect built artifacts
 6. **MEDIUM (30 days):** Implement automated dependency scanning in CI/CD
 7. **MEDIUM (30 days):** Set up security advisory alerts (GitHub Dependabot)
 
-**Investigation Needed:**
-- Which packages are affected?
-- Are vulnerabilities in runtime dependencies or dev dependencies?
-- Are there available patches/updates?
-- What is the exploitability in herdctl's context?
-- Do any affect the Docker container runtime, web dashboard, or CLI?
+**Status Update:**
+- ✅ **Positive:** 1 critical vulnerability resolved (2→1)
+- ⚠️ **Concern:** Net increase of 10 vulnerabilities (41→51)
+- 🔴 **Urgent:** lodash vulnerability affects runtime Discord connector
 
 **Related Findings:**
 - Finding #008 (npm audit parser error) - superseded by this finding
 
-**Introduced Between:** 2026-03-06 and 2026-04-11 (22 commits)
+**Audit History:**
+- 2026-04-11: Discovery - 41 vulnerabilities (2 crit, 15 high, 24 mod)
+- 2026-04-17: Degraded - 51 vulnerabilities (1 crit, 16 high, 30 mod, 4 low)
 
 ---
 
@@ -367,9 +377,10 @@ Based on false positives identified:
 | 2026-02-20 | /security-audit | 1 | 0 | **#011 NEW** - OAuth credential management |
 | 2026-03-06 | /security-audit | 1 | 0 | **#012 NEW** - Web API lacks auth; #011 risk elevated; 71 commits |
 | 2026-04-11 | /security-audit | 1 | 0 | **#013 NEW** - npm vulns escalated (2 crit, 15 high); 22 commits; GREEN status |
+| 2026-04-17 | /security-audit | 0 | 0 | **#013 DEGRADED** - npm vulns increased to 51 (1 crit, 16 high); 10 commits; YELLOW status |
 
 ---
 
-**Last Updated:** 2026-04-11
-**Status:** 🟡 YELLOW - 1 HIGH finding needs documentation, 1 MEDIUM risk elevated
+**Last Updated:** 2026-04-17
+**Status:** 🟡 YELLOW - Dependency vulnerabilities degraded, lodash runtime vulnerability urgent
 
