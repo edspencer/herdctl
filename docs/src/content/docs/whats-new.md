@@ -7,6 +7,13 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Windows Path Compatibility Fix
+**April 19, 2026** · `@herdctl/core@5.10.1`
+
+Fixed state file operations failing on Windows with false positive path traversal errors. The path safety check in `buildSafeFilePath` was hardcoded to use `/` as the separator, but Windows uses `\`, causing the `startsWith` validation to always fail. The check now uses `path.sep` to work correctly on both Windows and Unix systems. Also fixed root directory base paths (e.g., `/` on POSIX or `C:\` on Windows) which already end with a separator, preventing double-separator bugs that caused incorrect validation failures. [#210](https://github.com/edspencer/herdctl/pull/210)
+
+---
+
 ### Discord File Attachment Support
 **March 10, 2026** · `@herdctl/discord@1.2.0` · `@herdctl/core@5.10.0`
 
