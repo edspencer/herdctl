@@ -1,9 +1,9 @@
 ---
-last_updated: 2026-04-17T00:00:00Z
+last_updated: 2026-04-22T06:01:00Z
 last_mapping: 2026-02-14
-last_audit: 2026-04-17
+last_audit: 2026-04-22
 commits_since_audit: 0
-commits_since_mapping: 143
+commits_since_mapping: 150
 open_findings: 9
 open_questions: 10
 status: audit_complete_yellow
@@ -11,7 +11,7 @@ status: audit_complete_yellow
 
 # Security Audit State
 
-**Last Updated:** 2026-04-17 00:00 UTC
+**Last Updated:** 2026-04-22 06:01 UTC
 
 This document provides persistent state for security audits, enabling incremental reviews that build on previous work rather than starting fresh each time.
 
@@ -22,12 +22,12 @@ This document provides persistent state for security audits, enabling incrementa
 | Metric | Value | Notes |
 |--------|-------|-------|
 | Last full mapping | 2026-02-14 | Comprehensive audit completed |
-| Last incremental audit | 2026-04-17 | Incremental - YELLOW - Dependency vulnerabilities increased (41→51), lodash runtime vulnerability |
-| Commits since last audit | 0 | At e204320 (2026-04-17) |
+| Last incremental audit | 2026-04-22 | Incremental - YELLOW - lodash vulnerability OVERDUE for triage (5 days) |
+| Commits since last audit | 0 | At 57695ca (2026-04-22) |
 | Open findings | 9 | See [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
 | Open questions | 10 | Q1, Q4, Q5, Q7, Q8, Q9, Q10, Q11, Q13, Q15, Q16 (5 answered) |
 
-**Status:** YELLOW - Dependency vulnerabilities degraded; lodash runtime vulnerability in Discord connector requires urgent attention.
+**Status:** YELLOW - lodash runtime vulnerability now 5 days OVERDUE for triage; no code changes but lack of progress on HIGH findings concerning.
 
 ### Finding Breakdown
 
@@ -52,13 +52,13 @@ Security coverage by area with staleness tracking.
 
 | Area | Last Checked | Commits Since | Status | Notes |
 |------|--------------|---------------|--------|-------|
-| Attack surface | 2026-04-17 | 0 | ✅ Current | No new changes since last audit |
-| Data flows | 2026-04-17 | 0 | ✅ Current | No new changes since last audit |
-| Security controls | 2026-04-17 | 0 | ✅ Current | No new changes since last audit |
-| Threat vectors | 2026-04-17 | 0 | ✅ Current | No new changes since last audit |
-| Hot spots | 2026-04-17 | 0 | ✅ Current | Scanner run complete - 7075ms |
-| Code patterns | 2026-04-17 | 0 | ✅ Current | No new changes since last audit |
-| Dependencies | 2026-04-17 | 0 | 🟡 **DEGRADED** | 1 critical, 16 high, 30 moderate, 4 low (51 total) - lodash runtime vulnerability urgent |
+| Attack surface | 2026-04-22 | 0 | ✅ Current | No new changes since last audit |
+| Data flows | 2026-04-22 | 0 | ✅ Current | No new changes since last audit |
+| Security controls | 2026-04-22 | 0 | ✅ Current | No new changes since last audit |
+| Threat vectors | 2026-04-22 | 0 | ✅ Current | No new changes since last audit |
+| Hot spots | 2026-04-22 | 0 | ✅ Current | Scanner run complete - 8312ms |
+| Code patterns | 2026-04-22 | 0 | ✅ Current | No new changes since last audit |
+| Dependencies | 2026-04-22 | 0 | 🟡 **DEGRADED** | 1 critical, 16 high, 31 moderate (48 total) - lodash OVERDUE for triage |
 
 ### Staleness Thresholds
 
@@ -74,10 +74,10 @@ Active findings and open questions requiring attention.
 
 | ID | Type | Summary | Priority | Status | Source |
 |----|------|---------|----------|--------|--------|
-| #013 | Finding | npm dependency vulnerabilities (DEGRADED) | **HIGH** | OPEN - lodash runtime vuln urgent | [2026-04-17 Report](intel/2026-04-17.md) |
-| #012 | Finding | Web API lacks authentication | **HIGH** | OPEN - Needs documentation | [2026-03-06 Report](intel/2026-03-06.md) |
-| #011 | Finding | OAuth credential management - risk elevated | **MEDIUM** | YELLOW - Session exposure risk | [2026-03-06 Report](intel/2026-03-06.md) |
-| #010 | Finding | bypassPermissions in 22 job files | MEDIUM | YELLOW - Retention policy needed | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
+| #013 | Finding | npm dependency vulnerabilities - lodash OVERDUE | **HIGH** | OPEN - triage 5 days overdue | [2026-04-22 Report](intel/2026-04-22.md) |
+| #012 | Finding | Web API lacks authentication - 47 days stale | **HIGH** | OPEN - Needs documentation | [2026-03-06 Report](intel/2026-03-06.md) |
+| #011 | Finding | OAuth credential management - 62 days aging | **MEDIUM** | YELLOW - Session exposure risk | [2026-03-06 Report](intel/2026-03-06.md) |
+| #010 | Finding | bypassPermissions in job files - 70 days | MEDIUM | YELLOW - Retention policy needed | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
 | Q15 | Question | File attachment content scanning | Medium | Should we scan uploads for malware? | [2026-04-11 Report](intel/2026-04-11.md) |
 | Q13 | Question | encodedPath path traversal | Medium | Partially answered - indirect validation via groups | [2026-03-06 Report](intel/2026-03-06.md) |
 | Q1 | Question | Webhook authentication | Medium | Related to #012 - web API has no auth | [2026-03-06 Report](intel/2026-03-06.md) |
@@ -92,10 +92,10 @@ Active findings and open questions requiring attention.
 
 Ordered by urgency for next audit session:
 
-1. **HIGH P1:** Triage lodash vulnerability in Discord connector - RUNTIME IMPACT (#013)
-2. **HIGH P2:** Update Discord dependencies to resolve lodash vulnerability (#013)
-3. **HIGH P3:** Document web dashboard as localhost-only, warn against network exposure (#012)
-4. **HIGH P4:** Audit session files for OAuth credential leaks (#011 + #012 combined risk)
+1. **🔴 CRITICAL P1:** Triage lodash vulnerability in Discord connector - OVERDUE 5 DAYS (#013)
+2. **🔴 CRITICAL P2:** Update Discord dependencies to resolve lodash vulnerability (#013)
+3. **HIGH P1:** Document web dashboard as localhost-only, warn against network exposure (#012)
+4. **HIGH P2:** Audit session files for OAuth credential leaks (#011 + #012 combined risk)
 5. **MEDIUM P1:** Run pnpm update to reduce vulnerability count (#013)
 6. **MEDIUM P2:** Add encodedPath explicit validation (Q13)
 7. **MEDIUM P3:** Review file attachment security model - consider malware scanning (Q15)
@@ -112,6 +112,7 @@ Ordered by urgency for next audit session:
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
+| 2026-04-22 | #013 escalated to CRITICAL - triage overdue | lodash vulnerability 5 days past deadline (2026-04-19); affects runtime Discord connector |
 | 2026-04-17 | #013 status DEGRADED - vulnerabilities increased | 51 total (1 crit, 16 high, 30 mod, 4 low); up from 41; lodash runtime vuln in Discord connector urgent |
 | 2026-04-11 | #013 HIGH - npm dependency vulnerabilities escalated | 2 critical, 15 high, 24 moderate; up from 0/4/4; requires immediate triage |
 | 2026-04-11 | Path traversal protection STRENGTHENED | Commit 31c675c fixed cross-platform path separator handling |
@@ -137,7 +138,7 @@ Ordered by urgency for next audit session:
 
 Security capabilities not yet implemented or areas needing investigation:
 
-- **HIGH DEGRADED: npm dependency vulnerabilities** - 1 critical, 16 high, 30 moderate, 4 low (51 total); lodash runtime vulnerability in Discord connector (#013)
+- **CRITICAL OVERDUE: npm dependency vulnerabilities** - lodash runtime vulnerability 5 days overdue for triage; 1 crit, 16 high, 31 mod (48 total) (#013)
 - **HIGH: Web API has no authentication** - localhost-only by design but needs documentation (#012)
 - **HIGH: Session files exposed via web API** - may contain OAuth tokens from error logs (#011 + #012)
 - **MEDIUM: File attachment malware scanning** - uploads accepted without virus scanning (Q15)
@@ -152,10 +153,10 @@ Security capabilities not yet implemented or areas needing investigation:
 
 ### Session Continuity
 
-- **Last session:** 2026-04-17 - Incremental audit covering 10 commits (all administrative)
-- **Completed:** Scanner run (7.1s, FAIL - npm vulns), change analysis (no code changes), dependency status update (#013 degraded to 51 vulns)
-- **Resume from:** Normal operations; next scheduled audit ~2026-04-24
-- **Next priority:** Triage lodash runtime vulnerability (#013), document web dashboard security model (#012), update Discord dependencies
+- **Last session:** 2026-04-22 - Incremental audit covering 7 commits (all administrative)
+- **Completed:** Scanner run (8.3s, FAIL - npm vulns), change analysis (no code changes), dependency status stable at 48 vulns
+- **Resume from:** Normal operations; next scheduled audit ~2026-04-29
+- **Next priority:** URGENT - Triage lodash runtime vulnerability (#013 - NOW 5 DAYS OVERDUE), document web dashboard security model (#012), update Discord dependencies
 
 ---
 
