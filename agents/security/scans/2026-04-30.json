@@ -1,0 +1,132 @@
+{
+  "date": "2026-04-30",
+  "commit": "7d28985",
+  "branch": "main",
+  "status": "FAIL",
+  "duration_ms": 9336,
+  "checks": {
+    "total": 6,
+    "passed": 2,
+    "warned": 2,
+    "failed": 2
+  },
+  "findings": {
+    "npm-audit": {
+      "status": "FAIL",
+      "duration_ms": 8911,
+      "findings": [
+        {
+          "severity": "CRITICAL",
+          "count": 1,
+          "message": "1 critical vulnerabilities found in dependencies",
+          "recommendation": "Run `pnpm audit fix` or manually update affected packages"
+        },
+        {
+          "severity": "HIGH",
+          "count": 16,
+          "message": "16 high severity vulnerabilities found in dependencies",
+          "recommendation": "Run `pnpm audit fix` or manually update affected packages"
+        },
+        {
+          "severity": "MEDIUM",
+          "count": 37,
+          "message": "37 moderate vulnerabilities found in dependencies",
+          "recommendation": "Review and update affected packages when possible"
+        }
+      ],
+      "total_vulnerabilities": 54
+    },
+    "docker-config": {
+      "status": "FAIL",
+      "duration_ms": 202,
+      "findings": [
+        {
+          "severity": "HIGH",
+          "message": "hostConfigOverride can bypass Docker security hardening",
+          "locations": [
+            "packages/core/src/runner/runtime/docker-config.ts:259",
+            "packages/core/src/runner/runtime/container-manager.ts:144",
+            "packages/core/src/runner/runtime/container-manager.ts:145"
+          ],
+          "finding_id": "002",
+          "status": "ACCEPTED_RISK"
+        }
+      ]
+    },
+    "permission-modes": {
+      "status": "WARN",
+      "duration_ms": 34,
+      "findings": [
+        {
+          "severity": "LOW",
+          "message": "bypassPermissions used in 1 example config(s)",
+          "location": "examples/bragdoc-developer/agents/developer.yaml:47",
+          "finding_id": "005",
+          "status": "INTENTIONAL"
+        },
+        {
+          "severity": "MEDIUM",
+          "message": "bypassPermissions referenced in code",
+          "location": "packages/cli/src/index.ts:107",
+          "status": "TYPE_DEFINITION_ONLY"
+        }
+      ]
+    },
+    "subprocess-patterns": {
+      "status": "WARN",
+      "duration_ms": 46,
+      "findings": [
+        {
+          "severity": "LOW",
+          "message": "Direct child_process import - consider using execa instead",
+          "locations": [
+            "packages/core/src/distribution/repository-fetcher.ts:8",
+            "packages/core/src/hooks/runners/shell.ts:8",
+            "packages/cli/src/commands/sessions.ts:12",
+            "packages/cli/src/commands/init-agent.ts:12"
+          ]
+        },
+        {
+          "severity": "MEDIUM",
+          "message": "shell: true option enables shell interpretation",
+          "locations": [
+            "packages/core/src/hooks/runners/shell.ts:154",
+            "packages/cli/src/commands/sessions.ts:421"
+          ],
+          "finding_id": "006",
+          "status": "ACCEPTED_RISK"
+        }
+      ]
+    },
+    "path-safety": {
+      "status": "PASS",
+      "duration_ms": 4,
+      "findings": []
+    },
+    "env-handling": {
+      "status": "PASS",
+      "duration_ms": 130,
+      "findings": []
+    }
+  },
+  "vulnerability_trends": {
+    "2026-03-06": {"critical": 0, "high": 4, "moderate": 4, "total": 8},
+    "2026-04-11": {"critical": 2, "high": 15, "moderate": 24, "total": 41},
+    "2026-04-17": {"critical": 1, "high": 16, "moderate": 30, "low": 4, "total": 51},
+    "2026-04-23": {"critical": 1, "high": 16, "moderate": 36, "total": 53},
+    "2026-04-30": {"critical": 1, "high": 16, "moderate": 37, "total": 54}
+  },
+  "critical_issues": [
+    {
+      "finding_id": "013",
+      "title": "lodash runtime vulnerability in Discord connector",
+      "severity": "CRITICAL",
+      "first_seen": "2026-04-11",
+      "triage_deadline": "2026-04-19",
+      "days_overdue": 13,
+      "status": "OVERDUE",
+      "impact": "Remote code execution potential via prototype pollution",
+      "affected_component": "Discord connector runtime (production code)"
+    }
+  ]
+}
