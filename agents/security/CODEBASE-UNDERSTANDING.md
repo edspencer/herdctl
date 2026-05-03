@@ -208,6 +208,8 @@ These questions should be systematically investigated during audits. Each audit 
 | Q12 | Are OAuth access_token and refresh_token properly sanitized from error messages? | High | Open | - | - | container-manager.ts logger.error() calls in OAuth functions - check for credential leaks |
 | Q13 | Does credentials file (~/.claude/.credentials.json) have 0600 permissions enforced? | High | Open | - | - | writeCredentialsFile() should enforce permissions - verify with fs.chmodSync() |
 | Q14 | Can token refresh handle network failures without leaking credentials in stack traces? | Medium | Open | - | - | refreshClaudeOAuthToken() error handling - verify no token data in Error objects |
+| Q15 | Why is lodash vulnerability (#013) in Discord connector not being triaged? What's the triage process? | High | Open | - | 2026-05-03 | Finding #013 overdue 16 days. No triage or remediation progress. Need investigation. |
+| Q16 | Can we run `pnpm update` safely to reduce moderate vulnerability count from 37? | Low | Open | - | 2026-05-03 | 37 moderate npm vulnerabilities unchanged. Investigate if pnpm update is safe. |
 
 ### Question Guidelines
 
