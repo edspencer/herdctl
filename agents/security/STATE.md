@@ -1,7 +1,7 @@
 ---
-last_updated: 2026-04-30T06:00:00Z
+last_updated: 2026-05-03T06:04:22Z
 last_mapping: 2026-02-14
-last_audit: 2026-04-30
+last_audit: 2026-05-03
 commits_since_audit: 0
 commits_since_mapping: 164
 open_findings: 9
@@ -22,12 +22,12 @@ This document provides persistent state for security audits, enabling incrementa
 | Metric | Value | Notes |
 |--------|-------|-------|
 | Last full mapping | 2026-02-14 | Comprehensive audit completed |
-| Last incremental audit | 2026-04-30 | Incremental - RED - lodash vulnerability CRITICALLY OVERDUE (13 days) |
-| Commits since last audit | 0 | At 7d28985 (2026-04-30) |
+| Last incremental audit | 2026-05-03 | Incremental - RED - lodash vulnerability CRITICALLY OVERDUE (16 days) |
+| Commits since last audit | 0 | At dafaacf (2026-05-03) |
 | Open findings | 9 | See [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
 | Open questions | 10 | Q1, Q4, Q5, Q7, Q8, Q9, Q10, Q11, Q13, Q15, Q16 (5 answered) |
 
-**Status:** 🔴 RED - lodash runtime vulnerability now **13 DAYS OVERDUE** for triage; npm vulnerabilities increased to 54 total (+1 moderate).
+**Status:** 🔴 RED - lodash runtime vulnerability now **16 DAYS OVERDUE** for triage; npm vulnerabilities increased to 54 total (+1 moderate).
 
 ### Finding Breakdown
 
@@ -52,13 +52,13 @@ Security coverage by area with staleness tracking.
 
 | Area | Last Checked | Commits Since | Status | Notes |
 |------|--------------|---------------|--------|-------|
-| Attack surface | 2026-04-30 | 0 | ✅ Current | No code changes since last audit |
-| Data flows | 2026-04-30 | 0 | ✅ Current | No code changes since last audit |
-| Security controls | 2026-04-30 | 0 | ✅ Current | No code changes since last audit |
-| Threat vectors | 2026-04-30 | 0 | ✅ Current | No code changes since last audit |
-| Hot spots | 2026-04-30 | 0 | ✅ Current | Scanner run complete - 9336ms |
-| Code patterns | 2026-04-30 | 0 | ✅ Current | No code changes since last audit |
-| Dependencies | 2026-04-30 | 0 | 🔴 **CRITICAL OVERDUE** | 1 critical, 16 high, 37 moderate (54 total) - lodash CRITICALLY OVERDUE for triage (13 days) |
+| Attack surface | 2026-05-03 | 0 | ✅ Current | No code changes since last audit |
+| Data flows | 2026-05-03 | 0 | ✅ Current | No code changes since last audit |
+| Security controls | 2026-05-03 | 0 | ✅ Current | No code changes since last audit |
+| Threat vectors | 2026-05-03 | 0 | ✅ Current | No code changes since last audit |
+| Hot spots | 2026-05-03 | 0 | ✅ Current | Scanner run complete - 7966ms |
+| Code patterns | 2026-05-03 | 0 | ✅ Current | No code changes since last audit |
+| Dependencies | 2026-05-03 | 0 | 🔴 **CRITICAL OVERDUE** | 1 critical, 16 high, 37 moderate (54 total) - lodash CRITICALLY OVERDUE for triage (16 days) |
 
 ### Staleness Thresholds
 
@@ -74,10 +74,10 @@ Active findings and open questions requiring attention.
 
 | ID | Type | Summary | Priority | Status | Source |
 |----|------|---------|----------|--------|--------|
-| #013 | Finding | npm dependency vulnerabilities - lodash CRITICALLY OVERDUE | **CRITICAL** | 🔴 OPEN - triage 13 days overdue | [2026-04-30 Report](intel/2026-04-30.md) |
-| #012 | Finding | Web API lacks authentication - 55 days stale | **HIGH** | 🔴 OPEN - Needs documentation | [2026-03-06 Report](intel/2026-03-06.md) |
-| #011 | Finding | OAuth credential management - 70 days aging | **MEDIUM** | 🟡 YELLOW - Session exposure risk | [2026-03-06 Report](intel/2026-03-06.md) |
-| #010 | Finding | bypassPermissions in job files - 78 days | MEDIUM | 🟡 YELLOW - Retention policy needed | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
+| #013 | Finding | npm dependency vulnerabilities - lodash CRITICALLY OVERDUE | **CRITICAL** | 🔴 OPEN - triage 16 days overdue | [2026-05-03 Report](intel/2026-04-30.md) |
+| #012 | Finding | Web API lacks authentication - 58 days stale | **HIGH** | 🔴 OPEN - Needs documentation | [2026-03-06 Report](intel/2026-03-06.md) |
+| #011 | Finding | OAuth credential management - 73 days aging | **MEDIUM** | 🟡 YELLOW - Session exposure risk | [2026-03-06 Report](intel/2026-03-06.md) |
+| #010 | Finding | bypassPermissions in job files - 81 days | MEDIUM | 🟡 YELLOW - Retention policy needed | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
 | Q15 | Question | File attachment content scanning | Medium | Should we scan uploads for malware? | [2026-04-11 Report](intel/2026-04-11.md) |
 | Q13 | Question | encodedPath path traversal | Medium | Partially answered - indirect validation via groups | [2026-03-06 Report](intel/2026-03-06.md) |
 | Q1 | Question | Webhook authentication | Medium | Related to #012 - web API has no auth | [2026-03-06 Report](intel/2026-03-06.md) |
@@ -112,7 +112,7 @@ Ordered by urgency for next audit session:
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
-| 2026-04-30 | #013 status CRITICALLY OVERDUE - 13 days past deadline | lodash vulnerability triage deadline was 2026-04-19; no remediation progress in 19 days; HALT feature dev |
+| 2026-05-03 | #013 status CRITICALLY OVERDUE - 16 days past deadline | lodash vulnerability triage deadline was 2026-04-19; no remediation progress in 22 days; HALT feature dev |
 | 2026-04-30 | #013 npm vulnerabilities increased to 54 total | +1 moderate vulnerability; still 1 crit, 16 high, 37 mod |
 | 2026-04-23 | #013 npm vulnerabilities increased to 53 total | +5 moderate vulnerabilities; lodash triage now 6 days overdue |
 | 2026-04-22 | #013 escalated to CRITICAL - triage overdue | lodash vulnerability 5 days past deadline (2026-04-19); affects runtime Discord connector |
@@ -141,7 +141,7 @@ Ordered by urgency for next audit session:
 
 Security capabilities not yet implemented or areas needing investigation:
 
-- **🔴 CRITICAL OVERDUE: npm dependency vulnerabilities** - lodash runtime vulnerability 13 DAYS overdue for triage; 1 crit, 16 high, 37 mod (54 total) (#013)
+- **🔴 CRITICAL OVERDUE: npm dependency vulnerabilities** - lodash runtime vulnerability 16 DAYS overdue for triage; 1 crit, 16 high, 37 mod (54 total) (#013)
 - **HIGH: Web API has no authentication** - localhost-only by design but needs documentation (#012)
 - **HIGH: Session files exposed via web API** - may contain OAuth tokens from error logs (#011 + #012)
 - **MEDIUM: File attachment malware scanning** - uploads accepted without virus scanning (Q15)
@@ -156,10 +156,10 @@ Security capabilities not yet implemented or areas needing investigation:
 
 ### Session Continuity
 
-- **Last session:** 2026-04-30 - Incremental audit covering 11 commits (all administrative)
-- **Completed:** Scanner run (9.3s, FAIL - npm vulns increased), change analysis (no code changes), dependencies CRITICALLY OVERDUE (54 vulns, +1 moderate)
-- **Resume from:** Normal operations; next scheduled audit ~2026-05-07
-- **Next priority:** CRITICAL - Triage lodash runtime vulnerability (#013 - NOW 13 DAYS OVERDUE), run pnpm update, document web dashboard security model (#012)
+- **Last session:** 2026-05-03 - Incremental audit covering 11 commits (all administrative)
+- **Completed:** Scanner run (8.0s, FAIL - npm vulns increased), change analysis (no code changes), dependencies CRITICALLY OVERDUE (54 vulns, +1 moderate)
+- **Resume from:** Normal operations; next scheduled audit ~2026-05-10
+- **Next priority:** CRITICAL - Triage lodash runtime vulnerability (#013 - NOW 16 DAYS OVERDUE), run pnpm update, document web dashboard security model (#012)
 
 ---
 
