@@ -7,6 +7,13 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Windows Path Separator Fix
+**March 17, 2026** · `@herdctl/core@5.10.1` · `herdctl@1.5.8` · `@herdctl/discord@1.2.1` · `@herdctl/slack@1.2.14` · `@herdctl/web@0.9.10` · `@herdctl/chat@1.0.13`
+
+Fixes a critical Windows compatibility issue where herdctl incorrectly throws PathTraversalError on all state file operations. The path traversal security check now uses platform-specific path separators (backslash on Windows, forward slash on Unix) instead of assuming forward slashes everywhere. Windows users can now run herdctl without encountering false positive security errors.
+
+---
+
 ### Discord File Attachment Support
 **March 10, 2026** · `@herdctl/discord@1.2.0` · `@herdctl/core@5.10.0`
 
