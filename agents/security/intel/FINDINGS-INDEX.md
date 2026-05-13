@@ -7,10 +7,10 @@ and manual review. Updated after each security review.
 
 | ID | Severity | Title | First Seen | Status | Location |
 |----|----------|-------|------------|--------|----------|
-| 013 | **CRITICAL** | **npm dependency vulnerabilities (CRITICALLY OVERDUE)** | 2026-04-11 | 🔴 OPEN - triage 22 days overdue | dependencies |
-| 012 | **HIGH** | **Web API lacks authentication** | 2026-03-06 | 🔴 OPEN - Document localhost-only (55 days stale) | packages/web/src/server/routes/chat.ts |
-| 011 | **MEDIUM** | **OAuth credential management - risk elevated** | 2026-02-20 | 🟡 YELLOW - Session exposure risk (70 days aging) | container-manager.ts + session files |
-| 010 | Medium | bypassPermissions in job files (22 files) | 2026-02-12 | 🟡 YELLOW - Retention needed (78 days aging) | .herdctl/jobs/*.yaml |
+| 013 | **CRITICAL** | **npm dependency vulnerabilities (CRITICALLY ESCALATED)** | 2026-04-11 | 🔴 OPEN - triage 23 days overdue | dependencies |
+| 012 | **HIGH** | **Web API lacks authentication** | 2026-03-06 | 🔴 OPEN - Document localhost-only (67 days stale) | packages/web/src/server/routes/chat.ts |
+| 011 | **MEDIUM** | **OAuth credential management - risk elevated** | 2026-02-20 | 🟡 YELLOW - Session exposure risk (82 days aging) | container-manager.ts + session files |
+| 010 | Medium | bypassPermissions in job files (22 files) | 2026-02-12 | 🟡 YELLOW - Retention needed (90 days aging) | .herdctl/jobs/*.yaml |
 | 002 | High | hostConfigOverride can bypass Docker security | 2026-02-05 | ⚠️ Accepted Risk | container-manager.ts |
 | 005 | Medium | bypassPermissions in example config | 2026-02-05 | ℹ️ Intentional | examples/bragdoc-developer/ |
 | 006 | Medium | shell:true in hook runner | 2026-02-05 | ⚠️ Accepted Risk | hooks/runners/shell.ts |
@@ -290,48 +290,53 @@ The web dashboard added four new REST API endpoints in commit 01274a8 (PR #144) 
 2026-04-23:  1 critical, 16 high, 36 moderate                  = 53 total (↑5)
 2026-04-30:  1 critical, 16 high, 37 moderate                  = 54 total (↑1)
 2026-05-11:  1 critical, 22 high, 44 moderate                  = 67 total (↑13)
+2026-05-12:  1 critical, 22 high, 48 moderate, 5 low           = 76 total (↑9)
 ```
 
-**Current Status (2026-05-11):**
-- **1 CRITICAL** (stable - lodash in Discord connector)
-- **22 HIGH** (↑6 from previous)
-- **44 MODERATE** (↑7 from previous)
-- **Total: 67 vulnerabilities** (↑13 from previous) (scanner count, slight variance from pnpm audit)
+**Current Status (2026-05-12):**
+- **1 CRITICAL** (stable - protobufjs arbitrary code execution in dockerode)
+- **22 HIGH** (stable - rollup, minimatch, axios, others)
+- **48 MODERATE** (↑4 from previous)
+- **5 LOW** (↑5 from previous - new category)
+- **Total: 76 vulnerabilities** (↑9 from previous - CRITICAL ESCALATION)
 
-**Most Affected Packages:**
-1. **lodash** (discord.js dependency) - 3 vulnerabilities - **RUNTIME IMPACT**
-2. **devalue** (Astro docs) - 7+ vulnerabilities - dev-only
-3. **picomatch** (Astro/unstorage) - 2+ vulnerabilities - dev-only
-4. **h3** (Astro/unstorage) - 4 vulnerabilities - dev-only
-5. **dompurify** (Mermaid) - 5+ vulnerabilities - dev-only
+**Most Affected Packages (2026-05-12):**
+1. **protobufjs** <7.5.5 (dockerode dependency) - 1 CRITICAL - **RUNTIME IMPACT**
+2. **rollup** <4.59.0 (Astro/Vite) - HIGH - path traversal - dev-only
+3. **minimatch** <10.2.3 (glob dependency) - HIGH - ReDoS - dev-only
+4. **axios** <1.13.8 (Slack connector) - MODERATE - **RUNTIME IMPACT**
+5. **Various transitive dependencies** - 48+ moderate + 5 low
 
 **Impact Assessment:**
-- **CRITICAL:** lodash vulnerability affects Discord connector runtime (production impact)
-- **MEDIUM:** Most other vulnerabilities are in documentation build dependencies (dev-only)
-- **POSITIVE:** 1 critical vulnerability resolved since last audit
+- **CRITICAL:** protobufjs affects dockerode runtime (production Docker communication)
+- **HIGH:** rollup/minimatch affect build tools (dev-only)
+- **MEDIUM:** axios affects Slack connector (production impact)
+- **NEGATIVE:** Vulnerability count accelerating (+9 in 1 day, +35 in 31 days)
 
-**Scanner Output (2026-05-11):**
+**Scanner Output (2026-05-12):**
 ```
-npm-audit: 3 findings
-  - CRITICAL: 1 critical vulnerability in dependencies
+npm-audit: 4 findings
+  - CRITICAL: 1 critical vulnerability in dependencies (protobufjs)
   - HIGH: 22 high severity vulnerabilities in dependencies
-  - MEDIUM: 44 moderate vulnerabilities in dependencies
+  - MEDIUM: 48 moderate vulnerabilities in dependencies (+4)
+  - LOW: 5 low severity vulnerabilities in dependencies (+5 new)
 ```
 
-**Recommended Actions (ESCALATED - CRITICALLY OVERDUE):**
-1. **🔴 CRITICAL (CRITICALLY OVERDUE):** Triage lodash vulnerability in Discord connector - deadline was 2026-04-19, now 13 days overdue
-2. **🔴 CRITICAL (URGENT):** Update Discord dependencies to resolve lodash vulnerability
-3. **🟡 HIGH (7 days):** Run `pnpm update` to pull latest patches
-4. **🟡 HIGH (7 days):** Update Astro dependencies (dev-only impact)
-5. **MEDIUM (30 days):** Review if Mermaid/dompurify vulnerabilities affect built artifacts
-6. **MEDIUM (30 days):** Implement automated dependency scanning in CI/CD
-7. **MEDIUM (30 days):** Set up security advisory alerts (GitHub Dependabot)
+**Recommended Actions (CRITICAL ESCALATION):**
+1. **🔴 P0 (TODAY):** Triage protobufjs vulnerability in dockerode - deadline was 2026-04-19, now **23 days overdue**
+2. **🔴 P0 (TODAY):** Run `pnpm update protobufjs` to fix critical vuln
+3. **🔴 P0 (TODAY):** Run `pnpm update rollup minimatch axios` to address high severity
+4. **🔴 P1 (THIS WEEK):** Run `pnpm update` globally to reduce moderate/low count
+5. **🔴 P1 (THIS WEEK):** Consider `pnpm audit --fix` for automated remediation
+6. **🔴 P2 (THIS WEEK):** Document any vulnerabilities that cannot be auto-fixed
+7. **🟡 MEDIUM (30 days):** Add pnpm audit to CI/CD pipeline
 
-**Status Update (2026-05-11):**
-- ⚠️ **CRITICALLY OVERDUE:** lodash vulnerability triage now 22 days past deadline
-- ⚠️ **DEGRADED:** Vulnerability count increased to 67 (↑13: 6 high, 7 moderate from last audit)
-- 🔴 **Critical:** Runtime Discord connector affected - production risk
-- ❌ ****No progress** on remediation in 31 days since discovery
+**Status Update (2026-05-12):**
+- 🔴 **CRITICAL ESCALATION:** protobufjs vulnerability triage now **23 days** past deadline
+- 🔴 **CRITICALLY DEGRADED:** Vulnerability count increased to 76 (↑9 in 1 day: +4 moderate, +5 low)
+- 🔴 **Critical:** Runtime dockerode communication affected - production risk
+- ❌ **No progress** on remediation in 32 days since discovery
+- 📈 **Accelerating velocity:** +35 vulnerabilities in 31 days (avg +1.13/day)
 
 **Related Findings:**
 - Finding #008 (npm audit parser error) - superseded by this finding
@@ -390,8 +395,9 @@ Based on false positives identified:
 | 2026-04-23 | /security-audit | 0 | 0 | **#013 DEGRADED** - npm vulns increased to 53 (1 crit, 16 high, 36 mod); 3 commits (all admin); YELLOW status |
 | 2026-04-30 | /security-audit | 0 | 0 | **#013 CRITICALLY OVERDUE** - lodash triage 13 days late; npm vulns 54 (1 crit, 16 high, 37 mod); 11 commits (all admin); RED status |
 | 2026-05-11 | /security-audit | 0 | 0 | **#013 CRITICALLY DEGRADED** - lodash triage 22 days late; npm vulns 67 (1 crit, 22 high, 44 mod); 13 commits (all admin); RED status |
+| 2026-05-12 | /security-audit | 0 | 0 | **#013 CRITICAL ESCALATION** - protobufjs triage 23 days late; npm vulns 76 (1 crit, 22 high, 48 mod, 5 low); 2 commits (all admin); RED status |
 
 ---
 
-**Last Updated:** 2026-05-11
-**Status:** 🔴 RED - lodash runtime vulnerability now **22 DAYS OVERDUE** for triage
+**Last Updated:** 2026-05-12
+**Status:** 🔴 RED - protobufjs runtime vulnerability now **23 DAYS OVERDUE** for triage
