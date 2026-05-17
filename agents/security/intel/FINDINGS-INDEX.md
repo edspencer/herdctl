@@ -7,22 +7,23 @@ and manual review. Updated after each security review.
 
 | ID | Severity | Title | First Seen | Status | Location |
 |----|----------|-------|------------|--------|----------|
-| 012 | **HIGH** | **Web API lacks authentication** | 2026-03-06 | 🔴 OPEN - Document localhost-only (68 days stale) | packages/web/src/server/routes/chat.ts |
-| 011 | **MEDIUM** | **OAuth credential management - risk elevated** | 2026-02-20 | 🟡 YELLOW - Session exposure risk (83 days aging) | container-manager.ts + session files |
-| 010 | Medium | bypassPermissions in job files (22 files) | 2026-02-12 | 🟡 YELLOW - Retention needed (91 days aging) | .herdctl/jobs/*.yaml |
+| **014** | **🔴 CRITICAL** | **npm dependency vulnerability REGRESSION (85 vulnerabilities)** | 2026-05-16 | 🔴 **HALT DEV** - 0 days (NEW) | All packages (transitive dependencies) |
+| 012 | **HIGH** | **Web API lacks authentication** | 2026-03-06 | 🔴 OPEN - Document localhost-only (71 days stale) | packages/web/src/server/routes/chat.ts |
+| 011 | **MEDIUM** | **OAuth credential management - risk elevated** | 2026-02-20 | 🟡 YELLOW - Session exposure risk (86 days aging) | container-manager.ts + session files |
+| 010 | Medium | bypassPermissions in job files (22 files) | 2026-02-12 | 🟡 YELLOW - Retention needed (94 days aging) | .herdctl/jobs/*.yaml |
 | 002 | High | hostConfigOverride can bypass Docker security | 2026-02-05 | ⚠️ Accepted Risk | container-manager.ts |
 | 005 | Medium | bypassPermissions in example config | 2026-02-05 | ℹ️ Intentional | examples/bragdoc-developer/ |
 | 006 | Medium | shell:true in hook runner | 2026-02-05 | ⚠️ Accepted Risk | hooks/runners/shell.ts |
-| 008 | Medium | npm audit parser error (superseded by #013) | 2026-02-05 | 📋 Manual Check Needed | dependencies |
+| 008 | Medium | npm audit parser error (superseded by #013, now #014) | 2026-02-05 | 📋 Manual Check Needed | dependencies |
 | 009 | Low | Incomplete shell escaping in Docker prompts | 2026-02-05 | 🔧 Partially Fixed | container-runner.ts (commit a0e7ad8) |
 
 ## Resolved Findings
 
-| ID | Title | Fixed In | Verified |
-|----|-------|----------|----------|
-| 001 | Path traversal via agent names | feature/security-scanner | 2026-02-05 |
-| 007 | network:none in example config | Already commented out | 2026-02-05 |
-| 013 | npm dependency vulnerabilities | Dependency updates | 2026-05-13 |
+| ID | Title | Fixed In | Verified | Notes |
+|----|-------|----------|----------|-------|
+| 001 | Path traversal via agent names | feature/security-scanner | 2026-02-05 | Remains fixed |
+| 007 | network:none in example config | Already commented out | 2026-02-05 | Remains fixed |
+| 013 | npm dependency vulnerabilities (76 → 0) | Dependency updates | 2026-05-13 | **REGRESSED to #014 on 2026-05-16** ❌ |
 
 ## False Positives (Scanner Limitations)
 
