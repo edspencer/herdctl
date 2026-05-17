@@ -1,12 +1,12 @@
 ---
-last_updated: 2026-05-13T06:02:00Z
+last_updated: 2026-05-16T06:15:00Z
 last_mapping: 2026-02-14
-last_audit: 2026-05-13
+last_audit: 2026-05-16
 commits_since_audit: 0
-commits_since_mapping: 167
-open_findings: 8
+commits_since_mapping: 171
+open_findings: 9
 open_questions: 10
-status: audit_complete_pass
+status: audit_complete_critical
 ---
 
 # Security Audit State
@@ -22,22 +22,23 @@ This document provides persistent state for security audits, enabling incrementa
 | Metric | Value | Notes |
 |--------|-------|-------|
 | Last full mapping | 2026-02-14 | Comprehensive audit completed |
-| Last incremental audit | 2026-05-13 | Incremental - **GREEN** ✅ - All npm vulnerabilities RESOLVED (76→0) |
-| Commits since last audit | 0 | At 272d961 (2026-05-13) |
-| Open findings | 8 | See [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
+| Last incremental audit | 2026-05-16 | Incremental - **🔴 RED** - CRITICAL REGRESSION: npm vulnerabilities RETURNED (0→85) |
+| Commits since last audit | 0 | At 2f6415c (2026-05-16) |
+| Open findings | 9 | See [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) - NEW #014 CRITICAL |
 | Open questions | 10 | Q1, Q4, Q5, Q7, Q8, Q9, Q10, Q11, Q13, Q15, Q16 (5 answered) |
 
-**Status:** 🟢 **GREEN** - All critical security blockers resolved! npm vulnerabilities eliminated (76→0). Development can resume normally.
+**Status:** 🔴 **RED - CRITICAL REGRESSION** - All npm vulnerabilities have RETURNED (0→85 in 3 days). **HALT FEATURE DEVELOPMENT** immediately.
 
 ### Finding Breakdown
 
-- **Critical: 0**
-- **High: 1** (#012 web API auth missing - 68 days old)
+- **🔴 Critical: 1** (#014 npm dependency regression - 85 vulnerabilities - **NEW TODAY**)
+- **High: 1** (#012 web API auth missing - 71 days old)
 - High: 1 (accepted risk - hostConfigOverride #002)
 - **Medium: 4** (#011 OAuth risk elevated, #010 job retention, #008 npm audit superseded, #006 accepted)
 - Low: 1 (partially fixed - shell escaping #009)
 - Intentional: 1 (#005 example config)
-- **Resolved: 3** (#001 path traversal, #007 network:none, **#013 npm vulnerabilities** ✅)
+- **Resolved: 2** (#001 path traversal, #007 network:none)
+- **Regressed: 1** (#013 npm vulnerabilities - RESOLVED 2026-05-13, **REGRESSED 2026-05-16** → #014)
 
 ### Question Priorities
 
@@ -53,13 +54,13 @@ Security coverage by area with staleness tracking.
 
 | Area | Last Checked | Commits Since | Status | Notes |
 |------|--------------|---------------|--------|-------|
-| Attack surface | 2026-05-13 | 0 | ✅ Current | No code changes since last audit |
+| Attack surface | 2026-05-16 | 0 | ⚠️ **DEGRADED** | No code changes but dependency vulnerabilities re-introduced attack vectors |
 | Data flows | 2026-05-13 | 0 | ✅ Current | No code changes since last audit |
-| Security controls | 2026-05-13 | 0 | ✅ Current | No code changes since last audit |
-| Threat vectors | 2026-05-13 | 0 | ✅ Current | No code changes since last audit |
-| Hot spots | 2026-05-13 | 0 | ✅ Current | Scanner run complete - 71281ms |
+| Security controls | 2026-05-16 | 0 | 🔴 **DEGRADED** | Dependency security controls failed - no CI/CD gates |
+| Threat vectors | 2026-05-16 | 0 | ⚠️ **DEGRADED** | All previously resolved threat vectors RE-ENABLED via dependencies |
+| Hot spots | 2026-05-16 | 0 | ✅ Current | Scanner run complete - 11075ms |
 | Code patterns | 2026-05-13 | 0 | ✅ Current | No code changes since last audit |
-| Dependencies | 2026-05-13 | 0 | ✅ **ALL CLEAR** ✅ | 0 vulnerabilities (was 76) - **ALL RESOLVED** through dependency updates |
+| Dependencies | 2026-05-16 | 0 | 🔴 **CRITICAL REGRESSION** | **85 vulnerabilities** (was 0) - **COMPLETE REGRESSION** in 3 days |
 
 ### Staleness Thresholds
 
@@ -75,9 +76,10 @@ Active findings and open questions requiring attention.
 
 | ID | Type | Summary | Priority | Status | Source |
 |----|------|---------|----------|--------|--------|
-| #012 | Finding | Web API lacks authentication - 68 days stale | **HIGH** | 🔴 OPEN - Needs documentation | [2026-03-06 Report](intel/2026-03-06.md) |
-| #011 | Finding | OAuth credential management - 83 days aging | **MEDIUM** | 🟡 YELLOW - Session exposure risk | [2026-03-06 Report](intel/2026-03-06.md) |
-| #010 | Finding | bypassPermissions in job files - 91 days | MEDIUM | 🟡 YELLOW - Retention policy needed | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
+| **#014** | **Finding** | **npm dependency regression - 85 vulnerabilities** | **🔴 CRITICAL P0** | **🔴 HALT DEV** - 0 days (NEW) | [2026-05-16 Report](intel/2026-05-16.md) |
+| #012 | Finding | Web API lacks authentication - 71 days stale | **HIGH** | 🔴 OPEN - Needs documentation | [2026-03-06 Report](intel/2026-03-06.md) |
+| #011 | Finding | OAuth credential management - 86 days aging | **MEDIUM** | 🟡 YELLOW - Session exposure risk | [2026-03-06 Report](intel/2026-03-06.md) |
+| #010 | Finding | bypassPermissions in job files - 94 days | MEDIUM | 🟡 YELLOW - Retention policy needed | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
 | Q15 | Question | File attachment content scanning | Medium | Should we scan uploads for malware? | [2026-04-11 Report](intel/2026-04-11.md) |
 | Q13 | Question | encodedPath path traversal | Medium | Partially answered - indirect validation via groups | [2026-03-06 Report](intel/2026-03-06.md) |
 | Q1 | Question | Webhook authentication | Medium | Related to #012 - web API has no auth | [2026-03-06 Report](intel/2026-03-06.md) |
@@ -92,16 +94,17 @@ Active findings and open questions requiring attention.
 
 Ordered by urgency for next audit session:
 
-1. ✅ **COMPLETED:** All npm dependency vulnerabilities resolved (#013)
-2. **HIGH P1:** Document web dashboard as localhost-only, warn against network exposure (#012)
-3. **MEDIUM P1:** Audit session files for OAuth credential leaks (#011 + #012 combined risk)
-4. **MEDIUM P2:** Add encodedPath explicit validation (Q13)
-5. **MEDIUM P3:** Review file attachment security model - consider malware scanning (Q15)
-6. **MEDIUM P4:** Review OAuth logging for credential leaks (#011)
-7. **MEDIUM P5:** Implement job file retention policy (30 days) to resolve #010
-8. **MEDIUM P6:** Add CI/CD security gates to prevent future npm vulnerability regressions
-9. **LOW P1:** Research OpenAI Whisper data retention policies (Q16)
-10. **LOW P2:** Complete shell escaping verification (#009)
+1. 🔴 **CRITICAL P0 - IMMEDIATE:** Resolve #014 npm dependency regression (85 vulnerabilities → 0) - **HALT DEVELOPMENT**
+2. 🔴 **CRITICAL P0 - TODAY:** Add CI/CD security gates to prevent future regressions (GitHub Actions workflow)
+3. 🔴 **HIGH P1 - THIS WEEK:** Document web dashboard as localhost-only, warn against network exposure (#012)
+4. 🟡 **MEDIUM P1:** Audit session files for OAuth credential leaks (#011 + #012 combined risk)
+5. 🟡 **MEDIUM P2:** Add encodedPath explicit validation (Q13)
+6. 🟡 **MEDIUM P3:** Review file attachment security model - consider malware scanning (Q15)
+7. 🟡 **MEDIUM P4:** Review OAuth logging for credential leaks (#011)
+8. 🟡 **MEDIUM P5:** Implement job file retention policy (30 days) to resolve #010
+9. 🟡 **MEDIUM P6:** Enable Dependabot/Renovate for automated dependency updates
+10. **LOW P1:** Research OpenAI Whisper data retention policies (Q16)
+11. **LOW P2:** Complete shell escaping verification (#009)
 
 ---
 
@@ -111,7 +114,10 @@ Ordered by urgency for next audit session:
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
-| 2026-05-13 | #013 RESOLVED ✅ - All npm vulnerabilities eliminated | Dependency updates eliminated all 76 vulnerabilities (1 crit, 22 high, 48 mod, 5 low); RESUME feature dev |
+| 2026-05-16 | **#014 CRITICAL REGRESSION** - npm vulnerabilities RETURNED (0→85) | Complete security reversal in 3 days; lack of CI/CD gates allowed regression; **HALT FEATURE DEV** |
+| 2026-05-16 | #013 status changed to REGRESSED → #014 | Previous resolution (76→0 on 2026-05-13) reversed; now tracking as new finding #014 |
+| 2026-05-16 | **MANDATORY CI/CD security gates** escalated to P0 | Automated controls required to prevent third regression; manual processes unsustainable |
+| 2026-05-13 | #013 RESOLVED ✅ - All npm vulnerabilities eliminated | Dependency updates eliminated all 76 vulnerabilities (1 crit, 22 high, 48 mod, 5 low); RESUME feature dev - **REGRESSED 2026-05-16** |
 | 2026-05-12 | #013 status CRITICALLY ESCALATED - 23 days overdue, +9 vulnerabilities | protobufjs triage 23 days past deadline; npm vulns increased from 67 to 76 (+4 mod, +5 low); HALT feature dev |
 | 2026-05-11 | #013 status CRITICALLY DEGRADED - 22 days overdue, +13 vulnerabilities | lodash triage 22 days past deadline; npm vulns increased from 54 to 67 (+6 high, +7 mod); HALT feature dev |
 | 2026-04-30 | #013 status CRITICALLY OVERDUE - 13 days past deadline | lodash vulnerability triage deadline was 2026-04-19; no remediation progress in 19 days; HALT feature dev |
@@ -143,7 +149,9 @@ Ordered by urgency for next audit session:
 
 Security capabilities not yet implemented or areas needing investigation:
 
-- ✅ **RESOLVED: npm dependency vulnerabilities** - All 76 vulnerabilities eliminated through dependency updates (#013)
+- 🔴 **CRITICAL: npm dependency vulnerabilities** - 85 vulnerabilities REGRESSED (was 0 on 2026-05-13) - **#014 NEW**
+- 🔴 **CRITICAL: CI/CD security gates not implemented** - MANDATORY to prevent third regression; causes #014
+- 🔴 **CRITICAL: No automated dependency monitoring** - Need Dependabot/Renovate to detect drift
 - **HIGH: Web API has no authentication** - localhost-only by design but needs documentation (#012)
 - **HIGH: Session files exposed via web API** - may contain OAuth tokens from error logs (#011 + #012)
 - **MEDIUM: File attachment malware scanning** - uploads accepted without virus scanning (Q15)
@@ -151,7 +159,6 @@ Security capabilities not yet implemented or areas needing investigation:
 - **MEDIUM: OAuth credential file permissions not enforced** - writeCredentialsFile() doesn't set 0600 (#011)
 - **MEDIUM: OAuth error logging may leak tokens** - logger.error() calls need review (#011)
 - **MEDIUM: Job file retention policy not implemented** - 22 bypassPermissions files accumulating (#010)
-- **MEDIUM: CI/CD security gates not implemented** - need npm audit checks in pipeline to prevent regressions
 - **LOW: Voice transcription privacy** - data sent to OpenAI without documented retention policy (Q16)
 - **LOW: GitHub SSRF potential** - no URL allowlist for repository cloning (Q11)
 - No secret detection in logs (output could leak sensitive data) - Q4
@@ -159,10 +166,14 @@ Security capabilities not yet implemented or areas needing investigation:
 
 ### Session Continuity
 
-- **Last session:** 2026-05-13 - Incremental audit covering 1 commit (administrative)
-- **Completed:** Scanner run (71.3s, ✅ PASS - all npm vulns RESOLVED), change analysis (no code changes), dependencies ✅ ALL CLEAR (0 vulns, -76 from previous)
-- **Resume from:** Normal operations; next scheduled audit ~2026-05-14
-- **Next priority:** Document web dashboard security model (#012), audit session files for credential leaks (#011), add CI/CD security gates
+- **Last session:** 2026-05-16 - Incremental audit covering 4 commits (all administrative)
+- **Completed:** Scanner run (11.1s, ❌ **CRITICAL FAIL** - 85 npm vulnerabilities REGRESSED), change analysis (no code changes), dependencies 🔴 **CRITICAL REGRESSION** (0→85 vulns in 3 days)
+- **Status:** 🔴 **RED - HALT DEVELOPMENT** (was GREEN on 2026-05-13)
+- **Resume from:** Emergency dependency remediation; escalated to daily monitoring until resolved
+- **Next priority:**
+  1. **P0 IMMEDIATE:** Resolve #014 dependency regression (pnpm update --latest)
+  2. **P0 TODAY:** Add CI/CD security gates (GitHub Actions)
+  3. **P1 WEEK:** Document web API security (#012), enable Dependabot
 
 ---
 
