@@ -7,6 +7,13 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Windows Path Separator Fix
+**March 13, 2026** · `@herdctl/core@5.10.1`
+
+Fixed path traversal validation to use platform-specific path separators on Windows. The security check was using Unix-style forward slashes (`/`) to detect path traversal attempts, which failed on Windows where paths use backslashes (`\`). Session ID validation now uses `path.sep` to correctly identify and block path traversal attempts like `..\..\etc\passwd` on Windows systems. [#210](https://github.com/edspencer/herdctl/pull/210)
+
+---
+
 ### Discord File Attachment Support
 **March 10, 2026** · `@herdctl/discord@1.2.0` · `@herdctl/core@5.10.0`
 
