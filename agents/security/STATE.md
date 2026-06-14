@@ -1,31 +1,31 @@
 # Security Agent State
 
-**Last Updated:** 2026-06-12 06:00 UTC
+**Last Updated:** 2026-06-14 06:00 UTC
 
 ## Current Status
 
-**Overall Security Posture:** 🔴 RED - CRITICAL EMERGENCY (WORSENING)
+**Overall Security Posture:** 🔴 RED - CRITICAL EMERGENCY (CATASTROPHICALLY WORSENING)
 
-**Vulnerability Metrics (2026-06-12):**
-- Total: **106** (+2 from 2026-06-09, +1.9% increase)
-- Critical: **1** (unchanged, 27 days unresolved)
-- High: **39** (+2 from 2026-06-09)
+**Vulnerability Metrics (2026-06-14):**
+- Total: **107** (+1 from 2026-06-12, +0.9% increase)
+- Critical: **1** (unchanged, 29 days unresolved)
+- High: **40** (+1 from 2026-06-12)
 - Moderate: **60** (unchanged)
 - Low: **6** (unchanged)
 
-**Trend:** WORSENING (+2 vulnerabilities despite no code changes)
+**Trend:** CATASTROPHICALLY WORSENING (+1 new RCE vulnerability despite no code changes)
 
-**Days Since Regression:** 27 days (2026-05-16 to 2026-06-12)
+**Days Since Regression:** 29 days (2026-05-16 to 2026-06-14)
 
-**Days Since Clean State:** 30 days (2026-05-13 was last 0 vulnerabilities)
+**Days Since Clean State:** 32 days (2026-05-13 was last 0 vulnerabilities)
 
-**P0 Deadline Status:** 26 days overdue (critical vulnerabilities require 24hr resolution)
+**P0 Deadline Status:** 28 days overdue (critical vulnerabilities require 24hr resolution)
 
 ## Critical Alert
 
-**Finding #014: npm Dependency Regression** remains completely unresolved after 27 consecutive days. Vulnerability count INCREASED by +2 high-severity issues with ZERO code changes, indicating new CVEs disclosed for existing dependencies. The presence of 1 critical RCE vulnerability and 39 high severity issues for 27 days represents catastrophic security failure and complete SLA breach.
+**Finding #014: npm Dependency Regression** remains completely unresolved after 29 consecutive days. A NEW high-severity RCE vulnerability in esbuild was discovered, bringing total to 107 vulnerabilities. The presence of 1 critical RCE vulnerability (protobufjs) + 40 high severity issues for 29 days represents catastrophic security failure and complete SLA breach.
 
-**WORSENING TREND:** After 4 days of stagnation (Jun 6-9), count increased to 106. External threat landscape is deteriorating while no active remediation is in progress.
+**CATASTROPHIC WORSENING:** New esbuild RCE vulnerability (GHSA-gv7w-rqvm-qjhr) enables remote code execution via NPM registry manipulation during build process. Combined with unresolved protobufjs critical RCE, the system now has 2 distinct arbitrary code execution vectors. Zero remediation activity detected for 29 days.
 
 **Required Immediate Action:**
 1. Assign ownership of remediation
@@ -38,6 +38,7 @@
 
 | Date | Total | Critical | High | Moderate | Low | Change | Status |
 |------|-------|----------|------|----------|-----|--------|--------|
+| 2026-06-14 | 107 | 1 | 40 | 60 | 6 | +1 (+0.9%) | 🔴 RED |
 | 2026-06-12 | 106 | 1 | 39 | 60 | 6 | +2 (+1.9%) | 🔴 RED |
 | 2026-06-09 | 104 | 1 | 37 | 60 | 6 | 0 (STAGNANT x4) | 🔴 RED |
 | 2026-06-08 | 104 | 1 | 37 | 60 | 6 | 0 (STAGNANT x3) | 🔴 RED |
@@ -77,6 +78,10 @@
 
 **Scan Output:** `/opt/herdctl/agents/security/scans/YYYY-MM-DD-pnpm-audit.json`
 
+**Last Scan:** 2026-06-14 06:00 UTC
+
+**Next Scan:** 2026-06-15 06:00 UTC
+
 ## Reporting
 
 **Daily Reports Generated:**
@@ -106,31 +111,39 @@
 
 ## Top High-Severity Vulnerabilities
 
-### New in 2026-06-12 (+2 since last audit)
-1. **Rollup 4** - Arbitrary File Write via Path Traversal
-2. **minimatch** - ReDoS via combinatorial backtracking (additional instances)
+### New in 2026-06-14 (+1 since last audit)
+1. **esbuild RCE** (GHSA-gv7w-rqvm-qjhr) - Remote code execution via NPM_CONFIG_REGISTRY manipulation
+
+### Added in 2026-06-12
+2. **Rollup 4** - Arbitrary File Write via Path Traversal
+3. **minimatch** - ReDoS via combinatorial backtracking (additional instances)
 
 ### Continuing High-Severity Issues
-3. **minimatch** - ReDoS via nested *() extglobs
-4. **SVGO** - DoS through entity expansion (Billion Laughs)
-5. **undici** - Malicious WebSocket 64-bit length overflow crashes client
+4. **axios** - 5 vulnerabilities (Proxy-Authorization leaks, Prototype Pollution MITM, DoS)
+5. **minimatch** - ReDoS via nested *() extglobs
+6. **SVGO** - DoS through entity expansion (Billion Laughs)
+7. **undici** - Malicious WebSocket 64-bit length overflow crashes client
 
 ## Remediation Blockers
 
-**Analysis of why critical vulnerability remains unfixed for 27 days:**
+**Analysis of why critical vulnerability remains unfixed for 29 days:**
 
-1. **No active remediation attempts detected** - zero commits updating dependencies for 27 days
+1. **No active remediation attempts detected** - zero commits updating dependencies for 29 days
 2. **Deep transitive dependency** - 45+ dependency paths suggest complex resolution
 3. **Potential peer dependency conflicts** - pnpm may require manual resolution
 4. **Lack of automated security tooling** - no Renovate/Dependabot evident
 5. **Resource allocation** - security work may be deprioritized
+6. **NEW: Additional RCE vector** - esbuild vulnerability adds second code execution path
 
 **Recommended Diagnostic Steps:**
 1. Run `pnpm why protobufjs` to see all dependency paths
-2. Run `pnpm update protobufjs` to test direct update
-3. Run `pnpm audit fix` to test automated remediation
-4. Check for peer dependency conflicts blocking update
-5. Test if workspace configuration prevents transitive updates
+2. Run `pnpm why esbuild` to see esbuild usage
+3. Run `pnpm update protobufjs esbuild axios` to test direct updates
+4. Run `pnpm audit fix` to test automated remediation
+5. Check for peer dependency conflicts blocking updates
+6. Test if workspace configuration prevents transitive updates
+
+**URGENT: Now have 2 distinct RCE vulnerabilities (protobufjs + esbuild)**
 
 ## Security Automation Status
 
@@ -176,8 +189,8 @@
 - New critical/high CVEs: Immediate notification
 
 **Current Escalation Status:**
-- 🚨 **CATASTROPHIC ESCALATION REQUIRED** - 1 critical + 39 high vulnerabilities unresolved for 27 days (26 days past P0 SLA), WORSENING trend with +2 new high-severity issues indicates complete absence of remediation work and deteriorating external threat landscape
+- 🚨 **CATASTROPHIC ESCALATION REQUIRED** - 1 critical + 40 high vulnerabilities unresolved for 29 days (28 days past P0 SLA), WORSENING trend with +1 NEW RCE vulnerability (esbuild) indicates complete absence of remediation work and deteriorating external threat landscape. System now has 2 distinct arbitrary code execution vectors.
 
 ---
 
-**Next Action:** Security agent will run next audit on 2026-06-13 at 06:00 UTC and update this state file with new metrics.
+**Next Action:** Security agent will run next audit on 2026-06-15 at 06:00 UTC and update this state file with new metrics.
