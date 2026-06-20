@@ -7,6 +7,13 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Windows Compatibility Fix
+**March 17, 2026** · `@herdctl/core@5.10.1` · `@herdctl/cli@2.6.1` · `@herdctl/web@1.4.1` · `@herdctl/discord@1.2.1` · `@herdctl/slack@1.2.1` · `@herdctl/chat@1.2.1`
+
+herdctl now works correctly on Windows. A bug in the path traversal security check was causing false positive errors on every state file operation when running on Windows due to hardcoded forward-slash path separators. The fix uses platform-specific path separators, enabling herdctl to run reliably on Windows systems. [#210](https://github.com/edspencer/herdctl/pull/210)
+
+---
+
 ### Discord File Attachment Support
 **March 10, 2026** · `@herdctl/discord@1.2.0` · `@herdctl/core@5.10.0`
 
