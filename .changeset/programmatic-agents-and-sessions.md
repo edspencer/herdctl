@@ -21,8 +21,44 @@ memory rather than on disk.
   sessionId)` derive the agent's working directory and Docker mode from the
   loaded config and wrap `SessionDiscoveryService`, so consumers no longer map
   agent slug → working directory by hand.
+- `deleteSession(name, sessionId)` resolves the agent's working dir + Docker
+  mode from config, computes the CLI (or Docker) transcript file with the same
+  encoder Claude Code uses, deletes it, invalidates the session-discovery cache,
+  and returns whether a file was removed. The `sessionId` is validated (only
+  `[A-Za-z0-9-]`) to reject path traversal before any filesystem access. Throws
+  `InvalidStateError` before init and `AgentNotFoundError` for unknown agents,
+  matching the other session helpers.
+- `setSessionName(name, sessionId, customName)` sets (or, when passed `null` or
+  an empty/whitespace string, clears) a session's custom display name via the
+  fleet's shared `SessionMetadataStore` — the same store session discovery reads
+  — so a subsequent `getAgentSessions` reflects the new `customName` immediately.
+  Same init / agent-not-found error behavior as the other session helpers.
+
+**`@herdctl/core` — new public exports:**
+
+- `getCliSessionFile`, `getCliSessionDir`, `encodePathForCli` (and the Docker
+  equivalents `getDockerSessionFile` / `getDockerSessionDir`) are now exported
+  from the package root, so consumers can compute a session's transcript path
+  without deep-importing `dist/runner/runtime/cli-session-path.js`.
+- `SessionMetadataStore` is exported from the package root (it was already
+  re-exported from the state module; this keeps the surface explicit for
+  callers managing custom session names directly).
+- `SessionDiscoveryService` accepts an optional shared `sessionMetadataStore`
+  (and exposes `getSessionMetadataStore()`) so writers and the discovery reader
+  can share one in-memory cache. Omitting it preserves the previous behavior.
 
 **`@herdctl/core` — fixes:**
+
+- **Throw the documented `InvalidStateError` (not `AgentNotFoundError`) when
+  `getAgentSessions` / `getAgentSessionMessages` are called before
+  `initialize()`.** The session helpers previously fell through to an agent
+  lookup against a null config, masking the real cause. They now guard on
+  initialization state first, matching their JSDoc.
+- **Use a typed error for an invalid per-trigger `workingDirectory` override.**
+  The override validation now throws `InvalidWorkingDirectoryOverrideError`
+  (extending `FleetManagerError`, code `INVALID_WORKING_DIRECTORY_OVERRIDE`)
+  instead of a raw `Error`, per the repo's typed-error guideline. The actionable
+  message is unchanged.
 
 - **Fix CLI session discovery for working directories with dots (and other
   non-alphanumerics).** `encodePathForCli` now matches Claude Code's actual
