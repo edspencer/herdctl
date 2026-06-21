@@ -1,5 +1,32 @@
 # @herdctl/chat
 
+## 0.4.1
+
+### Patch Changes
+
+- [#258](https://github.com/edspencer/herdctl/pull/258) [`deab9d5`](https://github.com/edspencer/herdctl/commit/deab9d5974259ef159cede3cbb5b9deba0f46420) Thanks [@edspencer](https://github.com/edspencer)! - Fix `SDKMessageTranslator` losing tool-call pairing on the CLI runtime.
+
+  On the CLI runtime, a user/tool_result message carries its result twice: as an
+  id-less top-level `tool_use_result` field AND as a nested
+  `message.content[]` `tool_result` block that DOES carry the `tool_use_id` and
+  `is_error`. The translator paired tool calls via core's `extractToolResults`,
+  which short-circuits on the top-level field and returns the id-less result — so
+  calls couldn't be matched back to their `tool_use` and rendered as a generic
+  `toolName: "Tool"` with no `inputSummary` or `durationMs`.
+
+  The translator now prefers the nested id-bearing `tool_result` blocks: when a
+  message has both shapes, it strips the id-less top-level field (on a shallow
+  clone — the SDK's object is never mutated) so extraction uses the nested,
+  id-bearing branch and restores correct name / input summary / duration / error
+  pairing. Messages that only carry a top-level `tool_use_result` (the SDK-runtime
+  shape) are unchanged.
+
+  This lets downstream apps (e.g. paddock) drop their `normalizeForTranslator()`
+  workaround.
+
+- Updated dependencies [[`49f9d4c`](https://github.com/edspencer/herdctl/commit/49f9d4c6d12196fcc3956d2a2e166c13159c4733)]:
+  - @herdctl/core@5.12.0
+
 ## 0.4.0
 
 ### Minor Changes
