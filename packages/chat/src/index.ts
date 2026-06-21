@@ -123,6 +123,21 @@ export {
 } from "./tool-parsing.js";
 
 // =============================================================================
+// SDK Message Translation
+// =============================================================================
+
+export {
+  // Factory
+  createSDKMessageHandler,
+  type SDKMessageHandlers,
+  // Class
+  SDKMessageTranslator,
+  type SDKMessageTranslatorOptions,
+  // Types
+  type TranslatedToolCall,
+} from "./sdk-message-translator.js";
+
+// =============================================================================
 // DM Filtering
 // =============================================================================
 
