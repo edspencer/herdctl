@@ -2,8 +2,8 @@
  * CLI session path utilities - locate Claude CLI session files
  *
  * The Claude CLI stores session files in ~/.claude/projects/ with workspace paths
- * encoded by replacing slashes with hyphens. These utilities help locate CLI session
- * directories and specific session files.
+ * encoded by replacing every non-alphanumeric character with a hyphen. These
+ * utilities help locate CLI session directories and specific session files.
  */
 
 import { readdir, stat } from "node:fs/promises";
@@ -11,26 +11,68 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 /**
+ * Maximum length of an encoded path before Claude Code truncates it.
+ *
+ * Determined empirically from Claude Code's bundled encoder (the `Aj` function):
+ * when the hyphen-encoded path exceeds this length it is sliced to this length
+ * and a stable hash of the *original* path is appended (`<slice>-<hash>`).
+ */
+const MAX_ENCODED_LENGTH = 200;
+
+/**
+ * Stable hash matching Claude Code's path-shortening hash.
+ *
+ * This is the djb2-style accumulator Claude Code uses (its `_wH` helper):
+ * `h = (h << 5) - h + charCode | 0`, taken as `Math.abs(h).toString(36)`.
+ * It is only used when the encoded path exceeds {@link MAX_ENCODED_LENGTH},
+ * to keep our output byte-for-byte identical to Claude Code's directory names.
+ */
+function hashPathForCli(input: string): string {
+  let hash = 0;
+  for (let i = 0; i < input.length; i++) {
+    hash = ((hash << 5) - hash + input.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+/**
  * Encode a workspace path for CLI session storage
  *
- * The CLI encodes workspace paths by replacing all path separators with hyphens.
- * Works on both Unix (/) and Windows (\) paths.
+ * Matches Claude Code's exact cwd → transcript-directory encoding: every
+ * character that is **not** `[A-Za-z0-9]` is replaced with a hyphen. This
+ * covers path separators (`/`, `\`), dots (`.`), underscores (`_`), `@`, `+`,
+ * spaces, and every other non-alphanumeric character. If the resulting string
+ * exceeds {@link MAX_ENCODED_LENGTH} characters, it is truncated to that length
+ * and a stable hash of the original path is appended, exactly as Claude Code does.
+ *
+ * Previously this only replaced path separators, so a cwd containing a `.` (or
+ * `_`, etc.) resolved to the wrong `~/.claude/projects/<encoded>` directory and
+ * session discovery silently returned nothing. This aligns herdctl with Claude
+ * Code's actual behavior.
  *
  * @example
  * ```typescript
  * encodePathForCli('/Users/ed/Code/myproject')
  * // => '-Users-ed-Code-myproject'
  *
+ * encodePathForCli('/Users/ed/Code/my.project')
+ * // => '-Users-ed-Code-my-project'   (dot becomes a hyphen)
+ *
  * encodePathForCli('C:\\Users\\ed\\Code\\myproject')
- * // => 'C:-Users-ed-Code-myproject'
+ * // => 'C--Users-ed-Code-myproject'  (colon and backslashes become hyphens)
  * ```
  *
  * @param absolutePath - Absolute path to workspace directory
- * @returns Encoded path with slashes replaced by hyphens
+ * @returns Encoded path with all non-alphanumeric characters replaced by hyphens
  */
 export function encodePathForCli(absolutePath: string): string {
-  // Replace both forward slashes (Unix) and backslashes (Windows)
-  return absolutePath.replace(/[/\\]/g, "-");
+  // Replace every non-alphanumeric character with a hyphen, matching Claude Code.
+  const encoded = absolutePath.replace(/[^A-Za-z0-9]/g, "-");
+  if (encoded.length <= MAX_ENCODED_LENGTH) {
+    return encoded;
+  }
+  // Truncate and append a stable hash of the original path, as Claude Code does.
+  return `${encoded.slice(0, MAX_ENCODED_LENGTH)}-${hashPathForCli(absolutePath)}`;
 }
 
 /**
