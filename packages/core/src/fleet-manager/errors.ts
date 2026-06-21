@@ -38,6 +38,7 @@ export const FleetManagerErrorCode = {
   // Job control errors (US-6)
   JOB_CANCEL_ERROR: "JOB_CANCEL_ERROR",
   JOB_FORK_ERROR: "JOB_FORK_ERROR",
+  INVALID_WORKING_DIRECTORY_OVERRIDE: "INVALID_WORKING_DIRECTORY_OVERRIDE",
 
   // Distribution errors
   SOURCE_PARSE_ERROR: "SOURCE_PARSE_ERROR",
@@ -614,6 +615,45 @@ export class JobForkError extends FleetManagerError {
 }
 
 // =============================================================================
+// Trigger Override Errors
+// =============================================================================
+
+/**
+ * Error thrown when a per-trigger `workingDirectory` override is invalid
+ *
+ * This error is thrown when {@link TriggerOptions.workingDirectory} is provided
+ * but is not a non-empty string (e.g. an empty string, whitespace, or a
+ * non-string value passed from untyped/JS callers).
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   await manager.trigger("my-agent", undefined, { workingDirectory: "" });
+ * } catch (error) {
+ *   if (error instanceof InvalidWorkingDirectoryOverrideError) {
+ *     console.error(`Bad override: ${JSON.stringify(error.override)}`);
+ *   }
+ * }
+ * ```
+ */
+export class InvalidWorkingDirectoryOverrideError extends FleetManagerError {
+  /** The invalid override value that was provided */
+  public readonly override: unknown;
+
+  constructor(override: unknown, options?: { cause?: Error }) {
+    super(
+      `Invalid workingDirectory override: expected a non-empty string, received ${JSON.stringify(override)}`,
+      {
+        cause: options?.cause,
+        code: FleetManagerErrorCode.INVALID_WORKING_DIRECTORY_OVERRIDE,
+      },
+    );
+    this.name = "InvalidWorkingDirectoryOverrideError";
+    this.override = override;
+  }
+}
+
+// =============================================================================
 // Type Guards
 // =============================================================================
 
@@ -678,4 +718,13 @@ export function isJobCancelError(error: unknown): error is JobCancelError {
  */
 export function isJobForkError(error: unknown): error is JobForkError {
   return error instanceof JobForkError;
+}
+
+/**
+ * Type guard to check if an error is an InvalidWorkingDirectoryOverrideError
+ */
+export function isInvalidWorkingDirectoryOverrideError(
+  error: unknown,
+): error is InvalidWorkingDirectoryOverrideError {
+  return error instanceof InvalidWorkingDirectoryOverrideError;
 }

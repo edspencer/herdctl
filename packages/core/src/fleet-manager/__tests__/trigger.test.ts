@@ -19,7 +19,12 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { AgentNotFoundError, InvalidStateError, ScheduleNotFoundError } from "../errors.js";
+import {
+  AgentNotFoundError,
+  InvalidStateError,
+  InvalidWorkingDirectoryOverrideError,
+  ScheduleNotFoundError,
+} from "../errors.js";
 import { FleetManager } from "../fleet-manager.js";
 
 /** Read the `cwd` passed to the (mocked) SDK query for the most recent trigger. */
@@ -732,6 +737,11 @@ describe("Manual Agent Triggering (US-5)", () => {
       const manager = createTestManager(configPath);
       await manager.initialize();
 
+      // Typed error (extends FleetManagerError), not a raw Error — per repo
+      // guidelines and the CodeRabbit fix.
+      await expect(
+        manager.trigger("wd-empty-agent", undefined, { workingDirectory: "   " }),
+      ).rejects.toThrow(InvalidWorkingDirectoryOverrideError);
       await expect(
         manager.trigger("wd-empty-agent", undefined, { workingDirectory: "   " }),
       ).rejects.toThrow(/Invalid workingDirectory override/);

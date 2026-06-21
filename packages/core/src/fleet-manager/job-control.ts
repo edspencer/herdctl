@@ -19,6 +19,7 @@ import {
   AgentNotFoundError,
   ConcurrencyLimitError,
   InvalidStateError,
+  InvalidWorkingDirectoryOverrideError,
   JobCancelError,
   JobForkError,
   JobNotFoundError,
@@ -712,7 +713,8 @@ export class JobControl {
  * @param agent - The resolved agent from the loaded config
  * @param override - Optional per-trigger working directory (absolute or relative)
  * @returns The original agent (no override) or a clone with the override applied
- * @throws {Error} If the override is provided but not a non-empty string
+ * @throws {InvalidWorkingDirectoryOverrideError} If the override is provided but
+ *   not a non-empty string
  */
 function applyWorkingDirectoryOverride(
   agent: ResolvedAgent,
@@ -723,9 +725,7 @@ function applyWorkingDirectoryOverride(
   }
 
   if (typeof override !== "string" || override.trim() === "") {
-    throw new Error(
-      `Invalid workingDirectory override: expected a non-empty string, received ${JSON.stringify(override)}`,
-    );
+    throw new InvalidWorkingDirectoryOverrideError(override);
   }
 
   // Resolve relative overrides to absolute paths so session/transcript lookup

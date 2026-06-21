@@ -14,12 +14,14 @@ import {
   FleetManagerShutdownError,
   FleetManagerStateDirError,
   InvalidStateError,
+  InvalidWorkingDirectoryOverrideError,
   isAgentNotFoundError,
   isConcurrencyLimitError,
   isConfigurationError,
   // Type guards
   isFleetManagerError,
   isInvalidStateError,
+  isInvalidWorkingDirectoryOverrideError,
   isJobCancelError,
   isJobForkError,
   isJobNotFoundError,
@@ -436,6 +438,33 @@ describe("FleetManagerError classes", () => {
   });
 
   // ===========================================================================
+  // InvalidWorkingDirectoryOverrideError
+  // ===========================================================================
+  describe("InvalidWorkingDirectoryOverrideError", () => {
+    it("is a FleetManagerError with the right code and message", () => {
+      const error = new InvalidWorkingDirectoryOverrideError("   ");
+      expect(error).toBeInstanceOf(FleetManagerError);
+      expect(error.name).toBe("InvalidWorkingDirectoryOverrideError");
+      expect(error.code).toBe(FleetManagerErrorCode.INVALID_WORKING_DIRECTORY_OVERRIDE);
+      expect(error.message).toContain("Invalid workingDirectory override");
+      expect(error.message).toContain("non-empty string");
+      expect(error.override).toBe("   ");
+    });
+
+    it("captures non-string override values", () => {
+      const error = new InvalidWorkingDirectoryOverrideError(42 as unknown);
+      expect(error.override).toBe(42);
+      expect(error.message).toContain("42");
+    });
+
+    it("creates error with cause", () => {
+      const cause = new Error("bad input");
+      const error = new InvalidWorkingDirectoryOverrideError("", { cause });
+      expect(error.cause).toBe(cause);
+    });
+  });
+
+  // ===========================================================================
   // Type Guards
   // ===========================================================================
   describe("Type Guards", () => {
@@ -457,6 +486,7 @@ describe("FleetManagerError classes", () => {
         ).toBe(true);
         expect(isFleetManagerError(new JobCancelError("test", "unknown"))).toBe(true);
         expect(isFleetManagerError(new JobForkError("test", "unknown"))).toBe(true);
+        expect(isFleetManagerError(new InvalidWorkingDirectoryOverrideError(""))).toBe(true);
       });
 
       it("returns false for regular Error", () => {
@@ -579,6 +609,22 @@ describe("FleetManagerError classes", () => {
         expect(isJobForkError(null)).toBe(false);
       });
     });
+
+    describe("isInvalidWorkingDirectoryOverrideError", () => {
+      it("returns true for InvalidWorkingDirectoryOverrideError", () => {
+        const error = new InvalidWorkingDirectoryOverrideError("");
+        expect(isInvalidWorkingDirectoryOverrideError(error)).toBe(true);
+      });
+
+      it("returns false for other error types", () => {
+        expect(isInvalidWorkingDirectoryOverrideError(new FleetManagerError("test"))).toBe(false);
+        expect(isInvalidWorkingDirectoryOverrideError(new JobForkError("j", "unknown"))).toBe(
+          false,
+        );
+        expect(isInvalidWorkingDirectoryOverrideError(new Error("test"))).toBe(false);
+        expect(isInvalidWorkingDirectoryOverrideError(null)).toBe(false);
+      });
+    });
   });
 
   // ===========================================================================
@@ -598,6 +644,9 @@ describe("FleetManagerError classes", () => {
       expect(FleetManagerErrorCode.SHUTDOWN_ERROR).toBe("SHUTDOWN_ERROR");
       expect(FleetManagerErrorCode.JOB_CANCEL_ERROR).toBe("JOB_CANCEL_ERROR");
       expect(FleetManagerErrorCode.JOB_FORK_ERROR).toBe("JOB_FORK_ERROR");
+      expect(FleetManagerErrorCode.INVALID_WORKING_DIRECTORY_OVERRIDE).toBe(
+        "INVALID_WORKING_DIRECTORY_OVERRIDE",
+      );
     });
   });
 });
