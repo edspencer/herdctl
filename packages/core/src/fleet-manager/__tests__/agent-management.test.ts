@@ -438,6 +438,19 @@ describe("FleetManager programmatic agent management", () => {
       );
     });
 
+    it("throws InvalidStateError (not AgentNotFoundError) before initialize()", async () => {
+      // Regression for CodeRabbit fix: a pre-init call must surface the real
+      // cause (uninitialized) rather than masquerading as a missing agent.
+      const configPath = await createConfig({ version: 1, agents: [] });
+      const manager = createTestManager(configPath);
+
+      await expect(manager.getAgentSessions("anything")).rejects.toThrow(InvalidStateError);
+      await expect(manager.getAgentSessions("anything")).rejects.not.toThrow(AgentNotFoundError);
+      await expect(manager.getAgentSessionMessages("anything", "x")).rejects.toThrow(
+        InvalidStateError,
+      );
+    });
+
     it("works for a programmatically added agent", async () => {
       mockGetAgentSessions.mockResolvedValue([{ sessionId: "prog" }]);
 
