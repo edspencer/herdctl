@@ -77,6 +77,98 @@ inline (duplicated between `sendMessage` and `sendAdhocMessage`) into one reusab
 helper. It is built on existing `@herdctl/chat` primitives (`extractMessageContent`,
 `extractToolUseBlocks`, `extractToolResults`, `getToolInputSummary`).
 
+### `@herdctl/core` — fix: CLI session discovery for dotted working directories
+
+paddock found that listing an agent's chats returned nothing when the agent's
+working directory contained a `.` (dot). Claude Code encodes a cwd into its
+transcript directory under `~/.claude/projects/<encoded>/`, and herdctl's
+`encodePathForCli` (in `packages/core/src/runner/runtime/cli-session-path.ts`)
+did not match that encoding for `.` (or `_`, `@`, etc.) — it only replaced path
+separators.
+
+The exact Claude Code rule was confirmed **empirically**:
+
+- Real directories under `~/.claude/projects/` match the slash-only mapping
+  (`/Users/ed/herds/personal/homelab` ⇄ `-Users-ed-herds-personal-homelab`).
+- Claude Code's bundled encoder is `H.replace(/[^a-zA-Z0-9]/g, "-")` followed by
+  a 200-char truncate-and-hash fallback (the `Aj`/`ex` functions).
+- A live Claude run in `/tmp/cc-enc-test/with.dot` created the directory
+  `~/.claude/projects/-private-tmp-cc-enc-test-with-dot` — the dot in `with.dot`
+  became `-with-dot`, exactly as the rule predicts (and `/tmp` was resolved via
+  `realpath` to `/private/tmp` first).
+
+`encodePathForCli` now replaces every non-`[A-Za-z0-9]` character with a hyphen
+and applies the same 200-char truncate + stable-hash fallback, so dotted /
+underscored / special-char working directories resolve to the correct transcript
+directory. The existing encode → decode → re-encode round-trip in
+`getAllSessions` is preserved (both `.` and `/` map to `-`, and the display
+decoder maps `-` → `/`, re-encoding to the same directory name).
+
+### `@herdctl/core` — fix: per-trigger working-directory override
+
+Today an agent's `working_directory` is fixed at registration, so paddock must
+register one agent per project — and now one *sweeper* agent per project too. A
+per-trigger override lets a **single** agent be triggered against different
+working directories per call.
+
+`TriggerOptions` gains an optional `workingDirectory?: string`:
+
+```ts
+interface TriggerOptions {
+  // ...existing fields...
+  /** Override the agent's configured working directory for this trigger only. */
+  workingDirectory?: string;
+}
+```
+
+- Absolute paths are used as-is; relative paths resolve against `process.cwd()`.
+- When omitted, behavior is **identical** to today (the agent's configured
+  `working_directory` is used).
+- Validated to be a non-empty string; an empty/blank override throws.
+
+It is threaded through the full trigger path by building an "effective agent" —
+a shallow clone of the resolved agent with its `working_directory` replaced — at
+a single chokepoint in `FleetManager.trigger` → `JobControl.trigger`. Because
+every cwd-dependent consumer reads `agent.working_directory`, the override
+automatically reaches all of them:
+
+- `RuntimeFactory.create(effectiveAgent, …)` and the CLI runtime's process cwd
+  (and its `getCliSessionDir(cwd)` / `getCliSessionFile(cwd, …)` session lookup);
+- `toSDKOptions(effectiveAgent)` → the SDK runtime's `cwd`;
+- the Docker path — `buildContainerMounts(effectiveAgent, …)` mounts the override
+  directory at `/workspace` (the container-internal cwd stays `/workspace`, and
+  Docker sessions remain flat in `.herdctl/docker-sessions/`);
+- session/transcript resolution and session-staleness validation in
+  `JobExecutor`, plus the `after_run` hook cwd.
+
+The original config object is never mutated, so concurrent/subsequent triggers of
+the same agent are unaffected.
+
+**How paddock collapses N sweeper agents into one.** Instead of registering a
+sweeper agent per project, register a single sweeper and trigger it per project:
+
+```ts
+// Before: one sweeper agent per project (N registrations).
+// After: one sweeper agent, triggered against each project directory.
+for (const project of projects) {
+  await fleet.trigger("sweeper", undefined, {
+    prompt: "Sweep this project",
+    workingDirectory: project.dir,   // absolute path
+  });
+}
+```
+
+**Honest limitation — session continuity across cwds.** Sessions are keyed by
+working directory (Claude Code stores transcripts under the encoded cwd).
+`fleet.getAgentSessions(name)` / `getAgentSessionMessages(name, …)` derive the
+directory from the agent's *configured* `working_directory`, so they will **not**
+surface sessions created under a different override cwd. When you use overrides,
+list/read those sessions by scanning the override directory (e.g. the
+directory-grouped `getAllSessions` view), and pass `resume` explicitly for
+continuity — the per-trigger resume + override together resolve the right
+transcript directory. This is documented on `TriggerOptions.workingDirectory` and
+`FleetManager.getAgentSessions`.
+
 ## New public API signatures
 
 ```ts
@@ -101,6 +193,17 @@ class FleetManager {
   ): Promise<DiscoveredSession[]>;
 
   getAgentSessionMessages(name: string, sessionId: string): Promise<ChatMessage[]>;
+}
+
+// @herdctl/core — TriggerOptions gains a per-trigger working-directory override
+interface TriggerOptions {
+  // ...existing fields...
+  /**
+   * Override the agent's configured working directory for this trigger only.
+   * Absolute paths are used as-is; relative paths resolve against process.cwd().
+   * Omitted => identical to today (uses the agent's configured working_directory).
+   */
+  workingDirectory?: string;
 }
 
 // Also exported from @herdctl/core:
@@ -188,16 +291,39 @@ cancellation.)
   name/input-summary/duration, error results, the orphan-result fallback,
   `toolResults: false`, async backpressure ordering, `reset()`, and the
   `createSDKMessageHandler` factory.
+- `packages/core/src/runner/runtime/__tests__/cli-session-path.test.ts` —
+  extended for the encoding fix: single/multiple/leading dots, dotfile-style
+  relative segments, underscores, other special chars (`@`, `+`, `~`, space),
+  the real `~/.claude/projects` names, the 200-char truncation+hash path, the
+  exact-200 boundary, and the updated Windows/drive-colon cases. A comment notes
+  the cases align herdctl with Claude Code's actual encoding.
+- `packages/core/src/fleet-manager/__tests__/trigger.test.ts` — 7 tests for the
+  working-directory override: runs in the override cwd, omitted → unchanged, an
+  agent with no configured working dir runs against an override, relative
+  override resolves against `process.cwd()`, empty-string override is rejected,
+  and the override does not mutate the shared agent config (a later un-overridden
+  trigger falls back to the configured dir).
+- `packages/core/src/runner/runtime/__tests__/cli-runtime.test.ts` — asserts the
+  CLI runtime spawns in the agent's (effective) `working_directory` and resolves
+  its session directory from it, proving session lookup follows the effective cwd.
+- `packages/core/src/runner/runtime/__tests__/docker-security.test.ts` — adds
+  daemon-free `buildContainerMounts` tests proving an overridden
+  `working_directory` is mounted at `/workspace` (and a different override mounts
+  a different host dir, while the container session mount path is unchanged).
 
 ### Results
 
 - `pnpm build` — all 7 tasks succeed.
 - `pnpm typecheck` — all 11 tasks succeed.
-- `pnpm test` — all 6 packages pass (core 3122, chat 256, web 157, slack 350,
+- `pnpm test` — all 6 packages pass (core 3141, chat 256, web 157, slack 350,
   discord 342, cli 202).
 - Coverage of new code (above the per-package thresholds):
   - `agent-management.ts`: 90.9% statements / 92.3% functions / 77.1% branches.
   - `sdk-message-translator.ts`: 97.4% statements / 100% functions / 84.4% branches.
+  - `cli-session-path.ts` encoding (incl. truncate+hash) and the
+    `applyWorkingDirectoryOverride` chokepoint are exercised by the new
+    session-path and trigger tests; the core package stays above its 74/75/65
+    thresholds.
 - `biome check` — clean on all new/modified files.
 - Changeset: `.changeset/programmatic-agents-and-sessions.md` (`@herdctl/core`
   minor, `@herdctl/chat` minor; dependents patch-bumped automatically).
