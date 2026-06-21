@@ -40,7 +40,16 @@ export {
 } from "./message-processor.js";
 // Export runtime types and factory
 export type { RuntimeExecuteOptions, RuntimeInterface } from "./runtime/index.js";
-export { RuntimeFactory, type RuntimeType, SDKRuntime } from "./runtime/index.js";
+export {
+  encodePathForCli,
+  getCliSessionDir,
+  getCliSessionFile,
+  getDockerSessionDir,
+  getDockerSessionFile,
+  RuntimeFactory,
+  type RuntimeType,
+  SDKRuntime,
+} from "./runtime/index.js";
 // Export SDK adapter functions
 export {
   buildSystemPrompt,

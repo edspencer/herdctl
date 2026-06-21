@@ -495,3 +495,51 @@ describe("Docker Config Security Defaults", () => {
     expect(config.image).toBe("specific:latest");
   });
 });
+
+// =============================================================================
+// Per-trigger working-directory override -> Docker workspace mount
+// =============================================================================
+//
+// A per-trigger workingDirectory override is applied upstream (in
+// FleetManager.trigger) by swapping the resolved agent's working_directory.
+// buildContainerMounts is a pure function that mounts agent.working_directory at
+// /workspace, so the override flows into the host-side mount without any
+// Docker-specific changes. These tests pin that contract (no Docker daemon
+// needed — buildContainerMounts builds the mount spec only).
+
+describe("Docker workspace mount honors working_directory (per-trigger override)", () => {
+  it("mounts the (overridden) working_directory at /workspace", () => {
+    // Simulate the effective agent FleetManager.trigger builds for an override.
+    const effectiveAgent = {
+      name: "sweeper",
+      configPath: "/path/to/agent.yaml",
+      working_directory: "/override/project-a",
+    } as ResolvedAgent;
+    const dockerConfig = resolveDockerConfig({ enabled: true });
+
+    const mounts = buildContainerMounts(effectiveAgent, dockerConfig, "/tmp/state");
+
+    const workspaceMount = mounts.find((m) => m.containerPath === "/workspace");
+    expect(workspaceMount?.hostPath).toBe("/override/project-a");
+  });
+
+  it("a different override mounts a different host directory at /workspace", () => {
+    const effectiveAgent = {
+      name: "sweeper",
+      configPath: "/path/to/agent.yaml",
+      working_directory: "/override/project-b",
+    } as ResolvedAgent;
+    const dockerConfig = resolveDockerConfig({ enabled: true });
+
+    const mounts = buildContainerMounts(effectiveAgent, dockerConfig, "/tmp/state");
+
+    const workspaceMount = mounts.find((m) => m.containerPath === "/workspace");
+    expect(workspaceMount?.hostPath).toBe("/override/project-b");
+    // Container-internal cwd stays /workspace, so the session mount path is
+    // unchanged regardless of which host dir is mounted.
+    const sessionMount = mounts.find(
+      (m) => m.containerPath === "/home/claude/.claude/projects/-workspace",
+    );
+    expect(sessionMount).toBeDefined();
+  });
+});

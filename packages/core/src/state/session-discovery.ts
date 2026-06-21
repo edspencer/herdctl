@@ -75,6 +75,15 @@ export interface SessionDiscoveryOptions {
   stateDir: string;
   /** Cache TTL in milliseconds. Default: 30_000 (30 seconds) */
   cacheTtlMs?: number;
+  /**
+   * Optional shared {@link SessionMetadataStore}. When provided, the service
+   * reads custom names / auto-names / previews through this store instead of
+   * creating its own. Sharing one instance keeps the in-memory cache consistent
+   * with callers that *write* metadata (e.g. `FleetManager.setSessionName`), so
+   * a subsequent `getAgentSessions` reflects the change immediately. When
+   * omitted, a private store is created for backward compatibility.
+   */
+  sessionMetadataStore?: SessionMetadataStore;
 }
 
 // =============================================================================
@@ -184,7 +193,19 @@ export class SessionDiscoveryService {
     this.claudeHomePath = options.claudeHomePath ?? path.join(os.homedir(), ".claude");
     this.stateDir = options.stateDir;
     this.cacheTtlMs = options.cacheTtlMs ?? 30_000;
-    this.sessionMetadataStore = new SessionMetadataStore(options.stateDir);
+    this.sessionMetadataStore =
+      options.sessionMetadataStore ?? new SessionMetadataStore(options.stateDir);
+  }
+
+  /**
+   * The {@link SessionMetadataStore} this service reads metadata through.
+   *
+   * Exposed so callers that share a discovery service can write metadata (e.g.
+   * custom names) through the *same* store instance and have the change
+   * reflected by subsequent discovery calls without a stale in-memory cache.
+   */
+  getSessionMetadataStore(): SessionMetadataStore {
+    return this.sessionMetadataStore;
   }
 
   /**

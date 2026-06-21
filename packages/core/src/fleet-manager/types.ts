@@ -604,6 +604,35 @@ export interface TriggerOptions {
    * (e.g., telling the agent to be concise on Discord).
    */
   systemPromptAppend?: string;
+
+  /**
+   * Override the agent's configured working directory for this trigger only.
+   *
+   * When provided, this single trigger runs against `workingDirectory` instead
+   * of the agent's `working_directory` from config. This lets one agent be
+   * triggered against different directories per call (for example, a single
+   * "sweeper" agent run against many project directories) without registering
+   * one agent per directory.
+   *
+   * - Absolute paths are used as-is.
+   * - Relative paths are resolved against `process.cwd()` to an absolute path.
+   * - When omitted, behavior is identical to today: the agent's configured
+   *   `working_directory` is used.
+   *
+   * The override applies to the process cwd (native runtimes), the SDK `cwd`,
+   * and the Docker workspace mount. **Session/transcript resolution for this
+   * job uses the effective (overridden) working directory** — Claude Code keys
+   * transcripts by cwd, so a resumed/discovered session is looked up under the
+   * override directory.
+   *
+   * Caveat: because sessions are keyed by cwd, agent-level session continuity
+   * (`getAgentSessions` / `getAgentSessionMessages`, which derive the directory
+   * from the agent's *configured* `working_directory`) will not see sessions
+   * created under a different override cwd. When using overrides, the caller is
+   * responsible for passing the matching directory context when listing/reading
+   * those sessions (e.g. via the directory-scan `getAllSessions`).
+   */
+  workingDirectory?: string;
 }
 
 /**

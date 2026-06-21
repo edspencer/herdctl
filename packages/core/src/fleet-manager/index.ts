@@ -5,6 +5,8 @@
  * initialize and run agent fleets with minimal configuration.
  */
 
+// Programmatic agent management
+export { type AddAgentOptions, AgentManagement } from "./agent-management.js";
 // Chat manager interface and types
 export type { ChatManagerConnectorState, IChatManager } from "./chat-manager-interface.js";
 export { ConfigReload } from "./config-reload.js";

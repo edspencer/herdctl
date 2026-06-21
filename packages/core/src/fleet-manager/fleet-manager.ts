@@ -12,22 +12,34 @@
  */
 
 import { EventEmitter } from "node:events";
+import { rm } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import {
+  type AgentConfig,
   ConfigError,
   ConfigNotFoundError,
   loadConfig,
   type ResolvedAgent,
   type ResolvedConfig,
 } from "../config/index.js";
+import { getCliSessionFile, getDockerSessionFile } from "../runner/runtime/cli-session-path.js";
 import { Scheduler, type TriggerInfo } from "../scheduler/index.js";
-import { initStateDirectory, type StateDirectory } from "../state/index.js";
+import {
+  type ChatMessage,
+  type DiscoveredSession,
+  initStateDirectory,
+  SessionDiscoveryService,
+  SessionMetadataStore,
+  type StateDirectory,
+} from "../state/index.js";
 import { createLogger } from "../utils/logger.js";
+import { type AddAgentOptions, AgentManagement } from "./agent-management.js";
 import type { IChatManager } from "./chat-manager-interface.js";
 import { ConfigReload, computeConfigChanges } from "./config-reload.js";
 import type { FleetManagerContext } from "./context.js";
 import {
+  AgentNotFoundError,
   ConfigurationError,
   FleetManagerShutdownError,
   FleetManagerStateDirError,
@@ -59,6 +71,7 @@ import type {
   TriggerOptions,
   TriggerResult,
 } from "./types.js";
+import { resolveWorkingDirectory } from "./working-directory-helper.js";
 
 const DEFAULT_CHECK_INTERVAL = 1000;
 
@@ -96,9 +109,18 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   private statusQueries!: StatusQueries;
   private scheduleManagement!: ScheduleManagement;
   private configReloadModule!: ConfigReload;
+  private agentManagement!: AgentManagement;
   private jobControl!: JobControl;
   private logStreaming!: LogStreaming;
   private scheduleExecutor!: ScheduleExecutor;
+
+  // Lazily-created session discovery service (for getAgentSessions/* helpers)
+  private sessionDiscovery: SessionDiscoveryService | null = null;
+
+  // Lazily-created session metadata store, shared with sessionDiscovery so a
+  // setSessionName() write is reflected by a subsequent getAgentSessions()
+  // without a stale in-memory cache.
+  private sessionMetadataStore: SessionMetadataStore | null = null;
 
   // Chat managers (Discord, Slack, etc.)
   // Key is platform name (e.g., "discord", "slack")
@@ -480,6 +502,220 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     return computeConfigChanges(oldConfig, newConfig);
   }
 
+  // Programmatic Agent Management
+
+  /**
+   * Register an agent at runtime without writing YAML or calling `reload()`.
+   *
+   * The config is validated, merged with fleet defaults, normalized (working
+   * directory resolved to an absolute path), and wired into the running fleet
+   * so it is immediately triggerable and appears in fleet status. A
+   * `config:reloaded` event is emitted describing the change.
+   *
+   * This is the programmatic counterpart to editing `herdctl.yaml` and calling
+   * `reload()` — useful for apps that manage agents in memory rather than on
+   * disk.
+   *
+   * @param agent - The agent configuration to register (must include `name`)
+   * @param options - Resolution options (base dir, defaults merge, replace)
+   * @returns Info for the newly registered agent
+   * @throws {InvalidStateError} If the fleet manager is not yet initialized
+   * @throws {ConfigurationError} If validation fails or the name collides
+   *
+   * @example
+   * ```typescript
+   * await fleet.addAgent({
+   *   name: "keeper-myproject",
+   *   working_directory: "/abs/projects/myproject",
+   *   runtime: "cli",
+   *   permission_mode: "acceptEdits",
+   * });
+   * await fleet.trigger("keeper-myproject", undefined, { prompt: "Hello" });
+   * ```
+   */
+  async addAgent(
+    agent: AgentConfig | (Record<string, unknown> & { name: string }),
+    options?: AddAgentOptions,
+  ): Promise<AgentInfo> {
+    return this.agentManagement.addAgent(agent, options);
+  }
+
+  /**
+   * Unregister an agent at runtime.
+   *
+   * Removes the agent from the in-memory config and the scheduler. Accepts a
+   * qualified name or a local name. Running jobs are unaffected.
+   *
+   * @param name - The agent qualified name or local name to remove
+   * @returns `true` if an agent was removed, `false` if no match was found
+   * @throws {InvalidStateError} If the fleet manager is not yet initialized
+   */
+  async removeAgent(name: string): Promise<boolean> {
+    return this.agentManagement.removeAgent(name);
+  }
+
+  // Session Access (convenience wrappers over SessionDiscoveryService)
+
+  /**
+   * List discovered Claude Code sessions for an agent.
+   *
+   * Derives the agent's working directory and Docker mode from the loaded
+   * config, so consumers don't have to map agent → working directory by hand.
+   * Sessions are returned sorted by modification time (newest first).
+   *
+   * Note: sessions are keyed by working directory. This method uses the agent's
+   * *configured* `working_directory`. If you triggered the agent with a
+   * per-trigger `workingDirectory` override (see {@link TriggerOptions}), the
+   * resulting sessions live under that override directory and will NOT appear
+   * here — list them by scanning that directory instead (e.g. the directory
+   * grouped `getAllSessions` view on the underlying `SessionDiscoveryService`).
+   *
+   * @param name - The agent qualified name or local name
+   * @param options - Optional `limit` for top-N enrichment
+   * @returns Array of discovered sessions (empty if the agent has no working
+   *   directory or no sessions yet)
+   * @throws {InvalidStateError} If the fleet manager is not yet initialized
+   * @throws {AgentNotFoundError} If no agent with that name exists
+   */
+  async getAgentSessions(name: string, options?: { limit?: number }): Promise<DiscoveredSession[]> {
+    const { agent, workingDirectory, dockerEnabled } = this.resolveAgentForSessions(
+      name,
+      "getAgentSessions",
+    );
+    if (!workingDirectory) {
+      return [];
+    }
+    return this.getSessionDiscovery().getAgentSessions(
+      agent.qualifiedName,
+      workingDirectory,
+      dockerEnabled,
+      options,
+    );
+  }
+
+  /**
+   * Get the parsed chat messages for one of an agent's sessions.
+   *
+   * Derives the working directory and Docker mode from the loaded config.
+   *
+   * @param name - The agent qualified name or local name
+   * @param sessionId - The session ID to read
+   * @returns Array of chat messages (empty if the agent has no working directory)
+   * @throws {InvalidStateError} If the fleet manager is not yet initialized
+   * @throws {AgentNotFoundError} If no agent with that name exists
+   */
+  async getAgentSessionMessages(name: string, sessionId: string): Promise<ChatMessage[]> {
+    const { workingDirectory, dockerEnabled } = this.resolveAgentForSessions(
+      name,
+      "getAgentSessionMessages",
+    );
+    if (!workingDirectory) {
+      return [];
+    }
+    return this.getSessionDiscovery().getSessionMessages(workingDirectory, sessionId, {
+      dockerEnabled,
+    });
+  }
+
+  /**
+   * Delete one of an agent's Claude Code session transcripts from disk.
+   *
+   * Resolves the agent's working directory and Docker mode from the loaded
+   * config, computes the CLI (or Docker) transcript file path with the same
+   * encoder Claude Code uses, deletes it, and invalidates the session-discovery
+   * cache so a subsequent {@link getAgentSessions} no longer lists it.
+   *
+   * The `sessionId` is validated (only `[A-Za-z0-9-]` is allowed) to prevent
+   * path traversal before any filesystem access.
+   *
+   * @param name - The agent qualified name or local name
+   * @param sessionId - The session ID whose transcript should be removed
+   * @returns `true` if a file was removed, `false` if no transcript existed (or
+   *   the agent has no working directory)
+   * @throws {InvalidStateError} If the fleet manager is not yet initialized
+   * @throws {AgentNotFoundError} If no agent with that name exists
+   * @throws {Error} If `sessionId` contains invalid characters
+   */
+  async deleteSession(name: string, sessionId: string): Promise<boolean> {
+    const { workingDirectory, dockerEnabled } = this.resolveAgentForSessions(name, "deleteSession");
+    if (!workingDirectory) {
+      return false;
+    }
+
+    // Compute the transcript path. getCliSessionFile/getDockerSessionFile both
+    // reject a sessionId containing anything other than [A-Za-z0-9-], so this
+    // throws before touching the filesystem when traversal is attempted.
+    const sessionFile = dockerEnabled
+      ? getDockerSessionFile(this.stateDir, sessionId)
+      : getCliSessionFile(workingDirectory, sessionId);
+
+    let removed: boolean;
+    try {
+      await rm(sessionFile);
+      removed = true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        // No transcript on disk — nothing to remove.
+        removed = false;
+      } else {
+        throw error;
+      }
+    }
+
+    // Invalidate the discovery cache so the deleted session disappears from
+    // subsequent listings even within the cache TTL window.
+    this.getSessionDiscovery().invalidateCache(workingDirectory, { dockerEnabled });
+
+    this.logger.debug(
+      `deleteSession: ${removed ? "removed" : "no file for"} session "${sessionId}" of agent "${name}"`,
+    );
+    return removed;
+  }
+
+  /**
+   * Set (or clear) the custom display name for one of an agent's sessions.
+   *
+   * Writes through this fleet's shared {@link SessionMetadataStore} — the same
+   * store the session-discovery service reads — so a subsequent
+   * {@link getAgentSessions} reflects the new `customName` immediately. Passing
+   * `null` or an empty/whitespace string clears any existing custom name.
+   *
+   * @param name - The agent qualified name or local name
+   * @param sessionId - The session ID to (re)name
+   * @param customName - The custom name to set, or `null`/empty to clear it
+   * @throws {InvalidStateError} If the fleet manager is not yet initialized
+   * @throws {AgentNotFoundError} If no agent with that name exists
+   */
+  async setSessionName(name: string, sessionId: string, customName: string | null): Promise<void> {
+    // Resolve to validate state + agent existence and to key metadata by the
+    // agent's qualified name (consistent with how discovery stores custom names).
+    const { agent } = this.resolveAgentForSessions(name, "setSessionName");
+
+    const store = this.getSessionMetadataStore();
+    const trimmed = customName?.trim();
+    if (trimmed) {
+      await store.setCustomName(agent.qualifiedName, sessionId, trimmed);
+      this.logger.debug(
+        `setSessionName: set custom name for session "${sessionId}" of agent "${agent.qualifiedName}"`,
+      );
+    } else {
+      await store.removeCustomName(agent.qualifiedName, sessionId);
+      this.logger.debug(
+        `setSessionName: cleared custom name for session "${sessionId}" of agent "${agent.qualifiedName}"`,
+      );
+    }
+
+    // Custom names are read live (not part of the directory listing cache), and
+    // the metadata store is shared with discovery, so the change is already
+    // visible. Invalidate the directory listing too for safety/consistency.
+    const workingDirectory = resolveWorkingDirectory(agent);
+    if (workingDirectory) {
+      this.getSessionDiscovery().invalidateCache(workingDirectory, {
+        dockerEnabled: agent.docker?.enabled === true,
+      });
+    }
+  }
+
   // Job Control
   async trigger(
     agentName: string,
@@ -524,6 +760,13 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       (config) => {
         this.config = config;
       },
+    );
+    this.agentManagement = new AgentManagement(
+      this,
+      (config) => {
+        this.config = config;
+      },
+      (name) => this.statusQueries.getAgentInfoByName(name),
     );
     this.jobControl = new JobControl(this, () => this.statusQueries.getAgentInfo());
     this.logStreaming = new LogStreaming(this);
@@ -714,6 +957,81 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
         `Duplicate agent qualified names found: ${duplicateList}. Agent names must be unique within a fleet.`,
       );
     }
+  }
+
+  /**
+   * Get (lazily creating) the shared SessionMetadataStore bound to this fleet's
+   * state directory. Shared with the SessionDiscoveryService so metadata writes
+   * (e.g. {@link setSessionName}) and reads (during discovery) use one cache.
+   */
+  private getSessionMetadataStore(): SessionMetadataStore {
+    if (!this.sessionMetadataStore) {
+      this.sessionMetadataStore = new SessionMetadataStore(this.stateDir);
+    }
+    return this.sessionMetadataStore;
+  }
+
+  /**
+   * Get (lazily creating) the SessionDiscoveryService bound to this fleet's
+   * state directory. Reused across calls so its caches are shared. The
+   * service shares this fleet's {@link SessionMetadataStore} so custom-name
+   * writes are immediately visible to discovery.
+   */
+  private getSessionDiscovery(): SessionDiscoveryService {
+    if (!this.sessionDiscovery) {
+      this.sessionDiscovery = new SessionDiscoveryService({
+        stateDir: this.stateDir,
+        sessionMetadataStore: this.getSessionMetadataStore(),
+      });
+    }
+    return this.sessionDiscovery;
+  }
+
+  /**
+   * Look up an agent by qualified or local name and derive the inputs the
+   * SessionDiscoveryService needs (working directory + Docker mode).
+   *
+   * @param name - The agent qualified name or local name
+   * @param operation - The public operation name, used for the
+   *   {@link InvalidStateError} message when the fleet is uninitialized
+   * @throws {InvalidStateError} If the fleet manager is not yet initialized
+   * @throws {AgentNotFoundError} If no agent with that name exists
+   */
+  private resolveAgentForSessions(
+    name: string,
+    operation: string,
+  ): {
+    agent: ResolvedAgent;
+    workingDirectory: string | undefined;
+    dockerEnabled: boolean;
+  } {
+    // Guard against pre-init calls. Without this, an uninitialized fleet has a
+    // null config, so the agent lookup below would throw AgentNotFoundError —
+    // masking the real cause and contradicting the documented behavior (these
+    // helpers throw InvalidStateError before initialize()).
+    if (this.status === "uninitialized" || !this.config) {
+      throw new InvalidStateError(operation, this.status, [
+        "initialized",
+        "starting",
+        "running",
+        "stopping",
+        "stopped",
+      ]);
+    }
+
+    const agents = this.config.agents;
+    const agent =
+      agents.find((a) => a.qualifiedName === name) ?? agents.find((a) => a.name === name);
+
+    if (!agent) {
+      throw new AgentNotFoundError(name);
+    }
+
+    return {
+      agent,
+      workingDirectory: resolveWorkingDirectory(agent),
+      dockerEnabled: agent.docker?.enabled === true,
+    };
   }
 
   private async initializeStateDir(): Promise<StateDirectory> {

@@ -8,7 +8,7 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import type { HookEvent, ResolvedAgent } from "../config/index.js";
 import { type HookContext, HookExecutor } from "../hooks/index.js";
 import { JobExecutor, RuntimeFactory } from "../runner/index.js";
@@ -19,6 +19,7 @@ import {
   AgentNotFoundError,
   ConcurrencyLimitError,
   InvalidStateError,
+  InvalidWorkingDirectoryOverrideError,
   JobCancelError,
   JobForkError,
   JobNotFoundError,
@@ -113,6 +114,16 @@ export class JobControl {
       }
     }
 
+    // Apply a per-trigger working-directory override, if provided. We build an
+    // "effective agent" — a shallow clone of the resolved agent with its
+    // working_directory replaced — and pass that to the runtime and executor.
+    // Every cwd-dependent consumer (RuntimeFactory/CLI cwd, toSDKOptions cwd,
+    // Docker workspace mount, and session/transcript resolution) reads
+    // agent.working_directory, so swapping it at this single chokepoint makes
+    // them all honor the override without changing default behavior when the
+    // option is omitted.
+    const effectiveAgent = applyWorkingDirectoryOverride(agent, options?.workingDirectory);
+
     // Determine the prompt to use (priority: options > schedule > agent default > fallback)
     const prompt =
       options?.prompt ?? schedule?.prompt ?? agent.default_prompt ?? "Execute your configured task";
@@ -147,15 +158,18 @@ export class JobControl {
       }
     }
 
-    // Create the JobExecutor and execute the job
-    const runtime = RuntimeFactory.create(agent, { stateDir });
+    // Create the JobExecutor and execute the job.
+    // Use the effective agent so a per-trigger working-directory override flows
+    // into the runtime (process cwd / SDK cwd / Docker workspace mount) and into
+    // session/transcript resolution.
+    const runtime = RuntimeFactory.create(effectiveAgent, { stateDir });
     const executor = new JobExecutor(runtime, { logger });
 
     // Execute the job - this creates the job record and runs it
     // Note: Job output is written to JSONL by JobExecutor; log streaming picks it up
     // If onMessage callback is provided, it will be called for each SDK message
     const result = await executor.execute({
-      agent,
+      agent: effectiveAgent,
       prompt,
       stateDir,
       triggerType: (options?.triggerType ??
@@ -191,8 +205,9 @@ export class JobControl {
           timestamp: new Date().toISOString(),
         });
 
-        // Execute hooks for completed job
-        await this.executeHooks(agent, jobMetadata, "completed", scheduleName);
+        // Execute hooks for completed job (effective agent so hook cwd matches
+        // the directory this job actually ran in when an override was used)
+        await this.executeHooks(effectiveAgent, jobMetadata, "completed", scheduleName);
       } else {
         const error = result.error ?? new Error("Job failed without error details");
         emitter.emit("job:failed", {
@@ -204,8 +219,8 @@ export class JobControl {
           timestamp: new Date().toISOString(),
         });
 
-        // Execute hooks for failed job
-        await this.executeHooks(agent, jobMetadata, "failed", scheduleName, error.message);
+        // Execute hooks for failed job (effective agent — see completed case)
+        await this.executeHooks(effectiveAgent, jobMetadata, "failed", scheduleName, error.message);
       }
     }
 
@@ -682,4 +697,43 @@ export class JobControl {
     // If working directory is an object with root property
     return agent.working_directory.root;
   }
+}
+
+/**
+ * Apply a per-trigger working-directory override to a resolved agent.
+ *
+ * Returns a shallow clone of `agent` whose `working_directory` is replaced with
+ * the (normalized, absolute) override. When `override` is `undefined`, the
+ * original agent is returned unchanged so default behavior is preserved exactly.
+ *
+ * The override is validated to be a non-empty string and is resolved to an
+ * absolute path against `process.cwd()` when relative — matching how
+ * `addAgent` / the config loader normalize a relative `working_directory`.
+ *
+ * @param agent - The resolved agent from the loaded config
+ * @param override - Optional per-trigger working directory (absolute or relative)
+ * @returns The original agent (no override) or a clone with the override applied
+ * @throws {InvalidWorkingDirectoryOverrideError} If the override is provided but
+ *   not a non-empty string
+ */
+function applyWorkingDirectoryOverride(
+  agent: ResolvedAgent,
+  override: string | undefined,
+): ResolvedAgent {
+  if (override === undefined) {
+    return agent;
+  }
+
+  if (typeof override !== "string" || override.trim() === "") {
+    throw new InvalidWorkingDirectoryOverrideError(override);
+  }
+
+  // Resolve relative overrides to absolute paths so session/transcript lookup
+  // (which encodes the absolute cwd) matches what Claude Code actually uses.
+  const absolute = isAbsolute(override) ? override : resolve(process.cwd(), override);
+
+  return {
+    ...agent,
+    working_directory: absolute,
+  };
 }

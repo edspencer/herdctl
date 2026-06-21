@@ -17,9 +17,23 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
 
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { AgentNotFoundError, InvalidStateError, ScheduleNotFoundError } from "../errors.js";
+import { isAbsolute, join, resolve } from "node:path";
+import { query } from "@anthropic-ai/claude-agent-sdk";
+import {
+  AgentNotFoundError,
+  InvalidStateError,
+  InvalidWorkingDirectoryOverrideError,
+  ScheduleNotFoundError,
+} from "../errors.js";
 import { FleetManager } from "../fleet-manager.js";
+
+/** Read the `cwd` passed to the (mocked) SDK query for the most recent trigger. */
+function lastSdkCwd(): unknown {
+  const mockQuery = vi.mocked(query);
+  const lastCall = mockQuery.mock.calls.at(-1);
+  const callOptions = (lastCall?.[0] as { options?: { cwd?: unknown } } | undefined)?.options;
+  return callOptions?.cwd;
+}
 
 describe("Manual Agent Triggering (US-5)", () => {
   let tempDir: string;
@@ -592,6 +606,171 @@ describe("Manual Agent Triggering (US-5)", () => {
           }),
         }),
       );
+    });
+  });
+
+  describe("per-trigger working-directory override", () => {
+    it("runs in the override cwd when workingDirectory is provided", async () => {
+      // Agent configured with one working_directory...
+      await createAgentConfig("wd-agent", {
+        name: "wd-agent",
+        working_directory: "/configured/dir",
+      });
+
+      const configPath = await createConfig({
+        version: 1,
+        agents: [{ path: "./agents/wd-agent.yaml" }],
+      });
+
+      const manager = createTestManager(configPath);
+      await manager.initialize();
+
+      // ...but triggered against a different absolute directory.
+      const overrideDir = "/override/project";
+      const result = await manager.trigger("wd-agent", undefined, {
+        workingDirectory: overrideDir,
+      });
+
+      expect(result.success).toBe(true);
+      // The SDK runtime should have been invoked with the override cwd, not the
+      // configured working_directory.
+      expect(lastSdkCwd()).toBe(overrideDir);
+    });
+
+    it("uses the configured working_directory when override is omitted (unchanged)", async () => {
+      await createAgentConfig("wd-default-agent", {
+        name: "wd-default-agent",
+        working_directory: "/configured/dir",
+      });
+
+      const configPath = await createConfig({
+        version: 1,
+        agents: [{ path: "./agents/wd-default-agent.yaml" }],
+      });
+
+      const manager = createTestManager(configPath);
+      await manager.initialize();
+
+      await manager.trigger("wd-default-agent");
+
+      // Default behavior: SDK cwd is the configured working_directory.
+      expect(lastSdkCwd()).toBe("/configured/dir");
+    });
+
+    it("leaves the resolved cwd unchanged for an agent without an explicit working_directory when override is omitted", async () => {
+      await createAgentConfig("wd-none-agent", {
+        name: "wd-none-agent",
+      });
+
+      const configPath = await createConfig({
+        version: 1,
+        agents: [{ path: "./agents/wd-none-agent.yaml" }],
+      });
+
+      const manager = createTestManager(configPath);
+      await manager.initialize();
+
+      // Baseline: trigger with no override. The loader resolves a default
+      // working_directory (the agent's config dir), which becomes the SDK cwd.
+      await manager.trigger("wd-none-agent");
+      const baselineCwd = lastSdkCwd();
+
+      // Triggering again with no override must produce the identical cwd —
+      // proving the override code path is a no-op when omitted.
+      await manager.trigger("wd-none-agent");
+      expect(lastSdkCwd()).toBe(baselineCwd);
+    });
+
+    it("lets an agent without configured working_directory run against an override", async () => {
+      await createAgentConfig("wd-bare-agent", {
+        name: "wd-bare-agent",
+      });
+
+      const configPath = await createConfig({
+        version: 1,
+        agents: [{ path: "./agents/wd-bare-agent.yaml" }],
+      });
+
+      const manager = createTestManager(configPath);
+      await manager.initialize();
+
+      await manager.trigger("wd-bare-agent", undefined, {
+        workingDirectory: "/sweeper/target",
+      });
+
+      expect(lastSdkCwd()).toBe("/sweeper/target");
+    });
+
+    it("resolves a relative override against process.cwd()", async () => {
+      await createAgentConfig("wd-rel-agent", {
+        name: "wd-rel-agent",
+      });
+
+      const configPath = await createConfig({
+        version: 1,
+        agents: [{ path: "./agents/wd-rel-agent.yaml" }],
+      });
+
+      const manager = createTestManager(configPath);
+      await manager.initialize();
+
+      await manager.trigger("wd-rel-agent", undefined, {
+        workingDirectory: "some/relative/dir",
+      });
+
+      const cwd = lastSdkCwd();
+      expect(typeof cwd).toBe("string");
+      expect(isAbsolute(cwd as string)).toBe(true);
+      expect(cwd).toBe(resolve(process.cwd(), "some/relative/dir"));
+    });
+
+    it("rejects an empty-string override", async () => {
+      await createAgentConfig("wd-empty-agent", {
+        name: "wd-empty-agent",
+      });
+
+      const configPath = await createConfig({
+        version: 1,
+        agents: [{ path: "./agents/wd-empty-agent.yaml" }],
+      });
+
+      const manager = createTestManager(configPath);
+      await manager.initialize();
+
+      // Typed error (extends FleetManagerError), not a raw Error — per repo
+      // guidelines and the CodeRabbit fix.
+      await expect(
+        manager.trigger("wd-empty-agent", undefined, { workingDirectory: "   " }),
+      ).rejects.toThrow(InvalidWorkingDirectoryOverrideError);
+      await expect(
+        manager.trigger("wd-empty-agent", undefined, { workingDirectory: "   " }),
+      ).rejects.toThrow(/Invalid workingDirectory override/);
+    });
+
+    it("the override does not mutate the agent's configured working_directory", async () => {
+      await createAgentConfig("wd-immutable-agent", {
+        name: "wd-immutable-agent",
+        working_directory: "/configured/dir",
+      });
+
+      const configPath = await createConfig({
+        version: 1,
+        agents: [{ path: "./agents/wd-immutable-agent.yaml" }],
+      });
+
+      const manager = createTestManager(configPath);
+      await manager.initialize();
+
+      // Trigger once with an override, then once without.
+      await manager.trigger("wd-immutable-agent", undefined, {
+        workingDirectory: "/override/dir",
+      });
+      expect(lastSdkCwd()).toBe("/override/dir");
+
+      // The second (un-overridden) trigger must fall back to the configured dir,
+      // proving the first trigger did not mutate the shared agent config.
+      await manager.trigger("wd-immutable-agent");
+      expect(lastSdkCwd()).toBe("/configured/dir");
     });
   });
 });

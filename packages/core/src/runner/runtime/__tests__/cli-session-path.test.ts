@@ -37,22 +37,90 @@ describe("encodePathForCli", () => {
     });
 
     it("handles path with special characters", () => {
-      // Only slashes are encoded, other characters pass through
-      expect(encodePathForCli("/path/to/my-project_v2")).toBe("-path-to-my-project_v2");
+      // Every non-alphanumeric character (including `_`) is encoded to a hyphen,
+      // matching Claude Code's actual cwd -> transcript-dir encoding.
+      expect(encodePathForCli("/path/to/my-project_v2")).toBe("-path-to-my-project-v2");
+    });
+  });
+
+  // Claude Code encodes a cwd into its transcript directory under
+  // ~/.claude/projects/<encoded>/ by replacing EVERY non-[A-Za-z0-9] character
+  // with a hyphen (verified empirically against ~/.claude/projects and against
+  // Claude Code's bundled encoder: `H.replace(/[^a-zA-Z0-9]/g, "-")`). These
+  // cases pin herdctl's encoder to that rule so session discovery resolves the
+  // correct directory for dotted/underscored/special-char working directories.
+  describe("Claude Code non-alphanumeric encoding (dots, underscores, etc.)", () => {
+    it("encodes a single dot to a hyphen", () => {
+      // Real example: cwd `/Users/ed/Code/my.project` -> dir `-Users-ed-Code-my-project`
+      expect(encodePathForCli("/Users/ed/Code/my.project")).toBe("-Users-ed-Code-my-project");
+    });
+
+    it("encodes multiple dots within a segment", () => {
+      expect(encodePathForCli("/tmp/multi.dot.dir")).toBe("-tmp-multi-dot-dir");
+    });
+
+    it("encodes a leading dot in a path segment (producing a double hyphen)", () => {
+      // The slash before `.leading` becomes `-` and the leading dot also becomes
+      // `-`, yielding the `--leading` Claude Code actually creates.
+      expect(encodePathForCli("/tmp/.leading")).toBe("-tmp--leading");
+    });
+
+    it("encodes a dotfile-style relative segment", () => {
+      expect(encodePathForCli(".config/herdctl")).toBe("-config-herdctl");
+    });
+
+    it("encodes underscores to hyphens", () => {
+      expect(encodePathForCli("/path/to/under_score")).toBe("-path-to-under-score");
+    });
+
+    it("encodes other special characters (@, +, ~, space) to hyphens", () => {
+      expect(encodePathForCli("/tmp/at@sign")).toBe("-tmp-at-sign");
+      expect(encodePathForCli("/tmp/plus+sign")).toBe("-tmp-plus-sign");
+      expect(encodePathForCli("/tmp/tilde~here")).toBe("-tmp-tilde-here");
+      expect(encodePathForCli("/tmp/with space")).toBe("-tmp-with-space");
+    });
+
+    it("matches the real ~/.claude/projects directory names for known paths", () => {
+      // These two were observed directly under ~/.claude/projects/.
+      expect(encodePathForCli("/Users/ed/herds/personal/homelab")).toBe(
+        "-Users-ed-herds-personal-homelab",
+      );
+      expect(encodePathForCli("/Users/ed/Code/hushpod")).toBe("-Users-ed-Code-hushpod");
+    });
+
+    it("truncates very long encoded paths and appends a stable hash", () => {
+      // Claude Code slices the encoded path to 200 chars and appends a hash of
+      // the original path when it would otherwise exceed the limit.
+      const longPath = `/${"a".repeat(250)}`;
+      const encoded = encodePathForCli(longPath);
+      expect(encoded.length).toBeGreaterThan(200);
+      // First 200 chars are the truncated encoding ("-" + 199 "a"s).
+      expect(encoded.slice(0, 200)).toBe(`-${"a".repeat(199)}`);
+      // Followed by "-<hash>".
+      expect(encoded.slice(200)).toMatch(/^-[0-9a-z]+$/);
+      // Stable across calls.
+      expect(encodePathForCli(longPath)).toBe(encoded);
+    });
+
+    it("does not truncate paths at or below the 200-char limit", () => {
+      const exact = `/${"a".repeat(199)}`; // encodes to exactly 200 chars
+      const encoded = encodePathForCli(exact);
+      expect(encoded.length).toBe(200);
+      expect(encoded).toBe(`-${"a".repeat(199)}`);
     });
   });
 
   describe("Windows path encoding", () => {
-    it("encodes backslashes to hyphens", () => {
-      expect(encodePathForCli("C:\\Users\\test")).toBe("C:-Users-test");
+    it("encodes backslashes (and the drive colon) to hyphens", () => {
+      expect(encodePathForCli("C:\\Users\\test")).toBe("C--Users-test");
     });
 
     it("encodes forward slashes in Windows paths", () => {
-      expect(encodePathForCli("C:/Users/test")).toBe("C:-Users-test");
+      expect(encodePathForCli("C:/Users/test")).toBe("C--Users-test");
     });
 
     it("encodes mixed slashes", () => {
-      expect(encodePathForCli("C:\\Users/test\\project")).toBe("C:-Users-test-project");
+      expect(encodePathForCli("C:\\Users/test\\project")).toBe("C--Users-test-project");
     });
 
     it("handles UNC paths", () => {

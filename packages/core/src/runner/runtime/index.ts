@@ -10,6 +10,17 @@
  * Internal consumers import directly from sub-modules.
  */
 
+// CLI / Docker session path utilities — locate Claude session files and
+// transcript directories. Exported on the public surface so consumers can
+// compute a session's transcript path (e.g. to delete it) without
+// deep-importing `dist/runner/runtime/cli-session-path.js`.
+export {
+  encodePathForCli,
+  getCliSessionDir,
+  getCliSessionFile,
+  getDockerSessionDir,
+  getDockerSessionFile,
+} from "./cli-session-path.js";
 export { RuntimeFactory, type RuntimeType } from "./factory.js";
 export type { RuntimeExecuteOptions, RuntimeInterface } from "./interface.js";
 export { SDKRuntime } from "./sdk-runtime.js";
