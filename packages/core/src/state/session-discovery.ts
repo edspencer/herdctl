@@ -93,6 +93,15 @@ export interface SessionDiscoveryOptions {
 interface DirectoryCacheEntry {
   sessions: Array<{ sessionId: string; mtime: Date }>;
   fetchedAt: number;
+  /**
+   * The transcript directory's own mtime (epoch ms) captured when this entry
+   * was built, or `null` if it couldn't be stat'd. Adding or removing a session
+   * file bumps the directory's mtime, so comparing the *current* directory mtime
+   * to this value lets us cheaply detect a stale listing and auto-rebuild it
+   * before the TTL would otherwise expire. (Appends to an existing transcript do
+   * NOT bump the directory mtime — those are covered by the TTL.)
+   */
+  dirMtimeMs: number | null;
 }
 
 // =============================================================================
@@ -243,16 +252,50 @@ export class SessionDiscoveryService {
   }
 
   /**
+   * Stat a directory and return its mtime in epoch milliseconds, or `null` if it
+   * can't be stat'd (missing or unreadable). Used to detect when a session file
+   * has been added/removed (which bumps the directory mtime) so a cached listing
+   * can be auto-rebuilt before the TTL expires.
+   */
+  private async getDirMtimeMs(sessionDir: string): Promise<number | null> {
+    try {
+      const stats = await stat(sessionDir);
+      return stats.mtimeMs;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * List session files in a directory with their modification times
    */
   private async listSessionFiles(
     sessionDir: string,
   ): Promise<Array<{ sessionId: string; mtime: Date }>> {
-    // Check cache first
+    // Check cache first. A cached entry is served only when it's both within the
+    // TTL window AND the directory hasn't changed since the entry was built: a
+    // new (or removed) session file bumps the directory's mtime, so an mtime
+    // mismatch forces an immediate rebuild instead of serving a stale listing.
     const cached = this.directoryCache.get(sessionDir);
     if (this.isDirectoryCacheValid(cached)) {
-      return cached.sessions;
+      // Cheap stat to detect a newly added/removed session file. If we can't
+      // stat the directory now (transiently unreadable) we fall back to the TTL
+      // bound by serving the cached entry rather than rebuilding from nothing.
+      const currentDirMtimeMs = await this.getDirMtimeMs(sessionDir);
+      if (
+        currentDirMtimeMs === null ||
+        cached.dirMtimeMs === null ||
+        currentDirMtimeMs === cached.dirMtimeMs
+      ) {
+        return cached.sessions;
+      }
+      // Directory changed since the entry was built — fall through to rebuild.
     }
+
+    // Capture the directory mtime BEFORE listing so we never cache a listing as
+    // newer than the mtime it reflects (avoids a race where a file is added
+    // between readdir and the mtime read, which would let a stale entry stick).
+    const dirMtimeMs = await this.getDirMtimeMs(sessionDir);
 
     // Read directory
     let fileNames: string[];
@@ -288,10 +331,12 @@ export class SessionDiscoveryService {
     // Sort by mtime descending (newest first)
     sessions.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
 
-    // Cache the result
+    // Cache the result, recording the directory mtime captured above so a later
+    // call can detect an added/removed session file and rebuild eagerly.
     this.directoryCache.set(sessionDir, {
       sessions,
       fetchedAt: Date.now(),
+      dirMtimeMs,
     });
 
     return sessions;
@@ -912,6 +957,43 @@ export class SessionDiscoveryService {
       this.metadataCache.clear();
       logger.debug("Invalidated all caches");
     }
+  }
+
+  /**
+   * Invalidate the cached file listing for a single working directory.
+   *
+   * Unlike {@link invalidateCache} (whose no-arg form clears *everything*), this
+   * always targets one directory and never clears unrelated caches, making it a
+   * safe "force a fresh listing for this agent on the next call" primitive — the
+   * intent behind {@link import("../fleet-manager/fleet-manager.js").FleetManager.invalidateSessions}.
+   *
+   * It also drops the shared attribution index so a session created this turn
+   * (whose job record was just written) is re-attributed and surfaces in the
+   * next {@link getAgentSessions} call. The mtime-aware listing cache already
+   * auto-rebuilds when a new transcript file appears, but calling this removes
+   * any dependence on filesystem mtime granularity.
+   *
+   * @param workingDirectory - The working directory whose listing cache to clear
+   * @param options - Optional settings (dockerEnabled to also clear docker-sessions cache)
+   */
+  invalidateWorkingDirectory(
+    workingDirectory: string,
+    options?: { dockerEnabled?: boolean },
+  ): void {
+    const encodedPath = encodePathForCli(workingDirectory);
+    const sessionDir = path.join(this.claudeHomePath, "projects", encodedPath);
+    this.directoryCache.delete(sessionDir);
+
+    if (options?.dockerEnabled) {
+      const dockerDir = getDockerSessionDir(this.stateDir);
+      this.directoryCache.delete(dockerDir);
+    }
+
+    // Drop the attribution index too so a session created this turn is picked up.
+    this.attributionIndex = null;
+    this.attributionFetchedAt = 0;
+
+    logger.debug(`Invalidated working-directory cache for: ${sessionDir}`);
   }
 
   /**

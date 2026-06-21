@@ -297,4 +297,68 @@ describe("FleetManager session control (deleteSession / setSessionName)", () => 
       );
     });
   });
+
+  // ===========================================================================
+  // invalidateSessions
+  // ===========================================================================
+
+  describe("invalidateSessions()", () => {
+    const sessionA = "11111111-1111-1111-1111-111111111111";
+    const sessionB = "22222222-2222-2222-2222-222222222222";
+
+    /** Attribute a session to an agent via a job record so it surfaces. */
+    async function attribute(sessionId: string, agent = "keeper") {
+      const jobsDir = join(stateDir, "jobs");
+      const job = await createJob(jobsDir, { agent, trigger_type: "manual", prompt: "x" });
+      await updateJob(jobsDir, job.id, { session_id: sessionId });
+    }
+
+    it("forces a rebuild so a new session appears on the next getAgentSessions", async () => {
+      const manager = await buildManagerWithAgent();
+
+      await writeTranscript(workDir, sessionA);
+      await attribute(sessionA);
+
+      // Prime the discovery cache.
+      const before = await manager.getAgentSessions("keeper");
+      expect(before.map((s) => s.sessionId)).toEqual([sessionA]);
+
+      // A NEW session transcript appears (plus its attribution).
+      await writeTranscript(workDir, sessionB);
+      await attribute(sessionB);
+
+      // Force a refresh — the new session must now be listed.
+      manager.invalidateSessions("keeper");
+      const after = await manager.getAgentSessions("keeper");
+      expect(after.map((s) => s.sessionId).sort()).toEqual([sessionA, sessionB]);
+    });
+
+    it("returns void (no Promise) and is a no-op when the agent has no working dir", async () => {
+      // No working_directory configured for this agent.
+      await createAgentConfig("rootless", { name: "rootless" });
+      const configPath = await createConfig({
+        version: 1,
+        agents: [{ path: "./agents/rootless.yaml" }],
+      });
+      const manager = createTestManager(configPath);
+      await manager.initialize();
+
+      expect(manager.invalidateSessions("rootless")).toBeUndefined();
+    });
+
+    it("throws AgentNotFoundError for an unknown agent", async () => {
+      const manager = await buildManagerWithAgent();
+      expect(() => manager.invalidateSessions("ghost")).toThrow(AgentNotFoundError);
+    });
+
+    it("throws InvalidStateError before initialize()", async () => {
+      await createAgentConfig("keeper", { name: "keeper", working_directory: workDir });
+      const configPath = await createConfig({
+        version: 1,
+        agents: [{ path: "./agents/keeper.yaml" }],
+      });
+      const manager = createTestManager(configPath);
+      expect(() => manager.invalidateSessions("keeper")).toThrow(InvalidStateError);
+    });
+  });
 });
