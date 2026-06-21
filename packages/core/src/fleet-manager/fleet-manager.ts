@@ -716,6 +716,39 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     }
   }
 
+  /**
+   * Drop the cached session listing for an agent so the next
+   * {@link getAgentSessions} call rebuilds it from disk.
+   *
+   * The underlying {@link SessionDiscoveryService} caches each working
+   * directory's listing for up to its TTL (default 30s). That cache is now
+   * mtime-aware, so a *newly created* transcript file is normally picked up
+   * immediately. Call this when you want to force a fresh listing regardless —
+   * e.g. after each chat turn, or on filesystems whose directory mtime has
+   * coarse (1-second) granularity where a same-second create might otherwise be
+   * masked until the TTL expires. It also drops the attribution index so a
+   * session created this turn (whose job record was just written) is attributed.
+   *
+   * Resolves the agent's working directory and Docker mode from the loaded
+   * config (no override directories — see {@link getAgentSessions}). A no-op
+   * when the agent has no working directory.
+   *
+   * @param name - The agent qualified name or local name
+   * @throws {InvalidStateError} If the fleet manager is not yet initialized
+   * @throws {AgentNotFoundError} If no agent with that name exists
+   */
+  invalidateSessions(name: string): void {
+    const { workingDirectory, dockerEnabled } = this.resolveAgentForSessions(
+      name,
+      "invalidateSessions",
+    );
+    if (!workingDirectory) {
+      return;
+    }
+    this.getSessionDiscovery().invalidateWorkingDirectory(workingDirectory, { dockerEnabled });
+    this.logger.debug(`invalidateSessions: cleared session cache for agent "${name}"`);
+  }
+
   // Job Control
   async trigger(
     agentName: string,
