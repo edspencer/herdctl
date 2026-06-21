@@ -555,6 +555,13 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
    * config, so consumers don't have to map agent → working directory by hand.
    * Sessions are returned sorted by modification time (newest first).
    *
+   * Note: sessions are keyed by working directory. This method uses the agent's
+   * *configured* `working_directory`. If you triggered the agent with a
+   * per-trigger `workingDirectory` override (see {@link TriggerOptions}), the
+   * resulting sessions live under that override directory and will NOT appear
+   * here — list them by scanning that directory instead (e.g. the directory
+   * grouped `getAllSessions` view on the underlying `SessionDiscoveryService`).
+   *
    * @param name - The agent qualified name or local name
    * @param options - Optional `limit` for top-N enrichment
    * @returns Array of discovered sessions (empty if the agent has no working

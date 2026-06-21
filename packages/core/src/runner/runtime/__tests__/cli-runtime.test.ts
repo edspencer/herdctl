@@ -32,6 +32,7 @@ vi.mock("../cli-session-watcher.js", () => ({
 }));
 
 import { CLIRuntime } from "../cli-runtime.js";
+import { getCliSessionDir } from "../cli-session-path.js";
 
 function makeSubprocess(exitCode = 0): Promise<{ exitCode: number }> & {
   pid: number;
@@ -112,5 +113,44 @@ describe("CLIRuntime synthetic result aggregation", () => {
     expect(result?.num_turns).toBe(2);
     expect(result?.usage?.input_tokens).toBe(110);
     expect(result?.usage?.output_tokens).toBe(30);
+  });
+});
+
+describe("CLIRuntime working directory / session resolution", () => {
+  beforeEach(() => {
+    watchMessages.length = 0;
+    flushMessages.length = 0;
+    vi.mocked(getCliSessionDir).mockClear();
+  });
+
+  it("spawns in the agent's working_directory and resolves the session dir from it", async () => {
+    // FleetManager.trigger applies a per-trigger override by swapping the
+    // resolved agent's working_directory, so the CLI runtime sees the effective
+    // directory here. We assert both the spawn cwd and the session-dir lookup
+    // use it — proving session/transcript resolution follows the effective cwd.
+    let spawnedCwd: string | undefined;
+
+    const runtime = new CLIRuntime({
+      processSpawner: ((_args: string[], cwd: string) => {
+        spawnedCwd = cwd;
+        return makeSubprocess() as never;
+      }) as never,
+    });
+
+    const effectiveDir = "/override/project-x";
+    const messages: SDKMessage[] = [];
+    for await (const message of runtime.execute({
+      prompt: "Hello",
+      agent: {
+        name: "sweeper",
+        configPath: "/tmp/agent.yaml",
+        working_directory: effectiveDir,
+      } as never,
+    })) {
+      messages.push(message);
+    }
+
+    expect(spawnedCwd).toBe(effectiveDir);
+    expect(vi.mocked(getCliSessionDir)).toHaveBeenCalledWith(effectiveDir);
   });
 });
