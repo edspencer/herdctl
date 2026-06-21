@@ -19,7 +19,12 @@
  */
 
 import { extractMessageContent, type SDKMessage } from "./message-extraction.js";
-import { extractToolResults, extractToolUseBlocks, getToolInputSummary } from "./tool-parsing.js";
+import {
+  extractToolResults,
+  extractToolUseBlocks,
+  getToolInputSummary,
+  type ToolResult,
+} from "./tool-parsing.js";
 
 // =============================================================================
 // Types
@@ -85,6 +90,64 @@ interface PendingToolUse {
   name: string;
   input?: unknown;
   startTime: number;
+}
+
+/**
+ * Extract tool results from a user message, preferring the id-bearing nested
+ * `message.content[]` `tool_result` blocks over core's `extractToolResults`.
+ *
+ * The CLI runtime surfaces a tool result twice on the same user message:
+ *   1. a **top-level `tool_use_result`** (string/object) that carries NO
+ *      `tool_use_id`, and
+ *   2. a nested `message.content[]` `tool_result` block that DOES carry the
+ *      `tool_use_id` (plus `is_error` and string/array content).
+ *
+ * Core's {@link extractToolResults} short-circuits on the top-level field and
+ * returns the id-less result first — so the translator can't pair it back to
+ * its `tool_use` and falls back to a generic `toolName: "Tool"` with no input
+ * summary or duration.
+ *
+ * When a user message has BOTH a top-level `tool_use_result` AND nested
+ * id-bearing `tool_result` block(s), this helper strips the top-level field
+ * (on a shallow clone — the SDK's object is never mutated) so
+ * {@link extractToolResults} takes its nested branch and preserves the
+ * `tool_use_id` for correct name/summary/duration pairing. Every other shape
+ * — including SDK-runtime messages that only carry a top-level
+ * `tool_use_result` — is passed to {@link extractToolResults} unchanged, so
+ * existing SDK-runtime behavior is preserved.
+ */
+function extractToolResultsPreferringNested(message: {
+  type: string;
+  message?: { content?: unknown };
+  tool_use_result?: unknown;
+}): ToolResult[] {
+  const content = (message.message as { content?: unknown } | undefined)?.content;
+
+  if (Array.isArray(content)) {
+    const hasNestedToolResult = content.some(
+      (block) =>
+        block !== null &&
+        typeof block === "object" &&
+        "type" in block &&
+        (block as { type?: unknown }).type === "tool_result",
+    );
+
+    // Only prefer the nested path when the message actually carried nested
+    // tool_result blocks. When it does, extractToolResults already parses those
+    // id-bearing blocks correctly — the bug is only that the top-level
+    // `tool_use_result` short-circuit runs *first*, so we strip that field
+    // (on a shallow clone; the SDK's object is untouched) and let the core
+    // helper take its nested branch. Messages with only a top-level
+    // `tool_use_result` (SDK-runtime shape) fall through unchanged below.
+    if (hasNestedToolResult && message.tool_use_result !== undefined) {
+      const { tool_use_result: _dropped, ...withoutTopLevel } = message;
+      return extractToolResults(withoutTopLevel);
+    }
+  }
+
+  // No nested tool_result blocks: defer to the core helper, which also handles
+  // the top-level `tool_use_result` (SDK-runtime) shape.
+  return extractToolResults(message);
 }
 
 /**
@@ -181,7 +244,7 @@ export class SDKMessageTranslator {
   }
 
   private async handleUser(message: SDKMessage): Promise<void> {
-    const results = extractToolResults(
+    const results = extractToolResultsPreferringNested(
       message as { type: string; message?: { content?: unknown }; tool_use_result?: unknown },
     );
     if (results.length === 0) {

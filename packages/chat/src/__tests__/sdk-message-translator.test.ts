@@ -36,6 +36,34 @@ function toolResult(toolUseId: string, output: string, isError = false): SDKMess
   } as unknown as SDKMessage;
 }
 
+/**
+ * The CLI-runtime shape: a user message that carries the result BOTH as an
+ * id-less top-level `tool_use_result` (string/object, NO tool_use_id) AND as a
+ * nested `message.content[]` `tool_result` block that DOES carry the
+ * tool_use_id + is_error. Core's `extractToolResults` short-circuits on the
+ * top-level field (losing the id); the translator must prefer the nested block.
+ */
+function cliToolResult(toolUseId: string, output: string, isError = false): SDKMessage {
+  return {
+    type: "user",
+    // Id-less top-level result (this is what short-circuits extractToolResults).
+    tool_use_result: output,
+    message: {
+      content: [
+        { type: "tool_result", tool_use_id: toolUseId, content: output, is_error: isError },
+      ],
+    },
+  } as unknown as SDKMessage;
+}
+
+/** SDK-runtime shape: only a top-level `tool_use_result`, no nested blocks. */
+function sdkTopLevelToolResult(output: string): SDKMessage {
+  return {
+    type: "user",
+    tool_use_result: output,
+  } as unknown as SDKMessage;
+}
+
 describe("SDKMessageTranslator", () => {
   describe("text deltas", () => {
     it("emits assistant text via onText", async () => {
@@ -169,6 +197,78 @@ describe("SDKMessageTranslator", () => {
       await t.handle(toolResult("t1", "out"));
 
       expect(onToolCall).not.toHaveBeenCalled();
+    });
+
+    describe("CLI runtime (double-encoded results)", () => {
+      it("pairs via the nested id-bearing block even when an id-less top-level tool_use_result is present", async () => {
+        const calls: TranslatedToolCall[] = [];
+        let clock = 1000;
+        const t = new SDKMessageTranslator(
+          { onToolCall: (c) => void calls.push(c) },
+          { now: () => clock },
+        );
+
+        await t.handle(assistantToolUse("t1", "Bash", { command: "pwd" }));
+        clock = 1113; // 113ms later
+        // CLI shape: id-less top-level tool_use_result AND nested id-bearing block.
+        await t.handle(cliToolResult("t1", "/home/agent"));
+
+        expect(calls).toHaveLength(1);
+        expect(calls[0]).toEqual({
+          toolName: "Bash",
+          inputSummary: "pwd",
+          output: "/home/agent",
+          isError: false,
+          durationMs: 113,
+          toolUseId: "t1",
+        });
+      });
+
+      it("preserves is_error from the nested block in the CLI shape", async () => {
+        const calls: TranslatedToolCall[] = [];
+        const t = new SDKMessageTranslator({ onToolCall: (c) => void calls.push(c) });
+
+        await t.handle(assistantToolUse("t1", "Bash", { command: "false" }));
+        await t.handle(cliToolResult("t1", "boom", true));
+
+        expect(calls).toHaveLength(1);
+        expect(calls[0]).toMatchObject({
+          toolName: "Bash",
+          inputSummary: "false",
+          output: "boom",
+          isError: true,
+          toolUseId: "t1",
+        });
+        expect(calls[0].durationMs).toBeDefined();
+      });
+
+      it("does not mutate the original SDK message when stripping the top-level field", async () => {
+        const t = new SDKMessageTranslator({ onToolCall: vi.fn() });
+
+        await t.handle(assistantToolUse("t1", "Read", { file_path: "/a" }));
+        const msg = cliToolResult("t1", "contents");
+        await t.handle(msg);
+
+        // The id-less top-level field must still be present on the caller's object.
+        expect((msg as unknown as { tool_use_result?: unknown }).tool_use_result).toBe("contents");
+      });
+
+      it("still falls back to the id-less top-level result when there is no nested block (SDK shape)", async () => {
+        const calls: TranslatedToolCall[] = [];
+        const t = new SDKMessageTranslator({ onToolCall: (c) => void calls.push(c) });
+
+        // tool_use is tracked, but the SDK-shape result has no tool_use_id, so it
+        // cannot be paired — it falls back to the generic name (unchanged behavior).
+        await t.handle(assistantToolUse("t1", "Bash", { command: "ls" }));
+        await t.handle(sdkTopLevelToolResult("file-a\nfile-b"));
+
+        expect(calls).toHaveLength(1);
+        expect(calls[0].toolName).toBe("Tool");
+        expect(calls[0].output).toBe("file-a\nfile-b");
+        expect(calls[0].inputSummary).toBeUndefined();
+        expect(calls[0].durationMs).toBeUndefined();
+        expect(calls[0].toolUseId).toBeUndefined();
+      });
     });
   });
 
