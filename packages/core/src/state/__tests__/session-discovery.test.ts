@@ -1,4 +1,4 @@
-import { mkdir, realpath, rm, utimes, writeFile } from "node:fs/promises";
+import { mkdir, realpath, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -313,12 +313,19 @@ describe("SessionDiscoveryService", () => {
         cacheTtlMs: 5000, // 5 second TTL
       });
 
+      // Pin the dir mtime to a fixed whole-second value so we can restore it after
+      // adding a file — this test asserts the TTL/listing cache behavior in
+      // isolation from the mtime-auto-rebuild path (covered by its own test).
+      const pinned = new Date(Math.floor(Date.now() / 1000) * 1000);
+      await utimes(projectDir, pinned, pinned);
+
       // First call
       const sessions1 = await service.getAgentSessions("my-agent", workingDir, false);
       expect(sessions1).toHaveLength(1);
 
-      // Add a new session file
+      // Add a new session file but keep the dir mtime unchanged.
       await createSessionFile(projectDir, "session-def");
+      await utimes(projectDir, pinned, pinned);
 
       // Second call within TTL - should return cached result
       const sessions2 = await service.getAgentSessions("my-agent", workingDir, false);
@@ -351,6 +358,69 @@ describe("SessionDiscoveryService", () => {
       // Third call after TTL - should read new file
       const sessions3 = await service.getAgentSessions("my-agent", workingDir, false);
       expect(sessions3).toHaveLength(2);
+    });
+
+    it("cache behavior: a NEW session file is reflected immediately via dir mtime, before TTL", async () => {
+      const workingDir = "/Users/ed/Code/myproject";
+      const encodedPath = "-Users-ed-Code-myproject";
+      const projectDir = join(tempClaudeHome, "projects", encodedPath);
+      await mkdir(projectDir, { recursive: true });
+      await createSessionFile(projectDir, "session-abc");
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+        cacheTtlMs: 60000, // Long TTL: the mtime path must be what reflects the new file
+      });
+
+      // First call primes the cache (captures the directory's current mtime).
+      const sessions1 = await service.getAgentSessions("my-agent", workingDir, false);
+      expect(sessions1).toHaveLength(1);
+
+      // Add a new session file, then force the directory mtime forward. (We bump
+      // it explicitly so the assertion holds even on filesystems with coarse,
+      // 1-second mtime granularity where a same-second create might not move it.)
+      await createSessionFile(projectDir, "session-def");
+      const future = new Date(Date.now() + 5000);
+      await utimes(projectDir, future, future);
+
+      // Still within the long TTL, but the directory changed → must rebuild and
+      // include the new session WITHOUT any explicit invalidation.
+      const sessions2 = await service.getAgentSessions("my-agent", workingDir, false);
+      expect(sessions2).toHaveLength(2);
+      expect(sessions2.map((s) => s.sessionId).sort()).toEqual(["session-abc", "session-def"]);
+    });
+
+    it("cache behavior: unchanged dir mtime within TTL keeps serving cache (no re-read)", async () => {
+      const workingDir = "/Users/ed/Code/myproject";
+      const encodedPath = "-Users-ed-Code-myproject";
+      const projectDir = join(tempClaudeHome, "projects", encodedPath);
+      await mkdir(projectDir, { recursive: true });
+      await createSessionFile(projectDir, "session-abc");
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+        cacheTtlMs: 60000,
+      });
+
+      // Pin the directory mtime to a fixed, whole-second value BEFORE priming the
+      // cache, so the value the cache records is one we can reproduce exactly
+      // (avoiding sub-millisecond utimes/stat rounding differences). Whole seconds
+      // round-trip cleanly through utimes on coarse-granularity filesystems.
+      const pinned = new Date(Math.floor(Date.now() / 1000) * 1000);
+      await utimes(projectDir, pinned, pinned);
+
+      const sessions1 = await service.getAgentSessions("my-agent", workingDir, false);
+      expect(sessions1).toHaveLength(1);
+
+      // Add a file but restore the SAME pinned mtime. With the dir mtime
+      // unchanged, the listing cache stays authoritative within the TTL.
+      await createSessionFile(projectDir, "session-def");
+      await utimes(projectDir, pinned, pinned);
+
+      const sessions2 = await service.getAgentSessions("my-agent", workingDir, false);
+      expect(sessions2).toHaveLength(1); // still cached — dir mtime did not move
     });
 
     it("preview field is undefined when session has no user messages", async () => {
@@ -795,11 +865,17 @@ describe("SessionDiscoveryService", () => {
         cacheTtlMs: 60000, // Long TTL
       });
 
+      // Pin a fixed whole-second dir mtime so adding a file doesn't trip the
+      // mtime-auto-rebuild path — this test isolates explicit invalidation.
+      const pinned = new Date(Math.floor(Date.now() / 1000) * 1000);
+      await utimes(projectDir, pinned, pinned);
+
       // Populate caches
       await service.getAgentSessions("my-agent", workingDir, false);
 
-      // Add a new session
+      // Add a new session, keeping the dir mtime unchanged.
       await createSessionFile(projectDir, "session-def");
+      await utimes(projectDir, pinned, pinned);
 
       // Verify cache is still returning old data
       const beforeInvalidate = await service.getAgentSessions("my-agent", workingDir, false);
@@ -848,13 +924,21 @@ describe("SessionDiscoveryService", () => {
         cacheTtlMs: 60000,
       });
 
+      // Pin both dirs' mtimes so adding files doesn't trip the auto-rebuild path —
+      // this test isolates the targeted invalidateCache(workingDirectory) behavior.
+      const pinned = new Date(Math.floor(Date.now() / 1000) * 1000);
+      await utimes(projectDir1, pinned, pinned);
+      await utimes(projectDir2, pinned, pinned);
+
       // Populate caches for both directories
       await service.getAgentSessions("agent-1", workingDir1, false);
       await service.getAgentSessions("agent-2", workingDir2, false);
 
-      // Add new sessions to both
+      // Add new sessions to both, keeping dir mtimes unchanged.
       await createSessionFile(projectDir1, "session-a2");
       await createSessionFile(projectDir2, "session-b2");
+      await utimes(projectDir1, pinned, pinned);
+      await utimes(projectDir2, pinned, pinned);
 
       // Invalidate only project1's cache
       service.invalidateCache(workingDir1);
@@ -866,6 +950,111 @@ describe("SessionDiscoveryService", () => {
       // Project2 should still return cached (1 session)
       const sessions2 = await service.getAgentSessions("agent-2", workingDir2, false);
       expect(sessions2).toHaveLength(1);
+    });
+  });
+
+  // ===========================================================================
+  // invalidateWorkingDirectory
+  // ===========================================================================
+
+  describe("invalidateWorkingDirectory", () => {
+    it("forces a rebuild of that directory's listing on the next call", async () => {
+      const workingDir = "/Users/ed/Code/myproject";
+      const encodedPath = "-Users-ed-Code-myproject";
+      const projectDir = join(tempClaudeHome, "projects", encodedPath);
+      await mkdir(projectDir, { recursive: true });
+      await createSessionFile(projectDir, "session-abc");
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+        cacheTtlMs: 60000, // Long TTL so only explicit invalidation refreshes
+      });
+
+      // Pin the directory mtime to a fixed whole-second value before priming, so
+      // we can restore it exactly and keep the auto-rebuild (mtime) path quiet —
+      // isolating the explicit invalidation as the thing that refreshes.
+      const pinned = new Date(Math.floor(Date.now() / 1000) * 1000);
+      await utimes(projectDir, pinned, pinned);
+
+      // Prime the cache.
+      expect(await service.getAgentSessions("my-agent", workingDir, false)).toHaveLength(1);
+
+      // Add a new session, restore the pinned mtime so the auto-rebuild path does
+      // NOT fire — proving the explicit invalidation is what refreshes the listing.
+      await createSessionFile(projectDir, "session-def");
+      await utimes(projectDir, pinned, pinned);
+
+      // Without invalidation: still cached (mtime pinned, within TTL).
+      expect(await service.getAgentSessions("my-agent", workingDir, false)).toHaveLength(1);
+
+      // Explicit invalidation forces a rebuild on the next call.
+      service.invalidateWorkingDirectory(workingDir);
+      expect(await service.getAgentSessions("my-agent", workingDir, false)).toHaveLength(2);
+    });
+
+    it("rebuilds the attribution index so a session attributed this turn appears", async () => {
+      const workingDir = "/Users/ed/Code/myproject";
+      const encodedPath = "-Users-ed-Code-myproject";
+      const projectDir = join(tempClaudeHome, "projects", encodedPath);
+      await mkdir(projectDir, { recursive: true });
+      await createSessionFile(projectDir, "session-abc");
+
+      // Initially the session is unattributed (won't show in per-agent results).
+      mockBuildAttributionIndex.mockResolvedValue(
+        createMockAttributionIndex({
+          getAttribute: () => ({ origin: "native", agentName: undefined, triggerType: undefined }),
+        }),
+      );
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+        cacheTtlMs: 60000,
+      });
+
+      expect(await service.getAgentSessions("my-agent", workingDir, false)).toHaveLength(0);
+
+      // Now the session becomes attributed to my-agent (as if a job record was
+      // written this turn). The attribution index is cached, so without
+      // invalidation the next call would still see the stale (empty) attribution.
+      mockBuildAttributionIndex.mockResolvedValue(
+        createMockAttributionIndex({
+          getAttribute: () => ({ origin: "native", agentName: "my-agent", triggerType: undefined }),
+        }),
+      );
+
+      service.invalidateWorkingDirectory(workingDir);
+
+      const after = await service.getAgentSessions("my-agent", workingDir, false);
+      expect(after.map((s) => s.sessionId)).toEqual(["session-abc"]);
+    });
+
+    it("also clears the docker-sessions cache when dockerEnabled is set", async () => {
+      const dockerDir = join(tempStateDir, "docker-sessions");
+      await mkdir(dockerDir, { recursive: true });
+      await createSessionFile(dockerDir, "session-docker");
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+        cacheTtlMs: 60000,
+      });
+
+      // Pin the docker dir mtime so only explicit invalidation refreshes.
+      const pinned = new Date(Math.floor(Date.now() / 1000) * 1000);
+      await utimes(dockerDir, pinned, pinned);
+
+      // Prime the docker listing cache.
+      expect(await service.getAgentSessions("my-agent", "/wd", true)).toHaveLength(1);
+
+      // Add a new docker session, restore pinned mtime so only invalidation refreshes.
+      await createSessionFile(dockerDir, "session-docker2");
+      await utimes(dockerDir, pinned, pinned);
+      expect(await service.getAgentSessions("my-agent", "/wd", true)).toHaveLength(1);
+
+      service.invalidateWorkingDirectory("/wd", { dockerEnabled: true });
+      expect(await service.getAgentSessions("my-agent", "/wd", true)).toHaveLength(2);
     });
   });
 
@@ -918,11 +1107,17 @@ describe("SessionDiscoveryService", () => {
         cacheTtlMs: 60000, // Long TTL
       });
 
+      // Pin a fixed whole-second dir mtime so the new file doesn't trip the
+      // mtime-auto-rebuild path — this isolates invalidateAttributionCache.
+      const pinned = new Date(Math.floor(Date.now() / 1000) * 1000);
+      await utimes(projectDir, pinned, pinned);
+
       // Populate both caches
       await service.getAgentSessions("my-agent", workingDir, false);
 
-      // Add a new session file (won't be seen due to cache)
+      // Add a new session file (won't be seen due to cache), keep mtime pinned.
       await createSessionFile(projectDir, "session-def");
+      await utimes(projectDir, pinned, pinned);
 
       // Verify cache returns old data
       const beforeInvalidate = await service.getAgentSessions("my-agent", workingDir, false);
@@ -949,11 +1144,18 @@ describe("SessionDiscoveryService", () => {
         cacheTtlMs: 60000, // Long TTL
       });
 
+      // Pin a fixed whole-second dir mtime so the new file doesn't trip the
+      // mtime-auto-rebuild path — proving the directory listing cache survives an
+      // attribution-only invalidation.
+      const pinned = new Date(Math.floor(Date.now() / 1000) * 1000);
+      await utimes(projectDir, pinned, pinned);
+
       // Populate caches
       await service.getAgentSessions("my-agent", workingDir, false);
 
-      // Add a new session file
+      // Add a new session file, keeping the dir mtime unchanged.
       await createSessionFile(projectDir, "session-def");
+      await utimes(projectDir, pinned, pinned);
 
       // Invalidate only attribution (no workingDirectory arg)
       service.invalidateAttributionCache();
@@ -1604,11 +1806,17 @@ describe("SessionDiscoveryService", () => {
         cacheTtlMs: 60000,
       });
 
+      // Pin a fixed whole-second dir mtime so adding a file doesn't trip the
+      // mtime-auto-rebuild path — this isolates the explicit invalidateCache.
+      const pinned = new Date(Math.floor(Date.now() / 1000) * 1000);
+      await utimes(dockerSessionsDir, pinned, pinned);
+
       // Populate cache
       await service.getAgentSessions("docker-agent", "/opt/workspace", true);
 
-      // Add a new session file
+      // Add a new session file, keeping the dir mtime unchanged.
       await createSessionFile(dockerSessionsDir, "session-2");
+      await utimes(dockerSessionsDir, pinned, pinned);
 
       // Without invalidation, cache returns old data
       const beforeInvalidate = await service.getAgentSessions(
