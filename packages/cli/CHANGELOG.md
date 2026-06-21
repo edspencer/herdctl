@@ -1,5 +1,15 @@
 # herdctl
 
+## 1.5.9
+
+### Patch Changes
+
+- Updated dependencies [[`7956804`](https://github.com/edspencer/herdctl/commit/795680412b48dadd4ba25ed0355f33fa12d37e9f)]:
+  - @herdctl/core@5.11.0
+  - @herdctl/discord@1.2.2
+  - @herdctl/slack@1.2.15
+  - @herdctl/web@0.9.11
+
 ## 1.5.8
 
 ### Patch Changes
