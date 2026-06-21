@@ -31,6 +31,7 @@ import {
   initStateDirectory,
   SessionDiscoveryService,
   SessionMetadataStore,
+  type SessionUsage,
   type StateDirectory,
 } from "../state/index.js";
 import { createLogger } from "../utils/logger.js";
@@ -613,6 +614,35 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       return [];
     }
     return this.getSessionDiscovery().getSessionMessages(workingDirectory, sessionId, {
+      dockerEnabled,
+    });
+  }
+
+  /**
+   * Get token-usage data for one of an agent's sessions.
+   *
+   * Reads the session transcript and returns the most recent context-window
+   * fill level (last assistant turn's input + cache tokens) plus a turn count.
+   * Lets a UI show "context used" for a chat loaded from history — before any
+   * new turn streams a fresh `usage` value. Derives the working directory and
+   * Docker mode from the loaded config.
+   *
+   * @param name - The agent qualified name or local name
+   * @param sessionId - The session ID to read
+   * @returns Session usage (`hasData: false` if the agent has no working
+   *   directory or the transcript has no usage data)
+   * @throws {InvalidStateError} If the fleet manager is not yet initialized
+   * @throws {AgentNotFoundError} If no agent with that name exists
+   */
+  async getAgentSessionUsage(name: string, sessionId: string): Promise<SessionUsage> {
+    const { workingDirectory, dockerEnabled } = this.resolveAgentForSessions(
+      name,
+      "getAgentSessionUsage",
+    );
+    if (!workingDirectory) {
+      return { inputTokens: 0, turnCount: 0, hasData: false };
+    }
+    return this.getSessionDiscovery().getSessionUsage(workingDirectory, sessionId, {
       dockerEnabled,
     });
   }
