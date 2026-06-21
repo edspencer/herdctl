@@ -15,6 +15,7 @@ import { EventEmitter } from "node:events";
 import { resolve } from "node:path";
 
 import {
+  type AgentConfig,
   ConfigError,
   ConfigNotFoundError,
   loadConfig,
@@ -22,12 +23,20 @@ import {
   type ResolvedConfig,
 } from "../config/index.js";
 import { Scheduler, type TriggerInfo } from "../scheduler/index.js";
-import { initStateDirectory, type StateDirectory } from "../state/index.js";
+import {
+  type ChatMessage,
+  type DiscoveredSession,
+  initStateDirectory,
+  SessionDiscoveryService,
+  type StateDirectory,
+} from "../state/index.js";
 import { createLogger } from "../utils/logger.js";
+import { type AddAgentOptions, AgentManagement } from "./agent-management.js";
 import type { IChatManager } from "./chat-manager-interface.js";
 import { ConfigReload, computeConfigChanges } from "./config-reload.js";
 import type { FleetManagerContext } from "./context.js";
 import {
+  AgentNotFoundError,
   ConfigurationError,
   FleetManagerShutdownError,
   FleetManagerStateDirError,
@@ -59,6 +68,7 @@ import type {
   TriggerOptions,
   TriggerResult,
 } from "./types.js";
+import { resolveWorkingDirectory } from "./working-directory-helper.js";
 
 const DEFAULT_CHECK_INTERVAL = 1000;
 
@@ -96,9 +106,13 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   private statusQueries!: StatusQueries;
   private scheduleManagement!: ScheduleManagement;
   private configReloadModule!: ConfigReload;
+  private agentManagement!: AgentManagement;
   private jobControl!: JobControl;
   private logStreaming!: LogStreaming;
   private scheduleExecutor!: ScheduleExecutor;
+
+  // Lazily-created session discovery service (for getAgentSessions/* helpers)
+  private sessionDiscovery: SessionDiscoveryService | null = null;
 
   // Chat managers (Discord, Slack, etc.)
   // Key is platform name (e.g., "discord", "slack")
@@ -480,6 +494,108 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     return computeConfigChanges(oldConfig, newConfig);
   }
 
+  // Programmatic Agent Management
+
+  /**
+   * Register an agent at runtime without writing YAML or calling `reload()`.
+   *
+   * The config is validated, merged with fleet defaults, normalized (working
+   * directory resolved to an absolute path), and wired into the running fleet
+   * so it is immediately triggerable and appears in fleet status. A
+   * `config:reloaded` event is emitted describing the change.
+   *
+   * This is the programmatic counterpart to editing `herdctl.yaml` and calling
+   * `reload()` — useful for apps that manage agents in memory rather than on
+   * disk.
+   *
+   * @param agent - The agent configuration to register (must include `name`)
+   * @param options - Resolution options (base dir, defaults merge, replace)
+   * @returns Info for the newly registered agent
+   * @throws {InvalidStateError} If the fleet manager is not yet initialized
+   * @throws {ConfigurationError} If validation fails or the name collides
+   *
+   * @example
+   * ```typescript
+   * await fleet.addAgent({
+   *   name: "keeper-myproject",
+   *   working_directory: "/abs/projects/myproject",
+   *   runtime: "cli",
+   *   permission_mode: "acceptEdits",
+   * });
+   * await fleet.trigger("keeper-myproject", undefined, { prompt: "Hello" });
+   * ```
+   */
+  async addAgent(
+    agent: AgentConfig | (Record<string, unknown> & { name: string }),
+    options?: AddAgentOptions,
+  ): Promise<AgentInfo> {
+    return this.agentManagement.addAgent(agent, options);
+  }
+
+  /**
+   * Unregister an agent at runtime.
+   *
+   * Removes the agent from the in-memory config and the scheduler. Accepts a
+   * qualified name or a local name. Running jobs are unaffected.
+   *
+   * @param name - The agent qualified name or local name to remove
+   * @returns `true` if an agent was removed, `false` if no match was found
+   * @throws {InvalidStateError} If the fleet manager is not yet initialized
+   */
+  async removeAgent(name: string): Promise<boolean> {
+    return this.agentManagement.removeAgent(name);
+  }
+
+  // Session Access (convenience wrappers over SessionDiscoveryService)
+
+  /**
+   * List discovered Claude Code sessions for an agent.
+   *
+   * Derives the agent's working directory and Docker mode from the loaded
+   * config, so consumers don't have to map agent → working directory by hand.
+   * Sessions are returned sorted by modification time (newest first).
+   *
+   * @param name - The agent qualified name or local name
+   * @param options - Optional `limit` for top-N enrichment
+   * @returns Array of discovered sessions (empty if the agent has no working
+   *   directory or no sessions yet)
+   * @throws {InvalidStateError} If the fleet manager is not yet initialized
+   * @throws {AgentNotFoundError} If no agent with that name exists
+   */
+  async getAgentSessions(name: string, options?: { limit?: number }): Promise<DiscoveredSession[]> {
+    const { agent, workingDirectory, dockerEnabled } = this.resolveAgentForSessions(name);
+    if (!workingDirectory) {
+      return [];
+    }
+    return this.getSessionDiscovery().getAgentSessions(
+      agent.qualifiedName,
+      workingDirectory,
+      dockerEnabled,
+      options,
+    );
+  }
+
+  /**
+   * Get the parsed chat messages for one of an agent's sessions.
+   *
+   * Derives the working directory and Docker mode from the loaded config.
+   *
+   * @param name - The agent qualified name or local name
+   * @param sessionId - The session ID to read
+   * @returns Array of chat messages (empty if the agent has no working directory)
+   * @throws {InvalidStateError} If the fleet manager is not yet initialized
+   * @throws {AgentNotFoundError} If no agent with that name exists
+   */
+  async getAgentSessionMessages(name: string, sessionId: string): Promise<ChatMessage[]> {
+    const { workingDirectory, dockerEnabled } = this.resolveAgentForSessions(name);
+    if (!workingDirectory) {
+      return [];
+    }
+    return this.getSessionDiscovery().getSessionMessages(workingDirectory, sessionId, {
+      dockerEnabled,
+    });
+  }
+
   // Job Control
   async trigger(
     agentName: string,
@@ -524,6 +640,13 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       (config) => {
         this.config = config;
       },
+    );
+    this.agentManagement = new AgentManagement(
+      this,
+      (config) => {
+        this.config = config;
+      },
+      (name) => this.statusQueries.getAgentInfoByName(name),
     );
     this.jobControl = new JobControl(this, () => this.statusQueries.getAgentInfo());
     this.logStreaming = new LogStreaming(this);
@@ -714,6 +837,43 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
         `Duplicate agent qualified names found: ${duplicateList}. Agent names must be unique within a fleet.`,
       );
     }
+  }
+
+  /**
+   * Get (lazily creating) the SessionDiscoveryService bound to this fleet's
+   * state directory. Reused across calls so its caches are shared.
+   */
+  private getSessionDiscovery(): SessionDiscoveryService {
+    if (!this.sessionDiscovery) {
+      this.sessionDiscovery = new SessionDiscoveryService({ stateDir: this.stateDir });
+    }
+    return this.sessionDiscovery;
+  }
+
+  /**
+   * Look up an agent by qualified or local name and derive the inputs the
+   * SessionDiscoveryService needs (working directory + Docker mode).
+   *
+   * @throws {AgentNotFoundError} If no agent with that name exists
+   */
+  private resolveAgentForSessions(name: string): {
+    agent: ResolvedAgent;
+    workingDirectory: string | undefined;
+    dockerEnabled: boolean;
+  } {
+    const agents = this.config?.agents ?? [];
+    const agent =
+      agents.find((a) => a.qualifiedName === name) ?? agents.find((a) => a.name === name);
+
+    if (!agent) {
+      throw new AgentNotFoundError(name);
+    }
+
+    return {
+      agent,
+      workingDirectory: resolveWorkingDirectory(agent),
+      dockerEnabled: agent.docker?.enabled === true,
+    };
   }
 
   private async initializeStateDir(): Promise<StateDirectory> {
