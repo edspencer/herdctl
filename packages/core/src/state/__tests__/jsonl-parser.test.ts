@@ -138,6 +138,23 @@ describe("parseSessionMessages", () => {
     expect(messages[4].role).toBe("assistant");
   });
 
+  it("keeps the text of an assistant turn whose thinking + text blocks share one message.id", async () => {
+    // Extended-thinking responses are written as separate JSONL lines sharing one
+    // message.id: a `thinking` block line (no text), then the `text` block line.
+    // The parser must not let the no-text thinking line consume the ID and drop
+    // the following text line — otherwise the assistant's actual answer vanishes
+    // when a chat is reloaded from history.
+    const messages = await parseSessionMessages(fixture("thinking-then-text-session.jsonl"));
+
+    // 1 user + 1 assistant (the text; the thinking-only line emits nothing) = 2
+    expect(messages).toHaveLength(2);
+    expect(messages[0].role).toBe("user");
+    expect(messages[1].role).toBe("assistant");
+    expect(messages[1].content).toBe(
+      "We use the NO (Normally Open) terminal so the valve is de-energized and bypasses by default when the tank is hot.",
+    );
+  });
+
   it("parses content-blocks-session.jsonl with mixed text and tool_use blocks", async () => {
     const messages = await parseSessionMessages(fixture("content-blocks-session.jsonl"));
 

@@ -173,7 +173,13 @@ export async function parseSessionMessages(
   if (!rl) return [];
 
   const messages: ChatMessage[] = [];
-  const seenAssistantIds = new Set<string>();
+  // Tracks assistant message IDs whose TEXT has already been emitted. A single
+  // assistant API response is written as several JSONL lines that share one
+  // message.id (e.g. a `thinking` block line, then a `text` block line, then a
+  // `tool_use` line). We must only treat an ID as "seen" once we've actually
+  // emitted its text — otherwise a no-text line (thinking/tool_use) consumes the
+  // ID and the following text line is wrongly dropped as a duplicate.
+  const seenAssistantTextIds = new Set<string>();
   const pendingToolUses = new Map<string, PendingToolUse>();
   const limit = options?.limit;
 
@@ -285,27 +291,26 @@ export async function parseSessionMessages(
         }
       }
 
-      // Deduplicate text content by message ID
       const messageId = typeof message.id === "string" ? message.id : undefined;
-      if (messageId) {
-        if (seenAssistantIds.has(messageId)) continue;
-        seenAssistantIds.add(messageId);
-      }
 
-      // Simple string content
-      if (typeof content === "string") {
-        if (content.length > 0) {
-          messages.push({ role: "assistant", content, timestamp });
-        }
-        continue;
-      }
+      // Resolve this line's text — a plain string, or the text blocks within the
+      // content array (tool_use/thinking blocks already handled / ignored above).
+      const text =
+        typeof content === "string"
+          ? content
+          : Array.isArray(content)
+            ? extractTextContent(content)
+            : "";
 
-      // Array of content blocks — extract text (tool_use already handled above)
-      if (Array.isArray(content)) {
-        const text = extractTextContent(content);
-
-        if (text.length > 0 && (limit === undefined || messages.length < limit)) {
+      // Emit the text once per assistant message ID. Deduping on EMITTED text
+      // (rather than on first sight of the ID) means a preceding thinking- or
+      // tool_use-only line for the same response no longer suppresses the text.
+      if (text.length > 0 && (limit === undefined || messages.length < limit)) {
+        if (!messageId || !seenAssistantTextIds.has(messageId)) {
           messages.push({ role: "assistant", content: text, timestamp });
+          if (messageId) {
+            seenAssistantTextIds.add(messageId);
+          }
         }
       }
     }
