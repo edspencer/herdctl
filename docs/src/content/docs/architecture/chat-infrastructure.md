@@ -39,6 +39,7 @@ The `@herdctl/chat` package provides the following components, each extracted fr
 | **Streaming responder** | `streaming-responder.ts` | `StreamingResponder` class for buffered, rate-limited message delivery |
 | **Message splitting** | `message-splitting.ts` | `splitMessage()`, `findSplitPoint()`, `needsSplit()`, `truncateMessage()` |
 | **Message extraction** | `message-extraction.ts` | `extractMessageContent()` for parsing Claude SDK assistant messages |
+| **SDK message translator** | `sdk-message-translator.ts` | `SDKMessageTranslator`, `createSDKMessageHandler()` for translating SDK streams into chat-UI events (text deltas, boundaries, tool calls) |
 | **Tool parsing** | `tool-parsing.ts` | `extractToolUseBlocks()`, `extractToolResults()`, `getToolInputSummary()` |
 | **DM filtering** | `dm-filter.ts` | `checkDMUserFilter()`, `isDMEnabled()`, `getDMMode()`, `shouldProcessInMode()` |
 | **Error classes** | `errors.ts` | `ChatConnectorError` hierarchy with typed error codes and type guards |
