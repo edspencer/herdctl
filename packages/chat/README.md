@@ -47,6 +47,10 @@ The DM filter enforces access control for direct messages: enabled/disabled togg
 
 Utilities for extracting text content from Claude SDK message formats, handling direct strings, nested message objects, and content block arrays.
 
+### SDK Message Translation
+
+`SDKMessageTranslator` and `createSDKMessageHandler` translate SDK message streams into chat-UI events (assistant text deltas, turn boundaries, paired tool calls). This extracts the common message processing logic used by Discord, Slack, Web, and downstream apps so each transport only implements destination handlers instead of reimplementing the same SDK parsing.
+
 ## Architecture
 
 ```

@@ -7,6 +7,62 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Programmatic Agent Management
+**June 22, 2026** · `@herdctl/core@5.11.0` · `herdctl@1.6.0`
+
+FleetManager now supports runtime agent registration without YAML files. Use `FleetManager.addAgent()` to register agents programmatically with an AgentConfig object, and `removeAgent()` to unregister them. Added agents are validated, merged with fleet defaults, and immediately available for triggering. This enables project-oriented applications like paddock to manage agents dynamically without write-yaml-then-reload round trips. Agents can optionally replace existing ones via `{ replace: true }`. Both methods emit `config:reloaded` events with change tracking. [#256](https://github.com/edspencer/herdctl/pull/256)
+
+---
+
+### Per-Trigger Working Directory Override
+**June 22, 2026** · `@herdctl/core@5.11.0` · `herdctl@1.6.0`
+
+Triggers now accept a `workingDirectory` option to run an agent against a different directory without registering separate agent configs. Use `trigger(agentName, schedule, { workingDirectory: '/path' })` to override the agent's configured working directory for a single invocation. This enables patterns like a single "sweeper" agent run against many project directories. Sessions created with this override are keyed by the override directory, so use directory-based session discovery to access them. [#256](https://github.com/edspencer/herdctl/pull/256)
+
+---
+
+### Session Discovery Improvements
+**June 22, 2026** · `@herdctl/core@5.11.0` · `herdctl@1.6.0`
+
+FleetManager now provides first-class session management methods: `getAgentSessions()` returns all sessions for an agent with origin badges, custom names, and auto-generated names; `getAgentSessionMessages()` reads conversation history; `getAgentSessionUsage()` returns token counts and turn statistics; `deleteSession()` removes transcripts; `setSessionName()` manages custom display names; `invalidateSessions()` forces cache refresh. All helpers derive working directory and Docker mode from agent config automatically. Session discovery is now mtime-aware with a 30-second cache TTL that auto-invalidates on directory changes. Also fixed lossy path encoding collisions by adding unique suffixes when multiple directories encode to the same slug. [#256](https://github.com/edspencer/herdctl/pull/256), [#260](https://github.com/edspencer/herdctl/pull/260), [#265](https://github.com/edspencer/herdctl/pull/265)
+
+---
+
+### SDK Message Translator in @herdctl/chat
+**June 22, 2026** · `@herdctl/chat@0.4.0`
+
+Added `SDKMessageTranslator` and `createSDKMessageHandler` to the shared chat package for translating SDK message streams into chat-UI events (assistant text deltas, turn boundaries, paired tool calls). This extracts the common message processing logic previously duplicated across Discord, Slack, Web, and downstream apps. Transports now only implement destination handlers instead of reimplementing the same SDK parsing. The translator handles tool call pairing, duration measurement, and boundary detection across consecutive assistant turns. [#256](https://github.com/edspencer/herdctl/pull/256), [#258](https://github.com/edspencer/herdctl/pull/258)
+
+---
+
+### Extended Thinking Fix and CLI Session Path Encoding
+**June 22, 2026** · `@herdctl/core@5.11.0`
+
+Fixed a critical bug where extended thinking messages split across separate JSONL lines (one with `thinking` field, one with `text` content) were being merged into a single assistant turn, corrupting conversation context. Now preserves split thinking messages as distinct turns for correct session resumption. Also improved CLI session path encoding to prevent lossy collisions: when multiple directories encode to the same slug, a unique suffix is appended. Exposed `getCliSessionFile`, `getCliSessionDir`, and `encodePathForCli` as public exports for downstream apps. [#256](https://github.com/edspencer/herdctl/pull/256), [#261](https://github.com/edspencer/herdctl/pull/261), [#265](https://github.com/edspencer/herdctl/pull/265)
+
+---
+
+### Session Not Found Retry and Cross-Agent Resume
+**June 22, 2026** · `@herdctl/core@5.11.0`
+
+Fixed session resumption when Claude SDK yields "session not found" errors by adding retry-on-session-not-found logic. Also fixed cross-agent session resume: when a user explicitly passes `resume: "session-id"` via trigger options, the runner now honors that session even if the agent's working directory differs from where the session was created, enabling session handoffs between agents. [#264](https://github.com/edspencer/herdctl/pull/264)
+
+---
+
+### CLI Runtime MCP Server Fix and Tool Result Preservation
+**June 22, 2026** · `@herdctl/chat@0.4.0` · `@herdctl/core@5.11.0`
+
+Fixed CLI-runtime tool results losing their tool name and duration fields in SDKMessageTranslator. The CLI runtime surfaces tool results twice on the same user message (top-level `tool_use_result` without ID, nested `content[]` `tool_result` blocks with IDs). The translator now prefers the ID-bearing nested blocks to preserve tool pairing metadata. Also fixed `--mcp-config` wrapper for CLI runtime to always use `{ mcpServers: { ... } }` structure for compatibility with Claude CLI expectations. [#258](https://github.com/edspencer/herdctl/pull/258), [#266](https://github.com/edspencer/herdctl/pull/266)
+
+---
+
+### Web Dashboard Testing Suite
+**June 22, 2026** · `@herdctl/web@0.10.0`
+
+Added a comprehensive real-browser UI/integration test suite for the web dashboard using Playwright. Tests cover fleet overview rendering, agent detail pages, chat functionality, session management (rename/delete), schedule controls (trigger/enable/disable), and job operations. The suite runs against a live FleetManager instance with actual Claude SDK calls (mocked via msw) to verify end-to-end behavior. Also fixed the agent-not-found state to show a proper error message instead of an infinite loading spinner. [#269](https://github.com/edspencer/herdctl/pull/269)
+
+---
+
 ### Discord File Attachment Support
 **March 10, 2026** · `@herdctl/discord@1.2.0` · `@herdctl/core@5.10.0`
 

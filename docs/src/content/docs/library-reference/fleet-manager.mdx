@@ -557,6 +557,7 @@ await manager.trigger(
 | `options.prompt` | `string` | No | Override the prompt for this trigger |
 | `options.workItems` | `WorkItem[]` | No | Custom work items instead of fetching from work source |
 | `options.bypassConcurrencyLimit` | `boolean` | No | Force trigger even if agent is at capacity (default: `false`) |
+| `options.workingDirectory` | `string` | No | Override the agent's working directory for this trigger only. Absolute or relative to `process.cwd()` |
 
 #### Returns
 
@@ -598,10 +599,19 @@ const job = await manager.trigger('my-agent', undefined, {
 const job = await manager.trigger('my-agent', undefined, {
   bypassConcurrencyLimit: true,
 });
+
+// Trigger with working directory override
+const job = await manager.trigger('my-agent', undefined, {
+  workingDirectory: '/path/to/different/project',
+});
 ```
 
 <Aside type="tip">
 Prompt priority: `options.prompt` > schedule prompt > undefined. If you specify a prompt in options, it overrides the schedule's configured prompt.
+</Aside>
+
+<Aside type="note">
+The `workingDirectory` option allows you to run the same agent against different directories without registering separate agent configs. Sessions created with this override are keyed by the override directory, so you'll need to use directory-based session discovery to access them.
 </Aside>
 
 ---
@@ -721,6 +731,426 @@ const result = await manager.forkJob('job-2024-01-15-abc123', {
 const result = await manager.forkJob('job-2024-01-15-abc123', {
   schedule: 'nightly',
 });
+```
+
+---
+
+## Agent Management Methods
+
+### `addAgent(agent, options?)`
+
+Register an agent at runtime without modifying YAML configuration files.
+
+```typescript
+await manager.addAgent(
+  agent: AgentConfig | (Record<string, unknown> & { name: string }),
+  options?: AddAgentOptions
+): Promise<AgentInfo>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `agent` | `AgentConfig` | **Yes** | Agent configuration object matching the agent schema |
+| `options.baseDir` | `string` | No | Base directory for resolving relative `working_directory`. Defaults to config directory or `process.cwd()` |
+| `options.mergeDefaults` | `boolean` | No | Whether to merge fleet defaults into the agent (default: `true`) |
+| `options.replace` | `boolean` | No | Replace existing agent with the same name instead of throwing (default: `false`) |
+
+#### Returns
+
+`Promise<AgentInfo>` with details of the newly registered agent.
+
+#### Description
+
+This method allows programmatic agent registration without writing YAML files and calling `reload()`. The provided configuration is validated against the agent schema, merged with fleet defaults (unless disabled), and normalized the same way file-loaded agents are. The resolved agent is immediately available for triggering and appears in fleet status. A `config:reloaded` event is emitted with the change.
+
+Programmatic agents are registered at the root fleet level, so their qualified name equals their local name. This is useful for building project-oriented applications on top of herdctl where agents are managed dynamically.
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+| `ConfigurationError` | Agent config is invalid or name collision (without `replace: true`) |
+
+#### Example
+
+```typescript
+// Register a new agent programmatically
+const agentInfo = await manager.addAgent({
+  name: 'dynamic-agent',
+  description: 'Created at runtime',
+  working_directory: '/path/to/project',
+  model: 'claude-opus-4',
+});
+
+console.log(`Registered: ${agentInfo.name}`);
+
+// Replace an existing agent
+await manager.addAgent(
+  {
+    name: 'existing-agent',
+    description: 'Updated configuration',
+  },
+  { replace: true }
+);
+
+// Add without merging fleet defaults
+await manager.addAgent(
+  {
+    name: 'standalone-agent',
+    model: 'claude-sonnet-4',
+  },
+  { mergeDefaults: false }
+);
+```
+
+---
+
+### `removeAgent(name)`
+
+Unregister an agent at runtime.
+
+```typescript
+await manager.removeAgent(name: string): Promise<boolean>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | `string` | **Yes** | The agent qualified name or local name to remove |
+
+#### Returns
+
+`Promise<boolean>` - `true` if an agent was removed, `false` if no match was found.
+
+#### Description
+
+Removes the agent from the in-memory configuration and scheduler. Accepts either a qualified name (e.g., `"sub.agent"`) or a local name; qualified names are matched first. Running jobs are unaffected — the scheduler simply stops triggering the removed agent's schedules. A `config:reloaded` event is emitted with the change.
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+
+#### Example
+
+```typescript
+// Remove a programmatic agent
+const removed = await manager.removeAgent('dynamic-agent');
+if (removed) {
+  console.log('Agent removed successfully');
+} else {
+  console.log('Agent not found');
+}
+```
+
+---
+
+## Session Management Methods
+
+### `getAgentSessions(name, options?)`
+
+Get all Claude Code sessions for an agent.
+
+```typescript
+await manager.getAgentSessions(
+  name: string,
+  options?: { limit?: number }
+): Promise<DiscoveredSession[]>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | `string` | **Yes** | The agent qualified name or local name |
+| `options.limit` | `number` | No | Maximum number of sessions to return |
+
+#### Returns
+
+```typescript
+interface DiscoveredSession {
+  sessionId: string;
+  workingDirectory: string;
+  mtime: string;                    // ISO 8601 timestamp
+  origin: 'Web' | 'CLI' | 'Discord' | 'Slack' | 'Schedule' | 'Unknown';
+  agentName: string | undefined;
+  resumable: boolean;
+  customName: string | undefined;    // User-set name
+  autoName: string | undefined;      // Auto-generated from Claude summary
+  preview: string | undefined;       // First user message preview
+}
+```
+
+Array of discovered sessions (empty if the agent has no working directory or no sessions yet).
+
+#### Description
+
+Returns all Claude Code conversation sessions for the specified agent. Sessions are discovered from the agent's working directory and enriched with attribution (origin), custom names, auto-generated names, and message previews. Results are sorted by modification time (newest first) and cached for 30 seconds.
+
+This is a convenience wrapper around the session discovery service that automatically resolves the agent's working directory and Docker mode from configuration.
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+| `AgentNotFoundError` | Agent doesn't exist |
+
+#### Example
+
+```typescript
+// Get all sessions for an agent
+const sessions = await manager.getAgentSessions('my-agent');
+for (const session of sessions) {
+  console.log(`${session.sessionId}: ${session.customName || session.autoName || 'Unnamed'}`);
+  console.log(`  Origin: ${session.origin}, Modified: ${session.mtime}`);
+}
+
+// Get the 10 most recent sessions
+const recent = await manager.getAgentSessions('my-agent', { limit: 10 });
+```
+
+---
+
+### `getAgentSessionMessages(name, sessionId)`
+
+Get all messages from a specific agent session.
+
+```typescript
+await manager.getAgentSessionMessages(
+  name: string,
+  sessionId: string
+): Promise<ChatMessage[]>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | `string` | **Yes** | The agent qualified name or local name |
+| `sessionId` | `string` | **Yes** | The session ID to read |
+
+#### Returns
+
+```typescript
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp?: string;
+}
+```
+
+Array of chat messages (empty if the agent has no working directory or session doesn't exist).
+
+#### Description
+
+Reads and parses all messages from a Claude Code session transcript (JSONL file). Messages are extracted from the session's conversation history and returned in chronological order. This is useful for displaying conversation history in UIs or for analysis.
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+| `AgentNotFoundError` | Agent doesn't exist |
+
+#### Example
+
+```typescript
+const messages = await manager.getAgentSessionMessages('my-agent', 'session-123');
+for (const msg of messages) {
+  console.log(`${msg.role}: ${msg.content}`);
+}
+```
+
+---
+
+### `getAgentSessionUsage(name, sessionId)`
+
+Get token usage statistics for a specific session.
+
+```typescript
+await manager.getAgentSessionUsage(
+  name: string,
+  sessionId: string
+): Promise<SessionUsage>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | `string` | **Yes** | The agent qualified name or local name |
+| `sessionId` | `string` | **Yes** | The session ID to analyze |
+
+#### Returns
+
+```typescript
+interface SessionUsage {
+  inputTokens: number;         // Total input tokens including cache
+  turnCount: number;           // Number of turns in conversation
+  hasData: boolean;            // Whether usage data was found
+}
+```
+
+#### Description
+
+Extracts token usage and conversation statistics from a session transcript. Returns aggregate input token count (including cache hits/writes) and the total number of conversation turns. If the session has no usage data in its transcript, returns `hasData: false` with zero counts.
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+| `AgentNotFoundError` | Agent doesn't exist |
+
+#### Example
+
+```typescript
+const usage = await manager.getAgentSessionUsage('my-agent', 'session-123');
+if (usage.hasData) {
+  console.log(`Tokens: ${usage.inputTokens}, Turns: ${usage.turnCount}`);
+} else {
+  console.log('No usage data available for this session');
+}
+```
+
+---
+
+### `deleteSession(name, sessionId)`
+
+Delete a Claude Code session transcript from disk.
+
+```typescript
+await manager.deleteSession(
+  name: string,
+  sessionId: string
+): Promise<boolean>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | `string` | **Yes** | The agent qualified name or local name |
+| `sessionId` | `string` | **Yes** | The session ID to delete |
+
+#### Returns
+
+`Promise<boolean>` - `true` if the session file was deleted, `false` if it didn't exist or agent has no working directory.
+
+#### Description
+
+Deletes a session transcript file from the agent's working directory and invalidates the session discovery cache so subsequent `getAgentSessions()` calls won't list it. The session ID is validated (only alphanumeric and hyphens allowed) to prevent path traversal attacks before any filesystem access.
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+| `AgentNotFoundError` | Agent doesn't exist |
+| `Error` | Session ID contains invalid characters |
+
+#### Example
+
+```typescript
+const deleted = await manager.deleteSession('my-agent', 'session-123');
+if (deleted) {
+  console.log('Session deleted successfully');
+} else {
+  console.log('Session not found');
+}
+```
+
+---
+
+### `setSessionName(name, sessionId, customName)`
+
+Set or clear a custom display name for a session.
+
+```typescript
+await manager.setSessionName(
+  name: string,
+  sessionId: string,
+  customName: string | null
+): Promise<void>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | `string` | **Yes** | The agent qualified name or local name |
+| `sessionId` | `string` | **Yes** | The session ID to rename |
+| `customName` | `string \| null` | **Yes** | The custom name to set, or `null` to clear |
+
+#### Description
+
+Sets or clears the custom display name for a session. Custom names take precedence over auto-generated names when displaying sessions in UIs. Passing `null` or an empty/whitespace string clears any existing custom name. Changes are persisted to the session metadata store and immediately reflected in subsequent `getAgentSessions()` calls.
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+| `AgentNotFoundError` | Agent doesn't exist |
+
+#### Example
+
+```typescript
+// Set a custom name
+await manager.setSessionName('my-agent', 'session-123', 'Bug fix conversation');
+
+// Clear the custom name
+await manager.setSessionName('my-agent', 'session-123', null);
+```
+
+---
+
+### `invalidateSessions(name)`
+
+Force refresh of an agent's session cache.
+
+```typescript
+manager.invalidateSessions(name: string): void
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | `string` | **Yes** | The agent qualified name or local name |
+
+#### Description
+
+Drops the cached session listing for an agent, forcing the next `getAgentSessions()` call to rebuild it from disk. The session discovery service caches directory listings for 30 seconds and uses mtime-awareness to detect new sessions, but this method allows forcing a fresh scan immediately. This is useful when you know a session was just created and want to ensure it appears in the listing despite filesystem timestamp granularity (1-second precision on some systems).
+
+Also invalidates the attribution index so sessions created in this turn (whose job record was just written) are properly attributed.
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+| `AgentNotFoundError` | Agent doesn't exist |
+
+#### Example
+
+```typescript
+// After creating a new session
+const result = await manager.trigger('my-agent', undefined, {
+  prompt: 'Start a new conversation',
+});
+
+// Force cache refresh to immediately see the new session
+manager.invalidateSessions('my-agent');
+
+// Now it will definitely appear
+const sessions = await manager.getAgentSessions('my-agent');
 ```
 
 ---
