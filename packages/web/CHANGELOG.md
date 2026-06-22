@@ -1,5 +1,20 @@
 # @herdctl/web
 
+## 0.9.16
+
+### Patch Changes
+
+- [#272](https://github.com/edspencer/herdctl/pull/272) [`4f19f04`](https://github.com/edspencer/herdctl/commit/4f19f042d16499a888536882a2bcaccaf47be720) Thanks [@edspencer](https://github.com/edspencer)! - Clear the stale SDK session mapping when a web-chat resume fails because the
+  session can no longer be found (issue #126).
+
+  When an agent's `working_directory` config changes, Claude Code keys its session
+  files by the spawn-time cwd, so a session created under the old cwd becomes
+  invisible under the new one and every resume of it fails. `WebChatManager` kept
+  the now-dead session attributed, so the web chat would keep trying to resume it.
+  On a session-not-found failure, the stored mapping for the resumed session is now
+  cleared (best-effort — clearing never masks the original error), complementing the
+  core retry shipped in #264.
+
 ## 0.9.15
 
 ### Patch Changes
