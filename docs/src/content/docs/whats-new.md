@@ -7,6 +7,13 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Session Discovery and Message Handling Improvements
+**June 22, 2026** · `@herdctl/core@5.13.1` · `@herdctl/core@5.13.0` · `@herdctl/core@5.12.0` · `@herdctl/web@0.9.15`
+
+Four significant fixes shipped in the 5.12.x and 5.13.x releases improve session reliability and chat UI accuracy. The CLI runtime's `--mcp-config` validation now properly wraps server configuration in the required `mcpServers` record (fixing issue #182), preventing timeouts when the CLI rejects malformed JSON. Session discovery now disambiguates working directories with identical encoded paths (e.g., `/a/b-c` and `/a-b/c` both encode to `-a-b-c`) by reading each transcript's authoritative `cwd` field. Cross-agent session resume now works correctly — the job executor honors explicit caller-provided session IDs even when the agent has never owned an agent-level session pointer, and retries yielded session-not-found errors (e.g., after a `working_directory` change) with a fresh session. Assistant message parsing no longer drops thinking-enabled responses: dedup now keys on whether text has been emitted for a message ID, so no-text thinking/tool-use lines don't suppress the actual answer. Session discovery automatically reflects newly-created sessions via mtime-aware caching, and `FleetManager.invalidateSessions()` lets callers force a fresh listing. The web dashboard now correctly renders the "Agent Not Found" card for non-existent agents instead of showing a retryable error panel. CLI runtime tool-call pairing is restored — the SDK message translator now prefers nested id-bearing `tool_result` blocks over id-less top-level fields, fixing "Tool: unknown" labels. [#266](https://github.com/edspencer/herdctl/pull/266), [#265](https://github.com/edspencer/herdctl/pull/265), [#264](https://github.com/edspencer/herdctl/pull/264), [#261](https://github.com/edspencer/herdctl/pull/261), [#260](https://github.com/edspencer/herdctl/pull/260), [#269](https://github.com/edspencer/herdctl/pull/269), [#258](https://github.com/edspencer/herdctl/pull/258)
+
+---
+
 ### Discord File Attachment Support
 **March 10, 2026** · `@herdctl/discord@1.2.0` · `@herdctl/core@5.10.0`
 
