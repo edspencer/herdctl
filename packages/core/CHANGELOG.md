@@ -1,5 +1,46 @@
 # @herdctl/core
 
+## 5.13.1
+
+### Patch Changes
+
+- [#266](https://github.com/edspencer/herdctl/pull/266) [`637cf10`](https://github.com/edspencer/herdctl/commit/637cf10a50a81c07bb2c14ab38277afe6eb34fc1) Thanks [@edspencer](https://github.com/edspencer)! - Lock in the correct `--mcp-config` JSON shape for the CLI runtime (issue #182).
+
+  The Claude CLI validates `--mcp-config` against a schema that requires a top-level `mcpServers` record (the same shape as `.mcp.json`). The pre-fix flat form `{"<name>":{...}}` fails validation with `mcpServers: Invalid input: expected record, received undefined`, and the headless process hangs until the job times out instead of surfacing an error.
+
+  The CLI runtime already emits the wrapped `{"mcpServers":{...}}` form; this change adds regression tests asserting that emitted shape so it can't silently revert to the flat form.
+
+- [#265](https://github.com/edspencer/herdctl/pull/265) [`9e0b6fc`](https://github.com/edspencer/herdctl/commit/9e0b6fcea7ed4ee3949e8dcfeff04de223a6c029) Thanks [@edspencer](https://github.com/edspencer)! - Fix lossy `encodedPath` collisions in session discovery (#148)
+
+  `encodePathForCli` maps every non-alphanumeric character to `-`, so different
+  working directories like `/a/b-c`, `/a-b/c`, and `/a/b/c` all encode to the same
+  `~/.claude/projects/-a-b-c` transcript directory. This is required to stay
+  byte-compatible with Claude Code (which collides them the exact same way, so the
+  encoding cannot be made reversible without pointing at a non-existent
+  directory), but it meant sessions from two colliding directories could be
+  cross-attributed during discovery.
+
+  Session discovery now disambiguates colliding directories by reading each
+  transcript's authoritative `cwd` field (Claude Code records the real working
+  directory inside every session's JSONL). New helpers `readSessionCwd` and
+  `sessionBelongsToWorkingDirectory` are exported from `@herdctl/core`, and
+  `getAllSessions` only consults them when an actual collision is detected, so the
+  common (unique-path) case pays no extra cost.
+
+  Also fixes `@herdctl/web`'s `chat.ts`, which derived `encodedPath` with a
+  slashes-only replacement (`workingDirectory.replace(/[/\\]/g, "-")`) that never
+  matched core's `DirectoryGroup.encodedPath` for any path containing a dot,
+  underscore, or other non-alphanumeric character; it now uses the shared
+  `encodePathForCli` encoder.
+
+- [#264](https://github.com/edspencer/herdctl/pull/264) [`5349bd4`](https://github.com/edspencer/herdctl/commit/5349bd4856ce1f7245a0703cd51eb8222c8f9229) Thanks [@edspencer](https://github.com/edspencer)! - Fix same-process cross-agent session resume and resume-after-cwd-change (issues #263, #126).
+
+  The job executor's resume gate (`JobExecutor.execute`, step 3.5) only honored a caller-provided `resume` session ID when the agent already had a _matching agent-level session pointer_ on disk (`.herdctl/sessions/<agent>.json`). When an agent was asked to resume a session it had never owned — e.g. adopting a session another agent created in the same process (#263) — the explicit `resume` was silently dropped and the runtime forked a brand-new session, losing all prior context. A process restart appeared to "fix" it; nothing at runtime did.
+
+  This change makes the executor adopt an explicit caller-provided session when the agent has _never_ owned an agent-level session (distinguished from the expired-and-cleared case via a non-timeout pointer read), persisting an agent-level pointer so future runs and restarts treat the session as owned. For the native CLI runtime it only adopts when the transcript actually exists in the agent's working directory (Claude Code keys session storage by spawn cwd); SDK/Docker runtimes adopt directly.
+
+  It also adds a post-loop session-not-found retry: the CLI runtime _yields_ a terminal error (rather than throwing) when `claude --resume` can't find a session — e.g. after a `working_directory` change relocates the transcript — so the existing catch-block retry never ran. The yielded-error path now clears the stale pointer and retries once with a fresh session, mirroring the thrown-error recovery.
+
 ## 5.13.0
 
 ### Minor Changes
