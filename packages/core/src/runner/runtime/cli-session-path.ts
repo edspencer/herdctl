@@ -6,9 +6,11 @@
  * utilities help locate CLI session directories and specific session files.
  */
 
+import { createReadStream } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as readline from "node:readline";
 
 /**
  * Maximum length of an encoded path before Claude Code truncates it.
@@ -49,6 +51,36 @@ function hashPathForCli(input: string): string {
  * `_`, etc.) resolved to the wrong `~/.claude/projects/<encoded>` directory and
  * session discovery silently returned nothing. This aligns herdctl with Claude
  * Code's actual behavior.
+ *
+ * ## Collision warning (issue #148)
+ *
+ * This encoding is intentionally **lossy and non-invertible**, and is shared
+ * with Claude Code on purpose — herdctl must resolve to the *exact same*
+ * `~/.claude/projects/<dir>` that Claude Code wrote, so we cannot switch to a
+ * reversible scheme (e.g. `encodeURIComponent` / base64url) without pointing at
+ * a directory that does not exist.
+ *
+ * Because every non-alphanumeric character (including `/` and `-`) collapses to
+ * `-`, multiple *different* working directories can encode to the **same**
+ * transcript directory. For example:
+ *
+ * ```text
+ * /a/b-c   -> -a-b-c
+ * /a-b/c   -> -a-b-c
+ * /a/b/c   -> -a-b-c
+ * ```
+ *
+ * This is not a herdctl-specific defect: Claude Code itself stores the
+ * transcripts for all three of those directories in the single `-a-b-c`
+ * directory (verified empirically against `~/.claude/projects/` with Claude Code
+ * 2.1.x). There is therefore no disambiguation scheme to "match" at the
+ * directory-name level.
+ *
+ * The transcript JSONL files are nonetheless self-identifying: every Claude Code
+ * session records the real `cwd` it ran in. Callers that must attribute a
+ * session to a *specific* working directory (rather than just to the shared
+ * encoded directory) should disambiguate by reading that field — see
+ * {@link readSessionCwd} and {@link sessionBelongsToWorkingDirectory}.
  *
  * @example
  * ```typescript
@@ -122,6 +154,99 @@ export function getCliSessionFile(workspacePath: string, sessionId: string): str
   }
   const sessionDir = getCliSessionDir(workspacePath);
   return path.join(sessionDir, `${sessionId}.jsonl`);
+}
+
+/**
+ * Read the real working directory (`cwd`) recorded inside a CLI transcript file.
+ *
+ * Because {@link encodePathForCli} is lossy, two different working directories
+ * can share one `~/.claude/projects/<dir>` transcript directory (see the
+ * collision warning on {@link encodePathForCli}, issue #148). The encoded
+ * directory name therefore cannot tell you which working directory a given
+ * session belongs to.
+ *
+ * Claude Code records the authoritative `cwd` on its `user`/`assistant` (and
+ * related) JSONL entries, so this function streams the transcript and returns
+ * the first `cwd` string it finds. This is the non-lossy source of truth used to
+ * disambiguate colliding directories.
+ *
+ * The file is read line-by-line and parsing stops at the first entry that
+ * carries a `cwd`, so this stays cheap even for large transcripts.
+ *
+ * @param sessionFilePath - Absolute path to a `.jsonl` transcript file
+ * @returns The recorded `cwd`, or `null` if the file is missing/unreadable or no
+ *   entry records a `cwd`
+ */
+export async function readSessionCwd(sessionFilePath: string): Promise<string | null> {
+  let stream: ReturnType<typeof createReadStream> | undefined;
+  let rl: readline.Interface | undefined;
+  try {
+    stream = createReadStream(sessionFilePath, { encoding: "utf8" });
+    // Surface stream errors (e.g. ENOENT) as a rejected promise rather than an
+    // unhandled error event.
+    const streamErrored = new Promise<never>((_resolve, reject) => {
+      stream?.once("error", reject);
+    });
+    rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+
+    const readLoop = (async () => {
+      for await (const line of rl) {
+        const trimmed = line.trim();
+        if (trimmed.length === 0) continue;
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = JSON.parse(trimmed) as Record<string, unknown>;
+        } catch {
+          continue;
+        }
+        if (typeof parsed.cwd === "string" && parsed.cwd.length > 0) {
+          return parsed.cwd;
+        }
+      }
+      return null;
+    })();
+
+    return await Promise.race([readLoop, streamErrored]);
+  } catch {
+    return null;
+  } finally {
+    rl?.close();
+    stream?.destroy();
+  }
+}
+
+/**
+ * Determine whether a transcript file actually belongs to a given working
+ * directory, disambiguating directories that collide under
+ * {@link encodePathForCli} (issue #148).
+ *
+ * Uses the authoritative `cwd` recorded in the transcript (via
+ * {@link readSessionCwd}) rather than the lossy encoded directory name.
+ *
+ * Behaviour when the transcript does not record a `cwd` (e.g. an empty or
+ * malformed file) is controlled by `defaultWhenUnknown`. The default is `true`
+ * — we keep the prior, collision-unaware behaviour of treating an unidentifiable
+ * session as belonging to the directory it was filed under, so this helper only
+ * ever *narrows* attribution when it has positive evidence of a mismatch.
+ *
+ * @param sessionFilePath - Absolute path to a `.jsonl` transcript file
+ * @param workingDirectory - The working directory to test membership against
+ * @param options.defaultWhenUnknown - Result when the transcript records no
+ *   `cwd`. Defaults to `true`.
+ * @returns `true` if the session belongs to `workingDirectory` (or its `cwd` is
+ *   unknown and `defaultWhenUnknown` is `true`), `false` otherwise
+ */
+export async function sessionBelongsToWorkingDirectory(
+  sessionFilePath: string,
+  workingDirectory: string,
+  options: { defaultWhenUnknown?: boolean } = {},
+): Promise<boolean> {
+  const { defaultWhenUnknown = true } = options;
+  const cwd = await readSessionCwd(sessionFilePath);
+  if (cwd === null) {
+    return defaultWhenUnknown;
+  }
+  return path.resolve(cwd) === path.resolve(workingDirectory);
 }
 
 /**

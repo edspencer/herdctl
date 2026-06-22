@@ -742,6 +742,85 @@ describe("SessionDiscoveryService", () => {
 
       expect(groups[0].workingDirectory).toBe("/Users/ed/Code/myproject");
     });
+
+    // Issue #148: two real working directories can collide on a single encoded
+    // transcript directory. Sessions are stored together by Claude Code, but each
+    // transcript records its real cwd, which we use to attribute correctly.
+    it("disambiguates colliding working directories by recorded cwd", async () => {
+      // Both /Users/ed/Code/my-project and /Users/ed/Code/my/project encode to the
+      // same `-Users-ed-Code-my-project` directory.
+      const sharedDir = join(tempClaudeHome, "projects", "-Users-ed-Code-my-project");
+      await mkdir(sharedDir, { recursive: true });
+      // Session for the hyphenated repo.
+      await writeFile(
+        join(sharedDir, "sess-hyphen.jsonl"),
+        `${JSON.stringify({ type: "user", cwd: "/Users/ed/Code/my-project" })}\n`,
+      );
+      // Session for the nested directory.
+      await writeFile(
+        join(sharedDir, "sess-nested.jsonl"),
+        `${JSON.stringify({ type: "user", cwd: "/Users/ed/Code/my/project" })}\n`,
+      );
+
+      // Attribution returns each session's agent based on id so we can assert
+      // groups stay separated.
+      mockBuildAttributionIndex.mockResolvedValue(
+        createMockAttributionIndex({
+          getAttribute: (sessionId: string) => ({
+            origin: "native" as const,
+            agentName: sessionId === "sess-hyphen" ? "agent-hyphen" : "agent-nested",
+            triggerType: undefined,
+          }),
+        }),
+      );
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      const groups = await service.getAllSessions([
+        {
+          name: "agent-hyphen",
+          workingDirectory: "/Users/ed/Code/my-project",
+          dockerEnabled: false,
+        },
+        {
+          name: "agent-nested",
+          workingDirectory: "/Users/ed/Code/my/project",
+          dockerEnabled: false,
+        },
+      ]);
+
+      // The first agent wins primary attribution of the shared encoded dir, so we
+      // get one group — but it must contain ONLY the session whose cwd matches that
+      // agent's working directory, not the colliding directory's session.
+      const hyphenGroup = groups.find((g) => g.agentName === "agent-hyphen");
+      expect(hyphenGroup).toBeDefined();
+      const ids = hyphenGroup!.sessions.map((s) => s.sessionId);
+      expect(ids).toContain("sess-hyphen");
+      expect(ids).not.toContain("sess-nested");
+    });
+
+    it("does not filter sessions when there is no collision (single agent)", async () => {
+      // Same encoded dir, but only ONE agent maps to it — the recorded cwd should
+      // NOT be consulted, so even a session with a mismatched/absent cwd is kept.
+      const projectDir = join(tempClaudeHome, "projects", "-Users-ed-Code-solo");
+      await mkdir(projectDir, { recursive: true });
+      await createSessionFile(projectDir, "session-a"); // empty file, no cwd
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      const groups = await service.getAllSessions([
+        { name: "solo-agent", workingDirectory: "/Users/ed/Code/solo", dockerEnabled: false },
+      ]);
+
+      expect(groups).toHaveLength(1);
+      expect(groups[0].sessions.map((s) => s.sessionId)).toContain("session-a");
+    });
   });
 
   // ===========================================================================

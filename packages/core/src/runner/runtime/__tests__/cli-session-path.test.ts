@@ -1,11 +1,14 @@
-import { homedir } from "node:os";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   encodePathForCli,
   getCliSessionDir,
   getCliSessionFile,
   getDockerSessionFile,
+  readSessionCwd,
+  sessionBelongsToWorkingDirectory,
 } from "../cli-session-path.js";
 
 describe("encodePathForCli", () => {
@@ -107,6 +110,47 @@ describe("encodePathForCli", () => {
       const encoded = encodePathForCli(exact);
       expect(encoded.length).toBe(200);
       expect(encoded).toBe(`-${"a".repeat(199)}`);
+    });
+  });
+
+  // Issue #148: the encoding is intentionally lossy and shared byte-for-byte with
+  // Claude Code, so distinct working directories can collapse to the same encoded
+  // transcript directory. These tests PIN that (unavoidable) behaviour so we never
+  // accidentally "fix" the encoder in a way that diverges from Claude Code and
+  // points at a directory that does not exist on disk. Disambiguation happens at
+  // the session level via the recorded cwd (see readSessionCwd tests below).
+  describe("lossy collisions (issue #148)", () => {
+    it("collapses /a/b-c, /a-b/c, and /a/b/c to the same encoded directory", () => {
+      const encoded = "-a-b-c";
+      expect(encodePathForCli("/a/b-c")).toBe(encoded);
+      expect(encodePathForCli("/a-b/c")).toBe(encoded);
+      expect(encodePathForCli("/a/b/c")).toBe(encoded);
+    });
+
+    it("collides a hyphenated project dir with a deeper nested one", () => {
+      // A very common real-world collision: a repo literally named with hyphens
+      // vs. the same segments as separate directories.
+      expect(encodePathForCli("/home/user/my-project")).toBe("-home-user-my-project");
+      expect(encodePathForCli("/home/user/my/project")).toBe("-home-user-my-project");
+    });
+
+    it("matches Claude Code's real collision behaviour observed on disk", () => {
+      // Verified empirically: claude run in /private/tmp/.../a/b-c and
+      // /private/tmp/.../a-b/c both wrote transcripts into the single
+      // `-private-tmp-...-a-b-c` directory under ~/.claude/projects/.
+      const p1 = "/private/tmp/cc-collide/a/b-c";
+      const p2 = "/private/tmp/cc-collide/a-b/c";
+      expect(encodePathForCli(p1)).toBe("-private-tmp-cc-collide-a-b-c");
+      expect(encodePathForCli(p2)).toBe(encodePathForCli(p1));
+    });
+
+    it("still encodes normal (non-colliding) paths uniquely and identically to before", () => {
+      // Regression guard: the common case must be unchanged.
+      expect(encodePathForCli("/Users/ed/Code/herdctl")).toBe("-Users-ed-Code-herdctl");
+      expect(encodePathForCli("/Users/ed/Code/paddock")).toBe("-Users-ed-Code-paddock");
+      expect(encodePathForCli("/Users/ed/Code/herdctl")).not.toBe(
+        encodePathForCli("/Users/ed/Code/paddock"),
+      );
     });
   });
 
@@ -394,5 +438,121 @@ describe("getDockerSessionFile", () => {
         expect(() => getDockerSessionFile(stateDir, sessionId)).not.toThrow();
       });
     });
+  });
+});
+
+// =============================================================================
+// readSessionCwd / sessionBelongsToWorkingDirectory (issue #148 disambiguation)
+// =============================================================================
+
+// A transcript line shaped like the real Claude Code JSONL entries: queue
+// operations have no cwd, user/assistant entries carry the authoritative cwd.
+function jsonl(lines: Array<Record<string, unknown>>): string {
+  return lines.map((l) => JSON.stringify(l)).join("\n");
+}
+
+describe("readSessionCwd", () => {
+  let dir: string;
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), "herdctl-cwd-test-"));
+  });
+  afterAll(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("returns the cwd recorded on the first entry that carries one", async () => {
+    const file = join(dir, "with-cwd.jsonl");
+    await writeFile(
+      file,
+      jsonl([
+        { type: "queue-operation" }, // no cwd
+        { type: "user", cwd: "/home/user/my/project", sessionId: "s1" },
+        { type: "assistant", cwd: "/home/user/my/project" },
+      ]),
+    );
+    expect(await readSessionCwd(file)).toBe("/home/user/my/project");
+  });
+
+  it("distinguishes two colliding directories by their recorded cwd", async () => {
+    // Both of these encode to the same `-home-user-my-project` directory, but the
+    // transcripts themselves record different real cwds.
+    const a = join(dir, "collide-a.jsonl");
+    const b = join(dir, "collide-b.jsonl");
+    await writeFile(a, jsonl([{ type: "user", cwd: "/home/user/my-project" }]));
+    await writeFile(b, jsonl([{ type: "user", cwd: "/home/user/my/project" }]));
+
+    // Sanity: the lossy encoder collides them...
+    expect(encodePathForCli("/home/user/my-project")).toBe(
+      encodePathForCli("/home/user/my/project"),
+    );
+    // ...but the recorded cwds disambiguate them.
+    expect(await readSessionCwd(a)).toBe("/home/user/my-project");
+    expect(await readSessionCwd(b)).toBe("/home/user/my/project");
+  });
+
+  it("returns null when no entry records a cwd", async () => {
+    const file = join(dir, "no-cwd.jsonl");
+    await writeFile(file, jsonl([{ type: "queue-operation" }, { type: "summary", summary: "x" }]));
+    expect(await readSessionCwd(file)).toBeNull();
+  });
+
+  it("returns null for an empty file", async () => {
+    const file = join(dir, "empty.jsonl");
+    await writeFile(file, "");
+    expect(await readSessionCwd(file)).toBeNull();
+  });
+
+  it("skips malformed JSON lines and keeps reading", async () => {
+    const file = join(dir, "malformed.jsonl");
+    await writeFile(file, `not json\n{"type":"user","cwd":"/real/dir"}\n`);
+    expect(await readSessionCwd(file)).toBe("/real/dir");
+  });
+
+  it("returns null for a missing file (no throw)", async () => {
+    expect(await readSessionCwd(join(dir, "does-not-exist.jsonl"))).toBeNull();
+  });
+});
+
+describe("sessionBelongsToWorkingDirectory", () => {
+  let dir: string;
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), "herdctl-belongs-test-"));
+  });
+  afterAll(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("returns true when the recorded cwd matches the working directory", async () => {
+    const file = join(dir, "match.jsonl");
+    await writeFile(file, jsonl([{ type: "user", cwd: "/home/user/my-project" }]));
+    expect(await sessionBelongsToWorkingDirectory(file, "/home/user/my-project")).toBe(true);
+  });
+
+  it("returns false for a colliding-but-different working directory", async () => {
+    // Encodes to the same dir, but is a different real path — must NOT match.
+    const file = join(dir, "collide.jsonl");
+    await writeFile(file, jsonl([{ type: "user", cwd: "/home/user/my/project" }]));
+    expect(await sessionBelongsToWorkingDirectory(file, "/home/user/my-project")).toBe(false);
+  });
+
+  it("normalises trailing slashes and relative segments before comparing", async () => {
+    const file = join(dir, "normalise.jsonl");
+    await writeFile(file, jsonl([{ type: "user", cwd: "/home/user/project" }]));
+    expect(await sessionBelongsToWorkingDirectory(file, "/home/user/project/")).toBe(true);
+    expect(await sessionBelongsToWorkingDirectory(file, "/home/user/foo/../project")).toBe(true);
+  });
+
+  it("defaults to belonging (true) when the cwd is unknown", async () => {
+    const file = join(dir, "unknown.jsonl");
+    await writeFile(file, jsonl([{ type: "queue-operation" }]));
+    expect(await sessionBelongsToWorkingDirectory(file, "/anything")).toBe(true);
+  });
+
+  it("respects defaultWhenUnknown: false to exclude unidentifiable sessions", async () => {
+    const file = join(dir, "unknown2.jsonl");
+    await writeFile(file, jsonl([{ type: "queue-operation" }]));
+    expect(
+      await sessionBelongsToWorkingDirectory(file, "/anything", { defaultWhenUnknown: false }),
+    ).toBe(false);
   });
 });

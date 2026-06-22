@@ -20,6 +20,8 @@ export {
   getCliSessionFile,
   getDockerSessionDir,
   getDockerSessionFile,
+  readSessionCwd,
+  sessionBelongsToWorkingDirectory,
 } from "./cli-session-path.js";
 export { RuntimeFactory, type RuntimeType } from "./factory.js";
 export type { RuntimeExecuteOptions, RuntimeInterface } from "./interface.js";

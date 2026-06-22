@@ -48,7 +48,9 @@ export {
   getDockerSessionFile,
   RuntimeFactory,
   type RuntimeType,
+  readSessionCwd,
   SDKRuntime,
+  sessionBelongsToWorkingDirectory,
 } from "./runtime/index.js";
 // Export SDK adapter functions
 export {
