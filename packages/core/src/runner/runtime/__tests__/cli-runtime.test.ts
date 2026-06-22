@@ -154,3 +154,94 @@ describe("CLIRuntime working directory / session resolution", () => {
     expect(vi.mocked(getCliSessionDir)).toHaveBeenCalledWith(effectiveDir);
   });
 });
+
+describe("CLIRuntime --mcp-config serialization (issue #182)", () => {
+  beforeEach(() => {
+    watchMessages.length = 0;
+    flushMessages.length = 0;
+  });
+
+  /**
+   * Runs the CLI runtime with the given agent config and returns the value of
+   * the `--mcp-config` argument that was passed to the spawned `claude` process
+   * (or undefined if the flag was not emitted).
+   */
+  async function captureMcpConfigArg(agent: Record<string, unknown>): Promise<string | undefined> {
+    let spawnedArgs: string[] = [];
+
+    const runtime = new CLIRuntime({
+      processSpawner: ((args: string[]) => {
+        spawnedArgs = args;
+        return makeSubprocess() as never;
+      }) as never,
+    });
+
+    for await (const _message of runtime.execute({
+      prompt: "Hello",
+      agent: { name: "mcp-agent", configPath: "/tmp/agent.yaml", ...agent } as never,
+    })) {
+      // drain
+    }
+
+    const idx = spawnedArgs.indexOf("--mcp-config");
+    return idx === -1 ? undefined : spawnedArgs[idx + 1];
+  }
+
+  it("wraps mcp_servers in a top-level `mcpServers` key (not flat)", async () => {
+    // The Claude CLI validates --mcp-config against a schema that requires a
+    // top-level `mcpServers` record (same shape as .mcp.json). The pre-#182
+    // flat form `{"coolify":{...}}` fails validation with
+    // "mcpServers: Invalid input: expected record, received undefined" and the
+    // headless process hangs until the job times out.
+    const mcpConfigArg = await captureMcpConfigArg({
+      mcp_servers: {
+        coolify: { command: "npx", args: ["-y", "@masonator/coolify-mcp"] },
+      },
+    });
+
+    expect(mcpConfigArg).toBeDefined();
+    const parsed = JSON.parse(mcpConfigArg as string);
+
+    // The wrapping key is the whole point of the fix.
+    expect(parsed).toHaveProperty("mcpServers");
+    expect(parsed).toEqual({
+      mcpServers: {
+        coolify: { command: "npx", args: ["-y", "@masonator/coolify-mcp"] },
+      },
+    });
+
+    // Guard against regression to the flat shape, where the server name would
+    // sit at the top level instead of under `mcpServers`.
+    expect(parsed).not.toHaveProperty("coolify");
+  });
+
+  it("serializes multiple stdio + http servers under `mcpServers` with env passthrough", async () => {
+    const mcpConfigArg = await captureMcpConfigArg({
+      mcp_servers: {
+        github: {
+          command: "npx",
+          args: ["-y", "@modelcontextprotocol/server-github"],
+          env: { GITHUB_TOKEN: "tok-123" },
+        },
+        posthog: { url: "https://mcp.example.com" },
+      },
+    });
+
+    expect(mcpConfigArg).toBeDefined();
+    expect(JSON.parse(mcpConfigArg as string)).toEqual({
+      mcpServers: {
+        github: {
+          command: "npx",
+          args: ["-y", "@modelcontextprotocol/server-github"],
+          env: { GITHUB_TOKEN: "tok-123" },
+        },
+        posthog: { type: "http", url: "https://mcp.example.com" },
+      },
+    });
+  });
+
+  it("omits --mcp-config entirely when no mcp_servers are configured", async () => {
+    expect(await captureMcpConfigArg({})).toBeUndefined();
+    expect(await captureMcpConfigArg({ mcp_servers: {} })).toBeUndefined();
+  });
+});
