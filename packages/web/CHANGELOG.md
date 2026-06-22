@@ -1,5 +1,14 @@
 # @herdctl/web
 
+## 0.9.15
+
+### Patch Changes
+
+- [#269](https://github.com/edspencer/herdctl/pull/269) [`7188850`](https://github.com/edspencer/herdctl/commit/718885007264206af84c1a4ea8ab26cc745224f1) Thanks [@edspencer](https://github.com/edspencer)! - Fix the agent detail page showing a generic, retryable error panel for a
+  non-existent agent. A 404 now renders the dedicated "Agent Not Found" card (with
+  a "Back to Dashboard" link) instead of an error box with a misleading "Retry"
+  button that could only ever 404 again. Fixes #268.
+
 ## 0.9.14
 
 ### Patch Changes
