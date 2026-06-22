@@ -37,14 +37,30 @@ test.describe("All Chats session list", () => {
     await expect(page.getByText("talker").first()).toBeVisible({ timeout: 20_000 });
   });
 
-  // Note: /chats is machine-wide (it discovers every Claude Code session under
-  // ~/.claude, not just this fleet's), so we can't assert a global empty state
-  // on a real dev machine. Instead assert the deterministic "no search results"
-  // state for a query that cannot match any session.
+  // /chats is machine-wide (it discovers every Claude Code session under
+  // ~/.claude, not just this fleet's), so we can't assert a global empty state.
+  // Create one session first so the directory is non-empty in ANY environment (a
+  // fresh CI runner has no prior ~/.claude sessions, so without this the page
+  // shows its base empty state rather than the search "no results" state), then
+  // assert the deterministic "no search results" state for an impossible query.
   test("renders the All Chats page and a no-results state for an impossible query", async ({
     page,
     harness,
   }) => {
+    const trigger = await page.request.post(`${harness.baseUrl}/api/agents/talker/trigger`, {
+      data: { prompt: "First message", triggerType: "web" },
+    });
+    expect(trigger.ok()).toBeTruthy();
+    await expect
+      .poll(
+        async () => {
+          const jobs = await (await page.request.get(`${harness.baseUrl}/api/jobs`)).json();
+          return jobs.jobs?.[0]?.status;
+        },
+        { timeout: 80_000, intervals: [1000] },
+      )
+      .toBe("completed");
+
     await page.goto(`${harness.baseUrl}/chats`);
 
     await expect(page.getByRole("heading", { name: "All Chats" })).toBeVisible();
