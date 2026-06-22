@@ -5,7 +5,12 @@
  * Actual message streaming happens via WebSocket.
  */
 
-import { createLogger, type FleetManager, type SessionDiscoveryService } from "@herdctl/core";
+import {
+  createLogger,
+  encodePathForCli,
+  type FleetManager,
+  type SessionDiscoveryService,
+} from "@herdctl/core";
 import type { FastifyInstance } from "fastify";
 import type { WebChatManager } from "../chat/index.js";
 
@@ -73,10 +78,11 @@ export function registerChatRoutes(
     return {
       ...toFrontendSession(session),
       agentName: session.agentName ?? "",
-      // Include encodedPath for unattributed sessions so frontend can route to read-only view
-      ...(!session.agentName
-        ? { encodedPath: session.workingDirectory.replace(/[/\\]/g, "-") }
-        : {}),
+      // Include encodedPath for unattributed sessions so frontend can route to read-only view.
+      // Must use the same encoder as core's DirectoryGroup.encodedPath (issue #148): the old
+      // slashes-only replace produced a value that never matched group.encodedPath for any
+      // working directory containing a dot, underscore, or other non-alphanumeric character.
+      ...(!session.agentName ? { encodedPath: encodePathForCli(session.workingDirectory) } : {}),
     };
   }
 

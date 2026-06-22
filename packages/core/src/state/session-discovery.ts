@@ -14,6 +14,7 @@ import {
   getCliSessionFile,
   getDockerSessionDir,
   getDockerSessionFile,
+  sessionBelongsToWorkingDirectory,
 } from "../runner/runtime/cli-session-path.js";
 import { createLogger } from "../utils/logger.js";
 import {
@@ -564,14 +565,33 @@ export class SessionDiscoveryService {
   ): Promise<DirectoryGroup[]> {
     const limit = options?.limit;
 
-    // Build agent lookup by encoded path
-    const agentLookup = new Map<string, { agentName: string; dockerEnabled: boolean }>();
+    // Build agent lookup by encoded path. Because encodePathForCli is lossy
+    // (issue #148), several distinct working directories can map to the same
+    // encoded path. We therefore record EVERY agent that resolves to a given
+    // encoded path so we can later disambiguate colliding sessions by their
+    // recorded cwd.
+    const agentLookup = new Map<
+      string,
+      { agentName: string; dockerEnabled: boolean; workingDirectory: string }
+    >();
+    const collidingWorkingDirs = new Map<string, Set<string>>();
     for (const agent of agents) {
       const encodedPath = encodePathForCli(agent.workingDirectory);
-      agentLookup.set(encodedPath, {
-        agentName: agent.name,
-        dockerEnabled: agent.dockerEnabled,
-      });
+      // First writer wins for the primary attribution (preserves prior behaviour),
+      // but track all real working directories sharing this encoded path.
+      if (!agentLookup.has(encodedPath)) {
+        agentLookup.set(encodedPath, {
+          agentName: agent.name,
+          dockerEnabled: agent.dockerEnabled,
+          workingDirectory: agent.workingDirectory,
+        });
+      }
+      let dirs = collidingWorkingDirs.get(encodedPath);
+      if (!dirs) {
+        dirs = new Set<string>();
+        collidingWorkingDirs.set(encodedPath, dirs);
+      }
+      dirs.add(path.resolve(agent.workingDirectory));
     }
 
     // Scan projects directory
@@ -603,6 +623,21 @@ export class SessionDiscoveryService {
       metadataKey: string;
       dockerEnabled: boolean;
       sessionFiles: Array<{ sessionId: string; mtime: Date }>;
+      /**
+       * The directory actually scanned under {@link claudeHomePath}/projects.
+       * Used to read transcript files for collision disambiguation so the read
+       * honours `claudeHomePath` instead of re-deriving from the lossy decoded
+       * path (issue #148). `undefined` for docker (flat) directories.
+       */
+      sessionDirPath?: string;
+      /**
+       * When this encoded directory is shared by more than one real working
+       * directory (issue #148 collision), this is the working directory this
+       * group represents. Sessions whose recorded cwd belongs to a *different*
+       * colliding directory are filtered out during enrichment. `undefined`
+       * when there is no collision (the common case — no extra work done).
+       */
+      disambiguateWorkingDir?: string;
     }
 
     const directories: DirectoryInfo[] = [];
@@ -642,6 +677,16 @@ export class SessionDiscoveryService {
       const dockerEnabled = agentMatch?.dockerEnabled ?? false;
       const metadataKey = agentName ?? "adhoc";
 
+      // Issue #148: if more than one real working directory collides on this
+      // encoded directory name, attribute sessions to a specific agent only when
+      // their recorded cwd matches that agent's working directory. Done only on
+      // collision, so the common (unique) case pays no extra cost.
+      const collidingDirs = collidingWorkingDirs.get(encodedPath);
+      const disambiguateWorkingDir =
+        agentMatch && collidingDirs && collidingDirs.size > 1
+          ? agentMatch.workingDirectory
+          : undefined;
+
       directories.push({
         encodedPath,
         decodedPath,
@@ -649,6 +694,8 @@ export class SessionDiscoveryService {
         metadataKey,
         dockerEnabled,
         sessionFiles,
+        sessionDirPath: sessionDir,
+        disambiguateWorkingDir,
       });
     }
 
@@ -736,6 +783,22 @@ export class SessionDiscoveryService {
         // Filter out sidechain (sub-agent) sessions — see comment in getAgentSessions()
         if (await isSidechainSession(filePath)) {
           continue;
+        }
+
+        // Issue #148: when several real working directories collide on this
+        // encoded transcript directory, drop sessions whose recorded cwd belongs
+        // to a *different* colliding directory so they aren't cross-attributed.
+        // Only runs when a collision was detected (dir.disambiguateWorkingDir set).
+        // Reads from the actually-scanned directory so it honours claudeHomePath.
+        if (dir.disambiguateWorkingDir !== undefined && dir.sessionDirPath !== undefined) {
+          const transcriptPath = path.join(dir.sessionDirPath, `${sessionId}.jsonl`);
+          const belongs = await sessionBelongsToWorkingDirectory(
+            transcriptPath,
+            dir.disambiguateWorkingDir,
+          );
+          if (!belongs) {
+            continue;
+          }
         }
 
         const attribution = attributionIndex.getAttribute(sessionId);
