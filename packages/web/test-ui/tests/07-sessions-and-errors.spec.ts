@@ -73,7 +73,12 @@ test.describe("All Chats session list", () => {
     await page
       .getByPlaceholder(/Search sessions/)
       .fill("zzz-no-such-session-qqq-impossible-match-xyz");
-    await expect(page.getByText("No matching sessions")).toBeVisible({ timeout: 20_000 });
+    // Accept either no-results form: the top-level "No matching sessions" (when
+    // all groups filter out) or a group's "No sessions match your search" (when a
+    // single group remains with no matching sessions). See herdctl#275.
+    await expect(
+      page.getByText(/No matching sessions|No sessions match your search/).first(),
+    ).toBeVisible({ timeout: 20_000 });
   });
 });
 
