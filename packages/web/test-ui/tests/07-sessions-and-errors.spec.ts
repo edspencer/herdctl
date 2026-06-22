@@ -65,6 +65,10 @@ test.describe("All Chats session list", () => {
 
     await expect(page.getByRole("heading", { name: "All Chats" })).toBeVisible();
     await expect(page.getByText("Every Claude Code session on this machine")).toBeVisible();
+    // Wait for the seeded session's group to LOAD before searching — otherwise the
+    // filter applies to a still-empty list (groups.length === 0 → base EmptyState,
+    // not the search "No matching sessions" state). The agent name heads its group.
+    await expect(page.getByText("talker").first()).toBeVisible({ timeout: 20_000 });
 
     await page
       .getByPlaceholder(/Search sessions/)

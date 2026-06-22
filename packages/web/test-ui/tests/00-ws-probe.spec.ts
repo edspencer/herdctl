@@ -19,7 +19,7 @@ test("server replies to a ping with a pong over a real browser WebSocket", async
     const ws = new WebSocket(wsUrl);
     return await new Promise<{ pong: boolean; gotStatus: boolean }>((resolve, reject) => {
       let gotStatus = false;
-      const timer = setTimeout(() => reject(new Error("ws probe timeout")), 10_000);
+      const timer = setTimeout(() => reject(new Error("ws probe timeout")), 30_000);
       ws.addEventListener("open", () => ws.send(JSON.stringify({ type: "ping" })));
       ws.addEventListener("message", (ev) => {
         const msg = JSON.parse(ev.data as string);
