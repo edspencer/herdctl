@@ -381,8 +381,9 @@ export class WebChatManager {
         },
       });
 
-      // Store attribution for this session
       const sessionManager = this.sessionManagers.get(agentName);
+
+      // Store attribution for this session
       if (sessionManager && result.sessionId && result.success) {
         // channelId = sessionId = SDK session ID (they're the same now)
         await sessionManager.setSession(result.sessionId, result.sessionId);
@@ -398,6 +399,34 @@ export class WebChatManager {
         const workDir = this.getWorkingDirectory(agent);
         const dockerEnabled = agent.docker?.enabled ?? false;
         this.discoveryService!.invalidateAttributionCache(workDir, { dockerEnabled });
+      }
+
+      // Clear stale SDK session mapping when a resume fails because the session
+      // can no longer be found (issue #126). This happens when an agent's
+      // working_directory config changes: Claude Code keys session files by the
+      // spawn-time cwd, so a session created under the old cwd is invisible under
+      // the new one. The stored attribution still points at that dead session,
+      // so without clearing it the web chat keeps the session attributed/resumable
+      // and every resume keeps failing. The core retry (#264) recovers the current
+      // turn with a fresh session; clearing here stops the dead pointer lingering.
+      if (sessionManager && sessionId && !result.success) {
+        if (WebChatManager.isSessionNotFoundError(result.error?.message)) {
+          try {
+            await sessionManager.clearSession(sessionId);
+            logger.info(`Cleared stale SDK session mapping after session-not-found`, {
+              agentName,
+              sessionId,
+            });
+          } catch (clearError) {
+            // Clearing is best-effort recovery — never let it mask the original
+            // failure that we're about to return to the caller.
+            logger.warn(`Failed to clear stale SDK session mapping`, {
+              agentName,
+              sessionId,
+              error: clearError instanceof Error ? clearError.message : String(clearError),
+            });
+          }
+        }
       }
 
       return {
@@ -618,6 +647,24 @@ export class WebChatManager {
   // ===========================================================================
   // Private Helpers
   // ===========================================================================
+
+  /**
+   * Detect whether an error message indicates the resumed session could not be
+   * found by Claude Code (e.g. after a working_directory change relocated the
+   * session storage directory — issue #126). Matches the same phrasings the
+   * core JobExecutor treats as session-expired/not-found.
+   */
+  private static isSessionNotFoundError(message: string | undefined): boolean {
+    if (!message) {
+      return false;
+    }
+    const normalized = message.toLowerCase();
+    return (
+      normalized.includes("session not found") ||
+      normalized.includes("no conversation") ||
+      normalized.includes("session expired")
+    );
+  }
 
   /**
    * Ensure the manager is initialized

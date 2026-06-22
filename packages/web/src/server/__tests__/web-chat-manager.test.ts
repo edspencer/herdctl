@@ -1058,6 +1058,101 @@ describe("WebChatManager", () => {
   });
 
   // ===========================================================================
+  // sendMessage Tests - Stale session mapping cleanup (issue #126)
+  // ===========================================================================
+
+  describe("sendMessage - stale session mapping cleanup (#126)", () => {
+    beforeEach(() => {
+      manager.initialize(
+        mockFleetManager,
+        "/state/dir",
+        createMockWebConfig(),
+        mockDiscoveryService,
+      );
+    });
+
+    it("clears the stale SDK session mapping when a resume fails with session-not-found", async () => {
+      // Simulates an agent whose working_directory changed: the session created
+      // under the old cwd is no longer findable, so the resume fails. The core
+      // retry recovers the turn, but the stored attribution must be cleared so
+      // the web chat stops resuming the dead session.
+      mockFleetManager.trigger.mockResolvedValue({
+        jobId: "job-789",
+        success: false,
+        error: { message: "No conversation found with session ID: old-session-id" },
+      });
+
+      const onChunk = vi.fn();
+      const result = await manager.sendMessage("test-agent", "old-session-id", "Continue", onChunk);
+
+      expect(result.success).toBe(false);
+      expect(mockStore.sessionManager.clearSession).toHaveBeenCalledWith("old-session-id");
+    });
+
+    it("matches 'session not found' phrasing case-insensitively", async () => {
+      mockFleetManager.trigger.mockResolvedValue({
+        jobId: "job-789",
+        success: false,
+        error: { message: "SDKStreamingError: Session Not Found" },
+      });
+
+      const onChunk = vi.fn();
+      await manager.sendMessage("test-agent", "dead-session", "Continue", onChunk);
+
+      expect(mockStore.sessionManager.clearSession).toHaveBeenCalledWith("dead-session");
+    });
+
+    it("does not clear the mapping for unrelated failures", async () => {
+      mockFleetManager.trigger.mockResolvedValue({
+        jobId: "job-789",
+        success: false,
+        error: { message: "Agent busy" },
+      });
+
+      const onChunk = vi.fn();
+      await manager.sendMessage("test-agent", "live-session", "Continue", onChunk);
+
+      expect(mockStore.sessionManager.clearSession).not.toHaveBeenCalled();
+    });
+
+    it("does not clear the mapping for new chats (no resume session id)", async () => {
+      mockFleetManager.trigger.mockResolvedValue({
+        jobId: "job-789",
+        success: false,
+        error: { message: "No conversation found with session ID: whatever" },
+      });
+
+      const onChunk = vi.fn();
+      await manager.sendMessage("test-agent", null, "Hello", onChunk);
+
+      expect(mockStore.sessionManager.clearSession).not.toHaveBeenCalled();
+    });
+
+    it("does not clear the mapping on a successful resume", async () => {
+      // Default trigger mock returns success: true
+      const onChunk = vi.fn();
+      await manager.sendMessage("test-agent", "live-session", "Continue", onChunk);
+
+      expect(mockStore.sessionManager.clearSession).not.toHaveBeenCalled();
+    });
+
+    it("still returns the original error if clearing the mapping throws", async () => {
+      mockFleetManager.trigger.mockResolvedValue({
+        jobId: "job-789",
+        success: false,
+        error: { message: "session expired" },
+      });
+      mockStore.sessionManager.clearSession.mockRejectedValue(new Error("disk full"));
+
+      const onChunk = vi.fn();
+      const result = await manager.sendMessage("test-agent", "dead-session", "Continue", onChunk);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("session expired");
+    });
+  });
+
+  // ===========================================================================
   // Working Directory Resolution Tests
   // ===========================================================================
 
