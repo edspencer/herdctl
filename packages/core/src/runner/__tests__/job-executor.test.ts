@@ -615,6 +615,81 @@ describe("JobExecutor", () => {
       expect(receivedOptions?.resume).toBe("session-to-resume");
     });
 
+    it("honors an explicit resume when the agent has no session of its own (cross-agent adoption, #263)", async () => {
+      // Regression for #263: agent B is asked to resume a session created by a
+      // different agent A in the same process. B has NO agent-level session file
+      // on disk. Previously this silently dropped the resume and forked a fresh
+      // session; now the explicit caller-provided session ID is honored.
+      const sessionsDir = join(stateDir, "sessions");
+
+      // Sanity: agent "keeper-foo" has no session pointer on disk.
+      const before = await getSessionInfo(sessionsDir, "keeper-foo");
+      expect(before).toBeNull();
+
+      let receivedOptions: Record<string, unknown> | undefined;
+      const runtime = createMockRuntime(async function* (options) {
+        receivedOptions = options;
+        yield {
+          type: "system",
+          content: "Init",
+          subtype: "init",
+          session_id: "session-from-agent-a",
+        };
+        yield { type: "assistant", content: "Resumed" };
+      });
+
+      const executor = new JobExecutor(runtime, {
+        logger: createMockLogger(),
+      });
+
+      await executor.execute({
+        // SDK runtime (default): no transcript file probe required.
+        agent: createTestAgent({ name: "keeper-foo" }),
+        prompt: "Continue the relocated conversation",
+        stateDir,
+        resume: "session-from-agent-a",
+      });
+
+      // The runtime must receive the resume (not undefined → not a fork).
+      expect(receivedOptions?.resume).toBe("session-from-agent-a");
+      expect(receivedOptions?.fork).toBeUndefined();
+
+      // An agent-level session pointer is now persisted so future runs and
+      // restarts treat the session as owned by this agent.
+      const after = await getSessionInfo(sessionsDir, "keeper-foo");
+      expect(after?.session_id).toBe("session-from-agent-a");
+    });
+
+    it("does not adopt a CLI resume when the transcript file is missing", async () => {
+      // For the CLI runtime, Claude Code keys session storage by spawn cwd. If the
+      // transcript isn't physically present in the agent's working directory,
+      // resuming would fail, so we start fresh instead of forwarding the resume.
+      let receivedOptions: Record<string, unknown> | undefined;
+      const runtime = createMockRuntime(async function* (options) {
+        receivedOptions = options;
+        yield { type: "assistant", content: "Fresh" };
+      });
+
+      const executor = new JobExecutor(runtime, {
+        logger: createMockLogger(),
+      });
+
+      await executor.execute({
+        agent: createTestAgent({
+          name: "cli-keeper",
+          runtime: "cli",
+          // working_directory points at a real dir with no transcript for this id.
+          working_directory: tempDir,
+        }),
+        prompt: "Try to resume a missing transcript",
+        stateDir,
+        resume: "nonexistent-cli-session",
+      });
+
+      // No file on disk → resume dropped, fresh session started.
+      expect(receivedOptions?.resume).toBeUndefined();
+    });
+
     it("passes fork option to SDK", async () => {
       let receivedOptions: Record<string, unknown> | undefined;
 
@@ -2257,6 +2332,66 @@ describe("session expiration handling", () => {
     expect(lastResumeValue).toBeUndefined();
 
     // Check job output includes retry message
+    const output = await readJobOutputAll(join(stateDir, "jobs"), result.jobId);
+    const retryMsg = output.find(
+      (m) => m.type === "system" && m.content?.includes("Retrying with fresh session"),
+    );
+    expect(retryMsg).toBeDefined();
+  });
+
+  it("retries with fresh session when resume yields a session-not-found error (#126)", async () => {
+    // Regression for #126: the CLI runtime does not THROW when `claude --resume`
+    // can't find the session (e.g. the working_directory changed and the
+    // transcript lives in the old project dir). It YIELDS a terminal error
+    // message and the loop breaks normally — so the catch-block retry never ran.
+    // The post-loop retry must recover from this yielded-error path too.
+    const sessionsDir = join(stateDir, "sessions");
+
+    await updateSessionInfo(sessionsDir, "yielded-error-agent", {
+      session_id: "moved-session",
+      mode: "autonomous",
+    });
+
+    let attemptCount = 0;
+    let lastResumeValue: string | undefined;
+
+    const runtime = createMockRuntime(async function* (options) {
+      attemptCount++;
+      lastResumeValue = options.resume;
+
+      if (attemptCount === 1 && options.resume) {
+        // First attempt with resume — runtime YIELDS a terminal error
+        // (does not throw), mirroring the CLI runtime's resume failure.
+        yield {
+          type: "error",
+          message: "No conversation found with session ID: moved-session",
+          code: "EXIT_1",
+        };
+        return;
+      }
+
+      // Retry with a fresh session succeeds.
+      yield { type: "system", content: "Init", subtype: "init", session_id: "fresh-after-retry" };
+      yield { type: "assistant", content: "Recovered" };
+    });
+
+    const executor = new JobExecutor(runtime, {
+      logger: createMockLogger(),
+    });
+
+    const result = await executor.execute({
+      agent: createTestAgent({ name: "yielded-error-agent" }),
+      prompt: "Test prompt",
+      stateDir,
+      resume: "moved-session",
+    });
+
+    // Recovered after retrying fresh.
+    expect(result.success).toBe(true);
+    expect(result.sessionId).toBe("fresh-after-retry");
+    expect(attemptCount).toBe(2);
+    expect(lastResumeValue).toBeUndefined();
+
     const output = await readJobOutputAll(join(stateDir, "jobs"), result.jobId);
     const retryMsg = output.find(
       (m) => m.type === "system" && m.content?.includes("Retrying with fresh session"),
