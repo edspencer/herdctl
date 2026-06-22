@@ -1,0 +1,248 @@
+#!/usr/bin/env node
+/**
+ * fake-claude — a deterministic stand-in for the real `claude` CLI, used by
+ * @herdctl/web's UI/integration tests so the WHOLE web + @herdctl/core stack
+ * runs with ZERO Anthropic calls.
+ *
+ * ── Why a fake binary (and not a mock) ──────────────────────────────────────
+ * herdctl's CLI runtime (@herdctl/core CLIRuntime) spawns `claude` from PATH and
+ * then WATCHES the session JSONL file it writes — it does NOT read the process's
+ * stdout for stream-json. So to exercise the real session-discovery / history /
+ * resume machinery we must (a) be spawnable as `claude`, and (b) write a real
+ * `<sessionId>.jsonl` transcript in the exact location + line shapes herdctl's
+ * parser and the @herdctl/chat translator consume. This file does both.
+ *
+ * Modelled on paddock/test/bin/claude, but with TWO important differences:
+ *   1. encodePathForCli mirrors @herdctl/core EXACTLY: it replaces every
+ *      non-alphanumeric character with a hyphen (not just path separators).
+ *      Test workspaces under /var/folders/... contain dots, so the looser
+ *      encoding would write the transcript to the wrong directory and the
+ *      session watcher would time out.
+ *   2. Scripted replies come from HERD_FAKE_SCRIPT (a JSON file path).
+ *
+ * ── What herdctl passes us (see cli-runtime.ts) ─────────────────────────────
+ *   claude -p --permission-mode <m> [--model <m>] [--system-prompt <s>]
+ *          [--allowedTools <csv>] [--disallowedTools <csv>] [--resume <id>]
+ *          [--mcp-config <json>] ...        (prompt arrives on STDIN)
+ * cwd is the agent's working_directory. For a NEW session herdctl waits for a
+ * NEW *.jsonl file to appear in getCliSessionDir(cwd) and derives the session id
+ * from the filename. For --resume it watches <id>.jsonl directly. So:
+ *   • new  → mint a uuid, write <uuid>.jsonl
+ *   • resume → append to <resume>.jsonl
+ */
+import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+function parseArgs(argv) {
+  const flags = {
+    print: false,
+    model: undefined,
+    systemPrompt: undefined,
+    resume: undefined,
+    permissionMode: undefined,
+    allowedTools: undefined,
+  };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === "-p" || a === "--print") flags.print = true;
+    else if (a === "--model") flags.model = argv[++i];
+    else if (a === "--system-prompt") flags.systemPrompt = argv[++i];
+    else if (a === "--resume") flags.resume = argv[++i];
+    else if (a === "--permission-mode") flags.permissionMode = argv[++i];
+    else if (a === "--allowedTools") flags.allowedTools = argv[++i];
+    else if (a === "--disallowedTools") argv[++i];
+    else if (a === "--mcp-config") argv[++i];
+    else if (a === "--setting-sources") argv[++i];
+    else if (a === "--tools") argv[++i];
+    // --fork-session and unknown bare flags are ignored.
+  }
+  return flags;
+}
+
+function readStdin() {
+  try {
+    return fs.readFileSync(0, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+// Mirror @herdctl/core encodePathForCli EXACTLY: every non-alphanumeric → "-".
+function encodePathForCli(absolutePath) {
+  return absolutePath.replace(/[^A-Za-z0-9]/g, "-");
+}
+function sessionDirFor(cwd) {
+  return path.join(os.homedir(), ".claude", "projects", encodePathForCli(cwd));
+}
+
+function loadScript() {
+  const p = process.env.HERD_FAKE_SCRIPT;
+  if (!p) return {};
+  try {
+    return JSON.parse(fs.readFileSync(p, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function replyFor(prompt, script, priorText) {
+  const trimmed = (prompt || "").trim();
+  if (Object.prototype.hasOwnProperty.call(script, trimmed)) {
+    return script[trimmed];
+  }
+
+  // Force-failure hook so tests can exercise the error path deterministically.
+  if (/^FAIL\b/i.test(trimmed)) {
+    process.stderr.write("fake-claude: forced failure\n");
+    process.exit(1);
+  }
+
+  // Continuity: "the codeword is X" / "remember the codeword: X"
+  const setMatch = trimmed.match(/codeword(?:\s+is|:)\s+([A-Za-z0-9_-]+)/i);
+  if (setMatch) {
+    return `Got it — I'll remember the codeword ${setMatch[1]}.`;
+  }
+  // Recall: "what was the codeword?" → find it in the prior transcript text.
+  if (/what.*codeword/i.test(trimmed)) {
+    const prior = priorText || "";
+    const fromAssistant = prior.match(/remember the codeword\s+([A-Za-z0-9_-]+)/i);
+    const fromUser = prior.match(/codeword(?:\s+is|\s+was|:)\s+([A-Za-z0-9_-]+)/i);
+    const found = fromAssistant || fromUser;
+    if (found) return `The codeword was ${found[1]}.`;
+    return "I don't have a codeword on record.";
+  }
+
+  // Default: a short, deterministic acknowledgement that echoes the prompt.
+  return `Acknowledged: ${trimmed}`;
+}
+
+function readPriorText(file) {
+  let raw = "";
+  try {
+    raw = fs.readFileSync(file, "utf8");
+  } catch {
+    return "";
+  }
+  const parts = [];
+  for (const line of raw.split("\n")) {
+    const t = line.trim();
+    if (!t) continue;
+    let o;
+    try {
+      o = JSON.parse(t);
+    } catch {
+      continue;
+    }
+    if (o.type !== "user" && o.type !== "assistant") continue;
+    const c = o.message && o.message.content;
+    if (typeof c === "string") parts.push(c);
+    else if (Array.isArray(c)) {
+      for (const b of c) if (b && b.type === "text" && typeof b.text === "string") parts.push(b.text);
+    }
+  }
+  return parts.join("\n");
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function sleep(ms) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    /* spin briefly so the watcher sees lines arrive incrementally */
+  }
+}
+
+function main() {
+  const argv = process.argv.slice(2);
+  const flags = parseArgs(argv);
+  const prompt = readStdin();
+  const cwd = process.cwd();
+  const script = loadScript();
+
+  const dir = sessionDirFor(cwd);
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+  } catch {
+    /* ignore */
+  }
+
+  const resuming = !!flags.resume;
+  const sessionId = resuming ? flags.resume : crypto.randomUUID();
+  const file = path.join(dir, `${sessionId}.jsonl`);
+
+  const priorText = resuming ? readPriorText(file) : "";
+  const reply = replyFor(prompt, script, priorText);
+  const messageId = `msg_${crypto.randomBytes(8).toString("hex")}`;
+  const model = flags.model || "claude-opus-4-8";
+
+  const append = (obj) => {
+    fs.appendFileSync(file, `${JSON.stringify(obj)}\n`);
+  };
+
+  // 1) user line (preview + history). Never isSidechain (keep it discoverable).
+  append({
+    parentUuid: null,
+    isSidechain: false,
+    type: "user",
+    message: { role: "user", content: prompt },
+    uuid: crypto.randomUUID(),
+    timestamp: nowIso(),
+    cwd,
+    sessionId,
+    version: "2.1.167",
+    gitBranch: "",
+    userType: "external",
+  });
+
+  // Small gap so the watcher streams the assistant separately from the user line.
+  sleep(60);
+
+  // 2) assistant line (text + usage). Single text block → one chat:response.
+  append({
+    parentUuid: null,
+    isSidechain: false,
+    type: "assistant",
+    message: {
+      id: messageId,
+      role: "assistant",
+      model,
+      content: [{ type: "text", text: reply }],
+      usage: {
+        input_tokens: 1200,
+        output_tokens: 64,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+      },
+    },
+    uuid: crypto.randomUUID(),
+    timestamp: nowIso(),
+    cwd,
+    sessionId,
+  });
+
+  sleep(40);
+
+  // 3) result line — ends the watcher loop and marks the turn successful.
+  append({
+    type: "result",
+    subtype: "success",
+    is_error: false,
+    session_id: sessionId,
+    result: reply,
+    usage: {
+      input_tokens: 1200,
+      output_tokens: 64,
+      cache_read_input_tokens: 0,
+      cache_creation_input_tokens: 0,
+    },
+  });
+
+  process.stdout.write(`${reply}\n`);
+  process.exit(0);
+}
+
+main();
