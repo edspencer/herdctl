@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { fetchAgent } from "../lib/api";
+import { ApiError, fetchAgent } from "../lib/api";
 import type { AgentInfo } from "../lib/types";
 import { useAgent, useStore } from "../store";
 
@@ -87,6 +87,16 @@ export function useAgentDetail(qualifiedName: string | null): UseAgentDetailResu
         setLoading(false);
       } catch (err) {
         if (cancelled) return;
+
+        // A 404 means the agent genuinely doesn't exist — surface it as the
+        // dedicated "Agent Not Found" card (agent stays null, no error), rather
+        // than the generic error panel with a misleading "Retry" button that
+        // can only ever 404 again.
+        if (err instanceof ApiError && err.status === 404) {
+          setError(null);
+          setLoading(false);
+          return;
+        }
 
         const message = err instanceof Error ? err.message : "Failed to fetch agent";
         setError(message);

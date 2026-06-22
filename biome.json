@@ -6,7 +6,13 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["packages/*/src/**", "packages/*/vite.config.ts", "packages/*/vitest.config.ts"]
+    "includes": [
+      "packages/*/src/**",
+      "packages/*/test-ui/**",
+      "packages/*/vite.config.ts",
+      "packages/*/vitest.config.ts",
+      "packages/*/playwright.config.ts"
+    ]
   },
   "formatter": {
     "enabled": true,

@@ -18,6 +18,7 @@
     "dev:server": "tsc -p tsconfig.server.json --watch",
     "typecheck": "tsc --noEmit -p tsconfig.server.json && tsc --noEmit -p tsconfig.client.json",
     "test": "vitest run --coverage --passWithNoTests",
+    "test:ui": "playwright test",
     "lint": "biome check src/ vite.config.ts"
   },
   "dependencies": {
@@ -39,6 +40,7 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/vite": "^4.1.18",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",

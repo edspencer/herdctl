@@ -37,6 +37,12 @@ Thumbs.db
 # Test coverage
 coverage/
 
+# Playwright UI/integration test artifacts
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
 # Misc
 *.tsbuildinfo
 .ralph-tui
