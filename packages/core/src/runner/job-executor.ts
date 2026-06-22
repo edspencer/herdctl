@@ -13,6 +13,7 @@ import { resolveWorkingDirectory } from "../fleet-manager/working-directory-help
 import {
   appendJobOutput,
   clearSession,
+  cliSessionFileExists,
   createJob,
   getJobOutputPath,
   getSessionInfo,
@@ -211,6 +212,14 @@ export class JobExecutor {
       const sessionsDir = join(stateDir, "sessions");
       // Default to 24h if not configured - prevents unexpected logouts from expired server-side sessions
       const sessionTimeout = agent.session?.timeout ?? "24h";
+
+      // Read the agent-level session pointer WITHOUT applying the timeout, so we
+      // can distinguish "this agent never owned a session" (adoption candidate,
+      // issue #263) from "this agent had a session that just expired and was
+      // cleared" (must start fresh). The timeout-aware read below deletes expired
+      // files, which would otherwise make both cases look identical (null).
+      const hadAgentSession = (await getSessionInfo(sessionsDir, agent.qualifiedName)) !== null;
+
       const existingSession = await getSessionInfo(sessionsDir, agent.qualifiedName, {
         timeout: sessionTimeout,
         logger: this.logger,
@@ -293,21 +302,86 @@ export class JobExecutor {
           }
         }
       } else {
-        this.logger.info?.(
-          `No valid session for ${agent.name} (expired or not found), starting fresh`,
-        );
+        // No agent-level session pointer exists on disk for this agent. The
+        // caller still passed an explicit `resume` session ID — this is an
+        // authoritative request to continue a specific transcript that this
+        // agent doesn't (yet) own. The most common case is "adopting" a session
+        // created by a *different* agent in the same process: the transcript has
+        // been relocated into this agent's working directory and re-attributed,
+        // but this agent never created an agent-level session file of its own.
+        //
+        // Historically this branch silently dropped `options.resume` and started
+        // fresh, which made the runtime fork a brand-new session instead of
+        // continuing (issue #263 — cross-agent / runtime-added resume). We now
+        // honor the caller's explicit session ID so a same-process resume reads
+        // the transcript straight from disk, exactly as a process restart would.
+        //
+        // For the CLI runtime, the transcript must physically exist in the
+        // agent's working directory (Claude Code keys session storage by spawn
+        // cwd). If it's missing, resuming would fail anyway, so we fall back to a
+        // fresh session. For the SDK runtime we trust the caller's ID directly
+        // (the SDK owns session storage and there's no reliable file to probe).
+        const currentRuntimeType = (agent.runtime as "sdk" | "cli") ?? "sdk";
+        const currentWorkingDirectory = resolveWorkingDirectory(agent);
+        const dockerEnabled = agent.docker?.enabled ?? false;
 
-        // Write info to job output
-        try {
-          await appendJobOutput(jobsDir, job.id, {
-            type: "system",
-            content: `No valid session found (expired or missing). Starting fresh session.`,
-          });
-        } catch {
-          // Ignore output write failures
+        // Only adopt when this agent has NEVER owned an agent-level session. If a
+        // session file existed (now cleared by the timeout-aware read above), the
+        // caller is trying to resume a session that just expired for this agent —
+        // that must start fresh, not be force-adopted.
+        let adopt = !hadAgentSession && (currentRuntimeType !== "cli" || dockerEnabled);
+        if (
+          !hadAgentSession &&
+          currentRuntimeType === "cli" &&
+          !dockerEnabled &&
+          currentWorkingDirectory
+        ) {
+          // Native CLI: only adopt if the transcript exists where Claude Code
+          // will look for it (the agent's working directory).
+          adopt = await cliSessionFileExists(currentWorkingDirectory, options.resume);
         }
 
-        // Don't resume - start fresh (effectiveResume stays undefined)
+        if (adopt) {
+          effectiveResume = options.resume;
+          this.logger.info?.(
+            `Adopting caller-provided session for ${agent.qualifiedName}: ${effectiveResume} ` +
+              `(no agent-level session on disk; resuming explicitly requested transcript)`,
+          );
+
+          // Persist an agent-level session pointer so subsequent runs (and
+          // restarts) treat this session as owned by this agent. Best-effort:
+          // a failure here doesn't block the resume we're about to attempt.
+          try {
+            const sessionsDir = join(stateDir, "sessions");
+            await updateSessionInfo(sessionsDir, agent.qualifiedName, {
+              session_id: options.resume,
+              mode: "autonomous",
+              working_directory: currentWorkingDirectory,
+              runtime_type: currentRuntimeType,
+              docker_enabled: dockerEnabled,
+            });
+          } catch (adoptError) {
+            this.logger.warn(
+              `Failed to persist adopted session pointer: ${(adoptError as Error).message}`,
+            );
+          }
+        } else {
+          this.logger.info?.(
+            `No valid session for ${agent.name} (expired or not found), starting fresh`,
+          );
+
+          // Write info to job output
+          try {
+            await appendJobOutput(jobsDir, job.id, {
+              type: "system",
+              content: `No valid session found (expired or missing). Starting fresh session.`,
+            });
+          } catch {
+            // Ignore output write failures
+          }
+
+          // Don't resume - start fresh (effectiveResume stays undefined)
+        }
       }
     }
 
@@ -453,6 +527,51 @@ export class JobExecutor {
             }
             break;
           }
+        }
+
+        // Post-loop session-not-found retry (issue #126).
+        //
+        // The catch block below recovers from session expiry that is *thrown*.
+        // But some runtimes — notably the CLI runtime — don't throw when a
+        // `claude --resume <id>` can't find the session: they *yield* a terminal
+        // `error` message and the loop breaks normally, setting `lastError`
+        // without entering the catch. This happens when the transcript is
+        // unfindable because the spawn cwd changed (a working_directory config
+        // change), the session was migrated, or it was cleaned up out of band.
+        // Mirror the catch-block recovery for that yielded-error path: clear the
+        // stale pointer and retry once with a fresh session.
+        if (
+          lastError &&
+          isSessionExpiredError(lastError) &&
+          resumeSessionId &&
+          !retriedAfterSessionExpiry
+        ) {
+          this.logger.warn(
+            `Session not found for ${agent.name} (resume failed). Clearing session and retrying with fresh session.`,
+          );
+
+          try {
+            const sessionsDir = join(stateDir, "sessions");
+            await clearSession(sessionsDir, agent.qualifiedName);
+            this.logger.info?.(`Cleared stale session for ${agent.qualifiedName}`);
+          } catch (clearError) {
+            this.logger.warn(`Failed to clear stale session: ${(clearError as Error).message}`);
+          }
+
+          try {
+            await appendJobOutput(jobsDir, job.id, {
+              type: "system",
+              content: `Session not found. Retrying with fresh session.`,
+            });
+          } catch {
+            // Ignore output write failures
+          }
+
+          retriedAfterSessionExpiry = true;
+          lastError = undefined;
+          messagesReceived = 0;
+          await executeWithRetry(undefined);
+          return;
         }
       } catch (error) {
         // Check if this is a session expiration error from the SDK
