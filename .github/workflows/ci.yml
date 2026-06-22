@@ -92,3 +92,35 @@ jobs:
 
       - name: Run CLI smoke tests
         run: pnpm --filter herdctl run test:smoke
+
+  web-ui:
+    name: Web UI Tests
+    # GitHub-hosted (the other jobs are self-hosted): the @herdctl/web integration
+    # suite drives a real Chromium via Playwright, so it runs in the standard
+    # Playwright-supported environment. Can be moved to self-hosted (with the
+    # Playwright container / browser deps) later if you'd rather not spend minutes.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The harness imports the built server (../dist/server), so build first.
+      - name: Build packages
+        run: pnpm build
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @herdctl/web exec playwright install --with-deps chromium
+
+      # Boots the REAL Fastify web server + REAL FleetManager + CLI runtime with a
+      # fake `claude` binary (zero Anthropic calls), drives the React dashboard.
+      - name: Web UI integration tests
+        run: pnpm --filter @herdctl/web test:ui

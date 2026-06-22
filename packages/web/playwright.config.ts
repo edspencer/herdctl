@@ -18,9 +18,11 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   // Booting a FleetManager + Fastify + browser page per test is heavy; cap
   // parallelism so workers don't starve each other (which manifests as
-  // page.goto timeouts under contention).
+  // page.goto timeouts under contention). Serial in CI: the 2-core runner can't
+  // afford 2 concurrent servers, and parallel tests share ~/.claude/projects,
+  // cross-polluting the machine-wide All Chats list. 2 locally for speed.
   fullyParallel: false,
-  workers: 2,
+  workers: process.env.CI ? 1 : 2,
   // The large SPA bundle + a long-lived WebSocket can make the `load` event
   // lag under load; give navigation a generous bound.
   use: {
