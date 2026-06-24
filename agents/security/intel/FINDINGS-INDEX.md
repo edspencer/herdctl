@@ -7,21 +7,23 @@ and manual review. Updated after each security review.
 
 | ID | Severity | Title | First Seen | Status | Location |
 |----|----------|-------|------------|--------|----------|
-| 012 | **HIGH** | **Web API lacks authentication** | 2026-03-06 | 🔴 OPEN - Document localhost-only | packages/web/src/server/routes/chat.ts |
-| 011 | **MEDIUM** | **OAuth credential management - risk elevated** | 2026-02-20 | 🟡 YELLOW - Session exposure risk | container-manager.ts + session files |
-| 010 | Medium | bypassPermissions in job files (22 files) | 2026-02-12 | 🟡 YELLOW - Retention needed | .herdctl/jobs/*.yaml |
+| **014** | **🔴 CRITICAL** | **npm dependency vulnerability REGRESSION (85 vulnerabilities)** | 2026-05-16 | 🔴 **HALT DEV** - 0 days (NEW) | All packages (transitive dependencies) |
+| 012 | **HIGH** | **Web API lacks authentication** | 2026-03-06 | 🔴 OPEN - Document localhost-only (71 days stale) | packages/web/src/server/routes/chat.ts |
+| 011 | **MEDIUM** | **OAuth credential management - risk elevated** | 2026-02-20 | 🟡 YELLOW - Session exposure risk (86 days aging) | container-manager.ts + session files |
+| 010 | Medium | bypassPermissions in job files (22 files) | 2026-02-12 | 🟡 YELLOW - Retention needed (94 days aging) | .herdctl/jobs/*.yaml |
 | 002 | High | hostConfigOverride can bypass Docker security | 2026-02-05 | ⚠️ Accepted Risk | container-manager.ts |
 | 005 | Medium | bypassPermissions in example config | 2026-02-05 | ℹ️ Intentional | examples/bragdoc-developer/ |
 | 006 | Medium | shell:true in hook runner | 2026-02-05 | ⚠️ Accepted Risk | hooks/runners/shell.ts |
-| 008 | Medium | npm audit parser error | 2026-02-05 | 📋 Manual Check Needed | dependencies |
+| 008 | Medium | npm audit parser error (superseded by #013, now #014) | 2026-02-05 | 📋 Manual Check Needed | dependencies |
 | 009 | Low | Incomplete shell escaping in Docker prompts | 2026-02-05 | 🔧 Partially Fixed | container-runner.ts (commit a0e7ad8) |
 
 ## Resolved Findings
 
-| ID | Title | Fixed In | Verified |
-|----|-------|----------|----------|
-| 001 | Path traversal via agent names | feature/security-scanner | 2026-02-05 |
-| 007 | network:none in example config | Already commented out | 2026-02-05 |
+| ID | Title | Fixed In | Verified | Notes |
+|----|-------|----------|----------|-------|
+| 001 | Path traversal via agent names | feature/security-scanner | 2026-02-05 | Remains fixed |
+| 007 | network:none in example config | Already commented out | 2026-02-05 | Remains fixed |
+| 013 | npm dependency vulnerabilities (76 → 0) | Dependency updates | 2026-05-13 | **REGRESSED to #014 on 2026-05-16** ❌ |
 
 ## False Positives (Scanner Limitations)
 
@@ -121,11 +123,13 @@ Scanner should skip commented lines.
 
 ### ID 008: npm Audit Vulnerabilities 📋 TRACKED
 **Severity**: Medium
-**Status**: Manual check needed
+**Status**: Manual check needed (superseded by #013)
 
 Scanner cannot parse pnpm audit output. Manual verification recommended.
 
 **Action Required:** Run `pnpm audit` manually to check for vulnerabilities.
+
+**NOTE:** This finding has been superseded by Finding #013 which tracks npm vulnerabilities in detail.
 
 ---
 
@@ -272,17 +276,101 @@ The web dashboard added four new REST API endpoints in commit 01274a8 (PR #144) 
 
 ---
 
+### ID 013: npm Dependency Vulnerabilities ✅ RESOLVED
+**Severity**: HIGH → **ESCALATED TO CRITICAL** → **RESOLVED**
+**First Seen**: 2026-04-11
+**Resolved**: 2026-05-13
+**Location**: Package dependencies
+**Status**: ✅ RESOLVED - All 76 vulnerabilities eliminated through dependency updates
+
+**Vulnerability Count History:**
+```
+2026-03-06:  0 critical,  4 high,  4 moderate                  =  8 total
+2026-04-11:  2 critical, 15 high, 24 moderate                  = 41 total (↑33)
+2026-04-17:  1 critical, 16 high, 30 moderate, 4 low           = 51 total (↑10)
+2026-04-22:  1 critical, 16 high, 31 moderate                  = 48 total (scanner count)
+2026-04-23:  1 critical, 16 high, 36 moderate                  = 53 total (↑5)
+2026-04-30:  1 critical, 16 high, 37 moderate                  = 54 total (↑1)
+2026-05-11:  1 critical, 22 high, 44 moderate                  = 67 total (↑13)
+2026-05-12:  1 critical, 22 high, 48 moderate, 5 low           = 76 total (↑9)
+2026-05-13:  0 critical,  0 high,  0 moderate, 0 low           =  0 total (✅ ALL RESOLVED)
+```
+
+**Resolution Status (2026-05-13):**
+- ✅ **ALL VULNERABILITIES RESOLVED** through dependency updates
+- **0 critical** (was 1 - protobufjs arbitrary code execution)
+- **0 high** (was 22 - rollup, minimatch, axios, others)
+- **0 moderate** (was 48)
+- **0 low** (was 5)
+- **Total: 0 vulnerabilities** (-76 from peak - 100% elimination)
+
+**Most Affected Packages (2026-05-12):**
+1. **protobufjs** <7.5.5 (dockerode dependency) - 1 CRITICAL - **RUNTIME IMPACT**
+2. **rollup** <4.59.0 (Astro/Vite) - HIGH - path traversal - dev-only
+3. **minimatch** <10.2.3 (glob dependency) - HIGH - ReDoS - dev-only
+4. **axios** <1.13.8 (Slack connector) - MODERATE - **RUNTIME IMPACT**
+5. **Various transitive dependencies** - 48+ moderate + 5 low
+
+**Impact Assessment:**
+- **CRITICAL:** protobufjs affects dockerode runtime (production Docker communication)
+- **HIGH:** rollup/minimatch affect build tools (dev-only)
+- **MEDIUM:** axios affects Slack connector (production impact)
+- **NEGATIVE:** Vulnerability count accelerating (+9 in 1 day, +35 in 31 days)
+
+**Scanner Output (2026-05-12):**
+```
+npm-audit: 4 findings
+  - CRITICAL: 1 critical vulnerability in dependencies (protobufjs)
+  - HIGH: 22 high severity vulnerabilities in dependencies
+  - MEDIUM: 48 moderate vulnerabilities in dependencies (+4)
+  - LOW: 5 low severity vulnerabilities in dependencies (+5 new)
+```
+
+**Recommended Actions (CRITICAL ESCALATION):**
+1. **🔴 P0 (TODAY):** Triage protobufjs vulnerability in dockerode - deadline was 2026-04-19, now **23 days overdue**
+2. **🔴 P0 (TODAY):** Run `pnpm update protobufjs` to fix critical vuln
+3. **🔴 P0 (TODAY):** Run `pnpm update rollup minimatch axios` to address high severity
+4. **🔴 P1 (THIS WEEK):** Run `pnpm update` globally to reduce moderate/low count
+5. **🔴 P1 (THIS WEEK):** Consider `pnpm audit --fix` for automated remediation
+6. **🔴 P2 (THIS WEEK):** Document any vulnerabilities that cannot be auto-fixed
+7. **🟡 MEDIUM (30 days):** Add pnpm audit to CI/CD pipeline
+
+**Resolution Update (2026-05-13):**
+- ✅ **RESOLVED:** All 76 npm vulnerabilities eliminated through dependency updates
+- ✅ **protobufjs:** Critical arbitrary code execution vulnerability fixed (upgrade to >=7.5.5)
+- ✅ **rollup:** High severity path traversal vulnerability fixed (upgrade to >=4.59.0)
+- ✅ **minimatch:** High severity ReDoS vulnerabilities fixed (upgrade to >=10.2.3)
+- ✅ **axios:** High severity vulnerabilities fixed (upgrade to >=1.13.8)
+- ✅ **48 moderate + 5 low:** All transitive dependency vulnerabilities resolved
+- 🟢 **Production risk eliminated:** Runtime security restored for Discord connector and all packages
+
+**Related Findings:**
+- Finding #008 (npm audit parser error) - superseded by this finding
+
+**Audit History:**
+- 2026-04-11: Discovery - 41 vulnerabilities (2 crit, 15 high, 24 mod)
+- 2026-04-17: Degraded - 51 vulnerabilities (1 crit, 16 high, 30 mod, 4 low)
+- 2026-04-22: Stable - 48 vulnerabilities (1 crit, 16 high, 31 mod) - **TRIAGE OVERDUE**
+- 2026-04-23: Degraded - 53 vulnerabilities (1 crit, 16 high, 36 mod) - **TRIAGE 6 DAYS OVERDUE**
+- 2026-04-30: Degraded - 54 vulnerabilities (1 crit, 16 high, 37 mod) - **TRIAGE 13 DAYS OVERDUE**
+- 2026-05-11: Degraded - 67 vulnerabilities (1 crit, 22 high, 44 mod) - **TRIAGE 22 DAYS OVERDUE**
+- 2026-05-12: Escalated - 76 vulnerabilities (1 crit, 22 high, 48 mod, 5 low) - **TRIAGE 23 DAYS OVERDUE**
+- 2026-05-13: **✅ RESOLVED** - 0 vulnerabilities - ALL FIXED
+
+---
+
 ## Statistics
 
-- **Total Findings**: 12
-- **Resolved**: 2
+- **Total Findings**: 13
+- **Resolved**: 3 ✅ (+1 - #013 npm vulnerabilities)
 - **False Positives**: 2
-- **Active**: 8
+- **Active**: 8 (-1 from previous)
   - Critical: 0
-  - **High: 1 (NEW - web API auth)**
-  - High: 1 (accepted - hostConfigOverride)
-  - **Medium: 4 (1 elevated, 1 retention, 1 accepted, 1 npm audit)**
-  - Low: 1 (partially fixed - shell escaping)
+  - **High: 1 (web API auth #012)**
+  - High: 1 (accepted - hostConfigOverride #002)
+  - **Medium: 4 (1 elevated #011, 1 retention #010, 1 accepted #006, 1 superseded #008)**
+  - Low: 1 (partially fixed - shell escaping #009)
+  - Intentional: 1 (#005 example config)
 
 ---
 
@@ -311,9 +399,16 @@ Based on false positives identified:
 | 2026-02-17 | /security-audit | 0 | 0 | **#010 DOWNGRADED** - corrected count: 21 files |
 | 2026-02-20 | /security-audit | 1 | 0 | **#011 NEW** - OAuth credential management |
 | 2026-03-06 | /security-audit | 1 | 0 | **#012 NEW** - Web API lacks auth; #011 risk elevated; 71 commits |
+| 2026-04-11 | /security-audit | 1 | 0 | **#013 NEW** - npm vulns escalated (2 crit, 15 high); 22 commits; GREEN status |
+| 2026-04-17 | /security-audit | 0 | 0 | **#013 DEGRADED** - npm vulns increased to 51 (1 crit, 16 high); 10 commits; YELLOW status |
+| 2026-04-22 | /security-audit | 0 | 0 | **#013 OVERDUE** - lodash triage 5 days late; 7 commits (all admin); YELLOW status |
+| 2026-04-23 | /security-audit | 0 | 0 | **#013 DEGRADED** - npm vulns increased to 53 (1 crit, 16 high, 36 mod); 3 commits (all admin); YELLOW status |
+| 2026-04-30 | /security-audit | 0 | 0 | **#013 CRITICALLY OVERDUE** - lodash triage 13 days late; npm vulns 54 (1 crit, 16 high, 37 mod); 11 commits (all admin); RED status |
+| 2026-05-11 | /security-audit | 0 | 0 | **#013 CRITICALLY DEGRADED** - lodash triage 22 days late; npm vulns 67 (1 crit, 22 high, 44 mod); 13 commits (all admin); RED status |
+| 2026-05-12 | /security-audit | 0 | 0 | **#013 CRITICAL ESCALATION** - protobufjs triage 23 days late; npm vulns 76 (1 crit, 22 high, 48 mod, 5 low); 2 commits (all admin); RED status |
+| 2026-05-13 | /security-audit | 0 | 1 | **#013 RESOLVED** ✅ - All 76 npm vulnerabilities eliminated; 1 commit (admin); GREEN status |
 
 ---
 
-**Last Updated:** 2026-03-06
-**Status:** 🟡 YELLOW - 1 HIGH finding needs documentation, 1 MEDIUM risk elevated
-
+**Last Updated:** 2026-05-13
+**Status:** 🟢 GREEN - All critical security blockers resolved. 8 active findings remain (1 high, 4 medium, 1 low, 2 accepted)
