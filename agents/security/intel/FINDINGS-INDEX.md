@@ -7,13 +7,14 @@ and manual review. Updated after each security review.
 
 | ID | Severity | Title | First Seen | Status | Location |
 |----|----------|-------|------------|--------|----------|
-| 012 | **HIGH** | **Web API lacks authentication** | 2026-03-06 | 🔴 OPEN - Document localhost-only | packages/web/src/server/routes/chat.ts |
-| 011 | **MEDIUM** | **OAuth credential management - risk elevated** | 2026-02-20 | 🟡 YELLOW - Session exposure risk | container-manager.ts + session files |
-| 010 | Medium | bypassPermissions in job files (22 files) | 2026-02-12 | 🟡 YELLOW - Retention needed | .herdctl/jobs/*.yaml |
+| 013 | **CRITICAL** | **npm dependency vulnerabilities (CRITICALLY OVERDUE)** | 2026-04-11 | 🔴 OPEN - triage 13 days overdue | dependencies |
+| 012 | **HIGH** | **Web API lacks authentication** | 2026-03-06 | 🔴 OPEN - Document localhost-only (55 days stale) | packages/web/src/server/routes/chat.ts |
+| 011 | **MEDIUM** | **OAuth credential management - risk elevated** | 2026-02-20 | 🟡 YELLOW - Session exposure risk (70 days aging) | container-manager.ts + session files |
+| 010 | Medium | bypassPermissions in job files (22 files) | 2026-02-12 | 🟡 YELLOW - Retention needed (78 days aging) | .herdctl/jobs/*.yaml |
 | 002 | High | hostConfigOverride can bypass Docker security | 2026-02-05 | ⚠️ Accepted Risk | container-manager.ts |
 | 005 | Medium | bypassPermissions in example config | 2026-02-05 | ℹ️ Intentional | examples/bragdoc-developer/ |
 | 006 | Medium | shell:true in hook runner | 2026-02-05 | ⚠️ Accepted Risk | hooks/runners/shell.ts |
-| 008 | Medium | npm audit parser error | 2026-02-05 | 📋 Manual Check Needed | dependencies |
+| 008 | Medium | npm audit parser error (superseded by #013) | 2026-02-05 | 📋 Manual Check Needed | dependencies |
 | 009 | Low | Incomplete shell escaping in Docker prompts | 2026-02-05 | 🔧 Partially Fixed | container-runner.ts (commit a0e7ad8) |
 
 ## Resolved Findings
@@ -121,11 +122,13 @@ Scanner should skip commented lines.
 
 ### ID 008: npm Audit Vulnerabilities 📋 TRACKED
 **Severity**: Medium
-**Status**: Manual check needed
+**Status**: Manual check needed (superseded by #013)
 
 Scanner cannot parse pnpm audit output. Manual verification recommended.
 
 **Action Required:** Run `pnpm audit` manually to check for vulnerabilities.
+
+**NOTE:** This finding has been superseded by Finding #013 which tracks npm vulnerabilities in detail.
 
 ---
 
@@ -272,17 +275,86 @@ The web dashboard added four new REST API endpoints in commit 01274a8 (PR #144) 
 
 ---
 
+### ID 013: npm Dependency Vulnerabilities (CRITICALLY OVERDUE) 🔴 CRITICAL
+**Severity**: HIGH → **ESCALATED TO CRITICAL PRIORITY (13 days overdue)**
+**First Seen**: 2026-04-11
+**Location**: Package dependencies
+**Status**: 🔴 OPEN - lodash triage 13 days overdue (deadline was 2026-04-19)
+
+**Vulnerability Count History:**
+```
+2026-03-06:  0 critical,  4 high,  4 moderate                  =  8 total
+2026-04-11:  2 critical, 15 high, 24 moderate                  = 41 total (↑33)
+2026-04-17:  1 critical, 16 high, 30 moderate, 4 low           = 51 total (↑10)
+2026-04-22:  1 critical, 16 high, 31 moderate                  = 48 total (scanner count)
+2026-04-23:  1 critical, 16 high, 36 moderate                  = 53 total (↑5)
+2026-04-30:  1 critical, 16 high, 37 moderate                  = 54 total (↑1)
+```
+
+**Current Status (2026-04-30):**
+- **1 CRITICAL** (stable - lodash in Discord connector)
+- **16 HIGH** (stable)
+- **37 MODERATE** (↑1 from previous)
+- **Total: 54 vulnerabilities** (scanner count, slight variance from pnpm audit)
+
+**Most Affected Packages:**
+1. **lodash** (discord.js dependency) - 3 vulnerabilities - **RUNTIME IMPACT**
+2. **devalue** (Astro docs) - 7+ vulnerabilities - dev-only
+3. **picomatch** (Astro/unstorage) - 2+ vulnerabilities - dev-only
+4. **h3** (Astro/unstorage) - 4 vulnerabilities - dev-only
+5. **dompurify** (Mermaid) - 5+ vulnerabilities - dev-only
+
+**Impact Assessment:**
+- **CRITICAL:** lodash vulnerability affects Discord connector runtime (production impact)
+- **MEDIUM:** Most other vulnerabilities are in documentation build dependencies (dev-only)
+- **POSITIVE:** 1 critical vulnerability resolved since last audit
+
+**Scanner Output (2026-04-30):**
+```
+npm-audit: 3 findings
+  - CRITICAL: 1 critical vulnerability in dependencies
+  - HIGH: 16 high severity vulnerabilities in dependencies
+  - MEDIUM: 37 moderate vulnerabilities in dependencies
+```
+
+**Recommended Actions (ESCALATED - CRITICALLY OVERDUE):**
+1. **🔴 CRITICAL (CRITICALLY OVERDUE):** Triage lodash vulnerability in Discord connector - deadline was 2026-04-19, now 13 days overdue
+2. **🔴 CRITICAL (URGENT):** Update Discord dependencies to resolve lodash vulnerability
+3. **🟡 HIGH (7 days):** Run `pnpm update` to pull latest patches
+4. **🟡 HIGH (7 days):** Update Astro dependencies (dev-only impact)
+5. **MEDIUM (30 days):** Review if Mermaid/dompurify vulnerabilities affect built artifacts
+6. **MEDIUM (30 days):** Implement automated dependency scanning in CI/CD
+7. **MEDIUM (30 days):** Set up security advisory alerts (GitHub Dependabot)
+
+**Status Update (2026-04-30):**
+- ⚠️ **CRITICALLY OVERDUE:** lodash vulnerability triage now 13 days past deadline
+- ⚠️ **DEGRADED:** Vulnerability count increased to 54 (↑1 moderate from last audit)
+- 🔴 **Critical:** Runtime Discord connector affected - production risk
+- ❌ **No progress** on remediation in 19 days since discovery
+
+**Related Findings:**
+- Finding #008 (npm audit parser error) - superseded by this finding
+
+**Audit History:**
+- 2026-04-11: Discovery - 41 vulnerabilities (2 crit, 15 high, 24 mod)
+- 2026-04-17: Degraded - 51 vulnerabilities (1 crit, 16 high, 30 mod, 4 low)
+- 2026-04-22: Stable - 48 vulnerabilities (1 crit, 16 high, 31 mod) - **TRIAGE OVERDUE**
+- 2026-04-23: Degraded - 53 vulnerabilities (1 crit, 16 high, 36 mod) - **TRIAGE 6 DAYS OVERDUE**
+- 2026-04-30: Degraded - 54 vulnerabilities (1 crit, 16 high, 37 mod) - **TRIAGE 13 DAYS OVERDUE**
+
+---
+
 ## Statistics
 
-- **Total Findings**: 12
+- **Total Findings**: 13
 - **Resolved**: 2
 - **False Positives**: 2
-- **Active**: 8
-  - Critical: 0
-  - **High: 1 (NEW - web API auth)**
+- **Active**: 9
+  - Critical: 0 (but #013 is CRITICAL priority due to overdue status)
+  - **High: 2 (npm vulns #013 - CRITICALLY OVERDUE, web API auth #012)**
   - High: 1 (accepted - hostConfigOverride)
-  - **Medium: 4 (1 elevated, 1 retention, 1 accepted, 1 npm audit)**
-  - Low: 1 (partially fixed - shell escaping)
+  - **Medium: 4 (1 elevated #011, 1 retention #010, 1 accepted #006, 1 superseded #008)**
+  - Low: 1 (partially fixed - shell escaping #009)
 
 ---
 
@@ -311,9 +383,13 @@ Based on false positives identified:
 | 2026-02-17 | /security-audit | 0 | 0 | **#010 DOWNGRADED** - corrected count: 21 files |
 | 2026-02-20 | /security-audit | 1 | 0 | **#011 NEW** - OAuth credential management |
 | 2026-03-06 | /security-audit | 1 | 0 | **#012 NEW** - Web API lacks auth; #011 risk elevated; 71 commits |
+| 2026-04-11 | /security-audit | 1 | 0 | **#013 NEW** - npm vulns escalated (2 crit, 15 high); 22 commits; GREEN status |
+| 2026-04-17 | /security-audit | 0 | 0 | **#013 DEGRADED** - npm vulns increased to 51 (1 crit, 16 high); 10 commits; YELLOW status |
+| 2026-04-22 | /security-audit | 0 | 0 | **#013 OVERDUE** - lodash triage 5 days late; 7 commits (all admin); YELLOW status |
+| 2026-04-23 | /security-audit | 0 | 0 | **#013 DEGRADED** - npm vulns increased to 53 (1 crit, 16 high, 36 mod); 3 commits (all admin); YELLOW status |
+| 2026-04-30 | /security-audit | 0 | 0 | **#013 CRITICALLY OVERDUE** - lodash triage 13 days late; npm vulns 54 (1 crit, 16 high, 37 mod); 11 commits (all admin); RED status |
 
 ---
 
-**Last Updated:** 2026-03-06
-**Status:** 🟡 YELLOW - 1 HIGH finding needs documentation, 1 MEDIUM risk elevated
-
+**Last Updated:** 2026-04-30
+**Status:** 🔴 RED - lodash runtime vulnerability now **13 DAYS OVERDUE** for triage
