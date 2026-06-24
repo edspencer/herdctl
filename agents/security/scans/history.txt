@@ -1,0 +1,2 @@
+2026-04-11 | 54bff77 | 7.2s | FAIL | 2 critical, 15 high, 24 moderate npm vulns; path traversal strengthened | GREEN
+2026-04-13 c03edcb FAIL 7720ms 6-checks 2-fail 2-warn 2-pass (npm-vulns-unresolved)
