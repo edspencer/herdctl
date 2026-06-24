@@ -1,14 +1,14 @@
 ---
-last_checked_commit: 1114870f5bcf4d2b7ce74e0df7e1f7d5e3f3b6b9
-last_run: "2026-03-13T07:08:30Z"
-docs_gaps_found: 5
+last_checked_commit: 8109dd287e8c1d96e3e2a8b3ca47d0b73b13bca8
+last_run: "2026-06-15T03:00:59Z"
+docs_gaps_found: 0
 branches_created: ["docs/auto-update-2026-02-21", "docs/auto-update-2026-03-01", "docs/auto-update-2026-03-05", "docs/auto-update-2026-03-07", "docs/auto-update-2026-03-13"]
 status: completed
 ---
 
 # Documentation Audit State
 
-**Last Updated:** 2026-03-13
+**Last Updated:** 2026-05-31
 
 This document tracks the state of the documentation audit agent, enabling
 incremental reviews that analyze only new commits since the last check.
@@ -19,10 +19,10 @@ incremental reviews that analyze only new commits since the last check.
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Last checked commit | 1114870 | docs: auto-update documentation (2026-03-07) |
-| Last run | 2026-03-13T07:08:30Z | Manual invocation |
-| Gaps found (last run) | 5 | Discord improvements features |
-| Branches created | docs/auto-update-2026-03-13 | Added Discord voice, attachments, output, guild, skills docs |
+| Last checked commit | 8109dd2 | security: daily audit 2026-06-14 - RED status, +1 vulnerability |
+| Last run | 2026-06-15T03:00:59Z | Manual audit run |
+| Gaps found (last run) | 0 | No documentation gaps |
+| Branches created | N/A | No branch created (no gaps) |
 
 ---
 
@@ -30,6 +30,24 @@ incremental reviews that analyze only new commits since the last check.
 
 | Date | Commits Analyzed | Gaps Found | Action | Branch |
 |------|-----------------|------------|--------|--------|
+| 2026-06-15 | 19 | 0 | no-action | N/A |
+| 2026-05-31 | 3 | 0 | no-action | N/A |
+| 2026-05-29 | 9 | 0 | no-action | N/A |
+| 2026-05-21 | 4 | 0 | no-action | N/A |
+| 2026-05-18 | 7 | 0 | no-action | N/A |
+| 2026-05-13 | 7 | 0 | no-action | N/A |
+| 2026-05-08 | 13 | 0 | no-action | N/A |
+| 2026-04-27 | 2 | 0 | no-action | N/A |
+| 2026-04-26 | 2 | 0 | no-action | N/A |
+| 2026-04-25 | 4 | 0 | no-action | N/A |
+| 2026-04-23 | 6 | 0 | no-action | N/A |
+| 2026-04-19 | 8 | 0 | no-action | N/A |
+| 2026-04-14 | 2 | 0 | no-action | N/A |
+| 2026-04-13 | 4 | 0 | no-action | N/A |
+| 2026-04-11 | 3 | 0 | no-action | N/A |
+| 2026-04-09 | 3 | 0 | no-action | N/A |
+| 2026-04-07 | 2 | 0 | no-action | N/A |
+| 2026-04-06 | 8 | 0 | no-action | N/A |
 | 2026-03-13 | 3 | 5 | created-branch | docs/auto-update-2026-03-13 |
 | 2026-03-07 | 4 | 1 | created-branch | docs/auto-update-2026-03-07 |
 | 2026-03-05 | 10 | 1 | created-branch | docs/auto-update-2026-03-05 |
