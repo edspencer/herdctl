@@ -7,6 +7,27 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Session Resume and Message Fixes
+**June 26, 2026** · `@herdctl/core@5.13.1` · `@herdctl/web@0.9.16`
+
+Fixed several critical issues with session management and message handling. Cross-agent session resumption now works correctly when an agent adopts a session created by another agent in the same process — previously the explicit resume was silently dropped, causing the agent to fork a new session and lose all context. Web chat sessions no longer get stuck on stale resume IDs when an agent's working_directory changes; the web chat manager now clears the mapping when a session-not-found error occurs. Also fixed assistant answers disappearing when reloading chats that use extended thinking — the message parser was marking the message ID as "seen" on the thinking line and then discarding the actual text line as a duplicate. [#264](https://github.com/edspencer/herdctl/pull/264), [#272](https://github.com/edspencer/herdctl/pull/272), [#261](https://github.com/edspencer/herdctl/pull/261)
+
+---
+
+### Session Discovery Improvements
+**June 26, 2026** · `@herdctl/core@5.12.0` · `@herdctl/core@5.13.0`
+
+Session discovery now reflects newly-created sessions immediately instead of waiting up to 30 seconds for cache TTL. The directory listing cache records the transcript directory's mtime and automatically invalidates when files are added or removed. A new FleetManager.invalidateSessions() API allows callers to force a fresh listing regardless of mtime granularity. Additionally, FleetManager.getAgentSessionUsage() exposes per-session usage data (context window fill level and turn count) so UIs can display "context used" for chats opened from history before any new turn streams fresh usage stats. [#260](https://github.com/edspencer/herdctl/pull/260), [#261](https://github.com/edspencer/herdctl/pull/261)
+
+---
+
+### Session Path Collision Fix
+**June 26, 2026** · `@herdctl/core@5.13.1` · `@herdctl/web@0.9.14`
+
+Fixed session discovery returning wrong sessions when multiple working directories encode to the same transcript path. Claude Code's encoding maps every non-alphanumeric character to a hyphen, so different paths like `/a/b-c`, `/a-b/c`, and `/a/b/c` all collide at `~/.claude/projects/-a-b-c`. Session discovery now disambiguates collisions by reading each transcript's authoritative cwd field and only returns sessions that actually belong to the requested directory. The web chat manager now uses the shared encodePathForCli encoder instead of its own slashes-only replacement, fixing session routing for paths containing dots, underscores, or other non-alphanumeric characters. [#265](https://github.com/edspencer/herdctl/pull/265)
+
+---
+
 ### Discord File Attachment Support
 **March 10, 2026** · `@herdctl/discord@1.2.0` · `@herdctl/core@5.10.0`
 
