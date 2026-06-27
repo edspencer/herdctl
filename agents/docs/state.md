@@ -1,14 +1,14 @@
 ---
-last_checked_commit: 1114870f5bcf4d2b7ce74e0df7e1f7d5e3f3b6b9
-last_run: "2026-03-13T07:08:30Z"
-docs_gaps_found: 5
-branches_created: ["docs/auto-update-2026-02-21", "docs/auto-update-2026-03-01", "docs/auto-update-2026-03-05", "docs/auto-update-2026-03-07", "docs/auto-update-2026-03-13"]
+last_checked_commit: 7ef149df5bcf4d2b7ce74e0df7e1f7d5e3f3b6b9
+last_run: "2026-06-27T03:08:40Z"
+docs_gaps_found: 3
+branches_created: ["docs/auto-update-2026-02-21", "docs/auto-update-2026-03-01", "docs/auto-update-2026-03-05", "docs/auto-update-2026-03-07", "docs/auto-update-2026-03-13", "docs/auto-update-2026-06-27"]
 status: completed
 ---
 
 # Documentation Audit State
 
-**Last Updated:** 2026-03-13
+**Last Updated:** 2026-06-27
 
 This document tracks the state of the documentation audit agent, enabling
 incremental reviews that analyze only new commits since the last check.
@@ -19,10 +19,10 @@ incremental reviews that analyze only new commits since the last check.
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Last checked commit | 1114870 | docs: auto-update documentation (2026-03-07) |
-| Last run | 2026-03-13T07:08:30Z | Manual invocation |
-| Gaps found (last run) | 5 | Discord improvements features |
-| Branches created | docs/auto-update-2026-03-13 | Added Discord voice, attachments, output, guild, skills docs |
+| Last checked commit | 7ef149d | chore(engineer): daily housekeeping |
+| Last run | 2026-06-27T03:08:40Z | Scheduled daily audit |
+| Gaps found (last run) | 3 | FleetManager programmatic API, SDKMessageTranslator, Playwright tests |
+| Branches created | docs/auto-update-2026-06-27 | FleetManager API methods, chat SDK translator, test suite docs |
 
 ---
 
@@ -30,6 +30,7 @@ incremental reviews that analyze only new commits since the last check.
 
 | Date | Commits Analyzed | Gaps Found | Action | Branch |
 |------|-----------------|------------|--------|--------|
+| 2026-06-27 | 24 | 3 | created-branch | docs/auto-update-2026-06-27 |
 | 2026-03-13 | 3 | 5 | created-branch | docs/auto-update-2026-03-13 |
 | 2026-03-07 | 4 | 1 | created-branch | docs/auto-update-2026-03-07 |
 | 2026-03-05 | 10 | 1 | created-branch | docs/auto-update-2026-03-05 |
