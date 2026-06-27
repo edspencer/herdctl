@@ -31,6 +31,16 @@ npm install @herdctl/chat
 
 `StreamingResponder` delivers agent responses incrementally as they are generated, rather than waiting for the full response. It buffers content and sends complete chunks at configurable intervals, respecting platform rate limits.
 
+### SDK Message Translation
+
+`SDKMessageTranslator` provides transport-agnostic translation of Claude Agent SDK message streams into chat-UI events. Every chat surface built on herdctl (Discord, Slack, the web dashboard, and downstream apps) uses this to transform the raw `SDKMessage` stream from `FleetManager.trigger({ onMessage })` into:
+
+- **Assistant text deltas** — streamed as they arrive
+- **Boundaries** — signals when a new assistant turn begins
+- **Paired tool calls** — `tool_use` blocks matched with their `tool_result`, enriched with input summaries and wall-clock duration
+
+This extracts logic previously duplicated across connectors into one stateful translator. See the [SDKMessageTranslator source](https://github.com/edspencer/herdctl/blob/main/packages/chat/src/sdk-message-translator.ts) for full API details.
+
 ### Message Splitting
 
 Long agent responses are automatically split at natural breakpoints (paragraph breaks, sentences, clauses) to fit within platform character limits (Discord: 2,000, Slack: 4,000). This ensures messages remain readable without cutting mid-sentence.

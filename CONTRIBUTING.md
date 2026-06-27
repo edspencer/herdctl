@@ -114,6 +114,31 @@ All of the following must pass before a PR can be merged:
 - `pnpm test` — tests pass with coverage thresholds met
 - `pnpm build` — all packages build successfully
 
+## Testing
+
+The repository includes both unit tests (Vitest) and integration tests (Playwright).
+
+### Unit Tests
+
+Unit tests are colocated with source files in `__tests__/` directories. Run them with:
+
+```bash
+pnpm test
+```
+
+### Web Integration Tests
+
+The `@herdctl/web` package includes a comprehensive Playwright end-to-end test suite that boots a real Fastify server, FleetManager, and fake `claude` binary to test the web dashboard in a real browser with zero Anthropic API calls. See `packages/web/test-ui/README.md` for details.
+
+```bash
+# Build core and web first
+pnpm --filter @herdctl/core... build
+pnpm --filter @herdctl/web build
+
+# Run the UI/integration suite
+pnpm --filter @herdctl/web test:ui
+```
+
 ## Submitting Changes
 
 1. Fork the repository and create a feature branch.

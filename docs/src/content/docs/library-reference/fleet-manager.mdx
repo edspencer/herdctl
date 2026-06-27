@@ -557,6 +557,19 @@ await manager.trigger(
 | `options.prompt` | `string` | No | Override the prompt for this trigger |
 | `options.workItems` | `WorkItem[]` | No | Custom work items instead of fetching from work source |
 | `options.bypassConcurrencyLimit` | `boolean` | No | Force trigger even if agent is at capacity (default: `false`) |
+| `options.workingDirectory` | `string` | No | Override the agent's configured `working_directory` for this trigger only |
+
+#### Working Directory Override
+
+The `workingDirectory` option allows you to trigger the same agent against different directories per call, without registering one agent per directory. This is useful for building applications that run a single "sweeper" or "auditor" agent across many project directories.
+
+When provided:
+- Absolute paths are used as-is
+- Relative paths are resolved against `process.cwd()`
+- The override applies to the process cwd (native runtimes), SDK `cwd`, and Docker workspace mount
+- **Session/transcript resolution uses the effective (overridden) working directory** — sessions are keyed by cwd in Claude Code
+
+**Caveat**: Agent-level session continuity (`getAgentSessions`, `getAgentSessionMessages`) derives the directory from the agent's *configured* `working_directory` and will not see sessions created under a different override directory. When using overrides, the caller is responsible for passing the matching directory context when listing/reading those sessions.
 
 #### Returns
 
@@ -597,6 +610,12 @@ const job = await manager.trigger('my-agent', undefined, {
 // Force trigger even at capacity
 const job = await manager.trigger('my-agent', undefined, {
   bypassConcurrencyLimit: true,
+});
+
+// Trigger against a different directory (per-project agent)
+const job = await manager.trigger('sweeper', undefined, {
+  workingDirectory: '/path/to/project-a',
+  prompt: 'Audit this project',
 });
 ```
 
@@ -1216,6 +1235,373 @@ class InvalidStateError extends FleetManagerError {
 
 ---
 
+## Agent Management Methods
+
+### `addAgent(agent, options?)`
+
+Register an agent at runtime without writing YAML or calling `reload()`.
+
+```typescript
+await manager.addAgent(agent: AgentConfig, options?: AddAgentOptions): Promise<AgentInfo>
+```
+
+#### Description
+
+Adds an agent to the fleet programmatically by passing an `AgentConfig` object directly. The agent is validated, merged with fleet defaults (unless disabled), and immediately becomes triggerable. This avoids the write-yaml-then-reload workflow for applications that manage agents dynamically.
+
+Programmatic agents are registered at the root fleet level (equivalent to agents defined directly in `herdctl.yaml`), so their qualified name equals their local name.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `agent` | `AgentConfig` | **Yes** | Agent configuration object matching the YAML schema |
+| `options.baseDir` | `string` | No | Base directory for resolving relative `working_directory`. Defaults to config directory or `process.cwd()` |
+| `options.mergeDefaults` | `boolean` | No | Whether to merge fleet `defaults` into the agent (default: `true`) |
+| `options.replace` | `boolean` | No | Replace an existing agent with the same name instead of throwing (default: `false`) |
+
+#### Returns
+
+Returns an `AgentInfo` object for the newly registered agent.
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+| `ConfigurationError` | Agent config validation failed or name collision (and `replace` is `false`) |
+
+#### Example
+
+```typescript
+// Add a new agent at runtime
+const agent = await manager.addAgent({
+  name: 'dynamic-agent',
+  description: 'Agent created programmatically',
+  model: 'claude-sonnet-4-5-20250929',
+  working_directory: '/path/to/workspace',
+});
+
+console.log(`Added agent: ${agent.qualifiedName}`);
+
+// Replace an existing agent
+await manager.addAgent(
+  {
+    name: 'existing-agent',
+    description: 'Updated configuration',
+  },
+  { replace: true }
+);
+```
+
+<Aside type="tip">
+Use `addAgent()` when building applications that manage project-specific agents dynamically (e.g., one agent per user project). This is more efficient than repeatedly writing and reloading YAML configuration files.
+</Aside>
+
+---
+
+### `removeAgent(name)`
+
+Unregister an agent at runtime.
+
+```typescript
+await manager.removeAgent(name: string): Promise<boolean>
+```
+
+#### Description
+
+Removes an agent from the in-memory configuration and the scheduler. Accepts a qualified name (e.g., `"sub.agent"`) or a local name; qualified names are matched first. Running jobs are unaffected — the scheduler simply stops triggering the removed agent's schedules.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | `string` | **Yes** | Agent qualified name or local name to remove |
+
+#### Returns
+
+Returns `true` if an agent was removed, `false` if no matching agent was found.
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+
+#### Example
+
+```typescript
+const removed = await manager.removeAgent('dynamic-agent');
+if (removed) {
+  console.log('Agent removed successfully');
+} else {
+  console.log('Agent not found');
+}
+```
+
+---
+
+## Session Management Methods
+
+### `getAgentSessions(name, options?)`
+
+Get all Claude Code sessions for an agent.
+
+```typescript
+await manager.getAgentSessions(
+  name: string,
+  options?: { limit?: number }
+): Promise<DiscoveredSession[]>
+```
+
+#### Description
+
+Retrieves all session transcripts for an agent, ordered by modification time (newest first). Sessions are discovered from the agent's working directory using the same session file layout that Claude Code uses (`~/.claude/projects/` for CLI runtime, `.herdctl/docker-sessions/` for Docker runtime).
+
+Returns an empty array if the agent has no `working_directory` configured.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | `string` | **Yes** | Agent qualified name or local name |
+| `options.limit` | `number` | No | Maximum number of sessions to return |
+
+#### Returns
+
+```typescript
+interface DiscoveredSession {
+  sessionId: string;              // Session UUID
+  agentName: string;              // Agent qualified name
+  workingDirectory: string;       // Absolute path to workspace
+  filePath: string;               // Absolute path to transcript file
+  modifiedAt: Date;               // Last modification time
+  customName?: string;            // Custom display name (if set via setSessionName)
+  firstMessagePreview?: string;   // First user message (truncated to 100 chars)
+  summary?: string;               // Session summary (if present in transcript)
+  messageCount?: number;          // Number of messages in session
+}
+```
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+| `AgentNotFoundError` | Agent doesn't exist |
+
+#### Example
+
+```typescript
+const sessions = await manager.getAgentSessions('my-agent', { limit: 10 });
+for (const session of sessions) {
+  console.log(`${session.sessionId}: ${session.customName || session.firstMessagePreview}`);
+  console.log(`  ${session.messageCount} messages, last modified ${session.modifiedAt}`);
+}
+```
+
+---
+
+### `getAgentSessionMessages(name, sessionId)`
+
+Get the parsed chat messages for one of an agent's sessions.
+
+```typescript
+await manager.getAgentSessionMessages(
+  name: string,
+  sessionId: string
+): Promise<ChatMessage[]>
+```
+
+#### Description
+
+Reads and parses a session transcript file, returning the conversation as an array of chat messages. Derives the working directory and Docker mode from the agent's configuration.
+
+Returns an empty array if the agent has no `working_directory` configured.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | `string` | **Yes** | Agent qualified name or local name |
+| `sessionId` | `string` | **Yes** | Session ID to read |
+
+#### Returns
+
+```typescript
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp?: string;
+  toolCalls?: ChatToolCall[];
+}
+
+interface ChatToolCall {
+  toolName: string;
+  inputSummary?: string;
+  output: string;
+  isError: boolean;
+  durationMs?: number;
+}
+```
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+| `AgentNotFoundError` | Agent doesn't exist |
+
+#### Example
+
+```typescript
+const messages = await manager.getAgentSessionMessages('my-agent', 'abc-123-def');
+for (const msg of messages) {
+  console.log(`${msg.role}: ${msg.content}`);
+  if (msg.toolCalls) {
+    for (const call of msg.toolCalls) {
+      console.log(`  Tool: ${call.toolName} (${call.durationMs}ms)`);
+    }
+  }
+}
+```
+
+---
+
+### `deleteSession(name, sessionId)`
+
+Delete one of an agent's Claude Code session transcripts from disk.
+
+```typescript
+await manager.deleteSession(
+  name: string,
+  sessionId: string
+): Promise<boolean>
+```
+
+#### Description
+
+Removes a session transcript file and invalidates the session discovery cache so subsequent calls to `getAgentSessions()` no longer list it. The session ID is validated to prevent path traversal attacks.
+
+Returns `false` (without error) if the agent has no working directory or the transcript doesn't exist.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | `string` | **Yes** | Agent qualified name or local name |
+| `sessionId` | `string` | **Yes** | Session ID to delete |
+
+#### Returns
+
+Returns `true` if a file was removed, `false` if no transcript existed.
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+| `AgentNotFoundError` | Agent doesn't exist |
+| `Error` | `sessionId` contains invalid characters (only `[A-Za-z0-9-]` allowed) |
+
+#### Example
+
+```typescript
+const removed = await manager.deleteSession('my-agent', 'abc-123-def');
+if (removed) {
+  console.log('Session deleted successfully');
+}
+```
+
+---
+
+### `setSessionName(name, sessionId, customName)`
+
+Set or clear the custom display name for one of an agent's sessions.
+
+```typescript
+await manager.setSessionName(
+  name: string,
+  sessionId: string,
+  customName: string | null
+): Promise<void>
+```
+
+#### Description
+
+Sets a custom display name for a session. The name is stored in the session metadata store (`.herdctl/session-metadata.yaml`) and is immediately visible in subsequent `getAgentSessions()` calls. Passing `null` or an empty/whitespace string clears any existing custom name.
+
+Custom names are useful for identifying sessions in chat UIs (e.g., "Bug fix discussion", "Weekly standup").
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | `string` | **Yes** | Agent qualified name or local name |
+| `sessionId` | `string` | **Yes** | Session ID to rename |
+| `customName` | `string \| null` | **Yes** | Custom name to set, or `null`/empty to clear |
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+| `AgentNotFoundError` | Agent doesn't exist |
+
+#### Example
+
+```typescript
+// Set a custom name
+await manager.setSessionName('my-agent', 'abc-123-def', 'Feature Discussion');
+
+// Clear the custom name
+await manager.setSessionName('my-agent', 'abc-123-def', null);
+```
+
+---
+
+## Exported Utilities
+
+The `@herdctl/core` package also exports utility functions for working with Claude Code session file paths:
+
+### Session Path Utilities
+
+```typescript
+import {
+  getCliSessionDir,
+  getCliSessionFile,
+  encodePathForCli,
+  getDockerSessionDir,
+  getDockerSessionFile,
+} from '@herdctl/core';
+
+// Get CLI session directory for a workspace
+const sessionDir = getCliSessionDir('/path/to/workspace');
+// => '/Users/you/.claude/projects/-path-to-workspace'
+
+// Get path to a specific CLI session file
+const sessionFile = getCliSessionFile('/path/to/workspace', 'abc-123-def');
+// => '/Users/you/.claude/projects/-path-to-workspace/abc-123-def.jsonl'
+
+// Encode a path manually (matches Claude Code's encoding)
+const encoded = encodePathForCli('/path/to/my.project');
+// => '-path-to-my-project'
+
+// Get Docker session directory
+const dockerDir = getDockerSessionDir('./.herdctl');
+// => './.herdctl/docker-sessions'
+
+// Get path to a Docker session file
+const dockerFile = getDockerSessionFile('./.herdctl', 'abc-123-def');
+// => './.herdctl/docker-sessions/abc-123-def.jsonl'
+```
+
+<Aside type="caution">
+The `encodePathForCli()` function is intentionally lossy to match Claude Code's behavior. Multiple different paths can encode to the same directory name. See the function documentation for collision details.
+</Aside>
+
+---
+
 ## Complete Example
 
 Here's a complete example showing typical usage patterns:
@@ -1275,6 +1661,19 @@ async function main() {
     if (isAgentNotFoundError(error)) {
       console.error(`Agent not found: ${error.agentName}`);
     }
+  }
+
+  // Add an agent programmatically
+  await manager.addAgent({
+    name: 'runtime-agent',
+    description: 'Added at runtime',
+    working_directory: '/path/to/workspace',
+  });
+
+  // List sessions for an agent
+  const sessions = await manager.getAgentSessions('my-agent', { limit: 5 });
+  for (const session of sessions) {
+    console.log(`Session: ${session.customName || session.firstMessagePreview}`);
   }
 
   // Handle shutdown
