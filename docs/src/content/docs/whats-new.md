@@ -7,6 +7,41 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Programmatic Fleet Management and Session APIs
+**June 27, 2026** · `@herdctl/core@5.11.0` · `@herdctl/chat@0.4.0`
+
+Major new programmatic capabilities for building custom fleet management tools and integrations. Register and unregister agents at runtime with `addAgent()` and `removeAgent()` without writing YAML files, enabling dynamic fleet composition. New session management APIs include `getAgentSessions()` for listing conversations, `deleteSession()` for cleanup, and `setSessionName()` for custom naming. Override an agent's working directory per trigger call, enabling a single "sweeper" agent to work across multiple projects. The reusable `SDKMessageTranslator` simplifies building custom chat UIs on top of herdctl. Also fixed CLI session discovery to match Claude Code's path encoding behavior, correcting discovery for directories with dots or special characters. [#256](https://github.com/edspencer/herdctl/pull/256)
+
+---
+
+### Session Discovery Performance Improvements
+**June 27, 2026** · `@herdctl/core@5.12.0` · `@herdctl/core@5.13.0`
+
+Session discovery now automatically detects new sessions immediately via directory mtime (modification time) tracking, eliminating the previous 30-second cache delay. When agents create new sessions, they appear in the web dashboard and API responses instantly. Added `invalidateSessions()` method for manual cache invalidation when needed. Also exposed `getAgentSessionUsage()` to retrieve context window usage and turn count for any session, enabling UIs to display "context used" metrics for historical chats. [#260](https://github.com/edspencer/herdctl/pull/260), [#261](https://github.com/edspencer/herdctl/pull/261)
+
+---
+
+### Critical Session and Path Handling Fixes
+**June 27, 2026** · `@herdctl/core@5.13.1` · `@herdctl/web@0.9.14` · `@herdctl/web@0.9.16`
+
+Fixed multiple critical session handling issues. Session discovery now correctly handles agents with working directories that encode to the same path (e.g., `/a/b-c`, `/a-b/c`, `/a/b/c` all mapping to `-a-b-c`), reading each transcript's authoritative `cwd` field to prevent session misattribution. Cross-agent session resumption now works properly — agents can resume sessions created by other agents in the same fleet, with automatic retry when a session can't be found after a working directory change. The web dashboard now clears stale session mappings when a resume fails with "session not found", preventing infinite retry loops after an agent's working directory changes. [#264](https://github.com/edspencer/herdctl/pull/264), [#265](https://github.com/edspencer/herdctl/pull/265), [#272](https://github.com/edspencer/herdctl/pull/272)
+
+---
+
+### Extended Thinking Support and Tool Display Improvements
+**June 27, 2026** · `@herdctl/core@5.13.0` · `@herdctl/chat@0.4.1`
+
+Fixed a critical bug where assistant responses using extended thinking would disappear when reloading chat history. Final answers in thinking-enabled conversations are now correctly preserved and displayed across all chat interfaces. Tool calls in CLI runtime now display properly with the correct tool name, input summary, duration, and error status instead of showing as generic "Tool" entries. [#261](https://github.com/edspencer/herdctl/pull/261), [#258](https://github.com/edspencer/herdctl/pull/258)
+
+---
+
+### Windows Compatibility and Web UI Fixes
+**June 27, 2026** · `@herdctl/core@5.10.1` · `@herdctl/web@0.9.15`
+
+Fixed path traversal security check failing on Windows due to hardcoded Unix path separators. State file operations now work correctly on Windows systems using platform-appropriate path separators. The web dashboard agent detail page now displays a proper "Agent Not Found" card with a "Back to Dashboard" link instead of a misleading "Retry" button when viewing a non-existent agent. [#210](https://github.com/edspencer/herdctl/pull/210), [#269](https://github.com/edspencer/herdctl/pull/269)
+
+---
+
 ### Discord File Attachment Support
 **March 10, 2026** · `@herdctl/discord@1.2.0` · `@herdctl/core@5.10.0`
 
