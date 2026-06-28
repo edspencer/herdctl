@@ -7,6 +7,48 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Programmatic Agent Management and Session Control APIs
+**June 21, 2026** · `@herdctl/core@5.11.0` · `@herdctl/chat@0.4.0`
+
+You can now manage agents programmatically without YAML files using FleetManager.addAgent() and removeAgent(). New session control methods let you list, delete, and rename agent sessions (getAgentSessions, deleteSession, setSessionName). Agents can now be triggered with a per-job working directory override, enabling one agent to work across multiple projects. Includes fixes for session discovery in paths containing dots/underscores, which previously resolved to wrong directories and returned no sessions.
+
+---
+
+### Session Discovery Performance and Reliability Improvements
+**June 21, 2026** · `@herdctl/core@5.12.0`
+
+New sessions now appear immediately in session listings instead of waiting up to 30 seconds. Session discovery uses directory modification time to detect new sessions automatically, and you can force a refresh using FleetManager.invalidateSessions(). This ensures chat UIs and dashboards show the latest sessions without polling delays.
+
+---
+
+### Critical Chat History and Tool Call Display Fixes
+**June 21, 2026** · `@herdctl/core@5.13.0` · `@herdctl/chat@0.4.1`
+
+Fixes two display issues affecting chat UIs. Extended-thinking assistant responses no longer vanish when reloading chat history (the thinking and text JSONL lines are now properly paired). Tool calls in CLI runtime sessions now show their actual tool names, input summaries, and durations instead of generic "Tool" labels. Also adds getAgentSessionUsage() to display context window usage for resumed sessions.
+
+---
+
+### Cross-Agent Session Resume and Working Directory Changes
+**June 21, 2026** · `@herdctl/core@5.13.1` · `@herdctl/web@0.9.14, 0.9.16`
+
+Agents can now adopt sessions created by other agents in the same fleet, enabling session handoffs between agents. When an agent's working directory changes, the system automatically recovers from "session not found" errors by clearing the stale session pointer and starting fresh, instead of hanging indefinitely. Also fixes session discovery collisions when different working directories map to the same encoded path (like /a/b-c and /a-b/c).
+
+---
+
+### End-to-End Web Dashboard Integration Tests
+**June 21, 2026** · `@herdctl/web@0.9.15`
+
+The web dashboard now has comprehensive Playwright integration tests that run real browser sessions against a real FleetManager (with zero Anthropic API calls). The suite covers fleet overview, agent detail, schedules, chat flows, job history, dark mode, and SPA routing. Also fixes the agent detail page showing a misleading "Retry" button for non-existent agents instead of the proper "Agent Not Found" card.
+
+---
+
+### Windows Path Compatibility Fix
+**March 17, 2026** · `@herdctl/core@5.10.1`
+
+Fixes path traversal security checks on Windows. The system now uses platform-specific path separators (backslash on Windows, forward slash on Unix) instead of hardcoded forward slashes, preventing false positive security errors that blocked all state file operations on Windows systems.
+
+---
+
 ### Discord File Attachment Support
 **March 10, 2026** · `@herdctl/discord@1.2.0` · `@herdctl/core@5.10.0`
 
