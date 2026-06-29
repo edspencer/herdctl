@@ -7,6 +7,76 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Programmatic Agent Management and Session APIs
+**June 29, 2026** · `@herdctl/core@5.14.0`
+
+FleetManager now supports fully programmatic agent management without requiring YAML configuration files. Add agents at runtime with `FleetManager.addAgent()` and remove them with `removeAgent()`. Agents are validated, merged with fleet defaults, wired into the scheduler, and immediately triggerable. The new per-trigger working directory override on `TriggerOptions.workingDirectory` allows a single agent to operate across multiple directories without registering separate agent instances. Session management APIs include `deleteSession()`, `setSessionName()`, `getAgentSessions()`, and `getAgentSessionMessages()` for managing Claude Code conversations programmatically. Session path helpers (`getCliSessionFile`, `getCliSessionDir`, `encodePathForCli`, and Docker equivalents) are now exported from `@herdctl/core` for external integrations. [#256](https://github.com/edspencer/herdctl/pull/256)
+
+---
+
+### Web Dashboard Integration Testing and Reliability Fixes
+**June 29, 2026** · `@herdctl/web@0.9.15` · `@herdctl/web@0.9.16`
+
+The web dashboard now includes a comprehensive Playwright-based integration test suite running in real browsers (Chromium, Firefox, WebKit) to catch UI regressions. Fixed the agent detail page showing a misleading "Retry" button when an agent doesn't exist — it now renders a proper "Agent Not Found" card with a "Back to Dashboard" link instead. Web chat sessions that fail to resume due to stale session mappings (like when an agent's working directory changes) now automatically clear the broken mapping instead of retrying indefinitely. [#269](https://github.com/edspencer/herdctl/pull/269), [#272](https://github.com/edspencer/herdctl/pull/272)
+
+---
+
+### Session Path Encoding Fix for Special Characters
+**June 29, 2026** · `@herdctl/core@5.13.1`
+
+Fixed session discovery failing for working directories containing dots, underscores, or other special characters. Claude Code encodes transcript directories by replacing *all* non-alphanumeric characters with hyphens (not just path separators), so a directory like `/Users/ed/Code/my.project` encodes to `-Users-ed-Code-my-project`. herdctl's encoding now matches Claude Code's exact algorithm, including the 200-character truncation with stable hash fallback. Session discovery and resumption now work correctly for dotted directory names. [#256](https://github.com/edspencer/herdctl/pull/256)
+
+---
+
+### SDK Message Translator for Chat Platforms
+**June 29, 2026** · `@herdctl/chat@0.4.0`
+
+Introduced `SDKMessageTranslator` and `createSDKMessageHandler` in `@herdctl/chat` for translating the raw `SDKMessage` stream from `trigger({ onMessage })` into structured chat events: assistant text deltas, turn boundaries, and paired tool calls (matching `tool_use` with `tool_result`, enriched with input summaries and execution durations). This extracts logic previously duplicated across connectors into a single reusable helper built on existing chat primitives, making it easier to build new chat integrations. [#256](https://github.com/edspencer/herdctl/pull/256)
+
+---
+
+### Session Discovery Performance and Cache Invalidation
+**June 29, 2026** · `@herdctl/core@5.11.0`
+
+Session discovery now includes a modification-time-aware cache that tracks when transcript directories change, avoiding unnecessary filesystem scans on every `getAgentSessions()` call. The new `FleetManager.invalidateSessions()` API lets you force cache refresh when external processes create or delete session files. `SessionDiscoveryService` also gains an optional shared `SessionMetadataStore` so session name changes (via `setSessionName`) are visible immediately without cache invalidation. [#260](https://github.com/edspencer/herdctl/pull/260)
+
+---
+
+### Session Continuity and Assistant Message Formatting Fixes
+**June 29, 2026** · `@herdctl/core@5.12.0` · `@herdctl/core@5.12.1`
+
+Fixed cross-agent session resume failing when one agent explicitly tries to resume another agent's session (like in multi-agent workflows). The SDK honors the provided session ID instead of incorrectly forcing a new session. Also fixed assistant responses being merged incorrectly when Claude Code writes multi-part answers (thinking + text) — they now remain split across separate JSONL lines as Claude Code expects. The new `getAgentSessionUsage()` export provides access to a session's token consumption statistics. [#264](https://github.com/edspencer/herdctl/pull/264), [#261](https://github.com/edspencer/herdctl/pull/261)
+
+---
+
+### Chat Platform Tool Result Duration Display
+**June 29, 2026** · `@herdctl/chat@0.3.1`
+
+Tool result cards in Discord, Slack, and Web chat now correctly display execution duration when agents run in CLI mode. Previously, the SDK translator wasn't preserving the `tool_name` and `duration_ms` fields from CLI runtime tool results, causing "unknown" tool names and missing timing information. [#258](https://github.com/edspencer/herdctl/pull/258)
+
+---
+
+### MCP Server Configuration Fix for CLI Runtime
+**June 29, 2026** · `@herdctl/core@5.13.1`
+
+Fixed `--mcp-config` validation errors in CLI runtime when injected MCP servers are configured. The Claude CLI expects `{"mcpServers": {...}}` (matching `.mcp.json` format), but a regression had reverted to the flat `{"<name>": {...}}` form, causing jobs to hang with silent validation failures. The correct wrapped format is now enforced with regression tests. [#266](https://github.com/edspencer/herdctl/pull/266)
+
+---
+
+### Path Encoding Collision Disambiguation
+**June 29, 2026** · `@herdctl/core@5.13.1` · `@herdctl/web@0.9.14`
+
+Session discovery now correctly handles lossy encoding collisions when different working directories map to the same transcript path (e.g., `/a/b-c`, `/a-b/c`, and `/a/b/c` all encode to `-a-b-c`). Sessions are disambiguated by reading each transcript's authoritative `cwd` field, ensuring sessions from colliding directories aren't cross-attributed. This maintains byte-compatibility with Claude Code's collision behavior while preventing session misattribution. [#265](https://github.com/edspencer/herdctl/pull/265)
+
+---
+
+### Windows Path Traversal Check Compatibility
+**June 29, 2026** · `@herdctl/core@5.13.2`
+
+Fixed path traversal validation failing on Windows due to incorrect path separator handling. Session ID and agent name validation now uses `path.sep` for platform-specific separator checks, ensuring security validation works correctly on both Unix-like systems and Windows. [#210](https://github.com/edspencer/herdctl/pull/210)
+
+---
+
 ### Discord File Attachment Support
 **March 10, 2026** · `@herdctl/discord@1.2.0` · `@herdctl/core@5.10.0`
 
