@@ -27,6 +27,10 @@ npm install @herdctl/chat
 
 `ChatSessionManager` tracks conversation sessions per channel or DM. Sessions are persisted to disk and automatically expire after a configurable timeout (default: 24 hours). When a user sends a message, the session manager either resumes the existing session or creates a new one, preserving conversation context via Claude SDK session resumption.
 
+### SDK Message Translation
+
+`SDKMessageTranslator` provides transport-agnostic translation from Claude SDK message streams to chat-UI events. It extracts assistant text deltas, tracks turn boundaries, and pairs tool calls with their results (enriched with input summaries and durations). This eliminates the need to reimplement message processing logic in each chat connector or downstream application.
+
 ### Streaming Responses
 
 `StreamingResponder` delivers agent responses incrementally as they are generated, rather than waiting for the full response. It buffers content and sends complete chunks at configurable intervals, respecting platform rate limits.
