@@ -44,7 +44,9 @@ await fleet.stop();
 
 - **FleetManager** - Core orchestration class for managing agent fleets
 - **Configuration** - Load and validate herdctl YAML configs programmatically
+- **Programmatic Agent Management** - Add/remove agents at runtime without YAML files
 - **Job Control** - Trigger, cancel, and fork agent jobs
+- **Session Management** - List, read, delete, and rename agent conversation sessions
 - **Scheduling** - Built-in scheduler for cron and interval triggers
 - **Event System** - Subscribe to fleet events (job:created, job:completed, etc.)
 - **State Management** - Persistent state for jobs, sessions, and fleet status
