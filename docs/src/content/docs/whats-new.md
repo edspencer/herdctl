@@ -7,6 +7,62 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Playwright Integration Test Suite
+**June 22, 2026** · `@herdctl/web@0.9.15+`
+
+The web dashboard now includes a comprehensive end-to-end integration test suite built on Playwright. The suite tests the complete stack with a real Fastify server, real FleetManager, and real browser (Chromium), but uses a fake `claude` binary instead of calling Anthropic APIs. Tests cover fleet overview, agent detail, schedules, chat flow (including streaming and session continuity), jobs, the All Chats view, dark mode, and error states. The fake claude binary generates realistic JSONL transcripts in the exact format and location the CLI runtime expects, ensuring streaming, history replay, and session resumption are genuinely exercised. [#274](https://github.com/edspencer/herdctl/pull/274) [#269](https://github.com/edspencer/herdctl/pull/269)
+
+---
+
+### Programmatic Agent Management
+**June 21, 2026** · `@herdctl/core@5.11.0`
+
+FleetManager can now register and unregister agents at runtime without writing YAML files. The new `addAgent()` and `removeAgent()` methods validate agents, merge them with fleet defaults, wire them into the scheduler, and emit config reload events so they behave identically to file-loaded agents. This enables applications built on `@herdctl/core` to manage agents purely in memory. Additionally, `getAgentSessions()` and `getAgentSessionMessages()` now derive the agent's working directory and Docker mode from config automatically, and new `deleteSession()` and `setSessionName()` methods provide first-class session management without requiring consumers to construct filesystem paths. [#256](https://github.com/edspencer/herdctl/pull/256)
+
+---
+
+### Per-Trigger Working Directory Override
+**June 21, 2026** · `@herdctl/core@5.11.0`
+
+Agents can now be triggered with a custom working directory on a per-call basis via `TriggerOptions.workingDirectory`. This allows a single agent to operate across different project directories without needing to register separate agent configs for each location. The override is applied at trigger time and automatically flows through to the runtime (CLI process cwd, SDK cwd), Docker container mounts, session discovery, and lifecycle hooks. Relative paths are resolved against `process.cwd()`, and empty/blank values are rejected. Sessions are keyed by working directory, so agent-level session queries won't surface sessions created under a different override. [#256](https://github.com/edspencer/herdctl/pull/256)
+
+---
+
+### Session Discovery and Resume Fixes
+**June 21, 2026** · `@herdctl/core@5.11.0` · `@herdctl/core@5.12.0` · `@herdctl/web@0.9.14+`
+
+Multiple session-related fixes landed in this window. Session discovery now invalidates its cache immediately when directory modification times change, so newly created sessions appear in the sidebar without waiting for the 30-second TTL. The new `FleetManager.invalidateSessions(name)` method forces a cache rebuild for specific agents. Cross-agent session resumption now works correctly — when an agent is asked to resume a session created by another agent in the same process, the explicit `resume` parameter is honored and the session is adopted with a persistent agent-level pointer. The CLI runtime now retries once with a fresh session when `claude --resume` can't find a session (e.g., after a working directory config change), clearing the stale pointer automatically. The web dashboard no longer shows a misleading "Retry" button for non-existent agents (404s now render the dedicated "Agent Not Found" card). Working directory path encoding now matches Claude Code's exact algorithm (replacing all non-alphanumeric characters with hyphens), fixing session discovery for paths containing dots, underscores, or other special characters. When multiple distinct directories collide to the same encoded form (e.g., `/a/b-c` and `/a-b/c`), session discovery reads each transcript's authoritative `cwd` field to disambiguate them correctly. [#260](https://github.com/edspencer/herdctl/pull/260) [#264](https://github.com/edspencer/herdctl/pull/264) [#265](https://github.com/edspencer/herdctl/pull/265) [#269](https://github.com/edspencer/herdctl/pull/269) [#272](https://github.com/edspencer/herdctl/pull/272)
+
+---
+
+### Extended Thinking Response Fixes
+**June 21, 2026** · `@herdctl/core@5.13.0`
+
+Fixed a critical bug where assistant answers disappeared when reloading chat history for conversations using extended thinking. Extended-thinking responses are written as separate JSONL lines sharing one message ID (a thinking-only line followed by the text line), and the deduplication logic was consuming the ID on the first (thinking) line and dropping the actual answer text. Message deduplication now keys on whether text was actually emitted, so thinking/tool-use lines no longer suppress the real response. Also exposed `FleetManager.getAgentSessionUsage()` to retrieve context-window usage statistics for any session. [#261](https://github.com/edspencer/herdctl/pull/261)
+
+---
+
+### CLI Tool Result Pairing Fix
+**June 21, 2026** · `@herdctl/chat@0.4.0`
+
+Fixed tool calls appearing as generic "Tool" entries with no name or input summary in chat views when using the CLI runtime. The CLI encodes tool results in two places (a top-level `tool_use_result` field without an ID, and a nested `content[]` `tool_result` block with the ID), and `SDKMessageTranslator` was extracting the ID-less top-level result first, preventing proper pairing with the original `tool_use`. The translator now prefers nested ID-bearing blocks when both are present, restoring correct tool names, input summaries, durations, and error flags. [#258](https://github.com/edspencer/herdctl/pull/258)
+
+---
+
+### MCP Config Validation for CLI Runtime
+**June 21, 2026** · `@herdctl/core@5.11.0`
+
+Added regression tests locking in the correct `--mcp-config` JSON structure for CLI runtime agents. The Claude CLI requires a top-level `mcpServers` wrapper (matching `.mcp.json` format), and the flat `{"<name>":{...}}` form causes validation failures with cryptic "expected record, received undefined" errors. The CLI runtime already emits the wrapped form; tests now enforce this shape to prevent silent regressions. [#266](https://github.com/edspencer/herdctl/pull/266)
+
+---
+
+### Windows Path Traversal Fix
+**March 17, 2026** · `@herdctl/core@5.10.1`
+
+Fixed path traversal security checks throwing false positives on Windows. The `buildSafeFilePath` function was hardcoding `/` as the path separator instead of using `path.sep`, causing every state file operation to fail on Windows with `PathTraversalError` even for legitimate paths. The check now uses the platform-appropriate separator and handles root paths (like `C:\`) that already end with a separator. [#210](https://github.com/edspencer/herdctl/pull/210)
+
+---
+
 ### Discord File Attachment Support
 **March 10, 2026** · `@herdctl/discord@1.2.0` · `@herdctl/core@5.10.0`
 
