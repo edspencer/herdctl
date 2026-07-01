@@ -90,13 +90,18 @@ Track recently added hot spots here (move to main tables after 30 days):
 
 Use this checklist during each audit:
 
-### Critical Files
-- [ ] container-manager.ts - hostConfigOverride still requires explicit config?
+### Critical Files (ALWAYS CHECK - Every Audit)
+
+These must be verified in EVERY audit, regardless of whether they changed:
+
+- [ ] container-manager.ts - hostConfigOverride still requires explicit config? OAuth logger calls don't leak tokens?
 - [ ] container-runner.ts - Shell escaping complete? (Known issue: #009)
 - [ ] schema.ts - Any new string fields without validation patterns?
 - [ ] path-safety.ts - Still used in all path construction?
 - [ ] interpolate.ts - Still only does ${VAR} substitution?
 - [ ] shell.ts - Timeout and output limits still enforced?
+
+**NOTE**: "Always Check" means every audit, even if scanner shows PASS and files haven't changed. This takes ~10 minutes but catches regressions the scanner might miss.
 
 ### Changed Files
 - [ ] Identified all files changed since last audit

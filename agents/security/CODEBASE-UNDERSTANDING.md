@@ -206,8 +206,11 @@ These questions should be systematically investigated during audits. Each audit 
 | Q10 | Does AGENT_NAME_PATTERN handle unicode normalization attacks? | Medium | Open | - | - | Regex `/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/` - check for unicode bypass attempts |
 | Q11 | Can symlinks be created in .herdctl/ to escape buildSafeFilePath? | Medium | Open | - | - | If attacker can create symlinks before buildSafeFilePath runs, could escape |
 | Q12 | Are OAuth access_token and refresh_token properly sanitized from error messages? | High | Open | - | - | container-manager.ts logger.error() calls in OAuth functions - check for credential leaks |
-| Q13 | Does credentials file (~/.claude/.credentials.json) have 0600 permissions enforced? | High | Open | - | - | writeCredentialsFile() should enforce permissions - verify with fs.chmodSync() |
+| Q13 | Does encodedPath validation prevent path traversal? | Medium | Open | - | 2026-07-01 | Partially addressed by commit 9e0b6fc (collision handling). Risk reduced but explicit validation still recommended. |
 | Q14 | Can token refresh handle network failures without leaking credentials in stack traces? | Medium | Open | - | - | refreshClaudeOAuthToken() error handling - verify no token data in Error objects |
+| Q15 | Does per-trigger cwd parameter validate against path traversal? | High | Open | - | 2026-07-01 | New in commit 7956804. FleetManager accepts cwd option - need to verify path validation. |
+| Q16 | Can programmatic agents bypass fleet-level security config? | Medium | Open | - | 2026-07-01 | FleetManager.createAgent() added in 7956804. Verify it inherits fleet security settings. |
+| Q17 | Does Discord connector properly validate and sanitize message content? | Medium | Open | - | 2026-07-01 | Commit 3f947a0 added Discord integration. Verify: message payload validation, agent name sanitization, rate limiting, user permission checks. |
 
 ### Question Guidelines
 
