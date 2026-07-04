@@ -1,5 +1,11 @@
 # @herdctl/core
 
+## 5.13.2
+
+### Patch Changes
+
+- [#284](https://github.com/edspencer/herdctl/pull/284) [`1bde4aa`](https://github.com/edspencer/herdctl/commit/1bde4aa38040eaedb646216c6f653542d0d4e67c) Thanks [@edspencer](https://github.com/edspencer)! - Session-history parsing (`parseSessionMessages`) now skips Claude Code's injected `isMeta:true` user lines — a skill's `SKILL.md`, slash-command output, hook output — instead of surfacing them as ordinary user messages. Previously a skill's `SKILL.md` was emitted as a plain user message, so downstream chat UIs rendered it as a giant, out-of-order user bubble. Genuine tool results are unaffected (the guard only applies to the plain-text user branch).
+
 ## 5.13.1
 
 ### Patch Changes
