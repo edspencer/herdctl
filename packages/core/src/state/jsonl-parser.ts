@@ -258,7 +258,17 @@ export async function parseSessionMessages(
         continue;
       }
 
-      // Plain text user message
+      // Plain text user message.
+      //
+      // Skip Claude Code's injected/synthetic context, which it writes as its
+      // own `type:"user"` line flagged `isMeta:true` — a skill's SKILL.md,
+      // slash-command output, hook output, etc. That content is not something
+      // the human typed, so surfacing it as a user message is wrong (it rendered
+      // as a giant SKILL.md "user" bubble in downstream chat UIs). We only guard
+      // the plain-text branch: `isMeta` never marks a genuine tool_result, and
+      // those are handled above.
+      if (parsed.isMeta === true) continue;
+
       const text = extractTextContent(content);
       if (text.length > 0) {
         messages.push({ role: "user", content: text, timestamp });
