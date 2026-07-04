@@ -223,6 +223,23 @@ describe("parseSessionMessages", () => {
     expect(messages[0].content).toBe("Now let's add a health check endpoint.");
   });
 
+  it("skips injected isMeta user lines in meta-session.jsonl", async () => {
+    const messages = await parseSessionMessages(fixture("meta-session.jsonl"));
+
+    // 1 real user + 1 injected (isMeta) user + 1 assistant → the isMeta line is
+    // dropped, leaving 1 user + 1 assistant = 2.
+    expect(messages).toHaveLength(2);
+
+    expect(messages[0].role).toBe("user");
+    expect(messages[0].content).toBe("try again");
+    expect(messages[1].role).toBe("assistant");
+
+    // The injected skill body must not leak in as a user (or any) message.
+    for (const msg of messages) {
+      expect(msg.content).not.toContain("Building LLM-Powered Applications");
+    }
+  });
+
   it("handles malformed-session.jsonl without throwing", async () => {
     const messages = await parseSessionMessages(fixture("malformed-session.jsonl"));
 
