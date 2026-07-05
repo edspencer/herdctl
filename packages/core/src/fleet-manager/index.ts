@@ -76,6 +76,7 @@ export {
   JobForkError,
   JobNotFoundError,
   ScheduleNotFoundError,
+  StreamingSessionUnsupportedError,
 } from "./errors.js";
 // Event emitters (US-4: Extract Event Emitters Module)
 export {
@@ -146,6 +147,8 @@ export type {
   AgentStartedPayload,
   AgentStoppedPayload,
   CancelJobResult,
+  // Streaming chat session types
+  ChatSessionOptions,
   ConfigChange,
   ConfigReloadedPayload,
   FleetConfigOverrides,

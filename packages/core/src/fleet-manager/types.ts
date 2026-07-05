@@ -636,6 +636,44 @@ export interface TriggerOptions {
 }
 
 /**
+ * Options for opening a streaming chat session ({@link FleetManager.openChatSession}).
+ *
+ * Mirrors the subset of {@link TriggerOptions} that makes sense for a live,
+ * multi-turn session. Unlike a trigger, a session has no schedule, no work
+ * items, and no concurrency gating — the caller owns its lifecycle.
+ */
+export interface ChatSessionOptions {
+  /**
+   * Optional initial user turn to send when the session opens.
+   *
+   * When omitted, the session opens idle and the first turn is sent explicitly
+   * via `session.send(...)`.
+   */
+  prompt?: string;
+
+  /**
+   * Session ID to resume for conversation continuity.
+   *
+   * - `string` — resume this specific session
+   * - `null` — explicitly start a fresh session (skip agent-level fallback)
+   * - `undefined` — use agent-level session fallback
+   */
+  resume?: string | null;
+
+  /**
+   * Override the agent's configured working directory for this session only.
+   * Semantics match {@link TriggerOptions.workingDirectory}.
+   */
+  workingDirectory?: string;
+
+  /** MCP servers to inject at runtime (in-process SDK servers). */
+  injectedMcpServers?: Record<string, import("../runner/types.js").InjectedMcpServerDef>;
+
+  /** Text to append to the agent's system prompt for this session. */
+  systemPromptAppend?: string;
+}
+
+/**
  * Result of a manual trigger operation
  *
  * Contains information about the job that was created.
