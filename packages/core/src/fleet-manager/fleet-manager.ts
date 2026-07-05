@@ -795,8 +795,9 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
    * Returns a live {@link RuntimeSession} the caller drives across turns —
    * sending messages, running slash commands (e.g. `/compact`) as user turns,
    * interrupting, and listing available commands. See
-   * {@link JobControl.openChatSession} for details and thrown errors. Requires
-   * the SDK runtime.
+   * {@link JobControl.openChatSession} for details and thrown errors. Always runs
+   * on the SDK runtime (works for `cli`-configured agents too; Docker-wrapped
+   * agents are unsupported).
    */
   async openChatSession(agentName: string, options?: ChatSessionOptions): Promise<RuntimeSession> {
     return this.jobControl.openChatSession(agentName, options);

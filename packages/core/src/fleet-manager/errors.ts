@@ -655,9 +655,10 @@ export class InvalidWorkingDirectoryOverrideError extends FleetManagerError {
 }
 
 /**
- * Thrown when a streaming chat session is requested for an agent whose runtime
- * cannot support one. Only the SDK runtime implements streaming sessions; the
- * CLI and Docker runtimes do not.
+ * Thrown when a streaming chat session cannot be opened for an agent. Streaming
+ * sessions always run on the SDK runtime (the only streaming-capable one), so a
+ * `cli`-configured agent is fine — but a Docker-wrapped agent is not, because the
+ * container runner wraps batch execution rather than the streaming path.
  *
  * @example
  * ```typescript

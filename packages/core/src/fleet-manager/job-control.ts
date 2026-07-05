@@ -11,7 +11,7 @@ import { readFile } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import type { HookEvent, ResolvedAgent } from "../config/index.js";
 import { type HookContext, HookExecutor } from "../hooks/index.js";
-import { JobExecutor, RuntimeFactory, type RuntimeSession } from "../runner/index.js";
+import { JobExecutor, RuntimeFactory, type RuntimeSession, SDKRuntime } from "../runner/index.js";
 import { createJob, getJob, getSessionInfo, readJobOutputAll, updateJob } from "../state/index.js";
 import type { JobMetadata } from "../state/schemas/job-metadata.js";
 import type { FleetManagerContext } from "./context.js";
@@ -260,10 +260,14 @@ export class JobControl {
    * (sent as user messages), interrupting the current turn, and listing the
    * available commands. Those are only available in streaming mode.
    *
+   * The session always runs on the SDK runtime (the only streaming-capable one),
+   * regardless of the agent's configured `runtime` — see the body for why this is
+   * safe for `cli`-configured agents.
+   *
    * @throws {AgentNotFoundError} If the agent doesn't exist
    * @throws {InvalidStateError} If the fleet manager is not initialized
-   * @throws {StreamingSessionUnsupportedError} If the agent's runtime (CLI/Docker)
-   *   cannot open a streaming session
+   * @throws {StreamingSessionUnsupportedError} If the agent is Docker-wrapped
+   *   (the container runner wraps batch execution, not this streaming path)
    */
   async openChatSession(agentName: string, options?: ChatSessionOptions): Promise<RuntimeSession> {
     const status = this.ctx.getStatus();
@@ -311,15 +315,21 @@ export class JobControl {
       }
     }
 
-    // Create the runtime and require streaming-session support (SDK runtime only).
-    const runtime = RuntimeFactory.create(effectiveAgent, { stateDir });
-    if (typeof runtime.openSession !== "function") {
-      throw new StreamingSessionUnsupportedError(agentName, {
-        runtime: effectiveAgent.runtime,
-      });
+    // Streaming sessions ALWAYS run on the SDK runtime — it is the only runtime
+    // whose control requests (interrupt / supportedCommands / streamInput) are
+    // available, and they are "only supported when streaming input/output is
+    // used". The agent's configured `runtime` governs batch/trigger execution
+    // (e.g. `cli` for Claude subscription auth); a streaming session uses the SDK
+    // runtime independently, authenticating the same way (CLAUDE_CODE_OAUTH_TOKEN)
+    // and sharing the on-disk session store, so a session created by the CLI
+    // runtime resumes cleanly here. Docker-wrapped agents are unsupported: the
+    // container runner wraps the batch runtime, not this streaming path.
+    if (effectiveAgent.docker?.enabled) {
+      throw new StreamingSessionUnsupportedError(agentName, { runtime: "docker" });
     }
 
-    logger.info(`Opening streaming chat session for ${agentName}`);
+    const runtime = new SDKRuntime();
+    logger.info(`Opening streaming chat session for ${agentName} (sdk runtime)`);
     return runtime.openSession({
       agent: effectiveAgent,
       prompt: options?.prompt ?? "",
