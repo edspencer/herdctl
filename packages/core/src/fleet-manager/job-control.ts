@@ -11,7 +11,7 @@ import { readFile } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import type { HookEvent, ResolvedAgent } from "../config/index.js";
 import { type HookContext, HookExecutor } from "../hooks/index.js";
-import { JobExecutor, RuntimeFactory } from "../runner/index.js";
+import { JobExecutor, RuntimeFactory, type RuntimeSession } from "../runner/index.js";
 import { createJob, getJob, getSessionInfo, readJobOutputAll, updateJob } from "../state/index.js";
 import type { JobMetadata } from "../state/schemas/job-metadata.js";
 import type { FleetManagerContext } from "./context.js";
@@ -24,10 +24,12 @@ import {
   JobForkError,
   JobNotFoundError,
   ScheduleNotFoundError,
+  StreamingSessionUnsupportedError,
 } from "./errors.js";
 import type {
   AgentInfo,
   CancelJobResult,
+  ChatSessionOptions,
   ForkJobResult,
   JobModifications,
   TriggerOptions,
@@ -241,6 +243,90 @@ export class JobControl {
       error: result.error,
       errorDetails: result.errorDetails,
     };
+  }
+
+  /**
+   * Open a long-lived streaming chat session for an agent.
+   *
+   * Resolves the agent using the same working-directory-override and session
+   * resume semantics as {@link trigger}, then returns a live {@link RuntimeSession}
+   * backed by the SDK's streaming-input mode. Unlike {@link trigger}, this does
+   * **not** create a job record or drain to completion — it hands back a handle
+   * the caller drives across many turns and must {@link RuntimeSession.close}
+   * when finished.
+   *
+   * This is the entry point for interactive features that need the SDK's control
+   * requests: sending follow-up turns, running slash commands like `/compact`
+   * (sent as user messages), interrupting the current turn, and listing the
+   * available commands. Those are only available in streaming mode.
+   *
+   * @throws {AgentNotFoundError} If the agent doesn't exist
+   * @throws {InvalidStateError} If the fleet manager is not initialized
+   * @throws {StreamingSessionUnsupportedError} If the agent's runtime (CLI/Docker)
+   *   cannot open a streaming session
+   */
+  async openChatSession(agentName: string, options?: ChatSessionOptions): Promise<RuntimeSession> {
+    const status = this.ctx.getStatus();
+    const config = this.ctx.getConfig();
+    const stateDir = this.ctx.getStateDir();
+    const logger = this.ctx.getLogger();
+
+    // Validate state
+    if (status === "uninitialized") {
+      throw new InvalidStateError("openChatSession", status, ["initialized", "running", "stopped"]);
+    }
+
+    // Find the agent by qualified name
+    const agents = config?.agents ?? [];
+    const agent = agents.find((a) => a.qualifiedName === agentName);
+    if (!agent) {
+      throw new AgentNotFoundError(agentName, {
+        availableAgents: agents.map((a) => a.qualifiedName),
+      });
+    }
+
+    // Apply a per-session working-directory override, mirroring trigger().
+    const effectiveAgent = applyWorkingDirectoryOverride(agent, options?.workingDirectory);
+
+    // Resolve resume session id (same precedence as trigger): explicit value
+    // wins; null = fresh; undefined = fall back to the agent's stored session.
+    let sessionId = options?.resume ?? undefined;
+    if (sessionId === undefined && options?.resume !== null) {
+      try {
+        const sessionsDir = join(stateDir, "sessions");
+        const sessionTimeout = agent.session?.timeout ?? "24h";
+        const existingSession = await getSessionInfo(sessionsDir, agent.qualifiedName, {
+          timeout: sessionTimeout,
+          logger,
+        });
+        if (existingSession?.session_id) {
+          sessionId = existingSession.session_id;
+          logger.debug(`Resuming session for ${agent.qualifiedName}: ${sessionId}`);
+        }
+      } catch (error) {
+        logger.warn(
+          `Failed to get session info for ${agent.qualifiedName}: ${(error as Error).message}`,
+        );
+        // Continue without resume — session failure shouldn't block the session.
+      }
+    }
+
+    // Create the runtime and require streaming-session support (SDK runtime only).
+    const runtime = RuntimeFactory.create(effectiveAgent, { stateDir });
+    if (typeof runtime.openSession !== "function") {
+      throw new StreamingSessionUnsupportedError(agentName, {
+        runtime: effectiveAgent.runtime,
+      });
+    }
+
+    logger.info(`Opening streaming chat session for ${agentName}`);
+    return runtime.openSession({
+      agent: effectiveAgent,
+      prompt: options?.prompt ?? "",
+      resume: sessionId,
+      injectedMcpServers: options?.injectedMcpServers,
+      systemPromptAppend: options?.systemPromptAppend,
+    });
   }
 
   /**

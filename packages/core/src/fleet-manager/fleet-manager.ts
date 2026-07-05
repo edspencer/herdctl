@@ -23,6 +23,7 @@ import {
   type ResolvedAgent,
   type ResolvedConfig,
 } from "../config/index.js";
+import type { RuntimeSession } from "../runner/index.js";
 import { getCliSessionFile, getDockerSessionFile } from "../runner/runtime/cli-session-path.js";
 import { Scheduler, type TriggerInfo } from "../scheduler/index.js";
 import {
@@ -55,6 +56,7 @@ import { StatusQueries } from "./status-queries.js";
 import type {
   AgentInfo,
   CancelJobResult,
+  ChatSessionOptions,
   ConfigChange,
   ConfigReloadedPayload,
   FleetConfigOverrides,
@@ -786,6 +788,18 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     options?: TriggerOptions,
   ): Promise<TriggerResult> {
     return this.jobControl.trigger(agentName, scheduleName, options);
+  }
+  /**
+   * Open a long-lived streaming chat session for an agent.
+   *
+   * Returns a live {@link RuntimeSession} the caller drives across turns —
+   * sending messages, running slash commands (e.g. `/compact`) as user turns,
+   * interrupting, and listing available commands. See
+   * {@link JobControl.openChatSession} for details and thrown errors. Requires
+   * the SDK runtime.
+   */
+  async openChatSession(agentName: string, options?: ChatSessionOptions): Promise<RuntimeSession> {
+    return this.jobControl.openChatSession(agentName, options);
   }
   async cancelJob(jobId: string, options?: { timeout?: number }): Promise<CancelJobResult> {
     return this.jobControl.cancelJob(jobId, options);

@@ -8,11 +8,33 @@
  * agent configuration to SDK options using the existing toSDKOptions adapter.
  */
 
-import { createSdkMcpServer, query, tool } from "@anthropic-ai/claude-agent-sdk";
+import {
+  createSdkMcpServer,
+  query,
+  type SDKUserMessage,
+  tool,
+} from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { toSDKOptions } from "../sdk-adapter.js";
 import type { InjectedMcpServerDef, SDKMessage } from "../types.js";
-import type { RuntimeExecuteOptions, RuntimeInterface } from "./interface.js";
+import type { RuntimeExecuteOptions, RuntimeInterface, RuntimeSession } from "./interface.js";
+import { MessageQueue } from "./message-queue.js";
+
+/**
+ * Build a streaming-input user message from plain text.
+ *
+ * The SDK fills in the real `session_id`, so an empty string is fine here. A
+ * leading-slash text (e.g. `"/compact"`) is dispatched by the CLI as a slash
+ * command — no special encoding required.
+ */
+function toUserMessage(text: string): SDKUserMessage {
+  return {
+    type: "user",
+    message: { role: "user", content: text },
+    parent_tool_use_id: null,
+    session_id: "",
+  } as SDKUserMessage;
+}
 
 /**
  * Convert a JSON Schema property to a Zod schema.
@@ -105,6 +127,74 @@ export class SDKRuntime implements RuntimeInterface {
    * @returns AsyncIterable of SDK messages
    */
   async *execute(options: RuntimeExecuteOptions): AsyncIterable<SDKMessage> {
+    const sdkOptions = this.buildSdkOptions(options);
+
+    // Execute via SDK query()
+    // Note: SDK does not currently support AbortController for cancellation
+    // This is tracked for future enhancement when SDK adds support
+    const messages = query({
+      prompt: options.prompt,
+      options: sdkOptions as Record<string, unknown>,
+    });
+
+    // Stream messages from SDK
+    for await (const message of messages) {
+      yield message as SDKMessage;
+    }
+  }
+
+  /**
+   * Open a long-lived streaming session backed by the SDK's streaming-input mode.
+   *
+   * The initial `options.prompt` (if any) is sent as the first turn; further
+   * turns are sent via {@link RuntimeSession.send}. Because the input iterable
+   * stays open, the returned SDK `Query` handle is retained so its control
+   * requests (`interrupt`, `supportedCommands`, `setModel`) stay available for
+   * the life of the session.
+   */
+  openSession(options: RuntimeExecuteOptions): RuntimeSession {
+    const sdkOptions = this.buildSdkOptions(options);
+
+    // A pushable iterable keeps the query open across turns.
+    const input = new MessageQueue<SDKUserMessage>();
+    if (options.prompt) {
+      input.push(toUserMessage(options.prompt));
+    }
+
+    const q = query({
+      prompt: input as AsyncIterable<SDKUserMessage>,
+      options: sdkOptions as Record<string, unknown>,
+    });
+
+    return {
+      // The Query is itself an AsyncGenerator<SDKMessage>; cast to herdctl's
+      // structural SDKMessage (same widening execute() applies per-message).
+      messages: q as unknown as AsyncIterable<SDKMessage>,
+      send: async (text: string) => {
+        input.push(toUserMessage(text));
+      },
+      interrupt: () => q.interrupt(),
+      listCommands: () => q.supportedCommands(),
+      setModel: (model?: string) => q.setModel(model),
+      close: async () => {
+        input.end();
+        // Best-effort: tell the SDK generator we're done so it tears down the CLI.
+        try {
+          await q.return(undefined);
+        } catch {
+          // Already closed / never started — nothing to clean up.
+        }
+      },
+    };
+  }
+
+  /**
+   * Build SDK query options from execution options.
+   *
+   * Shared by {@link execute} and {@link openSession}: applies agent config,
+   * a system-prompt append, and any injected in-process MCP servers.
+   */
+  private buildSdkOptions(options: RuntimeExecuteOptions): ReturnType<typeof toSDKOptions> {
     // Convert agent configuration to SDK options
     const sdkOptions = toSDKOptions(options.agent, {
       resume: options.resume,
@@ -162,17 +252,6 @@ export class SDKRuntime implements RuntimeInterface {
       }
     }
 
-    // Execute via SDK query()
-    // Note: SDK does not currently support AbortController for cancellation
-    // This is tracked for future enhancement when SDK adds support
-    const messages = query({
-      prompt: options.prompt,
-      options: sdkOptions as Record<string, unknown>,
-    });
-
-    // Stream messages from SDK
-    for await (const message of messages) {
-      yield message as SDKMessage;
-    }
+    return sdkOptions;
   }
 }

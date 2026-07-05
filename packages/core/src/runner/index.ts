@@ -39,13 +39,14 @@ export {
   processSDKMessage,
 } from "./message-processor.js";
 // Export runtime types and factory
-export type { RuntimeExecuteOptions, RuntimeInterface } from "./runtime/index.js";
+export type { RuntimeExecuteOptions, RuntimeInterface, RuntimeSession } from "./runtime/index.js";
 export {
   encodePathForCli,
   getCliSessionDir,
   getCliSessionFile,
   getDockerSessionDir,
   getDockerSessionFile,
+  MessageQueue,
   RuntimeFactory,
   type RuntimeType,
   readSessionCwd,

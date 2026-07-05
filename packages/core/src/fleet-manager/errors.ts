@@ -39,6 +39,7 @@ export const FleetManagerErrorCode = {
   JOB_CANCEL_ERROR: "JOB_CANCEL_ERROR",
   JOB_FORK_ERROR: "JOB_FORK_ERROR",
   INVALID_WORKING_DIRECTORY_OVERRIDE: "INVALID_WORKING_DIRECTORY_OVERRIDE",
+  STREAMING_SESSION_UNSUPPORTED: "STREAMING_SESSION_UNSUPPORTED",
 
   // Distribution errors
   SOURCE_PARSE_ERROR: "SOURCE_PARSE_ERROR",
@@ -650,6 +651,41 @@ export class InvalidWorkingDirectoryOverrideError extends FleetManagerError {
     );
     this.name = "InvalidWorkingDirectoryOverrideError";
     this.override = override;
+  }
+}
+
+/**
+ * Thrown when a streaming chat session is requested for an agent whose runtime
+ * cannot support one. Only the SDK runtime implements streaming sessions; the
+ * CLI and Docker runtimes do not.
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   await manager.openChatSession("docker-agent");
+ * } catch (error) {
+ *   if (error instanceof StreamingSessionUnsupportedError) {
+ *     console.error(`No sessions for runtime: ${error.runtime}`);
+ *   }
+ * }
+ * ```
+ */
+export class StreamingSessionUnsupportedError extends FleetManagerError {
+  /** The runtime type that does not support streaming sessions */
+  public readonly runtime?: string;
+
+  constructor(agentName: string, options?: { runtime?: string; cause?: Error }) {
+    super(
+      `Agent "${agentName}" cannot open a streaming chat session` +
+        (options?.runtime ? `: the "${options.runtime}" runtime does not support it` : "") +
+        ". Streaming sessions require the SDK runtime.",
+      {
+        cause: options?.cause,
+        code: FleetManagerErrorCode.STREAMING_SESSION_UNSUPPORTED,
+      },
+    );
+    this.name = "StreamingSessionUnsupportedError";
+    this.runtime = options?.runtime;
   }
 }
 
