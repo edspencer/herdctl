@@ -18,7 +18,7 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { updateSessionInfo } from "../../state/index.js";
+import { getJob, updateSessionInfo } from "../../state/index.js";
 import { InvalidStateError, JobForkError, JobNotFoundError } from "../errors.js";
 import { FleetManager } from "../fleet-manager.js";
 import type { FleetManagerLogger } from "../types.js";
@@ -153,6 +153,56 @@ describe("FleetManager Job Control (US-6)", () => {
       });
 
       expect(result.success).toBe(true);
+    });
+
+    it("interrupts an in-flight job and marks it cancelled", async () => {
+      const manager = await createInitializedManager();
+      const { query } = await import("@anthropic-ai/claude-agent-sdk");
+
+      // Mock the SDK to block mid-turn until the run's AbortController fires.
+      // This proves cancelJob actually aborts the live run (rather than only
+      // rewriting the status file while the agent keeps going).
+      let sawAbort = false;
+      const blockingImpl = ({ options }: { options?: { abortController?: AbortController } }) =>
+        (async function* () {
+          yield { type: "system", subtype: "init", session_id: "cancel-session" };
+          const signal = options?.abortController?.signal;
+          await new Promise<void>((resolve) => {
+            if (!signal || signal.aborted) return resolve();
+            signal.addEventListener("abort", () => {
+              sawAbort = true;
+              resolve();
+            });
+          });
+        })();
+      // Cast: the real query() returns a full Query object; the test only needs
+      // the async-iterable stream, so a bare async generator suffices.
+      vi.mocked(query).mockImplementationOnce(blockingImpl as never);
+
+      let jobId: string | undefined;
+      const triggerPromise = manager.trigger("test-agent", undefined, {
+        onJobCreated: (id) => {
+          jobId = id;
+        },
+      });
+
+      // Wait until the job id is known (job is registered as running).
+      await vi.waitFor(() => {
+        expect(jobId).toBeDefined();
+      });
+
+      const cancelResult = await manager.cancelJob(jobId!);
+      expect(cancelResult.success).toBe(true);
+      expect(cancelResult.terminationType).toBe("graceful");
+
+      const triggerResult = await triggerPromise;
+      expect(triggerResult.success).toBe(false);
+      expect(sawAbort).toBe(true);
+
+      // The persisted job status reflects the cancellation, not a failure.
+      const job = await getJob(join(stateDir, "jobs"), jobId!);
+      expect(job?.status).toBe("cancelled");
+      expect(job?.exit_reason).toBe("cancelled");
     });
   });
 
