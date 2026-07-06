@@ -1,5 +1,16 @@
 # @herdctl/core
 
+## 5.14.1
+
+### Patch Changes
+
+- [#289](https://github.com/edspencer/herdctl/pull/289) [`02fff61`](https://github.com/edspencer/herdctl/commit/02fff61c36ac0e2ad58a73aab2ece0b3335fdcf8) Thanks [@edspencer](https://github.com/edspencer)! - Fix `cancelJob` so it actually interrupts a running job. Previously cancelling only
+  rewrote the job's status file to `cancelled` while the agent process kept running to
+  completion. `trigger()` now creates an `AbortController` per run and registers it by
+  job id; `cancelJob` aborts it, killing the CLI subprocess (or aborting the SDK query).
+  Aborted runs are finalized as `cancelled` rather than `failed`, and the SDK runtime now
+  honors `abortController` for one-shot execution.
+
 ## 5.14.0
 
 ### Minor Changes
