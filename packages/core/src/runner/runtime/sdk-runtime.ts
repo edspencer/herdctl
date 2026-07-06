@@ -129,12 +129,16 @@ export class SDKRuntime implements RuntimeInterface {
   async *execute(options: RuntimeExecuteOptions): AsyncIterable<SDKMessage> {
     const sdkOptions = this.buildSdkOptions(options);
 
-    // Execute via SDK query()
-    // Note: SDK does not currently support AbortController for cancellation
-    // This is tracked for future enhancement when SDK adds support
+    // Execute via SDK query(). Thread through the AbortController so the run is
+    // cancellable: the SDK `query()` options accept an `abortController` and stop
+    // the query when it aborts. This is what makes cancelJob able to interrupt an
+    // in-flight SDK turn (the CLI runtime aborts its subprocess separately).
     const messages = query({
       prompt: options.prompt,
-      options: sdkOptions as Record<string, unknown>,
+      options: {
+        ...(sdkOptions as Record<string, unknown>),
+        abortController: options.abortController,
+      },
     });
 
     // Stream messages from SDK

@@ -47,6 +47,15 @@ import type {
  * using the FleetManagerContext pattern.
  */
 export class JobControl {
+  /**
+   * In-memory registry of currently-running jobs to their AbortController, keyed
+   * by job id. A job is registered the moment its id is known (via the executor's
+   * `onJobCreated`) and removed when the run finishes. {@link cancelJob} consults
+   * this to actually interrupt a live run — without it, cancelling only rewrote
+   * the job's status file while the agent process kept running.
+   */
+  private readonly runningControllers = new Map<string, AbortController>();
+
   constructor(
     private ctx: FleetManagerContext,
     private getAgentInfoFn: () => Promise<AgentInfo[]>,
@@ -167,23 +176,61 @@ export class JobControl {
     const runtime = RuntimeFactory.create(effectiveAgent, { stateDir });
     const executor = new JobExecutor(runtime, { logger });
 
+    // Cancellation support: give this run an AbortController and register it under
+    // its job id (known once the executor creates the job record, via
+    // onJobCreated) so cancelJob() can actually interrupt the live process — the
+    // CLI runtime kills its subprocess on this signal, the SDK runtime aborts its
+    // query. Registered on creation, removed in the finally below.
+    const abortController = new AbortController();
+    let registeredJobId: string | undefined;
+
     // Execute the job - this creates the job record and runs it
     // Note: Job output is written to JSONL by JobExecutor; log streaming picks it up
     // If onMessage callback is provided, it will be called for each SDK message
-    const result = await executor.execute({
-      agent: effectiveAgent,
-      prompt,
-      stateDir,
-      triggerType: (options?.triggerType ??
-        "manual") as import("../state/schemas/job-metadata.js").TriggerType,
-      schedule: scheduleName,
-      outputToFile: schedule?.outputToFile ?? false,
-      onMessage: options?.onMessage,
-      onJobCreated: options?.onJobCreated,
-      resume: sessionId,
-      injectedMcpServers: options?.injectedMcpServers,
-      systemPromptAppend: options?.systemPromptAppend,
-    });
+    let result: Awaited<ReturnType<typeof executor.execute>>;
+    try {
+      result = await executor.execute({
+        agent: effectiveAgent,
+        prompt,
+        stateDir,
+        triggerType: (options?.triggerType ??
+          "manual") as import("../state/schemas/job-metadata.js").TriggerType,
+        schedule: scheduleName,
+        outputToFile: schedule?.outputToFile ?? false,
+        onMessage: options?.onMessage,
+        onJobCreated: (id) => {
+          registeredJobId = id;
+          this.runningControllers.set(id, abortController);
+          options?.onJobCreated?.(id);
+        },
+        resume: sessionId,
+        injectedMcpServers: options?.injectedMcpServers,
+        systemPromptAppend: options?.systemPromptAppend,
+        abortController,
+      });
+    } finally {
+      if (registeredJobId) {
+        this.runningControllers.delete(registeredJobId);
+      }
+    }
+
+    // If the run was cancelled mid-flight, cancelJob() has already recorded the
+    // cancellation and emitted job:cancelled — don't also emit a job:completed /
+    // job:failed for the aborted run.
+    if (abortController.signal.aborted) {
+      logger.info(`Job ${result.jobId} was cancelled`);
+      return {
+        jobId: result.jobId,
+        agentName,
+        scheduleName: scheduleName ?? null,
+        startedAt: timestamp,
+        prompt,
+        success: false,
+        sessionId: result.sessionId,
+        error: result.error,
+        errorDetails: result.errorDetails,
+      };
+    }
 
     // Emit job:created event
     const jobsDir = join(stateDir, "jobs");
@@ -367,6 +414,19 @@ export class JobControl {
 
     if (!job) {
       throw new JobNotFoundError(jobId);
+    }
+
+    // Actually interrupt the live run. If this process is executing the job, its
+    // AbortController is registered here — aborting it kills the CLI subprocess /
+    // aborts the SDK query, so the agent genuinely stops (rather than only having
+    // its status file rewritten while it keeps running). Jobs owned by another
+    // process won't be in the registry; those fall back to the status-file update
+    // below (best-effort, unchanged behavior).
+    const controller = this.runningControllers.get(jobId);
+    if (controller) {
+      logger.info(`Aborting in-flight job ${jobId}`);
+      controller.abort();
+      this.runningControllers.delete(jobId);
     }
 
     const timestamp = new Date().toISOString();

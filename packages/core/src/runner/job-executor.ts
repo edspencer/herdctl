@@ -706,15 +706,24 @@ export class JobExecutor {
     }
 
     // Step 5: Update job with final status
-    const success = !lastError;
+    // A run that was aborted mid-flight (cancelJob → AbortController) is recorded
+    // as "cancelled", not "failed": the CLI runtime surfaces the kill as a
+    // terminal error, but that's an intentional cancellation, not a failure.
+    const aborted = options.abortController?.signal.aborted ?? false;
+    const success = !lastError && !aborted;
     const finishedAt = new Date().toISOString();
 
-    // Determine exit reason based on error classification
-    const exitReason = success ? "success" : classifyError(lastError!);
+    // Determine status + exit reason: cancelled > success > failed.
+    const status: "completed" | "failed" | "cancelled" = aborted
+      ? "cancelled"
+      : success
+        ? "completed"
+        : "failed";
+    const exitReason = aborted ? "cancelled" : success ? "success" : classifyError(lastError!);
 
     try {
       await updateJob(jobsDir, job.id, {
-        status: success ? "completed" : "failed",
+        status,
         finished_at: finishedAt,
         session_id: sessionId,
         summary,
