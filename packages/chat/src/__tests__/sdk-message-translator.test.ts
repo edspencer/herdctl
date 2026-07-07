@@ -18,6 +18,17 @@ function assistantText(text: string): SDKMessage {
   return { type: "assistant", message: { content: [{ type: "text", text }] } };
 }
 
+/**
+ * A synthetic placeholder turn as the Claude Code CLI emits it (model
+ * "<synthetic>", e.g. "No response requested." after a /compact continuation).
+ */
+function syntheticAssistant(text = "No response requested."): SDKMessage {
+  return {
+    type: "assistant",
+    message: { model: "<synthetic>", content: [{ type: "text", text }] },
+  } as unknown as SDKMessage;
+}
+
 function assistantToolUse(id: string, name: string, input?: unknown): SDKMessage {
   return {
     type: "assistant",
@@ -138,6 +149,50 @@ describe("SDKMessageTranslator", () => {
 
       // The tool result resets the text flag, so the post-tool text is NOT a boundary.
       expect(onBoundary).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("synthetic placeholder turns", () => {
+    it("does not emit onText or a boundary for a synthetic assistant message", async () => {
+      const onText = vi.fn();
+      const onBoundary = vi.fn();
+      const t = new SDKMessageTranslator({ onText, onBoundary });
+
+      await t.handle(syntheticAssistant());
+
+      expect(onText).not.toHaveBeenCalled();
+      expect(onBoundary).not.toHaveBeenCalled();
+    });
+
+    it("does not start a boundary — the next real assistant text emits with no leading boundary", async () => {
+      const order: string[] = [];
+      const t = new SDKMessageTranslator({
+        onText: (text) => {
+          order.push(`text:${text}`);
+        },
+        onBoundary: () => {
+          order.push("boundary");
+        },
+      });
+
+      // Post-/compact continuation: a synthetic placeholder lands at the head of
+      // the turn, right before the user's real message is answered.
+      await t.handle(syntheticAssistant());
+      await t.handle(assistantText("real reply"));
+
+      expect(order).toEqual(["text:real reply"]);
+    });
+
+    it("does not disturb the boundary between two surrounding real assistant turns", async () => {
+      const onBoundary = vi.fn();
+      const t = new SDKMessageTranslator({ onText: vi.fn(), onBoundary });
+
+      await t.handle(assistantText("first"));
+      await t.handle(syntheticAssistant());
+      await t.handle(assistantText("second"));
+
+      // The synthetic turn is skipped, so first→second is still one boundary.
+      expect(onBoundary).toHaveBeenCalledTimes(1);
     });
   });
 

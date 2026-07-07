@@ -240,6 +240,24 @@ describe("parseSessionMessages", () => {
     }
   });
 
+  it("skips synthetic '<synthetic>' assistant placeholder turns after a /compact", async () => {
+    const messages = await parseSessionMessages(fixture("compact-synthetic-session.jsonl"));
+
+    // system(compact_boundary) + isMeta continuation + synthetic assistant are
+    // all dropped, leaving 1 real user + 1 real assistant = 2.
+    expect(messages).toHaveLength(2);
+
+    expect(messages[0].role).toBe("user");
+    expect(messages[0].content).toBe("What did we decide about the parser?");
+    expect(messages[1].role).toBe("assistant");
+    expect(messages[1].content).toContain("skip synthetic placeholder turns");
+
+    // The placeholder must not render as an assistant bubble.
+    for (const msg of messages) {
+      expect(msg.content).not.toContain("No response requested.");
+    }
+  });
+
   it("handles malformed-session.jsonl without throwing", async () => {
     const messages = await parseSessionMessages(fixture("malformed-session.jsonl"));
 

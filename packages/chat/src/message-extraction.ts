@@ -38,7 +38,38 @@ export interface SDKMessage {
   content?: string;
   message?: {
     content?: string | ContentBlock[];
+    /**
+     * The model that produced this message. The Claude Code CLI tags its own
+     * synthetic placeholder turns (e.g. "No response requested.") with the
+     * sentinel model name `"<synthetic>"`; consumers use this to filter them.
+     */
+    model?: string;
   };
+}
+
+/**
+ * Sentinel model name the Claude Code CLI stamps on its synthetic placeholder
+ * assistant turns (e.g. "No response requested." after a `/compact`
+ * continuation). These are not real assistant output and should be filtered
+ * out of both live streams and parsed history.
+ */
+export const SYNTHETIC_MODEL = "<synthetic>";
+
+/**
+ * Whether an SDK assistant message is a CLI-emitted synthetic placeholder turn.
+ *
+ * The Claude Code CLI writes synthetic assistant messages (tagged with the
+ * `"<synthetic>"` model name) into both the live message stream and the session
+ * transcript — most visibly the "No response requested." placeholder that
+ * follows a `/compact` continuation. They carry no real content and must not be
+ * surfaced as assistant output. Matching on the model name (rather than the
+ * literal text) is forward-compatible with the CLI's other synthetic strings.
+ *
+ * @param message - SDK message object
+ * @returns true if the message is a synthetic placeholder turn
+ */
+export function isSyntheticMessage(message: SDKMessage): boolean {
+  return message.message?.model === SYNTHETIC_MODEL;
 }
 
 // =============================================================================

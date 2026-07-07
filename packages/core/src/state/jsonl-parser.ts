@@ -279,6 +279,13 @@ export async function parseSessionMessages(
 
     // ── Assistant messages ──────────────────────────────────────────────
     if (type === "assistant") {
+      // Claude Code writes synthetic placeholder assistant turns (model
+      // "<synthetic>", e.g. "No response requested." injected after a /compact
+      // continuation). They carry no real output — the CLI already excludes
+      // them from token accounting — so drop them here rather than render the
+      // placeholder as a chat bubble when a compacted session is reopened.
+      if (message.model === "<synthetic>") continue;
+
       const content = message.content;
 
       // Always extract tool_use blocks before deduplication.
