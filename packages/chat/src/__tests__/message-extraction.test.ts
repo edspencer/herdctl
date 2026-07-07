@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   extractMessageContent,
   hasTextContent,
+  isSyntheticMessage,
   isTextContentBlock,
   type SDKMessage,
 } from "../message-extraction.js";
@@ -176,6 +177,32 @@ describe("message-extraction", () => {
         },
       };
       expect(hasTextContent(message)).toBe(true);
+    });
+  });
+
+  describe("isSyntheticMessage", () => {
+    it("returns true for a '<synthetic>' model message", () => {
+      const message: SDKMessage = {
+        type: "assistant",
+        message: { model: "<synthetic>", content: "No response requested." },
+      };
+      expect(isSyntheticMessage(message)).toBe(true);
+    });
+
+    it("returns false for a real model message", () => {
+      const message: SDKMessage = {
+        type: "assistant",
+        message: { model: "claude-opus-4-8", content: "Real reply" },
+      };
+      expect(isSyntheticMessage(message)).toBe(false);
+    });
+
+    it("returns false when no model is present", () => {
+      const message: SDKMessage = {
+        type: "assistant",
+        message: { content: "Real reply" },
+      };
+      expect(isSyntheticMessage(message)).toBe(false);
     });
   });
 });

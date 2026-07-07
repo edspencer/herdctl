@@ -18,7 +18,11 @@
  * @module sdk-message-translator
  */
 
-import { extractMessageContent, type SDKMessage } from "./message-extraction.js";
+import {
+  extractMessageContent,
+  isSyntheticMessage,
+  type SDKMessage,
+} from "./message-extraction.js";
 import {
   extractToolResults,
   extractToolUseBlocks,
@@ -219,6 +223,12 @@ export class SDKMessageTranslator {
   // ---------------------------------------------------------------------------
 
   private async handleAssistant(message: SDKMessage): Promise<void> {
+    // The Claude Code CLI emits synthetic placeholder turns (model
+    // "<synthetic>") — e.g. "No response requested." after a /compact
+    // continuation. They are not real assistant output, so don't translate them
+    // to text or turn boundaries, and don't let them disturb per-turn state.
+    if (isSyntheticMessage(message)) return;
+
     const content = extractMessageContent(message);
     if (content) {
       // A new assistant turn after a previous one produced text → boundary.

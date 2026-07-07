@@ -100,8 +100,10 @@ export {
   type ContentBlock,
   extractMessageContent,
   hasTextContent,
+  isSyntheticMessage,
   isTextContentBlock,
   type SDKMessage,
+  SYNTHETIC_MODEL,
   type TextContentBlock,
 } from "./message-extraction.js";
 
