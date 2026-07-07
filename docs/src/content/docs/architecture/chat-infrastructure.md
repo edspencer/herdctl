@@ -36,6 +36,7 @@ The `@herdctl/chat` package provides the following components, each extracted fr
 |-----------|------|---------|
 | **Shared types** | `types.ts` | `IChatConnector`, `IChatSessionManager`, `ChatConnectorState`, `ChatConnectionStatus`, `ChatMessageEvent`, `ChatConnectorEventMap`, `ChatConnectorLogger` |
 | **Session manager** | `session-manager/` | `ChatSessionManager` class, session types, Zod schemas, session error hierarchy |
+| **SDK message translator** | `sdk-message-translator.ts` | `SDKMessageTranslator` class and `createSDKMessageHandler()` factory for translating SDK message streams into chat-UI events |
 | **Streaming responder** | `streaming-responder.ts` | `StreamingResponder` class for buffered, rate-limited message delivery |
 | **Message splitting** | `message-splitting.ts` | `splitMessage()`, `findSplitPoint()`, `needsSplit()`, `truncateMessage()` |
 | **Message extraction** | `message-extraction.ts` | `extractMessageContent()` for parsing Claude SDK assistant messages |
@@ -147,6 +148,55 @@ When a user sends a message in Discord or Slack, it flows through the same pipel
 9. **Platform formatting** -- The reply is formatted for the target platform. Discord uses embeds and standard markdown; Slack converts to mrkdwn and posts in threads.
 
 10. **Delivery** -- The formatted message is sent back to the user in the same channel or thread.
+
+## SDK Message Translation
+
+The `SDKMessageTranslator` provides transport-agnostic translation from Claude SDK message streams to chat-UI events. Every chat surface built on herdctl (Discord, Slack, the web dashboard, and downstream apps) consumes the same stream of `SDKMessage`s from `FleetManager.trigger({ onMessage })` and needs to turn it into the same handful of UI events:
+
+- **Assistant text deltas** — incremental text as it streams in
+- **Turn boundaries** — when a new assistant turn begins after a previous one
+- **Paired tool calls** — a `tool_use` block matched to its later `tool_result`, enriched with an input summary and wall-clock duration
+
+Before the translator was extracted, this translation logic was reimplemented independently in each connector. Now transports only supply the destination handlers; the translator manages the stateful pairing and boundary detection.
+
+### How It Works
+
+```typescript
+import { createSDKMessageHandler } from '@herdctl/chat';
+
+// Create a message handler
+const onMessage = createSDKMessageHandler({
+  onText: (text) => stream(text),
+  onToolCall: (call) => renderTool(call),
+  onBoundary: () => startNewBubble(),
+});
+
+// Use it with trigger
+await fleet.trigger('agent', undefined, {
+  prompt,
+  onMessage,
+});
+```
+
+The translator tracks pending `tool_use` blocks so they can be paired with their `tool_result` when it arrives later in the stream. It also detects when a new assistant turn begins after a previous one produced text, so transports can split message bubbles appropriately.
+
+For reusable instances (e.g., a long-lived WebSocket connection), create the translator directly and call `handle()` per message:
+
+```typescript
+const translator = new SDKMessageTranslator({
+  onText: (t) => ws.send({ type: 'chat:response', text: t }),
+  onToolCall: (c) => ws.send({ type: 'chat:tool_call', ...c }),
+});
+
+// Per trigger
+await fleet.trigger('agent', undefined, {
+  prompt,
+  onMessage: (m) => translator.handle(m),
+});
+
+// Reset between triggers if reusing
+translator.reset();
+```
 
 ## Session Management
 
