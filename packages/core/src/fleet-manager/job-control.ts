@@ -147,8 +147,10 @@ export class JobControl {
     // This prevents unexpected logouts by automatically resuming the agent's session
     // Note: resume=null means "explicitly start fresh" (e.g. new Slack thread),
     // while resume=undefined means "use fallback session lookup"
+    // A fork names its own source session (options.fork) and must NOT inherit
+    // the agent's last session as a resume target — skip the fallback lookup.
     let sessionId = options?.resume ?? undefined;
-    if (sessionId === undefined && options?.resume !== null) {
+    if (sessionId === undefined && options?.resume !== null && !options?.fork) {
       try {
         const sessionsDir = join(stateDir, "sessions");
         // Use session timeout config for expiry validation (default: 24h)
@@ -204,6 +206,8 @@ export class JobControl {
           options?.onJobCreated?.(id);
         },
         resume: sessionId,
+        fork: options?.fork,
+        forkedFrom: options?.forkedFrom,
         injectedMcpServers: options?.injectedMcpServers,
         systemPromptAppend: options?.systemPromptAppend,
         abortController,

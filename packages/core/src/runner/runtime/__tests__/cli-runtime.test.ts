@@ -32,7 +32,7 @@ vi.mock("../cli-session-watcher.js", () => ({
 }));
 
 import { CLIRuntime } from "../cli-runtime.js";
-import { getCliSessionDir } from "../cli-session-path.js";
+import { getCliSessionDir, getCliSessionFile, waitForNewSessionFile } from "../cli-session-path.js";
 
 function makeSubprocess(exitCode = 0): Promise<{ exitCode: number }> & {
   pid: number;
@@ -243,5 +243,73 @@ describe("CLIRuntime --mcp-config serialization (issue #182)", () => {
   it("omits --mcp-config entirely when no mcp_servers are configured", async () => {
     expect(await captureMcpConfigArg({})).toBeUndefined();
     expect(await captureMcpConfigArg({ mcp_servers: {} })).toBeUndefined();
+  });
+});
+
+describe("CLIRuntime session fork (--fork-session)", () => {
+  beforeEach(() => {
+    watchMessages.length = 0;
+    flushMessages.length = 0;
+    vi.mocked(getCliSessionFile).mockClear();
+    vi.mocked(waitForNewSessionFile).mockClear();
+    // Distinct paths so we can tell which resolver drove the watched file: a
+    // plain resume watches the source file in place; a fork must wait for a new
+    // one (Claude Code writes a new session file for `--fork-session`).
+    vi.mocked(getCliSessionFile).mockReturnValue("/tmp/sessions/source.jsonl");
+    vi.mocked(waitForNewSessionFile).mockResolvedValue("/tmp/sessions/forked-child.jsonl");
+  });
+
+  async function run(opts: { resume?: string; fork?: boolean }): Promise<{
+    spawnedArgs: string[];
+    messages: SDKMessage[];
+  }> {
+    let spawnedArgs: string[] = [];
+    const runtime = new CLIRuntime({
+      processSpawner: ((args: string[]) => {
+        spawnedArgs = args;
+        return makeSubprocess() as never;
+      }) as never,
+    });
+    const messages: SDKMessage[] = [];
+    for await (const message of runtime.execute({
+      prompt: "branch off here",
+      agent: { name: "keeper", configPath: "/tmp/agent.yaml" } as never,
+      ...opts,
+    })) {
+      messages.push(message);
+    }
+    return { spawnedArgs, messages };
+  }
+
+  const initId = (messages: SDKMessage[]): string | undefined =>
+    (
+      messages.find((m) => m.type === "system") as
+        | (SDKMessage & { session_id?: string })
+        | undefined
+    )?.session_id;
+
+  it("passes --resume <source> and --fork-session to the CLI", async () => {
+    const { spawnedArgs } = await run({ resume: "source", fork: true });
+    const rIdx = spawnedArgs.indexOf("--resume");
+    expect(rIdx).toBeGreaterThan(-1);
+    expect(spawnedArgs[rIdx + 1]).toBe("source");
+    expect(spawnedArgs).toContain("--fork-session");
+  });
+
+  it("watches the NEW forked file and reports its id, not the source's", async () => {
+    const { messages } = await run({ resume: "source", fork: true });
+    // A fork must resolve via waitForNewSessionFile (the new file), never the
+    // resumed source path — otherwise it would report the parent's id and miss
+    // the child's turns entirely.
+    expect(vi.mocked(waitForNewSessionFile)).toHaveBeenCalled();
+    expect(vi.mocked(getCliSessionFile)).not.toHaveBeenCalled();
+    expect(initId(messages)).toBe("forked-child");
+  });
+
+  it("a plain resume (no fork) still watches the source file in place", async () => {
+    const { messages } = await run({ resume: "source" });
+    expect(vi.mocked(getCliSessionFile)).toHaveBeenCalled();
+    expect(vi.mocked(waitForNewSessionFile)).not.toHaveBeenCalled();
+    expect(initId(messages)).toBe("source");
   });
 });

@@ -712,6 +712,33 @@ describe("JobExecutor", () => {
       expect(receivedOptions?.fork).toBe(true);
     });
 
+    it("resumes the fork source AND sets fork so the runtime forks from it", async () => {
+      let receivedOptions: Record<string, unknown> | undefined;
+
+      const runtime = createMockRuntime(async function* (options) {
+        receivedOptions = options;
+        yield { type: "assistant", content: "Forked" };
+      });
+
+      const executor = new JobExecutor(runtime, {
+        logger: createMockLogger(),
+      });
+
+      await executor.execute({
+        agent: createTestAgent(),
+        prompt: "branch off",
+        stateDir,
+        fork: "session-to-fork",
+      });
+
+      // The runtime must resume the SOURCE session (so the CLI/SDK has a
+      // transcript to fork from) while fork:true tells it to write new turns to
+      // a brand-new session id. Seeding resume from the fork source is what makes
+      // `--resume <src> --fork-session` (CLI) / resume+forkSession (SDK) work.
+      expect(receivedOptions?.resume).toBe("session-to-fork");
+      expect(receivedOptions?.fork).toBe(true);
+    });
+
     it("creates job with trigger_type 'fork' and forked_from when forking", async () => {
       const messages: SDKMessage[] = [
         { type: "system", content: "Init", subtype: "init", session_id: "forked-session-123" },

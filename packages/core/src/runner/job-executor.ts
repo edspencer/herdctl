@@ -385,6 +385,15 @@ export class JobExecutor {
       }
     }
 
+    // Forking: resume the explicit source session but tell the runtime to fork
+    // (write new turns to a brand-new session id). We deliberately bypass the
+    // agent-level session adoption/validation above — the caller named a
+    // specific source to fork, not the agent's own stored session — and let the
+    // runtime find the source transcript by id under the agent's cwd.
+    if (options.fork) {
+      effectiveResume = options.fork;
+    }
+
     // Step 4: Execute agent and stream output
     // Track whether we've already retried after a session expiration or token expiry
     let retriedAfterSessionExpiry = false;
@@ -400,7 +409,11 @@ export class JobExecutor {
             prompt,
             agent: options.agent,
             resume: resumeSessionId,
-            fork: options.fork ? true : undefined,
+            // Only fork when we actually have a source session to fork from. On a
+            // retry that cleared the resume target (e.g. the source expired), fall
+            // back to a plain fresh session rather than `--fork-session` with no
+            // `--resume`, which the CLI can't satisfy.
+            fork: options.fork && resumeSessionId ? true : undefined,
             abortController: options.abortController,
             injectedMcpServers: options.injectedMcpServers,
             systemPromptAppend: options.systemPromptAppend,
