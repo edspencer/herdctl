@@ -1,5 +1,14 @@
 # herdctl
 
+## 1.5.21
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @herdctl/discord@1.2.12
+  - @herdctl/slack@1.2.25
+  - @herdctl/web@0.9.23
+
 ## 1.5.20
 
 ### Patch Changes
