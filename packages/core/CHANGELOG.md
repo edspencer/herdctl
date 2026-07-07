@@ -1,5 +1,17 @@
 # @herdctl/core
 
+## 5.15.2
+
+### Patch Changes
+
+- [#296](https://github.com/edspencer/herdctl/pull/296) [`7176078`](https://github.com/edspencer/herdctl/commit/717607897feb0f8ac6b9a2cda6bc276660964e30) Thanks [@edspencer](https://github.com/edspencer)! - `extractSessionMetadata` now skips Claude Code's injected `isMeta:true` user
+  lines (a skill's SKILL.md, slash-command output, hook output). Previously these
+  inflated `messageCount` and — when one led the transcript — could seed
+  `firstMessagePreview`, `gitBranch`/`version`, and the timestamp bounds from
+  injected content rather than the real first user message. This completes the
+  `isMeta` handling started for `parseSessionMessages`, so history rendering and
+  session metadata now agree.
+
 ## 5.15.1
 
 ### Patch Changes
