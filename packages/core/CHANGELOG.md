@@ -1,5 +1,21 @@
 # @herdctl/core
 
+## 5.15.1
+
+### Patch Changes
+
+- [#294](https://github.com/edspencer/herdctl/pull/294) [`b17798b`](https://github.com/edspencer/herdctl/commit/b17798b4e3ef2735b566c5b087b880221fb2970c) Thanks [@edspencer](https://github.com/edspencer)! - Filter out the Claude Code CLI's synthetic placeholder assistant turns (model
+  `"<synthetic>"`, e.g. "No response requested.") so they no longer leak into chat
+  output. After a `/compact`, the CLI injects a continuation summary and emits a
+  synthetic assistant turn as a placeholder, which previously rendered as a real
+  assistant message at the head of the next turn.
+
+  - `@herdctl/chat`: the live SDK-message translator now skips synthetic assistant
+    messages (no text, no turn boundary). Exposes `isSyntheticMessage` /
+    `SYNTHETIC_MODEL` from `message-extraction`.
+  - `@herdctl/core`: the JSONL history parser drops synthetic assistant lines, so
+    reopening a compacted chat no longer shows the placeholder bubble.
+
 ## 5.15.0
 
 ### Minor Changes
