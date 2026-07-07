@@ -390,6 +390,15 @@ export async function extractSessionMetadata(sessionFilePath: string): Promise<S
 
     if (type !== "user" && type !== "assistant") continue;
 
+    // Skip Claude Code's injected/synthetic context, which it writes as its own
+    // `type:"user"` line flagged `isMeta:true` — a skill's SKILL.md,
+    // slash-command output, hook output, etc. `parseSessionMessages` already
+    // drops these from rendered history; do the same here so they don't seed the
+    // first-message preview / branch / version, advance the timestamp bounds, or
+    // inflate `messageCount`. `isMeta` only ever marks these plain-text user
+    // lines (never a genuine tool_result or an assistant turn).
+    if (parsed.isMeta === true) continue;
+
     const timestamp = typeof parsed.timestamp === "string" ? parsed.timestamp : undefined;
 
     // Track sessionId from first line that has it

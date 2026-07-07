@@ -359,6 +359,33 @@ describe("extractSessionMetadata", () => {
     expect(meta.firstMessageAt).toBeUndefined();
     expect(meta.lastMessageAt).toBeUndefined();
   });
+
+  it("excludes injected isMeta user lines from messageCount", async () => {
+    // meta-session.jsonl: 1 real user + 1 isMeta user + 1 assistant. The isMeta
+    // line must not be counted, leaving 1 user + 1 assistant = 2.
+    const meta = await extractSessionMetadata(fixture("meta-session.jsonl"));
+
+    expect(meta.messageCount).toBe(2);
+    expect(meta.firstMessagePreview).toBe("try again");
+  });
+
+  it("does not let a leading isMeta line seed the preview, branch, or time bounds", async () => {
+    // meta-first-session.jsonl leads with an injected skill body (isMeta) before
+    // the real user message. The preview/first-message fields must come from the
+    // real user turn, not the injected content.
+    const meta = await extractSessionMetadata(fixture("meta-first-session.jsonl"));
+
+    // 1 real user + 1 assistant — the isMeta skill body is not counted.
+    expect(meta.messageCount).toBe(2);
+
+    // Preview is the real user's message, not the skill body.
+    expect(meta.firstMessagePreview).toBe("Help me refactor this parser.");
+    expect(meta.firstMessagePreview).not.toContain("Building LLM-Powered Applications");
+
+    // Timestamp bounds start at the real user message, not the injected line.
+    expect(meta.firstMessageAt).toBe("2026-02-01T09:00:05.000Z");
+    expect(meta.lastMessageAt).toBe("2026-02-01T09:00:10.000Z");
+  });
 });
 
 // =============================================================================
