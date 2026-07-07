@@ -397,9 +397,15 @@ export class CLIRuntime implements RuntimeInterface {
         },
       );
 
-      // Determine which session file to watch
+      // Determine which session file to watch.
+      //
+      // A FORK (`--resume <src> --fork-session`) does NOT append to the source
+      // file — Claude Code writes a brand-new session file with a new id. So a
+      // fork must wait for that new file just like a fresh session, even though
+      // `options.resume` is set (to the source). Only a plain resume (no fork)
+      // watches the resumed source file in place.
       let sessionFilePath: string;
-      if (options.resume) {
+      if (options.resume && !options.fork) {
         // When resuming, use sessionDirOverride if provided (for Docker execution)
         // Otherwise fall back to native CLI path
         if (this.sessionDirOverride) {
@@ -409,8 +415,13 @@ export class CLIRuntime implements RuntimeInterface {
         }
         logger.debug(`Resuming session, watching file: ${sessionFilePath}`);
       } else {
-        // When starting new session, wait for a NEW file created after process start
-        logger.debug("Waiting for new session file...");
+        // A brand-new session, or a fork writing a new session file: wait for a
+        // NEW file created after process start and adopt its id.
+        logger.debug(
+          options.fork
+            ? "Forking session, waiting for new session file..."
+            : "Waiting for new session file...",
+        );
         sessionFilePath = await waitForNewSessionFile(sessionDir, processStartTime, {
           timeoutMs: 60000, // Allow up to 60s for MCP servers to initialize
           pollIntervalMs: 200,

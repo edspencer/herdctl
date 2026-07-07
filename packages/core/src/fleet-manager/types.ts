@@ -541,6 +541,30 @@ export interface TriggerOptions {
   resume?: string | null;
 
   /**
+   * Session ID to FORK for this trigger.
+   *
+   * When provided, the agent resumes `fork`'s transcript as context but writes
+   * all new turns to a **brand-new session id** (via Claude Code's
+   * `--fork-session`), leaving the source session untouched. This lets a caller
+   * branch an existing conversation into an independent child — e.g. exploring
+   * several directions from a shared context without exhausting one window.
+   *
+   * The new session id is reported the same way a fresh session's is (on the
+   * `system`/`init` message and the final result). Mutually exclusive with
+   * {@link resume}; when both are set, `fork` takes precedence and the
+   * agent-level session fallback is skipped.
+   */
+  fork?: string;
+
+  /**
+   * Parent job ID recorded as this run's `forked_from` lineage (optional).
+   *
+   * Only meaningful alongside {@link fork}; purely informational metadata on the
+   * new job record. Omit when the caller forks by session without a job handle.
+   */
+  forkedFrom?: string;
+
+  /**
    * Work items to process during this trigger
    *
    * These work items will be passed to the agent instead of fetching
