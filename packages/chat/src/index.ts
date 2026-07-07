@@ -97,8 +97,10 @@ export {
 // =============================================================================
 
 export {
+  type AgentAttribution,
   type ContentBlock,
   extractMessageContent,
+  getAgentAttribution,
   hasTextContent,
   isSyntheticMessage,
   isTextContentBlock,

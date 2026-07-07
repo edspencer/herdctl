@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import {
   extractMessageContent,
+  getAgentAttribution,
   hasTextContent,
   isSyntheticMessage,
   isTextContentBlock,
@@ -203,6 +204,31 @@ describe("message-extraction", () => {
         message: { content: "Real reply" },
       };
       expect(isSyntheticMessage(message)).toBe(false);
+    });
+  });
+
+  describe("getAgentAttribution", () => {
+    it("returns null for the main agent (absent parent_tool_use_id)", () => {
+      const message: SDKMessage = { type: "assistant", message: { content: "hi" } };
+      expect(getAgentAttribution(message)).toEqual({ parentToolUseId: null });
+    });
+
+    it("returns null when parent_tool_use_id is explicitly null", () => {
+      const message: SDKMessage = {
+        type: "assistant",
+        parent_tool_use_id: null,
+        message: { content: "hi" },
+      };
+      expect(getAgentAttribution(message)).toEqual({ parentToolUseId: null });
+    });
+
+    it("returns the Task tool_use id for a subagent message", () => {
+      const message: SDKMessage = {
+        type: "assistant",
+        parent_tool_use_id: "task_abc",
+        message: { content: "hi" },
+      };
+      expect(getAgentAttribution(message)).toEqual({ parentToolUseId: "task_abc" });
     });
   });
 });

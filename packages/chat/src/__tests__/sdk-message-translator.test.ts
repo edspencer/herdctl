@@ -75,6 +75,44 @@ function sdkTopLevelToolResult(output: string): SDKMessage {
   } as unknown as SDKMessage;
 }
 
+/** Assistant text produced by a subagent (carries a `parent_tool_use_id`). */
+function subagentText(text: string, parentToolUseId: string): SDKMessage {
+  return {
+    type: "assistant",
+    parent_tool_use_id: parentToolUseId,
+    message: { content: [{ type: "text", text }] },
+  } as unknown as SDKMessage;
+}
+
+/** A subagent's `tool_use` (carries the spawning `Task` tool_use id). */
+function subagentToolUse(
+  id: string,
+  name: string,
+  parentToolUseId: string,
+  input?: unknown,
+): SDKMessage {
+  return {
+    type: "assistant",
+    parent_tool_use_id: parentToolUseId,
+    message: { content: [{ type: "tool_use", id, name, input }] },
+  } as unknown as SDKMessage;
+}
+
+/** A subagent's `tool_result` user message (carries `parent_tool_use_id`). */
+function subagentToolResult(
+  toolUseId: string,
+  output: string,
+  parentToolUseId: string,
+): SDKMessage {
+  return {
+    type: "user",
+    parent_tool_use_id: parentToolUseId,
+    message: {
+      content: [{ type: "tool_result", tool_use_id: toolUseId, content: output, is_error: false }],
+    },
+  } as unknown as SDKMessage;
+}
+
 describe("SDKMessageTranslator", () => {
   describe("text deltas", () => {
     it("emits assistant text via onText", async () => {
@@ -84,8 +122,8 @@ describe("SDKMessageTranslator", () => {
       await t.handle(assistantText("Hello "));
       await t.handle(assistantText("world"));
 
-      expect(onText).toHaveBeenNthCalledWith(1, "Hello ");
-      expect(onText).toHaveBeenNthCalledWith(2, "world");
+      expect(onText).toHaveBeenNthCalledWith(1, "Hello ", { parentToolUseId: null });
+      expect(onText).toHaveBeenNthCalledWith(2, "world", { parentToolUseId: null });
     });
 
     it("ignores non-assistant/non-user messages", async () => {
@@ -217,6 +255,7 @@ describe("SDKMessageTranslator", () => {
         isError: false,
         durationMs: 250,
         toolUseId: "t1",
+        parentToolUseId: null,
       });
     });
 
@@ -276,6 +315,7 @@ describe("SDKMessageTranslator", () => {
           isError: false,
           durationMs: 113,
           toolUseId: "t1",
+          parentToolUseId: null,
         });
       });
 
@@ -324,6 +364,96 @@ describe("SDKMessageTranslator", () => {
         expect(calls[0].durationMs).toBeUndefined();
         expect(calls[0].toolUseId).toBeUndefined();
       });
+    });
+  });
+
+  describe("agent attribution (parent_tool_use_id)", () => {
+    it("attaches parentToolUseId: null to main-agent text", async () => {
+      const onText = vi.fn();
+      const t = new SDKMessageTranslator({ onText });
+
+      await t.handle(assistantText("main agent speaking"));
+
+      expect(onText).toHaveBeenCalledWith("main agent speaking", { parentToolUseId: null });
+    });
+
+    it("attaches the spawning Task tool_use id to subagent text", async () => {
+      const onText = vi.fn();
+      const t = new SDKMessageTranslator({ onText });
+
+      await t.handle(subagentText("subagent speaking", "task_abc"));
+
+      expect(onText).toHaveBeenCalledWith("subagent speaking", { parentToolUseId: "task_abc" });
+    });
+
+    it("routes main and subagent text into separate lanes on the same turn", async () => {
+      const events: Array<{ text: string; lane: string | null }> = [];
+      const t = new SDKMessageTranslator({
+        onText: (text, attribution) => {
+          events.push({ text, lane: attribution.parentToolUseId });
+        },
+      });
+
+      await t.handle(assistantText("main before Task"));
+      await t.handle(subagentText("subagent working", "task_abc"));
+      await t.handle(assistantText("main after Task"));
+
+      expect(events).toEqual([
+        { text: "main before Task", lane: null },
+        { text: "subagent working", lane: "task_abc" },
+        { text: "main after Task", lane: null },
+      ]);
+    });
+
+    it("carries the issuing agent's attribution onto a subagent tool call", async () => {
+      const calls: TranslatedToolCall[] = [];
+      const t = new SDKMessageTranslator({ onToolCall: (c) => void calls.push(c) });
+
+      await t.handle(subagentToolUse("t1", "Bash", "task_abc", { command: "ls" }));
+      await t.handle(subagentToolResult("t1", "out", "task_abc"));
+
+      expect(calls).toHaveLength(1);
+      expect(calls[0].toolName).toBe("Bash");
+      expect(calls[0].parentToolUseId).toBe("task_abc");
+    });
+
+    it("attributes a main-agent tool call to null", async () => {
+      const calls: TranslatedToolCall[] = [];
+      const t = new SDKMessageTranslator({ onToolCall: (c) => void calls.push(c) });
+
+      await t.handle(assistantToolUse("t1", "Read", { file_path: "/a" }));
+      await t.handle(toolResult("t1", "contents"));
+
+      expect(calls[0].parentToolUseId).toBeNull();
+    });
+
+    it("falls back to the result message's attribution when the tool_use wasn't tracked", async () => {
+      const calls: TranslatedToolCall[] = [];
+      const t = new SDKMessageTranslator({ onToolCall: (c) => void calls.push(c) });
+
+      // Orphan result (no preceding tool_use) still carries the lane from its
+      // own parent_tool_use_id.
+      await t.handle(subagentToolResult("orphan", "result", "task_xyz"));
+
+      expect(calls).toHaveLength(1);
+      expect(calls[0].toolName).toBe("Tool");
+      expect(calls[0].parentToolUseId).toBe("task_xyz");
+    });
+
+    it("attaches attribution of the turn beginning to a boundary", async () => {
+      const boundaries: Array<string | null> = [];
+      const t = new SDKMessageTranslator({
+        onText: vi.fn(),
+        onBoundary: (attribution) => {
+          boundaries.push(attribution.parentToolUseId);
+        },
+      });
+
+      await t.handle(assistantText("main text"));
+      // A subagent turn after main text → boundary attributed to the subagent lane.
+      await t.handle(subagentText("subagent text", "task_abc"));
+
+      expect(boundaries).toEqual(["task_abc"]);
     });
   });
 
@@ -385,7 +515,7 @@ describe("createSDKMessageHandler", () => {
     await handler(assistantToolUse("t1", "Read", { file_path: "/f" }));
     await handler(toolResult("t1", "contents"));
 
-    expect(onText).toHaveBeenCalledWith("hi");
+    expect(onText).toHaveBeenCalledWith("hi", { parentToolUseId: null });
     expect(calls[0]).toMatchObject({ toolName: "Read", inputSummary: "/f", output: "contents" });
   });
 });
