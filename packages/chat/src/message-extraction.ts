@@ -36,6 +36,13 @@ export interface ContentBlock {
 export interface SDKMessage {
   type: string;
   content?: string;
+  /**
+   * Agent attribution for this message: `null`/absent for the main agent, or the
+   * `Task` tool_use id of the subagent that produced it. The Claude Agent SDK
+   * sets this on every `assistant`/`user` message so consumers can separate the
+   * main agent from `Task`-spawned subagents into distinct lanes.
+   */
+  parent_tool_use_id?: string | null;
   message?: {
     content?: string | ContentBlock[];
     /**
@@ -70,6 +77,32 @@ export const SYNTHETIC_MODEL = "<synthetic>";
  */
 export function isSyntheticMessage(message: SDKMessage): boolean {
   return message.message?.model === SYNTHETIC_MODEL;
+}
+
+/**
+ * Agent attribution for a translated event: which agent produced it.
+ *
+ * `parentToolUseId` is `null` for the main agent, or the `Task` tool_use id of
+ * the subagent that produced the message. Consumers group events by this id to
+ * reconstruct per-agent lanes (the `Task` tool_use id seen on the main stream
+ * correlates to the subagent's `parent_tool_use_id`).
+ */
+export interface AgentAttribution {
+  /** `null` for the main agent, else the spawning `Task` tool_use id. */
+  parentToolUseId: string | null;
+}
+
+/**
+ * Read the agent attribution off an SDK message.
+ *
+ * Normalizes the SDK's snake_case `parent_tool_use_id` (which may be `null` or
+ * absent for the main agent) into an {@link AgentAttribution}.
+ *
+ * @param message - SDK message object
+ * @returns The agent attribution (`parentToolUseId: null` = main agent)
+ */
+export function getAgentAttribution(message: SDKMessage): AgentAttribution {
+  return { parentToolUseId: message.parent_tool_use_id ?? null };
 }
 
 // =============================================================================

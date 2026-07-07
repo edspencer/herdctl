@@ -19,7 +19,9 @@
  */
 
 import {
+  type AgentAttribution,
   extractMessageContent,
+  getAgentAttribution,
   isSyntheticMessage,
   type SDKMessage,
 } from "./message-extraction.js";
@@ -50,6 +52,12 @@ export interface TranslatedToolCall {
   durationMs?: number;
   /** The originating tool_use id, when present */
   toolUseId?: string;
+  /**
+   * Agent attribution: `null` when the main agent invoked the tool, or the
+   * `Task` tool_use id of the subagent that invoked it. Lets consumers group
+   * tool calls into per-agent lanes.
+   */
+  parentToolUseId: string | null;
 }
 
 /**
@@ -58,13 +66,21 @@ export interface TranslatedToolCall {
  * backpressure (e.g. a slow WebSocket send).
  */
 export interface SDKMessageHandlers {
-  /** Called with each assistant text delta as it streams in. */
-  onText?: (text: string) => void | Promise<void>;
   /**
-   * Called when a new assistant turn begins after a previous one produced text
-   * (or after a tool call interrupts the text), so transports can split bubbles.
+   * Called with each assistant text delta as it streams in. The second argument
+   * carries agent attribution (`parentToolUseId: null` = main agent, else the
+   * spawning `Task` tool_use id) so consumers can route text into per-agent
+   * lanes. Existing handlers that ignore the second argument keep working.
    */
-  onBoundary?: () => void | Promise<void>;
+  onText?: (text: string, attribution: AgentAttribution) => void | Promise<void>;
+  /**
+   * Called when a new assistant turn begins after a previous one produced text,
+   * so transports can split bubbles. A tool-call interruption alone does NOT
+   * trigger a boundary — a tool result resets the text run, so the next
+   * assistant text simply begins a fresh bubble with no boundary event. The
+   * attribution identifies the agent whose turn is beginning.
+   */
+  onBoundary?: (attribution: AgentAttribution) => void | Promise<void>;
   /** Called once per tool result, paired with its originating tool_use. */
   onToolCall?: (toolCall: TranslatedToolCall) => void | Promise<void>;
 }
@@ -94,6 +110,8 @@ interface PendingToolUse {
   name: string;
   input?: unknown;
   startTime: number;
+  /** Attribution of the agent that issued this tool_use (main = null). */
+  parentToolUseId: string | null;
 }
 
 /**
@@ -229,15 +247,20 @@ export class SDKMessageTranslator {
     // to text or turn boundaries, and don't let them disturb per-turn state.
     if (isSyntheticMessage(message)) return;
 
+    // Agent attribution: null for the main agent, or the spawning Task tool_use
+    // id for a subagent. Threaded onto every emitted event so consumers can
+    // separate main vs. subagent lanes.
+    const attribution = getAgentAttribution(message);
+
     const content = extractMessageContent(message);
     if (content) {
       // A new assistant turn after a previous one produced text → boundary.
       if (this.hasAssistantText) {
         this.hasAssistantText = false;
-        await this.handlers.onBoundary?.();
+        await this.handlers.onBoundary?.(attribution);
       }
       this.hasAssistantText = true;
-      await this.handlers.onText?.(content);
+      await this.handlers.onText?.(content, attribution);
     }
 
     // Track tool_use blocks so we can pair them with results later. We track
@@ -248,6 +271,7 @@ export class SDKMessageTranslator {
           name: block.name,
           input: block.input,
           startTime: this.now(),
+          parentToolUseId: attribution.parentToolUseId,
         });
       }
     }
@@ -260,6 +284,10 @@ export class SDKMessageTranslator {
     if (results.length === 0) {
       return;
     }
+
+    // Fallback attribution from the result-carrying user message, used when the
+    // originating tool_use wasn't tracked (so we can't read the issuing agent).
+    const messageAttribution = getAgentAttribution(message);
 
     // A tool result ends the current text run; the next assistant text is a new
     // bubble. Drop the text flag so we don't emit a spurious boundary, but the
@@ -287,6 +315,11 @@ export class SDKMessageTranslator {
         isError: result.isError,
         durationMs: toolUse ? this.now() - toolUse.startTime : undefined,
         toolUseId: result.toolUseId,
+        // Attribute to the agent that issued the tool_use. A tracked tool_use
+        // keeps its own attribution (including a legitimate `null` for the main
+        // agent); only a truly untracked result falls back to the result
+        // message's own attribution.
+        parentToolUseId: toolUse ? toolUse.parentToolUseId : messageAttribution.parentToolUseId,
       });
     }
   }
