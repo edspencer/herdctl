@@ -74,9 +74,11 @@ export interface SDKMessageHandlers {
    */
   onText?: (text: string, attribution: AgentAttribution) => void | Promise<void>;
   /**
-   * Called when a new assistant turn begins after a previous one produced text
-   * (or after a tool call interrupts the text), so transports can split bubbles.
-   * The attribution identifies the agent whose turn is beginning.
+   * Called when a new assistant turn begins after a previous one produced text,
+   * so transports can split bubbles. A tool-call interruption alone does NOT
+   * trigger a boundary — a tool result resets the text run, so the next
+   * assistant text simply begins a fresh bubble with no boundary event. The
+   * attribution identifies the agent whose turn is beginning.
    */
   onBoundary?: (attribution: AgentAttribution) => void | Promise<void>;
   /** Called once per tool result, paired with its originating tool_use. */
@@ -313,9 +315,11 @@ export class SDKMessageTranslator {
         isError: result.isError,
         durationMs: toolUse ? this.now() - toolUse.startTime : undefined,
         toolUseId: result.toolUseId,
-        // Attribute to the agent that issued the tool_use; fall back to the
-        // result message's own attribution if that tool_use wasn't tracked.
-        parentToolUseId: toolUse?.parentToolUseId ?? messageAttribution.parentToolUseId,
+        // Attribute to the agent that issued the tool_use. A tracked tool_use
+        // keeps its own attribution (including a legitimate `null` for the main
+        // agent); only a truly untracked result falls back to the result
+        // message's own attribution.
+        parentToolUseId: toolUse ? toolUse.parentToolUseId : messageAttribution.parentToolUseId,
       });
     }
   }

@@ -427,6 +427,20 @@ describe("SDKMessageTranslator", () => {
       expect(calls[0].parentToolUseId).toBeNull();
     });
 
+    it("keeps a tracked tool_use's own null attribution even if the result message carries an id", async () => {
+      const calls: TranslatedToolCall[] = [];
+      const t = new SDKMessageTranslator({ onToolCall: (c) => void calls.push(c) });
+
+      // A tracked main-agent tool_use (parentToolUseId: null). The result message
+      // carries a different attribution — the tracked value must win, not fall
+      // through to the message's (a nullish-coalescing merge would lose the null).
+      await t.handle(assistantToolUse("t1", "Bash", { command: "ls" }));
+      await t.handle(subagentToolResult("t1", "out", "task_zzz"));
+
+      expect(calls).toHaveLength(1);
+      expect(calls[0].parentToolUseId).toBeNull();
+    });
+
     it("falls back to the result message's attribution when the tool_use wasn't tracked", async () => {
       const calls: TranslatedToolCall[] = [];
       const t = new SDKMessageTranslator({ onToolCall: (c) => void calls.push(c) });
