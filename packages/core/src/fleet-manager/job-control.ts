@@ -11,7 +11,13 @@ import { readFile } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import type { HookEvent, ResolvedAgent } from "../config/index.js";
 import { type HookContext, HookExecutor } from "../hooks/index.js";
-import { JobExecutor, RuntimeFactory, type RuntimeSession, SDKRuntime } from "../runner/index.js";
+import {
+  JobExecutor,
+  RuntimeFactory,
+  type RuntimeSession,
+  SDKRuntime,
+  type SlashCommand,
+} from "../runner/index.js";
 import { createJob, getJob, getSessionInfo, readJobOutputAll, updateJob } from "../state/index.js";
 import type { JobMetadata } from "../state/schemas/job-metadata.js";
 import type { FleetManagerContext } from "./context.js";
@@ -388,6 +394,45 @@ export class JobControl {
       injectedMcpServers: options?.injectedMcpServers,
       systemPromptAppend: options?.systemPromptAppend,
     });
+  }
+
+  /**
+   * List the slash commands available to an agent in one shot.
+   *
+   * A convenience over {@link openChatSession}: it opens a streaming session,
+   * queries {@link RuntimeSession.listCommands}, and **always closes the session**
+   * (in a `finally`, even if the listing throws) so callers never have to manage
+   * the underlying `claude` subprocess lifecycle themselves. Use it to populate a
+   * slash-command autocomplete without hand-holding a live session.
+   *
+   * The returned list is the full `SlashCommand[]` — `{ name, description,
+   * argumentHint }` per command (built-ins + project `.claude/commands` + any
+   * MCP-provided commands, exactly as the CLI reports them for the resolved
+   * session's cwd/config). Pass the same {@link ChatSessionOptions} as
+   * `openChatSession` (notably `workingDirectory` and `injectedMcpServers`) so the
+   * list reflects the intended project context.
+   *
+   * **Cost:** each call spawns and tears down a `claude` subprocess (~seconds).
+   * The command list is essentially static per project, so callers that query it
+   * repeatedly should cache the result.
+   *
+   * @throws {AgentNotFoundError} If the agent doesn't exist
+   * @throws {InvalidStateError} If the fleet manager is not initialized
+   * @throws {StreamingSessionUnsupportedError} If the agent is Docker-wrapped
+   *   (surfaced unchanged from {@link openChatSession})
+   */
+  async listAgentCommands(
+    agentName: string,
+    options?: ChatSessionOptions,
+  ): Promise<SlashCommand[]> {
+    const session = await this.openChatSession(agentName, options);
+    try {
+      return await session.listCommands();
+    } finally {
+      // Guarantee teardown of the underlying subprocess on every path,
+      // including when listCommands() throws.
+      await session.close();
+    }
   }
 
   /**

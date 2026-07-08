@@ -24,6 +24,11 @@ export {
   sessionBelongsToWorkingDirectory,
 } from "./cli-session-path.js";
 export { RuntimeFactory, type RuntimeType } from "./factory.js";
-export type { RuntimeExecuteOptions, RuntimeInterface, RuntimeSession } from "./interface.js";
+export type {
+  RuntimeExecuteOptions,
+  RuntimeInterface,
+  RuntimeSession,
+  SlashCommand,
+} from "./interface.js";
 export { MessageQueue } from "./message-queue.js";
 export { SDKRuntime } from "./sdk-runtime.js";

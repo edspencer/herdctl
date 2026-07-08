@@ -23,7 +23,7 @@ import {
   type ResolvedAgent,
   type ResolvedConfig,
 } from "../config/index.js";
-import type { RuntimeSession } from "../runner/index.js";
+import type { RuntimeSession, SlashCommand } from "../runner/index.js";
 import { getCliSessionFile, getDockerSessionFile } from "../runner/runtime/cli-session-path.js";
 import { Scheduler, type TriggerInfo } from "../scheduler/index.js";
 import {
@@ -801,6 +801,21 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
    */
   async openChatSession(agentName: string, options?: ChatSessionOptions): Promise<RuntimeSession> {
     return this.jobControl.openChatSession(agentName, options);
+  }
+  /**
+   * List the slash commands available to an agent in one shot.
+   *
+   * A convenience wrapper that opens a streaming session, reads its command list,
+   * and always closes the session — so callers get a `SlashCommand[]` (for a
+   * command palette / autocomplete) without managing a live `claude` subprocess.
+   * See {@link JobControl.listAgentCommands} for details, cost, and thrown errors
+   * (including {@link StreamingSessionUnsupportedError} for Docker-wrapped agents).
+   */
+  async listAgentCommands(
+    agentName: string,
+    options?: ChatSessionOptions,
+  ): Promise<SlashCommand[]> {
+    return this.jobControl.listAgentCommands(agentName, options);
   }
   async cancelJob(jobId: string, options?: { timeout?: number }): Promise<CancelJobResult> {
     return this.jobControl.cancelJob(jobId, options);

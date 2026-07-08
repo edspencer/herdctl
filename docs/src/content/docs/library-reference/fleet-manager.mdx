@@ -963,6 +963,66 @@ const sessions = await manager.getAgentSessions('my-agent');
 
 ---
 
+### `listAgentCommands(agentName, options?)`
+
+Lists the slash commands available to an agent — for populating a command palette or autocomplete — in a single call.
+
+```typescript
+await manager.listAgentCommands(
+  agentName: string,
+  options?: ChatSessionOptions
+): Promise<SlashCommand[]>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `agentName` | `string` | **Yes** | Agent qualified name or local name |
+| `options.workingDirectory` | `string` | No | Per-call working-directory override so the list reflects the intended project context |
+| `options.injectedMcpServers` | `Record<string, InjectedMcpServerDef>` | No | MCP servers to inject, so their commands appear in the list |
+
+#### Returns
+
+```typescript
+interface SlashCommand {
+  name: string;          // Command name, without the leading slash
+  description: string;   // Human-readable description
+  argumentHint: string;  // Hint for arguments (e.g. "<pr>"), "" if none
+}
+```
+
+Returns the full command list — built-ins plus project `.claude/commands` plus any MCP-provided commands — exactly as the CLI reports them for the resolved session's cwd and config.
+
+#### Description
+
+A one-shot convenience over `openChatSession()`: it opens a streaming session, reads its command list, and **always closes the session** (in a `finally`, even if the listing throws), so consumers never have to manage the underlying `claude` subprocess lifecycle themselves.
+
+Accepts the same `ChatSessionOptions` as `openChatSession`. The session runs on the SDK runtime regardless of the agent's configured `runtime`, so this works for `cli`-runtime (Claude-subscription) agents too.
+
+**Cost**: each call spawns and tears down a `claude` subprocess (~seconds). The command list is essentially static per project, so callers that query it repeatedly should cache the result.
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+| `AgentNotFoundError` | Agent doesn't exist |
+| `StreamingSessionUnsupportedError` | Agent is Docker-wrapped (surfaced unchanged from `openChatSession`) |
+
+#### Example
+
+```typescript
+import type { SlashCommand } from '@herdctl/core';
+
+const commands: SlashCommand[] = await manager.listAgentCommands('my-agent');
+for (const cmd of commands) {
+  console.log(`/${cmd.name} ${cmd.argumentHint} — ${cmd.description}`);
+}
+```
+
+---
+
 ## Action Methods
 
 ### `trigger(agentName, scheduleName?, options?)`
