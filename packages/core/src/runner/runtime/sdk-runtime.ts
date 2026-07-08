@@ -84,7 +84,12 @@ function defToSdkMcpServer(def: InjectedMcpServerDef) {
       zodShape[key] = jsonPropertyToZod(prop, requiredFields.includes(key));
     }
 
-    return tool(toolDef.name, toolDef.description, zodShape, toolDef.handler);
+    // herdctl's McpToolCallResult is structurally an MCP CallToolResult (text
+    // content), but the SDK types the content `type` as a literal union. Cast the
+    // handler at this adapter boundary rather than leaking the SDK's MCP types
+    // into the transport-agnostic InjectedMcpToolDef.
+    const handler = toolDef.handler as unknown as Parameters<typeof tool>[3];
+    return tool(toolDef.name, toolDef.description, zodShape, handler);
   });
 
   return createSdkMcpServer({
@@ -177,7 +182,12 @@ export class SDKRuntime implements RuntimeInterface {
       send: async (text: string) => {
         input.push(toUserMessage(text));
       },
-      interrupt: () => q.interrupt(),
+      interrupt: async () => {
+        // The SDK's interrupt() resolves to an optional interrupt-receipt object
+        // (still-queued message uuids); the RuntimeSession contract is fire-and-
+        // forget, so discard it to satisfy the Promise<void> return type.
+        await q.interrupt();
+      },
       listCommands: () => q.supportedCommands(),
       setModel: (model?: string) => q.setModel(model),
       close: async () => {
