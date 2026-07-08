@@ -14,6 +14,16 @@ import type { ResolvedAgent } from "../../config/index.js";
 import type { SDKMessage } from "../types.js";
 
 /**
+ * A slash command available to an agent's session: its name (no leading slash),
+ * a human-readable description, and an argument hint for autocomplete.
+ *
+ * Re-exported from the Claude Agent SDK so consumers of `@herdctl/core` can type
+ * command listings (e.g. {@link RuntimeSession.listCommands} or
+ * `FleetManager.listAgentCommands`) without importing the SDK directly.
+ */
+export type { SlashCommand };
+
+/**
  * Options for executing a runtime
  */
 export interface RuntimeExecuteOptions {
