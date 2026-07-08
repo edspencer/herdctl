@@ -1,6 +1,6 @@
 {
   "name": "herdctl",
-  "version": "1.5.21",
+  "version": "1.5.22",
   "description": "Autonomous Agent Fleet Management for Claude Code",
   "license": "MIT",
   "type": "module",
