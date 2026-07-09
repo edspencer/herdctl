@@ -695,6 +695,18 @@ export interface ChatSessionOptions {
 
   /** Text to append to the agent's system prompt for this session. */
   systemPromptAppend?: string;
+
+  /**
+   * Opt in to herdctl-managed session lifecycle (edspencer/herdctl#307).
+   *
+   * When `true` and the fleet has a session-lifecycle manager, the session is
+   * reaped the instant it goes idle (unless it holds live background work), and
+   * its timer-class wakeups are captured and re-triggered through the scheduler.
+   * The caller should treat the message stream ending as a reap and re-open
+   * (resume) later if it wants to keep driving the conversation. Defaults to the
+   * legacy behavior (no lifecycle management — the caller owns `close()`).
+   */
+  manageLifecycle?: boolean;
 }
 
 /**

@@ -18,6 +18,7 @@ import {
   SDKRuntime,
   type SlashCommand,
 } from "../runner/index.js";
+import type { ManagedSession, SessionLifecycleSignal } from "../session/index.js";
 import { createJob, getJob, getSessionInfo, readJobOutputAll, updateJob } from "../state/index.js";
 import type { JobMetadata } from "../state/schemas/job-metadata.js";
 import type { FleetManagerContext } from "./context.js";
@@ -387,13 +388,32 @@ export class JobControl {
 
     const runtime = new SDKRuntime();
     logger.info(`Opening streaming chat session for ${agentName} (sdk runtime)`);
-    return runtime.openSession({
+
+    // Opt in to herdctl-managed lifecycle (reap-on-idle + wake re-trigger, #307)
+    // when requested and a lifecycle manager exists. The managed handle is
+    // created after the session (it needs the session to close it), so signals
+    // are forwarded through a late-bound reference — safe because the first
+    // signal only arrives at the first turn's end, well after `manage()` runs.
+    const lifecycle = options?.manageLifecycle ? this.ctx.getSessionLifecycle?.() : undefined;
+    let managed: ManagedSession | undefined;
+    const onLifecycleSignal = lifecycle
+      ? (signal: SessionLifecycleSignal) => managed?.handleSignal(signal)
+      : undefined;
+
+    const session = runtime.openSession({
       agent: effectiveAgent,
       prompt: options?.prompt ?? "",
       resume: sessionId,
       injectedMcpServers: options?.injectedMcpServers,
       systemPromptAppend: options?.systemPromptAppend,
+      onLifecycleSignal,
     });
+
+    if (lifecycle) {
+      managed = lifecycle.manage(session, agentName);
+    }
+
+    return session;
   }
 
   /**

@@ -26,6 +26,7 @@ import {
 import type { RuntimeSession, SlashCommand } from "../runner/index.js";
 import { getCliSessionFile, getDockerSessionFile } from "../runner/runtime/cli-session-path.js";
 import { Scheduler, type TriggerInfo } from "../scheduler/index.js";
+import { SessionLifecycleManager, type SessionWakeHandler } from "../session/index.js";
 import {
   type ChatMessage,
   type DiscoveredSession,
@@ -101,6 +102,8 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   private config: ResolvedConfig | null = null;
   private stateDirInfo: StateDirectory | null = null;
   private scheduler: Scheduler | null = null;
+  private sessionLifecycle: SessionLifecycleManager | null = null;
+  private sessionWakeHandler?: SessionWakeHandler;
 
   // Timing info
   private initializedAt: string | null = null;
@@ -159,6 +162,9 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   }
   getScheduler(): Scheduler | null {
     return this.scheduler;
+  }
+  getSessionLifecycle(): SessionLifecycleManager | null {
+    return this.sessionLifecycle;
   }
   getStatus(): FleetManagerStatus {
     return this.status;
@@ -270,11 +276,16 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       this.stateDirInfo = await this.initializeStateDir();
       this.logger.debug("State directory initialized");
 
+      this.sessionLifecycle = this.createSessionLifecycle();
       this.scheduler = new Scheduler({
         stateDir: this.stateDir,
         checkInterval: this.checkInterval,
         logger: this.logger,
         onTrigger: (info) => this.handleScheduleTrigger(info),
+        // Reuse the scheduler loop to fire due session wakes (#307).
+        onTick: async () => {
+          await this.sessionLifecycle?.dispatchDue();
+        },
       });
 
       // Initialize chat managers (web will be picked up since config.fleet.web.enabled = true)
@@ -324,11 +335,16 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       this.stateDirInfo = await this.initializeStateDir();
       this.logger.debug("State directory initialized");
 
+      this.sessionLifecycle = this.createSessionLifecycle();
       this.scheduler = new Scheduler({
         stateDir: this.stateDir,
         checkInterval: this.checkInterval,
         logger: this.logger,
         onTrigger: (info) => this.handleScheduleTrigger(info),
+        // Reuse the scheduler loop to fire due session wakes (#307).
+        onTick: async () => {
+          await this.sessionLifecycle?.dispatchDue();
+        },
       });
 
       // Dynamically import and create chat managers for configured platforms
@@ -867,6 +883,34 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
 
     // Chat managers are created during initialize() via dynamic imports
     // to avoid hard dependencies on platform packages.
+  }
+
+  /**
+   * Build the session-lifecycle manager (reaper + wake registry) for #307.
+   *
+   * The registry fires due wakes by resuming the session and injecting the
+   * stored prompt through {@link openChatSession} (with `manageLifecycle` so the
+   * resumed turn is itself reaped and re-captured). Any consumer-registered
+   * {@link SessionWakeHandler} drives the woken turn; otherwise it runs headless.
+   */
+  private createSessionLifecycle(): SessionLifecycleManager {
+    return new SessionLifecycleManager({
+      stateDir: this.stateDir,
+      openChatSession: (agent, opts) => this.openChatSession(agent, opts),
+      sessionWakeHandler: this.sessionWakeHandler,
+    });
+  }
+
+  /**
+   * Register (or clear) the consumer that drives herdctl-fired session wakes.
+   *
+   * A consumer (e.g. Paddock) sets this to receive the resumed, already-managed
+   * session on its hub/attribution path; without it, woken turns run headless so
+   * recurring wakeups still fire. Safe to call before or after initialize().
+   */
+  setSessionWakeHandler(handler: SessionWakeHandler | undefined): void {
+    this.sessionWakeHandler = handler;
+    this.sessionLifecycle?.setSessionWakeHandler(handler);
   }
 
   /**
