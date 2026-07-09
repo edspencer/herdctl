@@ -21,10 +21,26 @@ import type {
   SubagentStopHookInput,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { SDKMessage } from "../runner/types.js";
+import { createLogger } from "../utils/logger.js";
 import type { SessionLifecycleSignal } from "./types.js";
+
+const logger = createLogger("session-hooks");
 
 /** Receiver for lifecycle signals (the session-reaper's `handleSignal`). */
 export type LifecycleSignalSink = (signal: SessionLifecycleSignal) => void | Promise<void>;
+
+/**
+ * Deliver a signal to the sink without blocking the caller, observing (and
+ * logging) any rejection so a failing sink can't surface as an unhandled promise
+ * rejection (which crashes Node 15+).
+ */
+function emit(sink: LifecycleSignalSink, signal: SessionLifecycleSignal): void {
+  void Promise.resolve()
+    .then(() => sink(signal))
+    .catch((error: unknown) => {
+      logger.warn(`Lifecycle signal sink threw (${signal.kind}): ${(error as Error).message}`);
+    });
+}
 
 function isStopLike(input: HookInput): input is StopHookInput | SubagentStopHookInput {
   return input.hook_event_name === "Stop" || input.hook_event_name === "SubagentStop";
@@ -40,12 +56,9 @@ export function buildLifecycleHooks(sink: LifecycleSignalSink): Options["hooks"]
     if (isStopLike(input)) {
       const sessionCrons: SessionCronSummary[] = input.session_crons ?? [];
       const backgroundTasks: BackgroundTaskSummary[] = input.background_tasks ?? [];
-      await sink({
-        kind: "turn_end",
-        sessionId: input.session_id,
-        sessionCrons,
-        backgroundTasks,
-      });
+      // Never let a sink failure reject the hook (which would disrupt turn flow);
+      // log and continue. `emit` observes the async rejection off the hot path.
+      emit(sink, { kind: "turn_end", sessionId: input.session_id, sessionCrons, backgroundTasks });
     }
     return { continue: true };
   };
@@ -97,7 +110,7 @@ export async function* tapLifecycleStream(
   for await (const message of source) {
     if (message.type === "system" && message.subtype === "background_tasks_changed") {
       const rawTasks = (message.tasks as BackgroundTasksChangedEntry[] | undefined) ?? [];
-      void sink({
+      emit(sink, {
         kind: "background_tasks_changed",
         sessionId: message.session_id ?? "",
         sessionCrons: [],
@@ -106,7 +119,7 @@ export async function* tapLifecycleStream(
     } else if (message.type === "assistant") {
       if (!activityForwarded) {
         activityForwarded = true;
-        void sink({
+        emit(sink, {
           kind: "activity",
           sessionId: message.session_id ?? "",
           sessionCrons: [],

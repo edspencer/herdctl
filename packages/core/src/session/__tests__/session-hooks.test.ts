@@ -65,6 +65,17 @@ describe("buildLifecycleHooks", () => {
     await cb(other, undefined, { signal: new AbortController().signal });
     expect(sink).not.toHaveBeenCalled();
   });
+
+  it("resolves { continue: true } even when the sink rejects", async () => {
+    const sink = vi.fn().mockRejectedValue(new Error("sink boom"));
+    const hooks = buildLifecycleHooks(sink);
+    const cb = hooks!.Stop![0].hooks[0];
+    await expect(
+      cb(stopInput(), undefined, { signal: new AbortController().signal }),
+    ).resolves.toEqual({ continue: true });
+    // Let the swallowed rejection settle so it can't surface as unhandled.
+    await new Promise((r) => setTimeout(r, 5));
+  });
 });
 
 describe("tapLifecycleStream", () => {
@@ -97,6 +108,18 @@ describe("tapLifecycleStream", () => {
     expect(signal.backgroundTasks).toEqual([
       { id: "t1", type: "shell", status: "running", description: "dev server" },
     ]);
+  });
+
+  it("keeps streaming when the sink rejects (no unhandled rejection)", async () => {
+    const sink = vi.fn().mockRejectedValue(new Error("sink boom"));
+    const messages: SDKMessage[] = [
+      { type: "assistant", session_id: "s" },
+      { type: "result", session_id: "s" },
+    ];
+    const out: SDKMessage[] = [];
+    for await (const m of tapLifecycleStream(stream(messages), sink)) out.push(m);
+    expect(out).toEqual(messages);
+    await new Promise((r) => setTimeout(r, 5));
   });
 
   it("emits exactly one activity signal per turn (reset on result)", async () => {

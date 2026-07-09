@@ -40,9 +40,10 @@ export interface SessionReaperOptions {
 export interface ManagedSession {
   /**
    * Feed a turn-boundary signal to the reaper. Wire into
-   * `RuntimeExecuteOptions.onLifecycleSignal`. Returns a promise the caller may
-   * await (the Stop hook does) so reconciliation completes before the turn fully
-   * unwinds; the actual `close()` is deferred so it never re-enters the hook.
+   * `RuntimeExecuteOptions.onLifecycleSignal`. Signals are serialized internally
+   * (reconcile → decision → close, in order), so callers may fire-and-forget; the
+   * returned promise settles when this signal has been processed. The actual
+   * `close()` is deferred so it never re-enters the hook that triggered it.
    */
   handleSignal(signal: SessionLifecycleSignal): Promise<void>;
   /** True until the session has been reaped or detached. */
@@ -117,8 +118,16 @@ export class SessionReaper {
     }
 
     // turn_end: authoritative snapshot. Capture pending crons first so they
-    // survive whatever we decide next.
-    await this.registry.reconcile(managed.agent, signal.sessionId, signal.sessionCrons);
+    // survive whatever we decide next. A reconcile I/O failure loses that turn's
+    // capture but must NOT block the reap — leaving the session alive is the leak
+    // this module exists to prevent — so log and press on with the decision.
+    try {
+      await this.registry.reconcile(managed.agent, signal.sessionId, signal.sessionCrons);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to reconcile wakes for session ${signal.sessionId} (${managed.agent}): ${(error as Error).message}`,
+      );
+    }
 
     const decision = decideReap(signal);
     if (decision.action === "keepAlive") {
@@ -126,11 +135,13 @@ export class SessionReaper {
         `Keeping session ${signal.sessionId} (${managed.agent}) alive: ${decision.tasks.length} background task(s)`,
       );
       managed.setAwaitingTasks(true);
-      this.onKeepAlive?.({
-        agent: managed.agent,
-        sessionId: signal.sessionId,
-        tasks: decision.tasks,
-      });
+      this.notify(() =>
+        this.onKeepAlive?.({
+          agent: managed.agent,
+          sessionId: signal.sessionId,
+          tasks: decision.tasks,
+        }),
+      );
       return;
     }
 
@@ -140,8 +151,19 @@ export class SessionReaper {
   private reap(managed: ManagedSessionImpl, sessionId: string): void {
     if (!managed.isLive()) return;
     this.logger.info(`Reaping idle session ${sessionId} (${managed.agent})`);
-    this.onReap?.({ agent: managed.agent, sessionId });
+    // Notify before closing, but never let a throwing consumer callback skip the
+    // close() — that would leak the very session we decided to reap.
+    this.notify(() => this.onReap?.({ agent: managed.agent, sessionId }));
     managed.scheduleClose();
+  }
+
+  /** Run a consumer callback, swallowing (and logging) any throw. */
+  private notify(fn: () => void): void {
+    try {
+      fn();
+    } catch (error) {
+      this.logger.warn(`Session lifecycle callback threw: ${(error as Error).message}`);
+    }
   }
 }
 
@@ -176,8 +198,13 @@ class ManagedSessionImpl implements ManagedSession {
       this.reaper.registerLive(signal.sessionId, this);
     }
 
-    this.queue = this.queue.then(() => this.reaper.processSignal(this, signal));
-    return this.queue;
+    const result = this.queue.then(() => this.reaper.processSignal(this, signal));
+    // Keep the internal queue always-resolving: a single rejected signal must
+    // never poison the chain (which would skip every future signal and strand
+    // the session unreaped). processSignal already swallows its own errors; this
+    // is belt-and-suspenders against an unexpected throw.
+    this.queue = result.then(undefined, () => undefined);
+    return result;
   }
 
   isLive(): boolean {

@@ -160,4 +160,58 @@ describe("SessionReaper", () => {
     await managed.handleSignal(signal({ sessionId: "sess-42", kind: "activity" }));
     expect(managed.sessionId()).toBe("sess-42");
   });
+
+  it("still closes the session when the onReap callback throws", async () => {
+    const reaper = new SessionReaper({
+      registry: fakeRegistry(),
+      onReap: () => {
+        throw new Error("consumer boom");
+      },
+    });
+    const session = fakeSession();
+    const managed = reaper.manage(session, "team/agent");
+
+    await managed.handleSignal(signal());
+    expect(managed.isLive()).toBe(false);
+    await tick();
+    expect(session.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("reaps even when wake reconciliation fails", async () => {
+    const registry = {
+      reconcile: vi.fn().mockRejectedValue(new Error("state io error")),
+    } as unknown as WakeRegistry;
+    const onReap = vi.fn();
+    const reaper = new SessionReaper({ registry, onReap });
+    const session = fakeSession();
+    const managed = reaper.manage(session, "team/agent");
+
+    await managed.handleSignal(
+      signal({
+        sessionCrons: [{ id: "c1", schedule: "* * * * *", recurring: false, prompt: "p" }],
+      }),
+    );
+    expect(onReap).toHaveBeenCalledTimes(1);
+    await tick();
+    expect(session.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps processing signals after a failed reconcile (no queue wedge)", async () => {
+    const registry = {
+      reconcile: vi.fn().mockRejectedValueOnce(new Error("io")).mockResolvedValue(undefined),
+    } as unknown as WakeRegistry;
+    const reaper = new SessionReaper({ registry });
+    const session = fakeSession();
+    const managed = reaper.manage(session, "team/agent");
+
+    // First turn_end keeps the session alive (its reconcile rejects but is caught).
+    await managed.handleSignal(signal({ backgroundTasks: [TASK] }));
+    expect(managed.isLive()).toBe(true);
+
+    // A later signal must still be processed — the queue wasn't poisoned.
+    await managed.handleSignal(signal({ kind: "background_tasks_changed", backgroundTasks: [] }));
+    expect(managed.isLive()).toBe(false);
+    await tick();
+    expect(session.close).toHaveBeenCalledTimes(1);
+  });
 });
