@@ -11,6 +11,7 @@
 import type { EventEmitter } from "node:events";
 import type { ResolvedConfig } from "../config/index.js";
 import type { Scheduler } from "../scheduler/index.js";
+import type { SessionLifecycleManager } from "../session/index.js";
 import type { StateDirectory } from "../state/index.js";
 import type { IChatManager } from "./chat-manager-interface.js";
 import type {
@@ -52,6 +53,13 @@ export interface FleetManagerContext {
    * Get the scheduler instance (null if not initialized)
    */
   getScheduler(): Scheduler | null;
+
+  /**
+   * Get the session-lifecycle manager (reaper + wake registry), or null if the
+   * fleet is not initialized. Used by `openChatSession` to opt a session into
+   * lifecycle management (edspencer/herdctl#307).
+   */
+  getSessionLifecycle?(): SessionLifecycleManager | null;
 
   /**
    * Get the current fleet manager status
