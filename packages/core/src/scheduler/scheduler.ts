@@ -93,6 +93,7 @@ export class Scheduler {
   private readonly stateDir: string;
   private readonly logger: SchedulerLogger;
   private readonly onTrigger?: SchedulerTriggerCallback;
+  private readonly onTick?: () => Promise<void> | void;
 
   private status: SchedulerStatus = "stopped";
   private abortController: AbortController | null = null;
@@ -111,6 +112,7 @@ export class Scheduler {
     this.stateDir = options.stateDir;
     this.logger = options.logger ?? createDefaultLogger();
     this.onTrigger = options.onTrigger;
+    this.onTick = options.onTick;
   }
 
   /**
@@ -269,6 +271,16 @@ export class Scheduler {
         this.logger.error(
           `Error during schedule check: ${error instanceof Error ? error.message : String(error)}`,
         );
+      }
+
+      if (this.onTick) {
+        try {
+          await this.onTick();
+        } catch (error) {
+          this.logger.error(
+            `Error during scheduler tick hook: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
       }
 
       // Sleep until next check, but allow interruption via AbortController

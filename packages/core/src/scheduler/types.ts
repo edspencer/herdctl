@@ -69,6 +69,16 @@ export interface SchedulerOptions {
    * Callback invoked when a schedule is due and should trigger an agent run
    */
   onTrigger?: SchedulerTriggerCallback;
+
+  /**
+   * Callback invoked once per tick, after config schedules are checked.
+   *
+   * A seam for time-based work that isn't a config schedule — notably the
+   * session-wake registry firing due wakes (edspencer/herdctl#307). Reuses the
+   * scheduler's existing loop rather than standing up a second timer. A throw is
+   * logged and swallowed so it can't wedge the loop.
+   */
+  onTick?: () => Promise<void> | void;
 }
 
 // =============================================================================

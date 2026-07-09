@@ -47,6 +47,20 @@ export interface RuntimeExecuteOptions {
 
   /** Text to append to the agent's system prompt for this run */
   systemPromptAppend?: string;
+
+  /**
+   * Streaming sessions only: observe the session's background-work lifecycle.
+   *
+   * Called at each turn boundary (the SDK `Stop`/`SubagentStop` hook) and when
+   * the live background-task set changes (`background_tasks_changed`), with a
+   * snapshot of the session's pending timer-class wakeups (`sessionCrons`) and
+   * continuous-class background work (`backgroundTasks`). The session-reaper
+   * uses this to decide when to close an idle session and to capture wakeups for
+   * re-triggering. Ignored by {@link RuntimeInterface.execute}.
+   */
+  onLifecycleSignal?: (
+    signal: import("../../session/types.js").SessionLifecycleSignal,
+  ) => void | Promise<void>;
 }
 
 /**

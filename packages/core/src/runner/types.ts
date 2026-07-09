@@ -245,6 +245,12 @@ export interface SDKQueryOptions {
   cwd?: string;
   /** Model to use for the session */
   model?: string;
+  /**
+   * SDK lifecycle hooks (`Stop`, `SubagentStop`, …). Not set by `toSDKOptions`;
+   * injected by the SDK runtime for streaming sessions to observe turn
+   * boundaries. Typed against the SDK's own `Options["hooks"]`.
+   */
+  hooks?: import("@anthropic-ai/claude-agent-sdk").Options["hooks"];
 }
 
 // =============================================================================
