@@ -85,10 +85,14 @@ function defToSdkMcpServer(def: InjectedMcpServerDef) {
     }
 
     // herdctl's McpToolCallResult is structurally an MCP CallToolResult (text
-    // content), but the SDK types the content `type` as a literal union. Cast the
-    // handler at this adapter boundary rather than leaking the SDK's MCP types
-    // into the transport-agnostic InjectedMcpToolDef.
-    const handler = toolDef.handler as unknown as Parameters<typeof tool>[3];
+    // content), but the SDK types the content `type` as a literal union and infers
+    // the handler's args shape from the zod schema. Cast at this adapter boundary
+    // rather than leaking the SDK's MCP types into the transport-agnostic
+    // InjectedMcpToolDef. The instantiation expression pins the same `Schema` the
+    // call infers from `zodShape`, so the cast target matches the expected param.
+    const handler = toolDef.handler as unknown as Parameters<
+      typeof tool<Record<string, z.ZodTypeAny>>
+    >[3];
     return tool(toolDef.name, toolDef.description, zodShape, handler);
   });
 

@@ -19,7 +19,7 @@
   "dependencies": {
     "@herdctl/core": "workspace:*",
     "yaml": "^2.3.0",
-    "zod": "^3.22.0"
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.17",
