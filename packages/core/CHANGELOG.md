@@ -1,5 +1,64 @@
 # @herdctl/core
 
+## 5.17.0
+
+### Minor Changes
+
+- [#304](https://github.com/edspencer/herdctl/pull/304) [`4eec7f3`](https://github.com/edspencer/herdctl/commit/4eec7f300248ce07ee5ce75dca92e06cf3dbce28) Thanks [@edspencer](https://github.com/edspencer)! - Bump `@anthropic-ai/claude-agent-sdk` from `^0.1.0` (resolved 0.1.77) to
+  `^0.3.0` (resolves 0.3.205).
+
+  The pinned `^0.1.0` range could not cross a `0.x` minor, freezing herdctl on a
+  stale SDK line whose bundled JS harness lacks the current agentic toolset
+  (`ScheduleWakeup`, `ToolSearch`, `Cron*`, `Monitor`, …). `0.3.x` drops the
+  bundled harness and instead extracts/runs the native Claude Code binary, which
+  carries those tools — unblocking cross-turn autonomy (e.g. a persistent
+  `openSession()` agent scheduling `ScheduleWakeup` and being re-invoked when it
+  fires).
+
+  Adapts the SDK adapter surface to the 0.3.x types:
+
+  - `Query.interrupt()` now resolves to an optional interrupt-receipt object
+    instead of `void`; the streaming `RuntimeSession.interrupt()` awaits and
+    discards it to keep its fire-and-forget `Promise<void>` contract.
+  - The SDK's `tool()` handler return type now uses a literal-typed MCP
+    `CallToolResult`; the injected-MCP adapter casts `InjectedMcpToolDef.handler`
+    at that boundary so the transport-agnostic tool definition stays SDK-free.
+
+  No `@herdctl/core` public API changes. `query()`, `createSdkMcpServer()`,
+  `tool()`, streaming-input `AsyncIterable<SDKUserMessage>`, and the `Query`
+  control methods (`interrupt`, `supportedCommands`, `setModel`) all remain
+  compatible. Note: the SDK peer-depends on `zod@^4`, while core stays on
+  `zod@^3`; the schemas passed to `tool()` remain structurally compatible and
+  typecheck/build/tests are green.
+
+- [#305](https://github.com/edspencer/herdctl/pull/305) [`1262b8e`](https://github.com/edspencer/herdctl/commit/1262b8e4619a5eb479bba788d209a64143e3f61f) Thanks [@edspencer](https://github.com/edspencer)! - Upgrade `zod` from `^3.22.0` to `^4.0.0` in `@herdctl/core` and `@herdctl/chat`.
+
+  This clears the peer-dependency mismatch introduced by
+  `@anthropic-ai/claude-agent-sdk@0.3.x`, which peer-depends on `zod@^4` (the SDK's
+  in-process MCP `tool()` schemas). Core and chat now resolve a single `zod@4`.
+
+  **Behavior-preserving.** zod v4 changed `.default()` to short-circuit: a
+  `z.object({...}).default({})` whose fields carry their own defaults now yields a
+  bare `{}` at runtime instead of the fully-defaulted object (v3 re-ran the value
+  through the schema). The three affected config sites — `work_source.labels`,
+  `work_source.auth`, and Discord `output` — were switched to zod v4's
+  `.prefault({})`, which restores the v3 semantics (an omitted block is still run
+  through the schema so nested field defaults are applied). Existing schema tests
+  that assert those omitted-block defaults continue to pass. All other `.default()`
+  sites use scalar/array defaults, which are unaffected.
+
+  Also updated the in-process MCP tool adapter's `tool()` handler cast to match
+  v4's stricter argument-shape inference.
+
+  Note on the public surface: both packages re-export Zod schema **objects** from
+  their entry points (`@herdctl/core`: config/state schemas like `FleetConfigSchema`
+  and `AgentConfigSchema`; `@herdctl/chat`: `ChannelSessionSchema`,
+  `ChatSessionStateSchema`). Those objects are now Zod v4 instances. The inferred
+  (`z.infer`) types are structurally unchanged, so most consumers are unaffected;
+  only code that composes the exported schema objects with its **own** Zod instance
+  at runtime (`.extend`/`.merge`, `instanceof`, cross-instance parsing) needs to be
+  on `zod@^4`.
+
 ## 5.16.0
 
 ### Minor Changes
