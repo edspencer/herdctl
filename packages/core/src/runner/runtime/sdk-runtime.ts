@@ -15,6 +15,7 @@ import {
   tool,
 } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
+import { buildLifecycleHooks, tapLifecycleStream } from "../../session/session-hooks.js";
 import { toSDKOptions } from "../sdk-adapter.js";
 import type { InjectedMcpServerDef, SDKMessage } from "../types.js";
 import type { RuntimeExecuteOptions, RuntimeInterface, RuntimeSession } from "./interface.js";
@@ -168,21 +169,43 @@ export class SDKRuntime implements RuntimeInterface {
   openSession(options: RuntimeExecuteOptions): RuntimeSession {
     const sdkOptions = this.buildSdkOptions(options);
 
+    // Install turn-boundary lifecycle hooks when the caller wants to observe the
+    // session's background-work lifecycle (the session-reaper). The Stop hook
+    // carries the authoritative session_crons/background_tasks snapshot.
+    if (options.onLifecycleSignal) {
+      sdkOptions.hooks = {
+        ...(sdkOptions.hooks ?? {}),
+        ...buildLifecycleHooks(options.onLifecycleSignal),
+      };
+    }
+
     // A pushable iterable keeps the query open across turns.
     const input = new MessageQueue<SDKUserMessage>();
     if (options.prompt) {
       input.push(toUserMessage(options.prompt));
     }
 
+    // Thread the AbortController through so teardown has a lever beyond close()
+    // (mirrors execute()); create one if the caller didn't supply it.
+    const abortController = options.abortController ?? new AbortController();
+
     const q = query({
       prompt: input as AsyncIterable<SDKUserMessage>,
-      options: sdkOptions as Record<string, unknown>,
+      options: {
+        ...(sdkOptions as Record<string, unknown>),
+        abortController,
+      },
     });
 
+    // Widen the Query (an AsyncGenerator<SDKMessage>) to herdctl's structural
+    // SDKMessage, then tap the stream for mid-turn lifecycle events when needed.
+    const rawMessages = q as unknown as AsyncIterable<SDKMessage>;
+    const messages = options.onLifecycleSignal
+      ? tapLifecycleStream(rawMessages, options.onLifecycleSignal)
+      : rawMessages;
+
     return {
-      // The Query is itself an AsyncGenerator<SDKMessage>; cast to herdctl's
-      // structural SDKMessage (same widening execute() applies per-message).
-      messages: q as unknown as AsyncIterable<SDKMessage>,
+      messages,
       send: async (text: string) => {
         input.push(toUserMessage(text));
       },
@@ -202,6 +225,9 @@ export class SDKRuntime implements RuntimeInterface {
         } catch {
           // Already closed / never started — nothing to clean up.
         }
+        // Abort as a backstop in case the generator was already detached and
+        // q.return() didn't reach the underlying process.
+        if (!abortController.signal.aborted) abortController.abort();
       },
     };
   }

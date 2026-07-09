@@ -1560,4 +1560,45 @@ describe("Scheduler", () => {
       await startPromise;
     });
   });
+
+  describe("onTick", () => {
+    it("invokes the tick hook once per loop iteration", async () => {
+      const onTick = vi.fn().mockResolvedValue(undefined);
+      const scheduler = new Scheduler({
+        stateDir: tempDir,
+        logger: mockLogger,
+        checkInterval: 20,
+        onTick,
+      });
+
+      const startPromise = scheduler.start([]);
+      await wait(70);
+      await scheduler.stop();
+      await startPromise;
+
+      expect(onTick.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("swallows a throwing tick hook without stopping the loop", async () => {
+      let calls = 0;
+      const onTick = vi.fn().mockImplementation(() => {
+        calls++;
+        throw new Error("tick boom");
+      });
+      const scheduler = new Scheduler({
+        stateDir: tempDir,
+        logger: mockLogger,
+        checkInterval: 20,
+        onTick,
+      });
+
+      const startPromise = scheduler.start([]);
+      await wait(70);
+      await scheduler.stop();
+      await startPromise;
+
+      expect(calls).toBeGreaterThanOrEqual(2);
+      expect(mockLogger.errors.some((e) => e.includes("tick hook"))).toBe(true);
+    });
+  });
 });

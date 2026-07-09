@@ -61,6 +61,34 @@ export const AgentStateSchema = z.object({
 });
 
 // =============================================================================
+// Session Wake Schemas
+// =============================================================================
+
+/**
+ * A herdctl-owned wake captured from a streaming session's `session_crons`, so
+ * the fleet scheduler can re-trigger it after the session is reaped
+ * (edspencer/herdctl#307). Keyed by the SDK cron `id` at the top level of state.
+ */
+export const SessionWakeSchema = z.object({
+  /** SDK cron id — the reconciliation key across turns. */
+  id: z.string(),
+  /** Qualified agent name that owns the session. */
+  agent: z.string(),
+  /** Session id to resume when the wake fires. */
+  sessionId: z.string(),
+  /** Cron expression (a one-shot wakeup encodes a single fire time). */
+  schedule: z.string(),
+  /** `false` for one-shot wakeups; `true` for recurring crons. */
+  recurring: z.boolean(),
+  /** Prompt injected into the resumed session. */
+  prompt: z.string(),
+  /** Resolved absolute next fire time (ISO). */
+  nextRunAt: z.string(),
+  /** ISO capture time — anchors the 7-day recurring expiry. */
+  createdAt: z.string(),
+});
+
+// =============================================================================
 // Fleet State Schemas
 // =============================================================================
 
@@ -80,6 +108,8 @@ export const FleetStateSchema = z.object({
   fleet: FleetMetadataSchema.optional().default({}),
   /** Map of agent names to their current state */
   agents: z.record(z.string(), AgentStateSchema).optional().default({}),
+  /** Captured session wakes keyed by SDK cron id (see {@link SessionWakeSchema}). */
+  session_wakes: z.record(z.string(), SessionWakeSchema).optional(),
 });
 
 // =============================================================================
@@ -88,6 +118,7 @@ export const FleetStateSchema = z.object({
 
 export type ScheduleStatus = z.infer<typeof ScheduleStatusSchema>;
 export type ScheduleState = z.infer<typeof ScheduleStateSchema>;
+export type SessionWake = z.infer<typeof SessionWakeSchema>;
 export type AgentStatus = z.infer<typeof AgentStatusSchema>;
 export type AgentState = z.infer<typeof AgentStateSchema>;
 export type FleetMetadata = z.infer<typeof FleetMetadataSchema>;

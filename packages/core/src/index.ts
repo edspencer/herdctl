@@ -30,6 +30,8 @@ export * from "./hooks/index.js";
 export * from "./runner/index.js";
 // Scheduler exports (PRD 6)
 export * from "./scheduler/index.js";
+// Streaming-session lifecycle: reaper + wake re-trigger (#307)
+export * from "./session/index.js";
 // State exports (PRD 2)
 export * from "./state/index.js";
 // Utils exports (Logger, etc.)
