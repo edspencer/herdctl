@@ -1,6 +1,6 @@
 ---
-"@herdctl/core": major
-"@herdctl/chat": major
+"@herdctl/core": minor
+"@herdctl/chat": patch
 ---
 
 Upgrade `zod` from `^3.22.0` to `^4.0.0` in `@herdctl/core` and `@herdctl/chat`.
@@ -22,11 +22,11 @@ sites use scalar/array defaults, which are unaffected.
 Also updated the in-process MCP tool adapter's `tool()` handler cast to match
 v4's stricter argument-shape inference.
 
-**BREAKING:** both packages re-export Zod schema **objects** from their public
-entry points (`@herdctl/core`: the config/state schemas like `FleetConfigSchema`,
-`AgentConfigSchema`; `@herdctl/chat`: `ChannelSessionSchema`,
-`ChatSessionStateSchema`). Those objects are now Zod v4 instances, which do not
-interoperate with a consumer's own Zod v3 (composition via `.extend`/`.merge`,
-`instanceof`, and cross-instance parsing). Consumers that import these schemas
-must upgrade to `zod@^4`. The inferred (`z.infer`) types are largely structurally
-unchanged; only code that touches the schema objects at runtime is affected.
+Note on the public surface: both packages re-export Zod schema **objects** from
+their entry points (`@herdctl/core`: config/state schemas like `FleetConfigSchema`
+and `AgentConfigSchema`; `@herdctl/chat`: `ChannelSessionSchema`,
+`ChatSessionStateSchema`). Those objects are now Zod v4 instances. The inferred
+(`z.infer`) types are structurally unchanged, so most consumers are unaffected;
+only code that composes the exported schema objects with its **own** Zod instance
+at runtime (`.extend`/`.merge`, `instanceof`, cross-instance parsing) needs to be
+on `zod@^4`.
