@@ -84,8 +84,10 @@ export const GitHubWorkSourceSchema = z.object({
       /** Label applied when an agent claims the issue (default: "agent-working") */
       in_progress: z.string().optional().default("agent-working"),
     })
-    .optional()
-    .default({}),
+    // prefault (not default) so an omitted `labels:` block is still run through
+    // the schema, applying the nested field defaults. In zod v4 `.default({})`
+    // short-circuits and would yield `{}` with the nested defaults dropped.
+    .prefault({}),
   /** Labels to exclude from fetched issues (issues with any of these labels are skipped) */
   exclude_labels: z.array(z.string()).optional().default([]),
   /** Re-add ready label when releasing work on failure (default: true) */
@@ -93,7 +95,9 @@ export const GitHubWorkSourceSchema = z.object({
   /** Clean up in-progress labels on startup (backwards compatibility field) */
   cleanup_in_progress: z.boolean().optional(),
   /** Authentication configuration */
-  auth: GitHubAuthSchema.optional().default({}),
+  // prefault so an omitted `auth:` block still applies GitHubAuthSchema's nested
+  // token_env default (zod v4 `.default({})` would drop it).
+  auth: GitHubAuthSchema.prefault({}),
 });
 
 /**
@@ -779,7 +783,9 @@ export const AgentChatDiscordSchema = z.object({
   /** Log level for this agent's Discord connector */
   log_level: z.enum(["minimal", "standard", "verbose"]).default("standard"),
   /** Output configuration for controlling what gets shown during conversations */
-  output: DiscordOutputSchema.optional().default({}),
+  // prefault so an omitted `output:` block still applies DiscordOutputSchema's
+  // nested defaults (zod v4 `.default({})` would drop them).
+  output: DiscordOutputSchema.prefault({}),
   /** Bot presence/activity configuration */
   presence: DiscordPresenceSchema.optional(),
   /** Guilds (servers) this bot participates in */

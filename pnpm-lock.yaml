@@ -73,8 +73,8 @@ importers:
         specifier: ^2.3.0
         version: 2.8.2
       zod:
-        specifier: ^3.22.0
-        version: 3.25.76
+        specifier: ^4.0.0
+        version: 4.4.3
     devDependencies:
       '@vitest/coverage-v8':
         specifier: ^4.0.17
@@ -121,7 +121,7 @@ importers:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.3.0
-        version: 0.3.205(@anthropic-ai/sdk@0.110.0(zod@3.25.76))(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(zod@3.25.76)
+        version: 0.3.205(@anthropic-ai/sdk@0.110.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(zod@4.4.3)
       chokidar:
         specifier: ^5
         version: 5.0.0
@@ -141,8 +141,8 @@ importers:
         specifier: ^2.3.0
         version: 2.8.2
       zod:
-        specifier: ^3.22.0
-        version: 3.25.76
+        specifier: ^4.0.0
+        version: 4.4.3
     devDependencies:
       '@types/dockerode':
         specifier: ^4.0.1
@@ -5388,6 +5388,9 @@ packages:
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
+  zod@4.4.3:
+    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
+
   zustand@5.0.11:
     resolution: {integrity: sha512-fdZY+dk7zn/vbWNCYmzZULHRrss0jx5pPFiOuMZ/5HJN6Yv3u+1Wswy/4MpZEkEGhtNH+pwxZB8OKgUBPzYAGg==}
     engines: {node: '>=12.20.0'}
@@ -5442,11 +5445,11 @@ snapshots:
   '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.205':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk@0.3.205(@anthropic-ai/sdk@0.110.0(zod@3.25.76))(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(zod@3.25.76)':
+  '@anthropic-ai/claude-agent-sdk@0.3.205(@anthropic-ai/sdk@0.110.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(zod@4.4.3)':
     dependencies:
-      '@anthropic-ai/sdk': 0.110.0(zod@3.25.76)
-      '@modelcontextprotocol/sdk': 1.29.0(zod@3.25.76)
-      zod: 3.25.76
+      '@anthropic-ai/sdk': 0.110.0(zod@4.4.3)
+      '@modelcontextprotocol/sdk': 1.29.0(zod@4.4.3)
+      zod: 4.4.3
     optionalDependencies:
       '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.205
       '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.3.205
@@ -5457,12 +5460,12 @@ snapshots:
       '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.205
       '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.205
 
-  '@anthropic-ai/sdk@0.110.0(zod@3.25.76)':
+  '@anthropic-ai/sdk@0.110.0(zod@4.4.3)':
     dependencies:
       json-schema-to-ts: 3.1.1
       standardwebhooks: 1.0.0
     optionalDependencies:
-      zod: 3.25.76
+      zod: 4.4.3
 
   '@asamuzakjp/css-color@3.2.0':
     dependencies:
@@ -6577,7 +6580,7 @@ snapshots:
     dependencies:
       langium: 4.2.1
 
-  '@modelcontextprotocol/sdk@1.29.0(zod@3.25.76)':
+  '@modelcontextprotocol/sdk@1.29.0(zod@4.4.3)':
     dependencies:
       '@hono/node-server': 1.19.14(hono@4.12.28)
       ajv: 8.18.0
@@ -6594,8 +6597,8 @@ snapshots:
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 3.25.76
-      zod-to-json-schema: 3.25.1(zod@3.25.76)
+      zod: 4.4.3
+      zod-to-json-schema: 3.25.1(zod@4.4.3)
     transitivePeerDependencies:
       - supports-color
 
@@ -11147,12 +11150,18 @@ snapshots:
     dependencies:
       zod: 3.25.76
 
+  zod-to-json-schema@3.25.1(zod@4.4.3):
+    dependencies:
+      zod: 4.4.3
+
   zod-to-ts@1.2.0(typescript@5.9.3)(zod@3.25.76):
     dependencies:
       typescript: 5.9.3
       zod: 3.25.76
 
   zod@3.25.76: {}
+
+  zod@4.4.3: {}
 
   zustand@5.0.11(@types/react@19.2.14)(react@19.2.4):
     optionalDependencies:
