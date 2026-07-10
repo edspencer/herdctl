@@ -10,7 +10,7 @@
  */
 
 import type { RuntimeSession } from "../runner/runtime/interface.js";
-import { getNextCronTrigger } from "../scheduler/cron.js";
+import { calculateNextCronTrigger } from "../scheduler/cron.js";
 import { createLogger } from "../utils/logger.js";
 import { FleetStateWakePersistence } from "./fleet-state-wake-persistence.js";
 import { type ManagedSession, SessionReaper } from "./session-reaper.js";
@@ -48,7 +48,7 @@ export interface SessionLifecycleManagerOptions {
   openChatSession: (agent: string, options: SessionWakeChatOptions) => Promise<RuntimeSession>;
   /** Max concurrent wake fires per tick (gap 2). */
   concurrency?: number;
-  /** Override the cron resolver (defaults to `scheduler/cron.ts`, UTC). */
+  /** Override the cron resolver (defaults to `scheduler/cron.ts`, host-local tz). */
   resolveNextRun?: NextRunResolver;
   /** Consumer hook for delivering the woken turn (attribution/hub path). */
   sessionWakeHandler?: SessionWakeHandler;
@@ -61,9 +61,23 @@ export interface SessionLifecycleManagerOptions {
   }) => void;
 }
 
-/** Default cron resolver — herdctl's own parser, matching the SDK's UTC crons. */
-function defaultResolveNextRun(schedule: string, from: Date): Date {
-  return getNextCronTrigger(schedule, from);
+/**
+ * Default cron resolver for session-only wakes.
+ *
+ * The SDK/native harness serializes a relative one-shot `ScheduleWakeup` (and
+ * `CronCreate` schedules) as a wall-clock cron expression in the **host's local
+ * timezone** — e.g. a "+60s" wake at 19:08 local becomes `"10 19 * * *"`. So the
+ * cron must be resolved back in that same local timezone, not UTC: resolving
+ * `"10 19 * * *"` as UTC while the host is behind UTC rolls `nextRunAt` to
+ * tomorrow, and the wake silently sits idle for ~24h (edspencer/herdctl#311).
+ *
+ * `calculateNextCronTrigger` resolves in the host's system timezone
+ * (`Intl.DateTimeFormat().resolvedOptions().timeZone`), which is exactly the
+ * timezone the harness serialized the cron in — and matches how the rest of the
+ * scheduler (`scheduler.ts`, `schedule-runner.ts`) resolves fleet crons.
+ */
+export function defaultResolveNextRun(schedule: string, from: Date): Date {
+  return calculateNextCronTrigger(schedule, from);
 }
 
 export class SessionLifecycleManager {
