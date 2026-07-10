@@ -307,6 +307,81 @@ describe("parseSessionMessages", () => {
 });
 
 // =============================================================================
+// parseSessionMessages - stable per-message uuid
+// =============================================================================
+
+describe("parseSessionMessages - uuid", () => {
+  it("maps user and assistant messages to their source line uuid", async () => {
+    const messages = await parseSessionMessages(fixture("simple-session.jsonl"));
+
+    // Each ChatMessage's uuid matches the `uuid` on its originating JSONL line.
+    expect(messages.map((m) => m.uuid)).toEqual([
+      "uuid-simple-001", // user  "What is TypeScript?"
+      "uuid-simple-002", // assistant reply
+      "uuid-simple-003", // user  "How do I install it?"
+      "uuid-simple-004", // assistant reply
+    ]);
+  });
+
+  it("anchors a paired tool message to the originating tool_use entry's uuid", async () => {
+    // uuid-session.jsonl deliberately splits the assistant text and the tool_use
+    // onto separate lines (as Claude Code does), and the tool_result onto a third
+    // line — so the three candidate uuids are all distinct and the assertion is
+    // unambiguous about which one the tool message adopts.
+    const messages = await parseSessionMessages(fixture("uuid-session.jsonl"));
+
+    // user → assistant (text) → tool (Bash result) → assistant (final)
+    expect(messages.map((m) => m.role)).toEqual(["user", "assistant", "tool", "assistant"]);
+
+    expect(messages[0].uuid).toBe("uuid-uuid-user-1");
+    expect(messages[1].uuid).toBe("uuid-uuid-asst-text");
+
+    // The tool message adopts the tool_use entry's uuid — NOT the tool_result
+    // user line's uuid, and NOT the preceding assistant-text line's uuid.
+    expect(messages[2].role).toBe("tool");
+    expect(messages[2].uuid).toBe("uuid-uuid-asst-tooluse");
+    expect(messages[2].uuid).not.toBe("uuid-uuid-user-toolresult");
+    expect(messages[2].uuid).not.toBe("uuid-uuid-asst-text");
+
+    expect(messages[3].uuid).toBe("uuid-uuid-asst-final");
+  });
+
+  it("gives every paired tool message the uuid of its own tool_use origin", async () => {
+    // multi-tool-session has two tool_use blocks in one assistant entry, but each
+    // result is still paired back to that originating entry deterministically.
+    const messages = await parseSessionMessages(fixture("multi-tool-session.jsonl"));
+
+    const toolMessages = messages.filter((m) => m.role === "tool");
+    expect(toolMessages).toHaveLength(2);
+    for (const msg of toolMessages) {
+      // Both originate from the same assistant entry in this fixture.
+      expect(msg.uuid).toBe("uuid-multi-002");
+    }
+  });
+
+  it("produces identical uuids across repeated parses of the same file", async () => {
+    const first = await parseSessionMessages(fixture("uuid-session.jsonl"));
+    const second = await parseSessionMessages(fixture("uuid-session.jsonl"));
+
+    expect(first.map((m) => m.uuid)).toEqual(second.map((m) => m.uuid));
+    // And none of them is undefined for this fully-populated fixture.
+    for (const msg of first) {
+      expect(msg.uuid).toBeTruthy();
+    }
+  });
+
+  it("leaves uuid undefined when the source line carries no uuid", async () => {
+    // no-uuid-session.jsonl's lines omit the `uuid` field entirely.
+    const messages = await parseSessionMessages(fixture("no-uuid-session.jsonl"));
+
+    expect(messages).toHaveLength(2);
+    for (const msg of messages) {
+      expect(msg.uuid).toBeUndefined();
+    }
+  });
+});
+
+// =============================================================================
 // extractSessionMetadata
 // =============================================================================
 
