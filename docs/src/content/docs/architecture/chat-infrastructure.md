@@ -166,9 +166,9 @@ import { createSDKMessageHandler } from '@herdctl/chat';
 
 // Create a message handler
 const onMessage = createSDKMessageHandler({
-  onText: (text) => stream(text),
+  onText: (text, attribution) => stream(text, attribution),
   onToolCall: (call) => renderTool(call),
-  onBoundary: () => startNewBubble(),
+  onBoundary: (attribution) => startNewBubble(attribution),
 });
 
 // Use it with trigger
@@ -179,6 +179,27 @@ await fleet.trigger('agent', undefined, {
 ```
 
 The translator tracks pending `tool_use` blocks so they can be paired with their `tool_result` when it arrives later in the stream. It also detects when a new assistant turn begins after a previous one produced text, so transports can split message bubbles appropriately.
+
+### Agent Attribution
+
+Every emitted event carries **agent attribution** identifying which agent produced it — the main agent or a `Task`-spawned subagent. The Claude Agent SDK sets `parent_tool_use_id` on every `assistant`/`user` message: `null` (or absent) for the main agent, or the `Task` tool_use ID of the subagent that produced it. The translator surfaces this so consumers can group events into per-agent lanes:
+
+- `onText(text, attribution)` and `onBoundary(attribution)` receive an `AgentAttribution` as their attribution argument.
+- `TranslatedToolCall` includes a `parentToolUseId` field, attributed to the agent that *issued* the `tool_use` (a tracked main-agent tool call keeps its `null` even when its result arrives on a subagent-attributed message; only a truly untracked result falls back to the result message's attribution).
+
+```typescript
+import { getAgentAttribution, type AgentAttribution } from '@herdctl/chat';
+
+interface AgentAttribution {
+  // null for the main agent, else the spawning Task tool_use id
+  parentToolUseId: string | null;
+}
+
+// Read attribution off a raw SDK message directly
+const attribution = getAgentAttribution(message);
+```
+
+The `Task` tool_use ID seen on the main stream correlates with the subagent's `parent_tool_use_id`, so a UI can nest a subagent's text and tool calls under the `Task` call that spawned it. The change is additive — handlers that ignore the attribution argument keep working unchanged.
 
 For reusable instances (e.g., a long-lived WebSocket connection), create the translator directly and call `handle()` per message:
 

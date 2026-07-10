@@ -48,7 +48,7 @@ If the file does not exist or cannot be opened, the reader returns `null` and th
 
 | Function | Purpose |
 |----------|---------|
-| `parseSessionMessages(filePath, options?)` | Parse a full session into `ChatMessage[]` with tool call/result pairing |
+| `parseSessionMessages(filePath, options?)` | Parse a full session into `ChatMessage[]` with tool call/result pairing. Each message carries the stable `uuid` of its source JSONL entry (see below) |
 | `extractSessionMetadata(filePath)` | Extract summary metadata (timestamps, message count, git branch, preview, sidechain status) |
 | `extractSessionUsage(filePath)` | Extract token usage data (input tokens, turn count) |
 | `isSidechainSession(filePath)` | O(1) check -- reads only the first JSONL line to detect sub-agent sessions |
@@ -71,6 +71,16 @@ if (messageId) {
 ### Tool Call/Result Pairing
 
 Assistant messages contain `tool_use` content blocks; the subsequent user message contains the matching `tool_result` blocks. The parser maintains a `Map<string, PendingToolUse>` keyed by tool use ID. When a tool_use block is encountered, it is stored as pending. When the matching tool_result arrives, the parser pairs them to produce a `ChatMessage` with role `"tool"` that includes both the tool name, input summary, output, error status, and duration.
+
+### Stable Message IDs
+
+Each JSONL transcript entry carries a stable `uuid` — assigned when the line is written, append-only, and preserved across reloads and session forks. `parseSessionMessages` surfaces it as an optional `uuid` field on each `ChatMessage`:
+
+- User and assistant messages take their own line's `uuid`.
+- A paired tool message takes the **originating `tool_use` entry's** `uuid`, so the ID stays deterministic even when several `tool_result`s share a single user line. An orphan tool_result with no matching tool_use falls back to its own line's uuid.
+- `uuid` is `undefined` when the source line carries none, so existing consumers are unaffected.
+
+This gives UIs a reload-stable identifier for keying per-message state (React list keys, collapse/pin state, deep links) instead of falling back to array indexes.
 
 ### SessionMetadata Type
 

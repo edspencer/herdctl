@@ -53,6 +53,7 @@ const scheduler = new Scheduler({
 | `stateDir` | string | required | Path to `.herdctl` state directory |
 | `logger` | SchedulerLogger | console | Logger instance with debug/info/warn/error |
 | `onTrigger` | callback | undefined | Called when a schedule triggers |
+| `onTick` | `() => Promise<void> \| void` | undefined | Called once per tick, after config schedules are checked (see [Tick Hook](#tick-hook-ontick)) |
 
 ### Lifecycle Methods
 
@@ -101,6 +102,24 @@ private async runLoop(): Promise<void> {
   }
 }
 ```
+
+### Tick Hook (onTick)
+
+The `onTick` option is a seam for time-based work that isn't a config schedule. It is invoked once per tick, after `checkAllSchedules()` and before the sleep. A throw is logged and swallowed so a misbehaving hook cannot wedge the loop:
+
+```typescript
+if (this.onTick) {
+  try {
+    await this.onTick();
+  } catch (error) {
+    this.logger.error(`Error during scheduler tick hook: ...`);
+  }
+}
+```
+
+Its primary consumer is the **session-wake registry**: `FleetManager` wires `onTick: () => sessionLifecycle.dispatchDue()`, so durable session wakes (captured `ScheduleWakeup`/`CronCreate` timers from reaped chat sessions) fire on the existing scheduler loop instead of a second timer. Each dispatch prunes expired wakes, finds entries whose `nextRunAt` has passed (skipping sessions that are still live), and resumes each due session with its wake prompt — at most 4 concurrent fires per tick. Like fleet cron schedules, wake cron expressions are resolved in the host's local timezone.
+
+See [Sessions: Managed Session Lifecycle](/concepts/sessions/#managed-session-lifecycle-reaping-and-wakes) and [State Persistence: Session Wakes](/architecture/state-management/#session-wakes).
 
 ### Abort Handling
 

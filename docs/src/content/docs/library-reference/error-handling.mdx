@@ -361,6 +361,42 @@ try {
 
 ---
 
+### StreamingSessionUnsupportedError
+
+Thrown when an agent cannot open a streaming chat session.
+
+```typescript
+class StreamingSessionUnsupportedError extends FleetManagerError {
+  runtime?: string; // The runtime type that does not support streaming sessions
+}
+```
+
+**Common Causes:**
+- The agent is Docker-wrapped (`docker.enabled: true`) — streaming sessions require the SDK runtime, which cannot drive a containerized agent
+
+Thrown by `openChatSession()` and, transitively, by `listAgentCommands()`. Note that `runtime: cli` agents do *not* trigger this error — streaming sessions always run on the SDK runtime regardless of the agent's configured runtime.
+
+**Example:**
+
+```typescript
+import { StreamingSessionUnsupportedError } from '@herdctl/core';
+
+try {
+  const session = await manager.openChatSession('docker-agent');
+} catch (error) {
+  if (error instanceof StreamingSessionUnsupportedError) {
+    console.error(`Streaming not supported: ${error.message}`);
+    if (error.runtime) {
+      console.error(`Runtime: ${error.runtime}`); // e.g. "docker"
+    }
+    // Fall back to one-shot triggers
+    await manager.trigger('docker-agent', undefined, { prompt });
+  }
+}
+```
+
+---
+
 ### FleetManagerShutdownError
 
 Thrown when fleet shutdown fails.
@@ -885,6 +921,9 @@ const FleetManagerErrorCode = {
   // Job Control
   JOB_CANCEL_ERROR: 'JOB_CANCEL_ERROR',
   JOB_FORK_ERROR: 'JOB_FORK_ERROR',
+
+  // Streaming Sessions
+  STREAMING_SESSION_UNSUPPORTED: 'STREAMING_SESSION_UNSUPPORTED',
 } as const;
 ```
 
