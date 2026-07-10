@@ -17,8 +17,8 @@
     "lint": "biome check src/"
   },
   "dependencies": {
-    "@herdctl/chat": "workspace:*",
-    "@herdctl/core": "workspace:*",
+    "@herdctl/chat": "workspace:^",
+    "@herdctl/core": "workspace:^",
     "@slack/bolt": "^4.1.0",
     "slackify-markdown": "^5.0.0"
   },

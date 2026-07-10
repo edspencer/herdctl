@@ -67,7 +67,7 @@ importers:
   packages/chat:
     dependencies:
       '@herdctl/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       yaml:
         specifier: ^2.3.0
@@ -89,16 +89,16 @@ importers:
   packages/cli:
     dependencies:
       '@herdctl/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@herdctl/discord':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../discord
       '@herdctl/slack':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../slack
       '@herdctl/web':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../web
       '@inquirer/prompts':
         specifier: ^8.2.0
@@ -163,10 +163,10 @@ importers:
         specifier: ^2.6.0
         version: 2.6.0
       '@herdctl/chat':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../chat
       '@herdctl/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       discord.js:
         specifier: ^14.16.0
@@ -185,10 +185,10 @@ importers:
   packages/slack:
     dependencies:
       '@herdctl/chat':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../chat
       '@herdctl/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@slack/bolt':
         specifier: ^4.1.0
@@ -225,10 +225,10 @@ importers:
         specifier: ^11.0.3
         version: 11.2.0
       '@herdctl/chat':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../chat
       '@herdctl/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       fastify:
         specifier: ^5.2.2
