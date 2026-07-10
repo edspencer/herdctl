@@ -8,9 +8,9 @@ A summary of notable changes across the herdctl packages. For the full technical
 ---
 
 ### Published Package Deduplication Fix
-**July 10, 2026** · `@herdctl/core@5.18.2` · `herdctl@1.5.26` · `@herdctl/chat@0.5.5`
+**July 10, 2026** · `herdctl@1.5.26` · `@herdctl/chat@0.5.5` (and the other packages that declare internal deps)
 
-Internal `@herdctl/*` dependencies are now published as caret ranges (`workspace:^`) instead of exact pins. Previously, published packages pinned their herdctl siblings to a single exact version, so downstream projects that installed two herdctl packages cut at different times got duplicate nested copies of `@herdctl/core` that `npm dedupe` could not collapse. Depending on `@herdctl/core` alongside any other herdctl package now resolves to a single copy. No API changes. [#317](https://github.com/edspencer/herdctl/pull/317)
+Internal `@herdctl/*` dependencies are now published as caret ranges (`workspace:^`) instead of exact pins. Previously, published packages pinned their herdctl siblings to a single exact version, so downstream projects that installed two herdctl packages cut at different times got duplicate nested copies of `@herdctl/core` that `npm dedupe` could not collapse. Depending on `@herdctl/core` alongside any other herdctl package now resolves to a single copy. `@herdctl/core` itself is unchanged (it has no internal dependencies); this patch republished the packages that declare internal deps. No API changes. [#317](https://github.com/edspencer/herdctl/pull/317)
 
 ---
 
@@ -38,14 +38,14 @@ Streaming chat sessions can now opt in to herdctl-managed lifecycle with `openCh
 ### Claude Agent SDK 0.3 and Zod 4 Upgrade
 **July 9, 2026** · `@herdctl/core@5.17.0` · `@herdctl/chat@0.5.2`
 
-Upgraded `@anthropic-ai/claude-agent-sdk` from the stale 0.1 line to 0.3, which runs the native Claude Code binary and carries the current agentic toolset (`ScheduleWakeup`, `ToolSearch`, `Cron*`, `Monitor`, ...) — the prerequisite for the session reaper's cross-turn autonomy. Core and chat also moved from `zod@^3` to `zod@^4` to match the SDK's peer dependency, with behavior-preserving fixes for zod 4's changed `.default()` semantics. No `@herdctl/core` public API changes; consumers that compose the exported Zod schema objects with their own Zod instance need to be on `zod@^4`.
+Upgraded `@anthropic-ai/claude-agent-sdk` from the stale 0.1 line to 0.3, which runs the native Claude Code binary and carries the current agentic toolset (`ScheduleWakeup`, `ToolSearch`, `Cron*`, `Monitor`, ...) — the prerequisite for the session reaper's cross-turn autonomy. Core and chat also moved from `zod@^3` to `zod@^4` to match the SDK's peer dependency, with behavior-preserving fixes for zod 4's changed `.default()` semantics. No `@herdctl/core` public API changes; consumers that compose the exported Zod schema objects with their own Zod instance need to be on `zod@^4`. [#304](https://github.com/edspencer/herdctl/pull/304), [#305](https://github.com/edspencer/herdctl/pull/305)
 
 ---
 
 ### Slash Command Discovery
 **July 8, 2026** · `@herdctl/core@5.16.0`
 
-New `FleetManager.listAgentCommands(agentName, options?)` returns the slash commands available to an agent — built-ins, project `.claude/commands`, and MCP-provided commands — in one call, for populating a command palette or autocomplete. It opens a streaming session, reads the command list, and always closes the session, so callers never manage the underlying `claude` subprocess. Works for `cli`-runtime agents too, and re-exports the `SlashCommand` type from `@herdctl/core`.
+New `FleetManager.listAgentCommands(agentName, options?)` returns the slash commands available to an agent — built-ins, project `.claude/commands`, and MCP-provided commands — in one call, for populating a command palette or autocomplete. It opens a streaming session, reads the command list, and always closes the session, so callers never manage the underlying `claude` subprocess. Works for `cli`-runtime agents too, and re-exports the `SlashCommand` type from `@herdctl/core`. [#301](https://github.com/edspencer/herdctl/pull/301)
 
 ---
 
@@ -56,17 +56,17 @@ The SDK message translator now preserves agent attribution, so chat UIs can sepa
 
 ---
 
+### Cleaner Chat History
+**July 4–7, 2026** · `@herdctl/core@5.13.2` / `@herdctl/core@5.15.2` · `@herdctl/chat@0.4.8`
+
+Two history-rendering fixes. Session parsing (core 5.13.2, July 4) and metadata extraction (core 5.15.2, July 7) now skip Claude Code's injected `isMeta: true` user lines (a skill's SKILL.md, slash-command output, hook output), which previously rendered as giant out-of-order user bubbles and skewed message counts and previews. And the CLI's synthetic placeholder assistant turns (model `"<synthetic>"`, e.g. "No response requested." after a `/compact`) are filtered from both live translation and reloaded history (chat 0.4.8, July 7).
+
+---
+
 ### Session Forking via trigger()
 **July 7, 2026** · `@herdctl/core@5.15.0`
 
 `TriggerOptions` gains a `fork` option: `trigger('agent', undefined, { fork: sessionId })` runs a turn that resumes the source session's transcript as context but writes all new turns to a brand-new session ID (Claude Code's `--fork-session`), leaving the source untouched — branch an existing conversation into independent children without exhausting one context window. Also fixed the CLI runtime's fork handling, which previously reported the parent's session ID and missed the child's turns. An optional `forkedFrom` records job lineage. [#291](https://github.com/edspencer/herdctl/pull/291)
-
----
-
-### Cleaner Chat History
-**July 7, 2026** · `@herdctl/core@5.15.2` · `@herdctl/chat@0.4.8`
-
-Two history-rendering fixes. Session parsing and metadata extraction now skip Claude Code's injected `isMeta: true` user lines (a skill's SKILL.md, slash-command output, hook output), which previously rendered as giant out-of-order user bubbles and skewed message counts and previews. And the CLI's synthetic placeholder assistant turns (model `"<synthetic>"`, e.g. "No response requested." after a `/compact`) are filtered from both live translation and reloaded history.
 
 ---
 
@@ -87,7 +87,7 @@ New `FleetManager.openChatSession(agentName, options?)` opens a live, multi-turn
 ### Session Usage API and Thinking-Turn Fix
 **June 21, 2026** · `@herdctl/core@5.13.0`
 
-New `FleetManager.getAgentSessionUsage(name, sessionId)` returns a session's most recent context-window fill level (last assistant turn's input + cache tokens) and turn count, so a UI can show "context used" for a chat opened from history before any new turn streams fresh usage. Also fixed dropped assistant answers when reloading a chat: extended-thinking turns span multiple JSONL lines sharing one message ID, and the old dedup discarded the actual answer text as a duplicate of the thinking line.
+New `FleetManager.getAgentSessionUsage(name, sessionId)` returns a session's most recent context-window fill level (last assistant turn's input + cache tokens) and turn count, so a UI can show "context used" for a chat opened from history before any new turn streams fresh usage. Also fixed dropped assistant answers when reloading a chat: extended-thinking turns span multiple JSONL lines sharing one message ID, and the old dedup discarded the actual answer text as a duplicate of the thinking line. [#261](https://github.com/edspencer/herdctl/pull/261)
 
 ---
 

@@ -184,7 +184,7 @@ await manager.stop(options?: FleetManagerStopOptions): Promise<void>
 | `options.waitForJobs` | `boolean` | No | `true` | Wait for running jobs to complete before stopping |
 | `options.timeout` | `number` | No | `30000` | Maximum time in ms to wait for jobs to complete |
 | `options.cancelOnTimeout` | `boolean` | No | `false` | Cancel jobs that don't complete within timeout |
-| `options.cancelTimeout` | `number` | No | `10000` | Time in ms for each job to respond to SIGTERM before SIGKILL |
+| `options.cancelTimeout` | `number` | No | `10000` | Passed through to each job's `cancelJob()` call; currently unused — cancellation aborts runs immediately |
 
 #### Description
 
@@ -1265,6 +1265,9 @@ await manager.trigger(
 | `options.workItems` | `WorkItem[]` | No | Custom work items instead of fetching from work source |
 | `options.bypassConcurrencyLimit` | `boolean` | No | Force trigger even if agent is at capacity (default: `false`) |
 | `options.workingDirectory` | `string` | No | Override the agent's configured working directory for this trigger only |
+| `options.triggerType` | `string` | No | How the trigger was initiated (`"discord"`, `"slack"`, `"web"`, `"manual"`, ...) — connectors set this to identify the source platform (default: `"manual"`) |
+| `options.systemPromptAppend` | `string` | No | Text appended to the agent's system prompt for this trigger only |
+| `options.injectedMcpServers` | `Record<string, InjectedMcpServerDef>` | No | MCP servers merged with the agent's config-declared servers at execution time, for runtime tool injection |
 | `options.onMessage` | `(message: SDKMessage) => void \| Promise<void>` | No | Callback invoked for each SDK message during execution, for real-time streaming of output |
 | `options.onJobCreated` | `(jobId: string) => void \| Promise<void>` | No | Callback invoked as soon as the job ID is created — useful for immediate job control (e.g. enabling cancel while output streams) |
 
@@ -1352,7 +1355,7 @@ await manager.cancelJob(
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `jobId` | `string` | **Yes** | — | ID of the job to cancel |
-| `options.timeout` | `number` | No | `10000` | Time in ms to wait for graceful shutdown before SIGKILL |
+| `options.timeout` | `number` | No | `10000` | Accepted for backwards compatibility but currently unused — cancellation aborts the run immediately (see Description) |
 
 #### Returns
 
