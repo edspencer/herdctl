@@ -421,6 +421,47 @@ export class SessionDiscoveryService {
   }
 
   /**
+   * Resolve whether a session is a sidechain (Task sub-agent / --resume warmup),
+   * using the cache when valid. The flag is derived from the transcript's first
+   * JSONL line, so caching it (keyed on file mtime) lets a listing skip re-opening
+   * every transcript — the check runs once per session per content change instead
+   * of on every listing.
+   *
+   * @param agentName - The agent's qualified name (or "adhoc" for unattributed)
+   * @param sessionId - The session ID
+   * @param fileMtime - ISO 8601 timestamp of the session file's modification time
+   * @param workingDirectory - The session's working directory
+   * @returns Object with isSidechain and whether the cache needs an update
+   */
+  private async resolveSidechain(
+    agentName: string,
+    sessionId: string,
+    fileMtime: string,
+    workingDirectory: string,
+    dockerEnabled?: boolean,
+  ): Promise<{ isSidechain: boolean; needsUpdate: boolean }> {
+    // Check cache
+    const cached = await this.sessionMetadataStore.getSidechain(agentName, sessionId);
+
+    if (
+      cached?.isSidechain !== undefined &&
+      cached.isSidechainMtime &&
+      cached.isSidechainMtime >= fileMtime
+    ) {
+      // Cache is valid
+      return { isSidechain: cached.isSidechain, needsUpdate: false };
+    }
+
+    // Need to read the transcript's first line
+    const filePath = dockerEnabled
+      ? getDockerSessionFile(this.stateDir, sessionId)
+      : getCliSessionFile(workingDirectory, sessionId);
+    const isSidechain = await isSidechainSession(filePath);
+
+    return { isSidechain, needsUpdate: true };
+  }
+
+  /**
    * Get sessions for a specific agent.
    *
    * Returns sessions from the agent's working directory, attributed and
@@ -465,19 +506,28 @@ export class SessionDiscoveryService {
     const sessions: DiscoveredSession[] = [];
     const autoNameUpdates: Array<{ sessionId: string; autoName: string; mtime: string }> = [];
     const previewUpdates: Array<{ sessionId: string; preview: string; mtime: string }> = [];
+    const sidechainUpdates: Array<{ sessionId: string; isSidechain: boolean; mtime: string }> = [];
 
     for (const { sessionId, mtime } of filesToEnrich) {
-      // Get the actual file path based on storage location
-      const filePath = dockerEnabled
-        ? getDockerSessionFile(this.stateDir, sessionId)
-        : getCliSessionFile(workingDirectory, sessionId);
+      const mtimeStr = mtime.toISOString();
 
       // Filter out sidechain (sub-agent) sessions. Claude Code marks sessions
       // as sidechain when they're Task tool sub-agents or when --resume is used.
       // These are mostly prompt-cache warmup sessions ("Warmup" + single response)
-      // that clutter the UI with no useful content. We check only the first JSONL
-      // line so this is O(1) per file.
-      if (await isSidechainSession(filePath)) {
+      // that clutter the UI with no useful content. The flag comes from the first
+      // JSONL line and is cached (keyed on mtime) so we don't re-open every
+      // transcript on each listing.
+      const { isSidechain, needsUpdate: sidechainNeedsUpdate } = await this.resolveSidechain(
+        agentName,
+        sessionId,
+        mtimeStr,
+        workingDirectory,
+        dockerEnabled,
+      );
+      if (sidechainNeedsUpdate) {
+        sidechainUpdates.push({ sessionId, isSidechain, mtime: mtimeStr });
+      }
+      if (isSidechain) {
         continue;
       }
 
@@ -492,7 +542,6 @@ export class SessionDiscoveryService {
       }
 
       const customName = await this.sessionMetadataStore.getCustomName(agentName, sessionId);
-      const mtimeStr = mtime.toISOString();
 
       // Resolve autoName with caching — pass docker flag so it reads the right file
       const { autoName, needsUpdate } = await this.resolveAutoName(
@@ -539,6 +588,9 @@ export class SessionDiscoveryService {
     }
     if (previewUpdates.length > 0) {
       await this.sessionMetadataStore.batchSetPreviews(agentName, previewUpdates);
+    }
+    if (sidechainUpdates.length > 0) {
+      await this.sessionMetadataStore.batchSetSidechains(agentName, sidechainUpdates);
     }
 
     return sessions;
@@ -772,16 +824,26 @@ export class SessionDiscoveryService {
       const sessions: DiscoveredSession[] = [];
       const autoNameUpdates: Array<{ sessionId: string; autoName: string; mtime: string }> = [];
       const previewUpdates: Array<{ sessionId: string; preview: string; mtime: string }> = [];
+      const sidechainUpdates: Array<{ sessionId: string; isSidechain: boolean; mtime: string }> =
+        [];
       let visibleSessionCount = 0;
 
       for (const { sessionId, mtime } of dir.sessionFiles) {
-        // Get the actual file path based on storage location
-        const filePath = dir.dockerEnabled
-          ? getDockerSessionFile(this.stateDir, sessionId)
-          : getCliSessionFile(dir.decodedPath, sessionId);
+        const mtimeStr = mtime.toISOString();
 
-        // Filter out sidechain (sub-agent) sessions — see comment in getAgentSessions()
-        if (await isSidechainSession(filePath)) {
+        // Filter out sidechain (sub-agent) sessions — see comment in getAgentSessions().
+        // Cached (keyed on mtime) so we don't re-open every transcript per listing.
+        const { isSidechain, needsUpdate: sidechainNeedsUpdate } = await this.resolveSidechain(
+          dir.metadataKey,
+          sessionId,
+          mtimeStr,
+          dir.decodedPath,
+          dir.dockerEnabled,
+        );
+        if (sidechainNeedsUpdate) {
+          sidechainUpdates.push({ sessionId, isSidechain, mtime: mtimeStr });
+        }
+        if (isSidechain) {
           continue;
         }
 
@@ -817,8 +879,6 @@ export class SessionDiscoveryService {
         if (selectedSessionIds && !selectedSessionIds.has(sessionId)) {
           continue;
         }
-
-        const mtimeStr = mtime.toISOString();
 
         // Get custom name (works for both attributed and unattributed sessions)
         const customName = await this.sessionMetadataStore.getCustomName(
@@ -871,6 +931,9 @@ export class SessionDiscoveryService {
       }
       if (previewUpdates.length > 0) {
         await this.sessionMetadataStore.batchSetPreviews(dir.metadataKey, previewUpdates);
+      }
+      if (sidechainUpdates.length > 0) {
+        await this.sessionMetadataStore.batchSetSidechains(dir.metadataKey, sidechainUpdates);
       }
 
       if (sessions.length > 0) {
@@ -971,24 +1034,55 @@ export class SessionDiscoveryService {
   /**
    * Get usage data for a session.
    *
-   * Delegates to the JSONL parser.
+   * Delegates to the JSONL parser. When `agentName` is supplied, the result is
+   * memoized in the persistent SessionMetadataStore keyed on the transcript's
+   * mtime, so repeated reads (and reads after a restart) skip re-streaming the
+   * whole transcript unless a new turn has changed it.
    *
    * @param workingDirectory - The session's working directory
    * @param sessionId - The session ID
-   * @param options - Optional settings (dockerEnabled for Docker agent sessions)
+   * @param options - Optional settings (dockerEnabled for Docker agent sessions;
+   *   agentName to enable the persistent usage cache; mtime to key that cache
+   *   without a stat when the caller already knows the transcript's mtime)
    * @returns Session usage data
    */
   async getSessionUsage(
     workingDirectory: string,
     sessionId: string,
-    options?: { dockerEnabled?: boolean },
+    options?: { dockerEnabled?: boolean; agentName?: string; mtime?: string },
   ): Promise<SessionUsage> {
     const filePath = this.resolveSessionFilePath(
       workingDirectory,
       sessionId,
       options?.dockerEnabled,
     );
-    return extractSessionUsage(filePath);
+
+    const agentName = options?.agentName;
+    if (!agentName) {
+      return extractSessionUsage(filePath);
+    }
+
+    // Key the cache on the transcript's mtime. Prefer a caller-supplied mtime
+    // (session listings already have it); otherwise a cheap stat. If neither is
+    // available (file gone), fall back to a direct parse rather than caching a
+    // bogus entry.
+    let mtimeStr = options?.mtime;
+    if (!mtimeStr) {
+      try {
+        mtimeStr = (await stat(filePath)).mtime.toISOString();
+      } catch {
+        return extractSessionUsage(filePath);
+      }
+    }
+
+    const cached = await this.sessionMetadataStore.getUsage(agentName, sessionId);
+    if (cached?.usage && cached.usageMtime && cached.usageMtime >= mtimeStr) {
+      return cached.usage;
+    }
+
+    const usage = await extractSessionUsage(filePath);
+    await this.sessionMetadataStore.setUsage(agentName, sessionId, usage, mtimeStr);
+    return usage;
   }
 
   /**

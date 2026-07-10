@@ -646,4 +646,78 @@ describe("SessionMetadataStore", () => {
       expect(preview1!.preview).toBe("Question one");
     });
   });
+
+  describe("getSidechain / batchSetSidechains", () => {
+    it("returns undefined for a session with no sidechain flag", async () => {
+      const result = await store.getSidechain("test-agent", "session-999");
+      expect(result).toBeUndefined();
+    });
+
+    it("roundtrips isSidechain (including false) and isSidechainMtime", async () => {
+      await store.batchSetSidechains("test-agent", [
+        { sessionId: "session-1", isSidechain: true, mtime: "2024-01-15T10:00:00.000Z" },
+        { sessionId: "session-2", isSidechain: false, mtime: "2024-01-15T11:00:00.000Z" },
+      ]);
+
+      const s1 = await store.getSidechain("test-agent", "session-1");
+      expect(s1!.isSidechain).toBe(true);
+      expect(s1!.isSidechainMtime).toBe("2024-01-15T10:00:00.000Z");
+
+      // `false` must roundtrip (not be conflated with "not cached").
+      const s2 = await store.getSidechain("test-agent", "session-2");
+      expect(s2!.isSidechain).toBe(false);
+      expect(s2!.isSidechainMtime).toBe("2024-01-15T11:00:00.000Z");
+    });
+
+    it("does nothing when entries array is empty", async () => {
+      await store.batchSetSidechains("test-agent", []);
+      expect(await store.getAgentMetadata("test-agent")).toBeNull();
+    });
+
+    it("preserves existing preview/customName when setting the sidechain flag", async () => {
+      await store.setCustomName("test-agent", "session-1", "Custom One");
+      await store.setPreview("test-agent", "session-1", "Hi", "2024-01-15T10:00:00.000Z");
+
+      await store.batchSetSidechains("test-agent", [
+        { sessionId: "session-1", isSidechain: false, mtime: "2024-01-15T10:00:00.000Z" },
+      ]);
+
+      expect(await store.getCustomName("test-agent", "session-1")).toBe("Custom One");
+      expect((await store.getPreview("test-agent", "session-1"))!.preview).toBe("Hi");
+      expect((await store.getSidechain("test-agent", "session-1"))!.isSidechain).toBe(false);
+    });
+  });
+
+  describe("getUsage / setUsage", () => {
+    it("returns undefined for a session with no usage", async () => {
+      const result = await store.getUsage("test-agent", "session-999");
+      expect(result).toBeUndefined();
+    });
+
+    it("roundtrips usage and usageMtime", async () => {
+      await store.setUsage(
+        "test-agent",
+        "session-123",
+        { inputTokens: 250_000, turnCount: 12, hasData: true },
+        "2024-01-15T10:00:00.000Z",
+      );
+
+      const result = await store.getUsage("test-agent", "session-123");
+      expect(result!.usage).toEqual({ inputTokens: 250_000, turnCount: 12, hasData: true });
+      expect(result!.usageMtime).toBe("2024-01-15T10:00:00.000Z");
+    });
+
+    it("preserves existing preview when setting usage", async () => {
+      await store.setPreview("test-agent", "session-1", "Hi", "2024-01-15T10:00:00.000Z");
+      await store.setUsage(
+        "test-agent",
+        "session-1",
+        { inputTokens: 1, turnCount: 1, hasData: true },
+        "2024-01-15T10:00:00.000Z",
+      );
+
+      expect((await store.getPreview("test-agent", "session-1"))!.preview).toBe("Hi");
+      expect((await store.getUsage("test-agent", "session-1"))!.usage!.inputTokens).toBe(1);
+    });
+  });
 });
