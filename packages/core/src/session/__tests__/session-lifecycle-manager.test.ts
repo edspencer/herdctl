@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeSession } from "../../runner/runtime/interface.js";
 import { FleetStateWakePersistence } from "../fleet-state-wake-persistence.js";
 import {
+  defaultResolveNextRun,
   SessionLifecycleManager,
   type SessionWakeChatOptions,
 } from "../session-lifecycle-manager.js";
@@ -124,5 +125,45 @@ describe("SessionLifecycleManager", () => {
     const slm = new SessionLifecycleManager({ stateDir, openChatSession, resolveNextRun });
     expect(await slm.dispatchDue(NOW)).toEqual([]);
     expect(openChatSession).not.toHaveBeenCalled();
+  });
+});
+
+// Regression: edspencer/herdctl#311 — the harness serializes a relative one-shot
+// ScheduleWakeup as a wall-clock cron in the host's LOCAL timezone, so the wake
+// must be resolved in that same timezone. Resolving it as UTC on a host behind
+// UTC rolls the next fire time to tomorrow, so a "+60s" wake never fires today.
+describe("defaultResolveNextRun (session wake tz)", () => {
+  const originalTZ = process.env.TZ;
+
+  afterEach(() => {
+    if (originalTZ === undefined) delete process.env.TZ;
+    else process.env.TZ = originalTZ;
+  });
+
+  it("resolves a local-time one-shot cron to ~1 minute out, not ~24h, when host tz is behind UTC", () => {
+    // Host tz America/New_York (UTC-4 in July). Real wall-clock 19:08 EDT ==
+    // 23:08 UTC. A "+60s" ScheduleWakeup is serialized by the harness as the
+    // local target minute/hour: "10 19 * * *" (19:10 EDT).
+    process.env.TZ = "America/New_York";
+    const now = new Date("2026-07-09T23:08:46.380Z"); // 19:08:46 EDT
+    const schedule = "10 19 * * *"; // 19:10 local == 23:10 UTC
+
+    const next = defaultResolveNextRun(schedule, now);
+
+    // Correct: next fire is 19:10 EDT today == 23:10 UTC, ~74s out.
+    expect(next.toISOString()).toBe("2026-07-09T23:10:00.000Z");
+    const deltaMs = next.getTime() - now.getTime();
+    expect(deltaMs).toBeGreaterThan(0);
+    expect(deltaMs).toBeLessThan(5 * 60_000); // minutes out, not ~20h
+  });
+
+  it("resolves the same cron in UTC to ~24h out (documents the pre-fix behavior)", async () => {
+    // Guard against a regression to UTC resolution: the old resolver treated the
+    // local cron as UTC, so "10 19 * * *" from 23:08 UTC rolled to tomorrow.
+    process.env.TZ = "UTC";
+    const { getNextCronTrigger } = await import("../../scheduler/cron.js");
+    const now = new Date("2026-07-09T23:08:46.380Z");
+    const utcNext = getNextCronTrigger("10 19 * * *", now);
+    expect(utcNext.toISOString()).toBe("2026-07-10T19:10:00.000Z"); // ~20h late — the bug
   });
 });
