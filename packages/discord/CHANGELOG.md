@@ -1,5 +1,19 @@
 # @herdctl/discord
 
+## 1.2.17
+
+### Patch Changes
+
+- [#317](https://github.com/edspencer/herdctl/pull/317) [`6d00162`](https://github.com/edspencer/herdctl/commit/6d001623f878ea3907f4f8a2dfdc868ea383e081) Thanks [@edspencer](https://github.com/edspencer)! - Publish internal `@herdctl/*` dependencies as caret ranges instead of exact pins (edspencer/herdctl#315).
+
+  Every internal dependency was declared as `workspace:*`, which pnpm rewrites to the **exact** current version on publish. A published package therefore pinned its herdctl siblings to a single version, so any downstream that installed two herdctl packages cut at different times got **duplicate copies** of the shared package(s) — most importantly a second nested `@herdctl/core` that `npm dedupe` could not collapse.
+
+  Internal deps are now `workspace:^`, which publishes as `^x.y.z` while still resolving to the local workspace package in dev. A downstream depending on `@herdctl/core@^5.18.x` alongside a herdctl package now dedupes to a single `@herdctl/core`. No API changes — only the published dependency ranges are relaxed. `@herdctl/core` itself is unchanged (it has no internal dependencies); this patch republishes the packages that declare internal deps so the corrected ranges reach npm.
+
+- Updated dependencies [[`6d00162`](https://github.com/edspencer/herdctl/commit/6d001623f878ea3907f4f8a2dfdc868ea383e081), [`f5846ef`](https://github.com/edspencer/herdctl/commit/f5846efac8848408c0cc7a5f0848985838ecd66b)]:
+  - @herdctl/chat@0.5.5
+  - @herdctl/core@5.18.2
+
 ## 1.2.16
 
 ### Patch Changes
