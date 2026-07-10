@@ -23,10 +23,10 @@
     "lint": "biome check src/"
   },
   "dependencies": {
-    "@herdctl/core": "workspace:*",
-    "@herdctl/discord": "workspace:*",
-    "@herdctl/slack": "workspace:*",
-    "@herdctl/web": "workspace:*",
+    "@herdctl/core": "workspace:^",
+    "@herdctl/discord": "workspace:^",
+    "@herdctl/slack": "workspace:^",
+    "@herdctl/web": "workspace:^",
     "@inquirer/prompts": "^8.2.0",
     "commander": "^12",
     "yaml": "^2"

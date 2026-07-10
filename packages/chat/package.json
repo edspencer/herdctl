@@ -17,7 +17,7 @@
     "lint": "biome check src/"
   },
   "dependencies": {
-    "@herdctl/core": "workspace:*",
+    "@herdctl/core": "workspace:^",
     "yaml": "^2.3.0",
     "zod": "^4.0.0"
   },
