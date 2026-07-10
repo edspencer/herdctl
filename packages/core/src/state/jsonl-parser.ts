@@ -29,6 +29,16 @@ export interface ChatMessage {
   content: string;
   timestamp: string; // ISO 8601
   toolCall?: ChatToolCall;
+  /**
+   * Stable id from the source transcript entry (JSONL `uuid`); undefined if the
+   * source line carried no `uuid`. Assigned per entry when the line is written,
+   * append-only, and stable across reloads and forks — suitable for keying
+   * per-message UI state (collapse/height/pin state, deep links). For a paired
+   * tool message (a tool_use in an assistant entry collapsed with its following
+   * tool_result), this is the originating tool_use entry's `uuid`, so the id is
+   * deterministic regardless of how many tool_results share a single user line.
+   */
+  uuid?: string;
 }
 
 /**
@@ -79,6 +89,8 @@ interface PendingToolUse {
   name: string;
   input?: unknown;
   timestamp: string;
+  /** `uuid` of the assistant entry that originated this tool_use, if any. */
+  uuid?: string;
 }
 
 // =============================================================================
@@ -206,6 +218,9 @@ export async function parseSessionMessages(
     const timestamp =
       typeof parsed.timestamp === "string" ? parsed.timestamp : new Date().toISOString();
 
+    // Stable per-entry id from the source transcript line (undefined if absent).
+    const uuid = typeof parsed.uuid === "string" ? parsed.uuid : undefined;
+
     // ── User messages ──────────────────────────────────────────────────
     if (type === "user") {
       const content = message.content;
@@ -240,6 +255,11 @@ export async function parseSessionMessages(
             role: "tool",
             content: result.output,
             timestamp,
+            // Anchor to the originating tool_use entry so the id is stable and
+            // distinct even when several tool_results share one user line. Fall
+            // back to this tool_result line's own uuid for an orphan result that
+            // never matched a pending tool_use.
+            uuid: pending?.uuid ?? uuid,
             toolCall: {
               toolName,
               inputSummary,
@@ -271,7 +291,7 @@ export async function parseSessionMessages(
 
       const text = extractTextContent(content);
       if (text.length > 0) {
-        messages.push({ role: "user", content: text, timestamp });
+        messages.push({ role: "user", content: text, timestamp, uuid });
       }
 
       continue;
@@ -303,6 +323,7 @@ export async function parseSessionMessages(
               name: block.name,
               input: block.input,
               timestamp,
+              uuid,
             });
           }
         }
@@ -324,7 +345,7 @@ export async function parseSessionMessages(
       // tool_use-only line for the same response no longer suppresses the text.
       if (text.length > 0 && (limit === undefined || messages.length < limit)) {
         if (!messageId || !seenAssistantTextIds.has(messageId)) {
-          messages.push({ role: "assistant", content: text, timestamp });
+          messages.push({ role: "assistant", content: text, timestamp, uuid });
           if (messageId) {
             seenAssistantTextIds.add(messageId);
           }
