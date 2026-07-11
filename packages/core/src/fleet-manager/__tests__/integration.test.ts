@@ -412,6 +412,60 @@ describe("FleetManager Integration Tests (US-13)", () => {
       expect(jobCompletedEvents[0].durationSeconds).toBeGreaterThanOrEqual(0);
     });
 
+    it("emits job:created (pending) before job:output before job:completed on scheduled path (issue #328)", async () => {
+      await createAgentConfig("ordered-schedule-agent", {
+        name: "ordered-schedule-agent",
+        schedules: {
+          quick: {
+            type: "interval",
+            interval: "100ms",
+            prompt: "Execute test prompt",
+          },
+        },
+      });
+
+      const configPath = await createConfig({
+        version: 1,
+        agents: [{ path: "./agents/ordered-schedule-agent.yaml" }],
+      });
+
+      (mockQueryFn as Mock).mockImplementation(async function* () {
+        yield { type: "system" as const, subtype: "init", session_id: "test-session-123" };
+        yield { type: "assistant" as const, content: "Scheduled response" };
+      });
+
+      const manager = new FleetManager({
+        configPath,
+        stateDir,
+        checkInterval: 50,
+        logger: createSilentLogger(),
+      });
+
+      const order: string[] = [];
+      let createdStatus: string | undefined;
+      manager.on("job:created", (payload) => {
+        order.push("job:created");
+        createdStatus ??= payload.job.status;
+      });
+      manager.on("job:output", () => order.push("job:output"));
+      manager.on("job:completed", () => order.push("job:completed"));
+
+      await manager.initialize();
+      await manager.start();
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      await manager.stop();
+
+      // Trim to the first job's lifecycle (interval may fire more than once).
+      const firstCreated = order.indexOf("job:created");
+      const firstCompleted = order.indexOf("job:completed");
+      expect(firstCreated).toBe(0);
+      expect(order).toContain("job:output");
+      expect(createdStatus).toBe("pending");
+      // created precedes the first output precedes the first completed
+      expect(order.indexOf("job:output")).toBeGreaterThan(firstCreated);
+      expect(order.indexOf("job:output")).toBeLessThan(firstCompleted);
+    });
+
     it("emits job:failed when execution fails", async () => {
       await createAgentConfig("failing-agent", {
         name: "failing-agent",

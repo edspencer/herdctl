@@ -172,9 +172,12 @@ export class JobExecutor {
 
       this.logger.info?.(`Created job ${job.id} for agent ${agent.name}`);
 
-      // Notify caller of job ID immediately (before execution starts)
+      // Notify caller of job ID immediately (before execution starts).
+      // Pass the freshly-created record (status `pending`) and await the
+      // callback so consumers can emit `job:created` up front — guaranteed to
+      // complete before any `onMessage`/`job:output` streams below.
       if (onJobCreated) {
-        onJobCreated(job.id);
+        await onJobCreated(job.id, job);
       }
     } catch (error) {
       this.logger.error(`Failed to create job: ${(error as Error).message}`);

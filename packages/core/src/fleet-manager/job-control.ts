@@ -33,6 +33,7 @@ import {
   ScheduleNotFoundError,
   StreamingSessionUnsupportedError,
 } from "./errors.js";
+import { buildJobOutputPayload } from "./job-output-mapper.js";
 import type {
   AgentInfo,
   CancelJobResult,
@@ -206,10 +207,32 @@ export class JobControl {
           "manual") as import("../state/schemas/job-metadata.js").TriggerType,
         schedule: scheduleName,
         outputToFile: schedule?.outputToFile ?? false,
-        onMessage: options?.onMessage,
-        onJobCreated: (id) => {
+        onMessage: async (message) => {
+          // Stream job:output during execution (parity with the scheduled
+          // path). The manual trigger previously forwarded onMessage raw and
+          // never emitted job:output.
+          if (registeredJobId) {
+            const payload = buildJobOutputPayload(registeredJobId, agentName, message);
+            if (payload) {
+              emitter.emit("job:output", payload);
+            }
+          }
+          await options?.onMessage?.(message);
+        },
+        onJobCreated: (id, job) => {
           registeredJobId = id;
           this.runningControllers.set(id, abortController);
+
+          // Emit job:created at creation time (status `pending`), BEFORE any
+          // job:output streams and before completion. The record is passed
+          // in-hand so no disk read is needed and ordering is guaranteed.
+          emitter.emit("job:created", {
+            job,
+            agentName,
+            scheduleName: scheduleName ?? null,
+            timestamp,
+          });
+
           options?.onJobCreated?.(id);
         },
         resume: sessionId,
@@ -243,18 +266,12 @@ export class JobControl {
       };
     }
 
-    // Emit job:created event
+    // Read the finalized record for completion/failure events + hooks.
+    // (job:created is emitted up front in onJobCreated above.)
     const jobsDir = join(stateDir, "jobs");
     const jobMetadata = await getJob(jobsDir, result.jobId, { logger });
 
     if (jobMetadata) {
-      emitter.emit("job:created", {
-        job: jobMetadata,
-        agentName,
-        scheduleName: scheduleName ?? null,
-        timestamp,
-      });
-
       // Emit completion or failure event based on result
       if (result.success) {
         emitter.emit("job:completed", {
