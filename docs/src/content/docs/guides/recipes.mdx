@@ -24,24 +24,19 @@ async function runOnce(agentName: string, prompt?: string) {
     await manager.initialize();
     await manager.start();
 
-    // Trigger the agent and wait for completion
+    // trigger() resolves when the job has finished, so no event
+    // subscription is needed — inspect the result directly
     const result = await manager.trigger(agentName, undefined, { prompt });
-    console.log(`Started job: ${result.jobId}`);
 
-    // Wait for job to complete
-    await new Promise<void>((resolve, reject) => {
-      manager.on("job:completed", (payload) => {
-        if (payload.job.id === result.jobId) {
-          console.log(`Job completed in ${payload.durationSeconds}s`);
-          resolve();
-        }
-      });
-      manager.on("job:failed", (payload) => {
-        if (payload.job.id === result.jobId) {
-          reject(new Error(payload.error.message));
-        }
-      });
-    });
+    if (!result.success) {
+      throw result.error ?? new Error(`Job ${result.jobId} failed`);
+    }
+
+    console.log(`Job ${result.jobId} completed`);
+
+    // Optionally fetch the agent's final response
+    const output = await manager.getJobFinalOutput(result.jobId);
+    console.log(output);
   } finally {
     await manager.stop();
   }
@@ -558,41 +553,39 @@ async function main() {
     await manager.initialize();
     await manager.start();
 
-    const result = await manager.trigger(agentName, undefined, { prompt });
-    console.log(`Job started: ${result.jobId}`);
+    // trigger() resolves when the job has finished. Stream output to the
+    // CI log as it happens via the onMessage callback, and enforce a
+    // timeout by cancelling the job once its ID is known.
+    let timeoutHandle: NodeJS.Timeout | undefined;
 
-    // Stream output to CI logs
-    manager.on("job:output", (p) => {
-      if (p.job.id === result.jobId) {
-        process.stdout.write(p.output);
-      }
+    const result = await manager.trigger(agentName, undefined, {
+      prompt,
+      onJobCreated: (jobId) => {
+        console.log(`Job started: ${jobId}`);
+        timeoutHandle = setTimeout(() => {
+          console.error(`\n✗ Job timed out after ${timeout / 1000}s, cancelling`);
+          manager.cancelJob(jobId).catch((error) => {
+            console.error("Failed to cancel job:", error);
+          });
+        }, timeout);
+      },
+      onMessage: (message) => {
+        // Print the agent's text output as it streams
+        if (message.type === "assistant" && message.content) {
+          console.log(message.content);
+        }
+      },
     });
 
-    // Wait for completion with timeout
-    const completed = await Promise.race([
-      new Promise<boolean>((resolve) => {
-        manager.on("job:completed", (p) => {
-          if (p.job.id === result.jobId) {
-            console.log(`\n✓ Job completed in ${p.durationSeconds}s`);
-            resolve(true);
-          }
-        });
-        manager.on("job:failed", (p) => {
-          if (p.job.id === result.jobId) {
-            console.error(`\n✗ Job failed: ${p.error.message}`);
-            resolve(false);
-          }
-        });
-      }),
-      new Promise<boolean>((resolve) => {
-        setTimeout(() => {
-          console.error(`\n✗ Job timed out after ${timeout / 1000}s`);
-          resolve(false);
-        }, timeout);
-      }),
-    ]);
+    clearTimeout(timeoutHandle);
 
-    exitCode = completed ? 0 : 1;
+    if (result.success) {
+      console.log(`\n✓ Job ${result.jobId} completed`);
+    } else {
+      console.error(`\n✗ Job ${result.jobId} failed: ${result.error?.message ?? "unknown error"}`);
+    }
+
+    exitCode = result.success ? 0 : 1;
   } catch (error) {
     if (isAgentNotFoundError(error)) {
       console.error(`Agent not found: ${error.agentName}`);
@@ -613,6 +606,10 @@ main();
 
 <Aside type="caution">
 Always set `timeout-minutes` in your GitHub Actions workflow to prevent runaway jobs.
+</Aside>
+
+<Aside type="note">
+Don't rely on `job:created` / `job:output` events to follow a manual `trigger()` run — `job:output` is never emitted for manual triggers, and `job:created` fires only after the job has already finished ([#328](https://github.com/edspencer/herdctl/issues/328)). Use the `onMessage` and `onJobCreated` callbacks as shown above, or `getJobFinalOutput()` after `trigger()` resolves. The job events work as documented for scheduled runs.
 </Aside>
 
 ## Hot-Reloading Configuration Changes

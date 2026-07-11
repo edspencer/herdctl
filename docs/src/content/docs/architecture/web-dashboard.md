@@ -123,7 +123,7 @@ The React SPA uses React Router for client-side routing. Fastify's SPA fallback 
 | `/chats/:encodedPath/:sessionId` | `ReadOnlySessionView` | Read-only view of an unattributed session |
 | `/adhoc/:encodedPath/chat/:sessionId` | `AdhocChatView` | Interactive ad hoc chat on a native CLI session |
 
-The `:name` parameter accepts qualified agent names (e.g., `herdctl.security-auditor`). The `:encodedPath` parameter is a URL-safe encoding of a working directory path (slashes replaced with dashes). Route path helper functions in `lib/paths.ts` generate these paths consistently across the application.
+The `:name` parameter accepts qualified agent names (e.g., `herdctl.security-auditor`). The `:encodedPath` parameter is a URL-safe encoding of a working directory path produced by `encodePathForCli()` in `@herdctl/core`: every non-alphanumeric character is replaced with a hyphen (matching Claude Code's own `~/.claude/projects/` directory naming), with long paths truncated and suffixed with a stable hash. Route path helper functions in `lib/paths.ts` generate these paths consistently across the application.
 
 ## Component Architecture
 
@@ -168,12 +168,12 @@ The `SidebarTabs` component renders a compact two-tab toggle. The active tab is 
 
 - DiceBear avatar, agent name, status dot
 - Up to 5 recent chat sessions with timestamps
-- Inline session actions: rename (pencil icon) and delete (trash icon with two-step confirmation)
+- Inline session action: rename (pencil icon)
 - Expand/collapse state persisted to `localStorage`
 
 Fleet View includes a search input (`SidebarSearch`) that filters agents by name and fleet name (case-insensitive substring match, client-side).
 
-**Chats View** (`RecentConversationsList`) shows a flat, chronological list of the most recent 100 conversations across all agents. Data comes from `GET /api/chat/recent`. Each item shows the agent avatar, agent name, conversation name (custom name or preview text), and a relative timestamp. Clicking navigates to the chat session. The same inline rename/delete actions are available.
+**Chats View** (`RecentConversationsList`) shows a flat, chronological list of the most recent 100 conversations across all agents. Data comes from `GET /api/chat/recent`. Each item shows the agent avatar, origin badge, agent name, conversation name (custom name or preview text), and a relative timestamp. Clicking navigates to the chat session. The same inline rename action is available (for attributed sessions only); there is no delete action -- sessions are Claude Code transcript files that the dashboard never removes.
 
 Chats View also has a search input filtering conversations by name, preview text, or agent name.
 
@@ -186,7 +186,7 @@ The `SpotlightDialog` is a Cmd+K / Ctrl+K overlay for quickly starting a new cha
 - Status dots showing each agent's current state
 - Pre-selection of the most recently active agent (derived from the recent conversations list)
 
-Selecting an agent calls `POST /api/chat/:agentName/sessions` to create a session, then navigates to the new chat URL. The dialog includes focus trapping (Tab/Shift+Tab cycle within the dialog) and enter/exit animations (150ms backdrop fade and panel slide).
+Selecting an agent simply navigates to that agent's new-chat URL -- no API call is made and no session is created at this point. The session is created implicitly when the first message is sent, and the client learns the new SDK session ID from the `chat:complete` WebSocket message. The dialog includes focus trapping (Tab/Shift+Tab cycle within the dialog) and enter/exit animations (150ms backdrop fade and panel slide).
 
 ### Fleet Dashboard
 
@@ -225,15 +225,17 @@ Chat messages stream in real time via WebSocket. The user sends a `chat:send` me
 
 Sessions are grouped by working directory using `DirectoryGroup` components. Each group displays as a collapsible section with the directory path as its header. Within each group, individual sessions render as `SessionRow` components showing the session ID, timestamp, origin badge, and preview text.
 
-Sessions have three possible origins, displayed via the `OriginBadge` component:
+Sessions have five possible origins (the `SessionOrigin` type in `@herdctl/core`), displayed via the `OriginBadge` component:
 
 | Origin | Meaning |
 |--------|---------|
-| `herdctl` | Session created by a herdctl fleet agent via `FleetManager.trigger()` |
-| `native` | Session created by the Claude Code CLI directly (`claude` command), not through herdctl |
-| `ad hoc` | A native session that has been resumed interactively through the web dashboard |
+| `web` | Session started from the web dashboard |
+| `discord` | Session started via the Discord connector |
+| `slack` | Session started via the Slack connector |
+| `schedule` | Session started by a herdctl schedule trigger |
+| `native` | Session created by the Claude Code CLI directly (`claude` command), not through herdctl -- also the fallback for manual/webhook/chat/fork trigger types |
 
-The origin is determined by the `SessionDiscoveryService` in `@herdctl/core`, which checks attribution data stored by `ChatSessionManager` during session creation.
+The origin is determined by the `SessionDiscoveryService` in `@herdctl/core`, which cross-references job metadata (`.herdctl/jobs/`) and the platform session files written by `ChatSessionManager` (`.herdctl/{web,discord,slack}-sessions/<agent>.yaml`).
 
 #### Read-Only and Ad Hoc Session Views
 
@@ -271,7 +273,7 @@ Reusable components in `components/ui/` enforce visual consistency:
 | `ConnectionStatus` | Inline connection indicator in the header |
 | `TimeAgo` | Relative time display (e.g., "2m ago") |
 | `Toast` / `ToastContainer` | Toast notification system for action feedback |
-| `OriginBadge` | Session origin indicator (herdctl/native/ad hoc) with color-coded styling |
+| `OriginBadge` | Session origin indicator (web/discord/slack/schedule/native) with color-coded styling |
 | `ErrorBoundary` | React error boundary at layout and page levels |
 
 ## State Management
@@ -416,7 +418,7 @@ Chat operations use a combination of REST and WebSocket:
 | Get chat config | REST | `GET /api/chat/config` |
 | Send message (non-streaming) | REST | `POST /api/chat/:agentName/messages` |
 
-Session lifecycle is managed via REST. Message sending uses WebSocket for real-time streaming. The `chat:send` WebSocket message triggers `WebChatManager.sendMessage()`, which creates a FleetManager job with `triggerType: "web"` and streams the response back through callbacks that the `WebSocketHandler` relays to the requesting client.
+Session reads and renames go through REST; sessions themselves are created implicitly on the first message (there are no create or delete endpoints). Message sending uses WebSocket for real-time streaming. The `chat:send` WebSocket message triggers `WebChatManager.sendMessage()`, which creates a FleetManager job with `triggerType: "web"` and streams the response back through callbacks that the `WebSocketHandler` relays to the requesting client.
 
 The API has two addressing schemes for sessions:
 
@@ -450,7 +452,7 @@ From `@herdctl/core`:
 - **Discovered from disk** -- Session enumeration comes from `SessionDiscoveryService`, which scans the filesystem for Claude Code JSONL session files rather than maintaining its own session registry.
 - **Per-agent or unattributed** -- Agent-attributed sessions are scoped by agent name and working directory. Unattributed sessions (from native CLI usage) are accessed by working directory path alone.
 - **Shared** -- No per-user scoping; any browser sees and can interact with any session.
-- **Origin-aware** -- Each session carries an `origin` field (`herdctl`, `native`, or `adhoc`) determined by checking attribution data.
+- **Origin-aware** -- Each session carries an `origin` field (`web`, `discord`, `slack`, `schedule`, or `native`) determined by checking attribution data.
 
 When a user sends a message to an agent-attributed session, `WebChatManager` triggers a FleetManager job and processes the agent's streaming response through SDK message callbacks. Text chunks, tool call results, and message boundaries are relayed back to the browser via WebSocket in real time.
 
@@ -458,7 +460,7 @@ For ad hoc sessions (native sessions resumed interactively), `WebChatManager.sen
 
 ### Conversation Continuity
 
-Each web chat session maps to a Claude SDK session. On the first message, the SDK creates a new session. `WebChatManager` stores the returned SDK session ID via `ChatSessionManager.setSession()` for attribution. On subsequent messages in the same web session, the stored SDK session ID is passed as `resume`, allowing the agent to continue the conversation with full context.
+Each web chat session **is** a Claude SDK session -- the dashboard uses the SDK session ID directly. On the first message, no `sessionId` is sent; the SDK creates a new session, and `WebChatManager` records the returned SDK session ID via `ChatSessionManager.setSession()` for attribution and reports it back to the client in `chat:complete`. On subsequent messages, the client sends that session ID and the server passes it through as `resume`, allowing the agent to continue the conversation with full context.
 
 Ad hoc sessions always use `resume` since they are, by definition, continuations of existing native CLI sessions.
 

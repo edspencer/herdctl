@@ -60,6 +60,17 @@ const manager = new FleetManager(options: FleetManagerOptions);
 | `options.configPath` | `string` | No | Auto-discover | Path to `herdctl.yaml`. Can be absolute, relative, or a directory path. If not provided, searches up from cwd. |
 | `options.logger` | `FleetManagerLogger` | No | Console logger | Custom logger with `debug`, `info`, `warn`, `error` methods. |
 | `options.checkInterval` | `number` | No | `1000` | Interval in milliseconds between scheduler checks. |
+| `options.configOverrides` | `FleetConfigOverrides` | No | — | Runtime overrides applied after the config file is loaded and parsed — lets CLI flags or programmatic callers override specific fleet-level values. Currently supports `web` (`enabled`, `port`, `host`). |
+
+```typescript
+interface FleetConfigOverrides {
+  web?: {
+    enabled?: boolean;  // Enable/disable the web dashboard
+    port?: number;      // Override the web dashboard port
+    host?: string;      // Override the web dashboard host
+  };
+}
+```
 
 #### Example
 
@@ -110,13 +121,15 @@ After initialization, the fleet manager is ready to start.
 
 | Error | Condition |
 |-------|-----------|
-| `FleetManagerStateError` | Already initialized or running |
-| `FleetManagerConfigError` | Configuration is invalid or not found |
+| `InvalidStateError` | Already initialized or running |
+| `ConfigurationError` | Configuration is invalid or not found |
 | `FleetManagerStateDirError` | State directory cannot be created |
 
 #### Example
 
 ```typescript
+import { FleetManager, ConfigurationError } from '@herdctl/core';
+
 const manager = new FleetManager({
   configPath: './herdctl.yaml',
   stateDir: './.herdctl',
@@ -126,10 +139,49 @@ try {
   await manager.initialize();
   console.log(`Loaded ${manager.state.agentCount} agents`);
 } catch (error) {
-  if (error instanceof FleetManagerConfigError) {
+  if (error instanceof ConfigurationError) {
     console.error('Configuration error:', error.message);
   }
 }
+```
+
+---
+
+### `initializeWebOnly(options?)`
+
+Initializes the fleet manager in **web-only mode**, without a configuration file.
+
+```typescript
+await manager.initializeWebOnly(options?: { port?: number; host?: string }): Promise<void>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `options.port` | `number` | No | `3232` | Port for the web dashboard |
+| `options.host` | `string` | No | `'localhost'` | Host for the web dashboard |
+
+#### Description
+
+Builds a minimal in-memory config with **zero agents** and the web dashboard enabled, so the dashboard can serve session data from `~/.claude/` without requiring a `herdctl.yaml` fleet configuration. Any constructor `configOverrides` (e.g. `web.port`) are still applied on top of the built-in defaults.
+
+Like `initialize()`, this prepares the state directory, session lifecycle, and scheduler, and emits `'initialized'` on success.
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Not in `uninitialized`, `stopped`, or `error` state |
+
+#### Example
+
+```typescript
+const manager = new FleetManager({ stateDir: './.herdctl' });
+
+// No herdctl.yaml needed — just the dashboard over ~/.claude sessions
+await manager.initializeWebOnly({ port: 4000 });
+await manager.start();
 ```
 
 ---
@@ -153,7 +205,7 @@ This begins the scheduler, which will:
 
 | Error | Condition |
 |-------|-----------|
-| `FleetManagerStateError` | Not initialized |
+| `InvalidStateError` | Not initialized |
 
 #### Example
 
@@ -265,7 +317,7 @@ This method provides hot configuration reload capability:
 | Error | Condition |
 |-------|-----------|
 | `InvalidStateError` | Fleet manager is not initialized |
-| `FleetManagerConfigError` | New configuration is invalid |
+| `ConfigurationError` | New configuration is invalid |
 
 #### Example
 
@@ -440,9 +492,9 @@ await manager.getSchedules(): Promise<ScheduleInfo[]>
 interface ScheduleInfo {
   name: string;                    // Schedule name
   agentName: string;               // Owning agent
-  type: string;                    // 'interval', 'cron', etc.
-  interval?: string;               // e.g., "5m", "1h"
-  expression?: string;             // Cron expression
+  type: string;                    // 'interval', 'cron', 'webhook', 'chat'
+  interval?: string;               // e.g., "5m", "1h" (interval schedules)
+  cron?: string;                   // Cron expression (cron schedules)
   status: 'idle' | 'running' | 'disabled';
   lastRunAt: string | null;        // ISO timestamp
   nextRunAt: string | null;        // ISO timestamp
@@ -691,13 +743,14 @@ await manager.getAgentSessions(
 ```typescript
 interface DiscoveredSession {
   sessionId: string;
-  lastModified: string;          // ISO timestamp
-  customName?: string;           // Custom display name if set
-  firstPrompt?: string;          // First user message
-  lastAssistant?: string;        // Last assistant response
-  messageCount?: number;         // Total messages
-  createdByJobId?: string;       // Originating job ID
-  // ... (additional enrichment fields)
+  workingDirectory: string;         // Directory the session belongs to
+  mtime: string;                    // Last-modified time (ISO 8601)
+  origin: SessionOrigin;            // 'web' | 'discord' | 'slack' | 'schedule' | 'native'
+  agentName: string | undefined;    // Attributed agent, if known
+  resumable: boolean;               // Whether the session can be resumed
+  customName: string | undefined;   // Custom display name if set
+  autoName: string | undefined;     // Auto-generated name (from JSONL summary)
+  preview: string | undefined;      // First-message preview (only if metadata was loaded)
 }
 ```
 
@@ -719,9 +772,9 @@ Derives the agent's working directory and Docker mode from the loaded config. Se
 ```typescript
 const sessions = await manager.getAgentSessions('my-agent');
 for (const session of sessions) {
-  console.log(`${session.sessionId}: ${session.customName || session.firstPrompt}`);
-  console.log(`  Last modified: ${session.lastModified}`);
-  console.log(`  Messages: ${session.messageCount}`);
+  console.log(`${session.sessionId}: ${session.customName ?? session.autoName ?? session.preview}`);
+  console.log(`  Last modified: ${session.mtime}`);
+  console.log(`  Origin: ${session.origin}, resumable: ${session.resumable}`);
 }
 
 // Get top 10 sessions
@@ -1273,6 +1326,8 @@ await manager.trigger(
 
 #### Returns
 
+The returned promise resolves only **after the run completes** — `trigger()` executes the job to completion (streaming output via `options.onMessage` along the way), it does not return a handle to a still-running job. Use `options.onJobCreated` if you need the job ID while the run is still streaming.
+
 ```typescript
 interface TriggerResult {
   jobId: string;                   // Unique job identifier
@@ -1280,6 +1335,13 @@ interface TriggerResult {
   scheduleName: string | null;
   startedAt: string;               // ISO timestamp
   prompt?: string;                 // Prompt used for trigger
+  success: boolean;                // Whether the job completed successfully
+  sessionId?: string;              // Claude Agent SDK session ID — the continuity
+                                   // handle: pass it as options.resume on a later
+                                   // trigger to continue the conversation. Only
+                                   // trust it when success is true
+  error?: Error;                   // Error if the job failed
+  errorDetails?: RunnerErrorDetails; // Detailed error info for programmatic access
 }
 ```
 
@@ -1291,13 +1353,24 @@ interface TriggerResult {
 | `AgentNotFoundError` | Agent doesn't exist |
 | `ScheduleNotFoundError` | Specified schedule doesn't exist |
 | `ConcurrencyLimitError` | Agent at capacity and bypass not enabled |
+| `InvalidWorkingDirectoryOverrideError` | `options.workingDirectory` is not a non-empty string |
+
+Note that a job that starts but *fails during execution* does **not** reject the promise — it resolves with `success: false` plus `error`/`errorDetails`.
 
 #### Example
 
 ```typescript
-// Trigger with agent defaults
+// Trigger with agent defaults — the await resolves when the run completes
 const job = await manager.trigger('my-agent');
-console.log(`Created job: ${job.jobId}`);
+console.log(`Job ${job.jobId} ${job.success ? 'completed' : 'failed'}`);
+
+// Continue the same conversation later using the returned session ID
+if (job.success && job.sessionId) {
+  await manager.trigger('my-agent', undefined, {
+    resume: job.sessionId,
+    prompt: 'Follow up on your last answer',
+  });
+}
 
 // Trigger a specific schedule
 const job = await manager.trigger('my-agent', 'hourly');
@@ -1587,14 +1660,18 @@ await manager.getJobFinalOutput(jobId: string): Promise<string>
 
 #### Returns
 
-Returns a `Promise<string>` containing the job's final output. Throws `JobNotFoundError` if the job doesn't exist.
+Returns a `Promise<string>` containing the job's final output — the last assistant message with text content, falling back to the last meaningful `tool_result`. This method **never throws**: if the job doesn't exist, its output file can't be read, or no meaningful output is found, it resolves to an empty string `""` (a warning is logged).
 
 #### Example
 
 ```typescript
 const output = await manager.getJobFinalOutput('job-2024-01-15-abc123');
-console.log(output);
-// "I checked the prices for office chairs..."
+if (output) {
+  console.log(output);
+  // "I checked the prices for office chairs..."
+} else {
+  console.log('No output found (unknown job or empty transcript)');
+}
 ```
 
 ---
@@ -1686,7 +1763,6 @@ interface FleetManagerEventMap {
 
   // Schedule events
   'schedule:triggered': [payload: ScheduleTriggeredPayload];
-  'schedule:skipped': [payload: ScheduleSkippedPayload];
 
   // Job events
   'job:created': [payload: JobCreatedPayload];
@@ -1697,6 +1773,10 @@ interface FleetManagerEventMap {
   'job:forked': [payload: JobForkedPayload];
 }
 ```
+
+<Aside type="caution">
+`agent:started` and `agent:stopped` are declared in the event map but are **not currently emitted** by the FleetManager (tracked in [#323](https://github.com/edspencer/herdctl/issues/323)). See the [Event Handling Guide](/library-reference/events/) for details.
+</Aside>
 
 ### Event Payloads
 
@@ -1757,13 +1837,6 @@ interface ScheduleTriggeredPayload {
   agentName: string;
   scheduleName: string;
   schedule: Schedule;
-  timestamp: string;
-}
-
-interface ScheduleSkippedPayload {
-  agentName: string;
-  scheduleName: string;
-  reason: 'already_running' | 'disabled' | 'max_concurrent' | 'work_source_empty';
   timestamp: string;
 }
 ```
@@ -1832,10 +1905,6 @@ manager.on('schedule:triggered', (payload) => {
   console.log(`${payload.agentName}/${payload.scheduleName} triggered`);
 });
 
-manager.on('schedule:skipped', (payload) => {
-  console.log(`${payload.agentName}/${payload.scheduleName} skipped: ${payload.reason}`);
-});
-
 // Config reload
 manager.on('config:reloaded', (payload) => {
   console.log(`Config reloaded with ${payload.changes.length} changes`);
@@ -1860,12 +1929,20 @@ FleetManagerError (base)
 ├── ConcurrencyLimitError     // Agent at max capacity
 ├── JobCancelError            // Job cancellation failed
 ├── JobForkError              // Job fork failed
+├── InvalidWorkingDirectoryOverrideError // Bad per-trigger workingDirectory override
 ├── StreamingSessionUnsupportedError // Agent runtime can't open streaming sessions
-├── FleetManagerConfigError   // Legacy config error
-├── FleetManagerStateError    // Legacy state error
 ├── FleetManagerStateDirError // State directory init failed
-└── FleetManagerShutdownError // Shutdown failed
+├── FleetManagerShutdownError // Shutdown failed
+└── SchedulerError            // Scheduler subsystem errors
+    ├── IntervalParseError    // Invalid interval expression (e.g. "5 minutes")
+    ├── CronParseError        // Invalid cron expression
+    ├── ScheduleTriggerError  // Schedule trigger failed
+    └── SchedulerShutdownError // Scheduler shutdown failed
 ```
+
+<Aside type="caution">
+`InvalidWorkingDirectoryOverrideError` (and its `isInvalidWorkingDirectoryOverrideError` type guard) is currently **not exported from the `@herdctl/core` package root**, so you cannot `import` it for an `instanceof` check — match on `error.code === 'INVALID_WORKING_DIRECTORY_OVERRIDE'` instead. Tracked in [#325](https://github.com/edspencer/herdctl/issues/325). `CronParseError` *is* importable from `@herdctl/core`.
+</Aside>
 
 ### Error Codes
 
@@ -1883,7 +1960,9 @@ const FleetManagerErrorCode = {
   SHUTDOWN_ERROR: 'SHUTDOWN_ERROR',
   JOB_CANCEL_ERROR: 'JOB_CANCEL_ERROR',
   JOB_FORK_ERROR: 'JOB_FORK_ERROR',
+  INVALID_WORKING_DIRECTORY_OVERRIDE: 'INVALID_WORKING_DIRECTORY_OVERRIDE',
   STREAMING_SESSION_UNSUPPORTED: 'STREAMING_SESSION_UNSUPPORTED',
+  // ... plus agent-distribution codes (SOURCE_PARSE_ERROR, AGENT_INSTALL_ERROR, ...)
 };
 ```
 
@@ -2050,6 +2129,7 @@ The `@herdctl/core` package is written in TypeScript and provides full type defi
 import type {
   // Options and configuration
   FleetManagerOptions,
+  FleetConfigOverrides,
   FleetManagerLogger,
 
   // State types
@@ -2090,6 +2170,5 @@ import type {
   JobCancelledPayload,
   JobForkedPayload,
   ScheduleTriggeredPayload,
-  ScheduleSkippedPayload,
 } from '@herdctl/core';
 ```

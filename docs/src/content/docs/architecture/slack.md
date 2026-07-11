@@ -371,7 +371,7 @@ The `markdownToMrkdwn()` function is called in two places:
 1. **`SlackConnector.buildMessageEvent()`** -- The `reply` closure wraps outbound content with `markdownToMrkdwn()` before passing it to Bolt's `say()`.
 2. **`SlackManager.handleMessage()`** -- The `StreamingResponder`'s reply function also applies `markdownToMrkdwn()` to streamed content.
 
-The agent's system prompt instructs it to use standard markdown formatting, since the conversion pipeline handles the translation automatically. This avoids a double-conversion problem where the agent outputs Slack-native `*bold*` and the converter treats it as markdown italic.
+Agents emit standard markdown (Claude's default output format), and the conversion pipeline handles the translation to mrkdwn automatically -- no prompt-level instruction is involved. Converting at the output boundary avoids a double-conversion problem where an agent producing Slack-native `*bold*` would have it treated as markdown italic.
 
 ### Other Formatting Utilities
 

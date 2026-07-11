@@ -13,13 +13,13 @@ A minimal configuration requires only the `version` field:
 version: 1
 ```
 
-A typical configuration includes workspace settings and agent references:
+A typical configuration includes working directory settings and agent references:
 
 ```yaml
 version: 1
 
-workspace:
-  root: ~/herdctl-workspace
+working_directory:
+  root: /home/user/herdctl-workspace
   auto_clone: true
 
 agents:
@@ -130,7 +130,7 @@ defaults:
 | **Type** | `enum` |
 | **Default** | `undefined` |
 | **Required** | No |
-| **Valid Values** | `"default"`, `"acceptEdits"`, `"bypassPermissions"`, `"plan"` |
+| **Valid Values** | `"default"`, `"acceptEdits"`, `"bypassPermissions"`, `"plan"`, `"delegate"`, `"dontAsk"` |
 
 Default permission mode for all agents.
 
@@ -138,6 +138,8 @@ Default permission mode for all agents.
 - `acceptEdits` - Automatically accept file edits
 - `bypassPermissions` - Skip all permission checks
 - `plan` - Planning mode only
+- `delegate` - Delegate permission decisions to a coordinating session
+- `dontAsk` - Never prompt; requests not pre-approved via `allowed_tools` are denied
 
 ```yaml
 defaults:
@@ -158,7 +160,27 @@ Default Docker settings. See [docker](#docker) for field details.
 defaults:
   docker:
     enabled: true
-    base_image: node:20-alpine
+    image: node:20-alpine
+```
+
+#### defaults.tools
+
+| Property | Value |
+|----------|-------|
+| **Type** | `string[]` |
+| **Default** | `undefined` |
+| **Required** | No |
+
+Tool availability whitelist. When specified, only the listed tools exist in the agent's context. See [Permissions](/configuration/permissions/#tools-availability-whitelist) for how `tools` differs from `allowed_tools`.
+
+```yaml
+defaults:
+  tools:
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
 ```
 
 #### defaults.allowed_tools
@@ -308,9 +330,44 @@ defaults:
     model: claude-sonnet-4-20250514
 ```
 
+#### defaults.mcp_servers
+
+| Property | Value |
+|----------|-------|
+| **Type** | `object` (map of server name to config) |
+| **Default** | `undefined` |
+| **Required** | No |
+
+Default MCP server configurations applied to all agents. Same shape as the per-agent [`mcp_servers`](/configuration/agent-config/#mcp_servers) field.
+
+```yaml
+defaults:
+  mcp_servers:
+    github:
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-github"]
+      env:
+        GITHUB_TOKEN: ${GITHUB_TOKEN}
+```
+
+#### defaults.working_directory
+
+| Property | Value |
+|----------|-------|
+| **Type** | `string` \| `object` |
+| **Default** | `undefined` |
+| **Required** | No |
+
+Default working directory for agents that don't specify their own. Accepts the same string or object form as the per-agent [`working_directory`](/configuration/agent-config/#working_directory) field. Relative paths are resolved against the fleet config file's directory.
+
+```yaml
+defaults:
+  working_directory: ./shared-workspace
+```
+
 ---
 
-### workspace
+### working_directory
 
 | Property | Value |
 |----------|-------|
@@ -318,19 +375,23 @@ defaults:
 | **Default** | `undefined` |
 | **Required** | No |
 
-Global workspace configuration for repository management.
+Global working directory configuration for repository management.
 
-#### workspace.root
+:::note[Deprecated alias: workspace]
+The old `workspace:` field name is a deprecated alias for `working_directory:`. It still loads (herdctl migrates it and logs a warning), but new configs should use `working_directory`.
+:::
+
+#### working_directory.root
 
 | Property | Value |
 |----------|-------|
 | **Type** | `string` |
 | **Default** | N/A |
-| **Required** | **Yes** (if workspace is specified) |
+| **Required** | **Yes** (if working_directory is specified) |
 
-Root directory for all agent workspaces. Supports `~` for home directory expansion.
+Root directory for all agent workspaces. Use an absolute path (tilde `~` is **not** expanded).
 
-#### workspace.auto_clone
+#### working_directory.auto_clone
 
 | Property | Value |
 |----------|-------|
@@ -340,7 +401,7 @@ Root directory for all agent workspaces. Supports `~` for home directory expansi
 
 Automatically clone repositories when needed.
 
-#### workspace.clone_depth
+#### working_directory.clone_depth
 
 | Property | Value |
 |----------|-------|
@@ -350,7 +411,7 @@ Automatically clone repositories when needed.
 
 Git shallow clone depth. Use `1` for shallow clones (faster), or a higher number for more history.
 
-#### workspace.default_branch
+#### working_directory.default_branch
 
 | Property | Value |
 |----------|-------|
@@ -361,8 +422,8 @@ Git shallow clone depth. Use `1` for shallow clones (faster), or a higher number
 Default branch to checkout when cloning repositories.
 
 ```yaml
-workspace:
-  root: ~/herdctl-workspace
+working_directory:
+  root: /home/user/herdctl-workspace
   auto_clone: true
   clone_depth: 1
   default_branch: main
@@ -393,9 +454,10 @@ version: 1
 
 fleet:
   name: all-projects
-  web:
-    enabled: true
-    port: 3232
+
+web:
+  enabled: true
+  port: 3232
 
 fleets:
   - path: ./herdctl/herdctl.yaml
@@ -491,11 +553,11 @@ defaults:
   permission_mode: acceptEdits
 
 fleets:
-  - path: ~/projects/herdctl/herdctl.yaml
+  - path: /home/user/projects/herdctl/herdctl.yaml
     name: herdctl
-  - path: ~/projects/bragdoc/herdctl.yaml
+  - path: /home/user/projects/bragdoc/herdctl.yaml
     name: bragdoc
-  - path: ~/projects/webapp/herdctl.yaml
+  - path: /home/user/projects/webapp/herdctl.yaml
     name: webapp
 
 agents:
@@ -597,7 +659,7 @@ Chat integrations (Discord, Slack) are configured **per-agent**, not at fleet le
 
 ---
 
-### fleet.web
+### web
 
 | Property | Value |
 |----------|-------|
@@ -605,9 +667,9 @@ Chat integrations (Discord, Slack) are configured **per-agent**, not at fleet le
 | **Default** | `undefined` |
 | **Required** | No |
 
-Web dashboard configuration. When enabled, herdctl serves a browser-based dashboard for real-time fleet monitoring, agent chat, and job/schedule management. See [Web Dashboard](/integrations/web-dashboard/) for full documentation.
+Web dashboard configuration. `web` is a **top-level** key in `herdctl.yaml` (not nested under `fleet:`). When enabled, herdctl serves a browser-based dashboard for real-time fleet monitoring, agent chat, and job/schedule management. See [Web Dashboard](/integrations/web-dashboard/) for full documentation.
 
-#### fleet.web.enabled
+#### web.enabled
 
 | Property | Value |
 |----------|-------|
@@ -617,7 +679,7 @@ Web dashboard configuration. When enabled, herdctl serves a browser-based dashbo
 
 Enable the web dashboard server.
 
-#### fleet.web.port
+#### web.port
 
 | Property | Value |
 |----------|-------|
@@ -627,7 +689,7 @@ Enable the web dashboard server.
 
 Port for the web dashboard to listen on.
 
-#### fleet.web.host
+#### web.host
 
 | Property | Value |
 |----------|-------|
@@ -641,7 +703,7 @@ Host to bind the web dashboard to.
 **Security:** The web dashboard has no authentication. Keep this set to `"localhost"` (default) to prevent network exposure. Use an authenticated reverse proxy (Caddy, Nginx + OAuth2 Proxy) for remote access instead of binding to `"0.0.0.0"`. See [Web Dashboard Security](/security/#web-dashboard-security).
 :::
 
-#### fleet.web.session_expiry_hours
+#### web.session_expiry_hours
 
 | Property | Value |
 |----------|-------|
@@ -651,7 +713,7 @@ Host to bind the web dashboard to.
 
 Hours before web chat sessions expire.
 
-#### fleet.web.open_browser
+#### web.open_browser
 
 | Property | Value |
 |----------|-------|
@@ -661,14 +723,36 @@ Hours before web chat sessions expire.
 
 Automatically open the dashboard in the default browser when the fleet starts with `herdctl start --web`.
 
+#### web.tool_results
+
+| Property | Value |
+|----------|-------|
+| **Type** | `boolean` |
+| **Default** | `true` |
+| **Required** | No |
+
+Show tool call results in web chat conversations.
+
+#### web.message_grouping
+
+| Property | Value |
+|----------|-------|
+| **Type** | `enum` |
+| **Default** | `"separate"` |
+| **Required** | No |
+| **Valid Values** | `"separate"`, `"grouped"` |
+
+How to display consecutive assistant text turns: `separate` shows each as its own bubble, `grouped` merges them.
+
 ```yaml
-fleet:
-  web:
-    enabled: true
-    port: 3232
-    host: "localhost"
-    session_expiry_hours: 24
-    open_browser: false
+web:
+  enabled: true
+  port: 3232
+  host: "localhost"
+  session_expiry_hours: 24
+  open_browser: false
+  tool_results: true
+  message_grouping: separate
 ```
 
 ---
@@ -841,8 +925,8 @@ defaults:
     max_turns: 100
     timeout: 1h
 
-workspace:
-  root: ~/herdctl-workspace
+working_directory:
+  root: /home/user/herdctl-workspace
   auto_clone: true
   clone_depth: 1
   default_branch: main

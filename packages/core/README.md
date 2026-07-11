@@ -22,19 +22,23 @@ npm install @herdctl/core
 ```typescript
 import { FleetManager } from "@herdctl/core";
 
-// Initialize from config file
-const fleet = new FleetManager();
+// stateDir is required; configPath is optional (auto-discovers herdctl.yaml
+// by searching up from the current working directory)
+const fleet = new FleetManager({
+  stateDir: "./.herdctl",
+  // configPath: "./herdctl.yaml",
+});
 await fleet.initialize();
 
 // Start the fleet
 await fleet.start();
 
-// Manually trigger an agent
+// Manually trigger an agent — resolves once the run completes
 const result = await fleet.trigger("my-agent", undefined, {
   prompt: "Review the latest changes",
 });
 
-console.log(`Job ${result.jobId} started`);
+console.log(`Job ${result.jobId} ${result.success ? "completed" : "failed"}`);
 
 // Stop gracefully
 await fleet.stop();
@@ -83,7 +87,7 @@ const result = await fleet.trigger("code-reviewer", undefined, {
   prompt: "Review PR #123 for security issues",
   onMessage: (message) => {
     // Stream agent output in real-time
-    if (message.type === "assistant") {
+    if (message.type === "assistant" && message.content) {
       process.stdout.write(message.content);
     }
   },

@@ -14,6 +14,7 @@ Environment variables can be referenced in any string value within your configur
 Use `${VAR_NAME}` to reference a required environment variable:
 
 ```yaml
+# agent config (fleet-level equivalent: defaults.mcp_servers)
 mcp_servers:
   github:
     command: npx
@@ -33,14 +34,14 @@ UndefinedVariableError: Undefined environment variable 'GITHUB_TOKEN' at 'mcp_se
 Use `${VAR_NAME:-default}` to provide a fallback value:
 
 ```yaml
-workspace:
-  root: ${HERDCTL_WORKSPACE_ROOT:-~/herdctl-workspace}
+working_directory:
+  root: ${HERDCTL_WORKSPACE_ROOT:-/home/user/herdctl-workspace}
 
 defaults:
   model: ${CLAUDE_MODEL:-claude-sonnet-4-20250514}
 ```
 
-If `HERDCTL_WORKSPACE_ROOT` is not set, the value `~/herdctl-workspace` will be used instead.
+If `HERDCTL_WORKSPACE_ROOT` is not set, the value `/home/user/herdctl-workspace` will be used instead.
 
 ---
 
@@ -57,8 +58,8 @@ fleet:
   description: Fleet for ${ENVIRONMENT:-development} environment
 
 # Nested in objects
-workspace:
-  root: ${WORKSPACE_ROOT:-~/herdctl}
+working_directory:
+  root: ${WORKSPACE_ROOT:-/home/user/herdctl}
 
 # Inside arrays
 agents:
@@ -70,27 +71,41 @@ defaults:
   allowed_tools:
     - "Bash(${PACKAGE_MANAGER:-npm} *)"
 
-# MCP server configuration
-mcp_servers:
-  github:
-    command: npx
-    args: ["-y", "@modelcontextprotocol/server-github"]
-    env:
-      GITHUB_TOKEN: ${GITHUB_TOKEN}
-      API_URL: ${GITHUB_API_URL:-https://api.github.com}
+  # MCP server configuration (fleet defaults; also valid at agent top level)
+  mcp_servers:
+    github:
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-github"]
+      env:
+        GITHUB_TOKEN: ${GITHUB_TOKEN}
+        API_URL: ${GITHUB_API_URL:-https://api.github.com}
 ```
 
-### Non-String Values
+### String Fields Only
 
-Interpolation **only applies to strings**. Non-string values (numbers, booleans, null) are preserved as-is:
+Interpolation **only works in string fields**. This is a hard rule, not just a convenience: herdctl validates the configuration against its schema **before** interpolation runs. A `${VAR}` reference in a field the schema types as a number or boolean is still the literal string `"${VAR}"` at validation time, so validation fails before interpolation ever gets a chance to substitute the value.
 
 ```yaml
+# These FAIL schema validation - number/boolean fields cannot be interpolated
 defaults:
-  max_turns: 50           # Number - no interpolation
+  max_turns: ${MAX_TURNS:-50}        # Error: expected number, got string
   docker:
-    enabled: true         # Boolean - no interpolation
+    enabled: ${DOCKER_ENABLED:-true} # Error: expected boolean, got string
+```
 
-workspace:
+```yaml
+# Set numeric/boolean values literally instead
+defaults:
+  max_turns: 50
+  docker:
+    enabled: true
+```
+
+Non-string values written as literals (numbers, booleans, null) are preserved as-is and never interpolated:
+
+```yaml
+working_directory:
+  root: /home/user/herdctl-workspace
   clone_depth: 1          # Number - no interpolation
   auto_clone: true        # Boolean - no interpolation
 ```
@@ -103,7 +118,7 @@ You can use multiple variables in a single string value:
 fleet:
   description: "${TEAM_NAME} fleet in ${ENVIRONMENT}"
 
-workspace:
+working_directory:
   root: ${HOME}/${PROJECT_NAME:-herdctl}/workspace
 ```
 
@@ -134,6 +149,8 @@ Environment variables are resolved when the configuration is loaded, not when it
 
 If interpolation fails, you'll see the `UndefinedVariableError` after YAML and schema validation pass.
 
+Because schema validation runs *before* interpolation, `${VAR}` references are only valid in **string** fields — see [String Fields Only](#string-fields-only) above.
+
 ---
 
 ## Security Recommendations
@@ -154,25 +171,26 @@ Keep sensitive values out of version control:
 Always use interpolation for sensitive values:
 
 ```yaml
-# Good: Secrets come from environment
-mcp_servers:
-  github:
-    command: npx
-    args: ["-y", "@modelcontextprotocol/server-github"]
-    env:
-      GITHUB_TOKEN: ${GITHUB_TOKEN}
-  custom-api:
-    command: node
-    args: ["./mcp-servers/custom.js"]
-    env:
-      API_KEY: ${API_KEY}
+# Good: Secrets come from environment (herdctl.yaml)
+defaults:
+  mcp_servers:
+    github:
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-github"]
+      env:
+        GITHUB_TOKEN: ${GITHUB_TOKEN}
+    custom-api:
+      command: node
+      args: ["./mcp-servers/custom.js"]
+      env:
+        API_KEY: ${API_KEY}
 
 webhooks:
   secret_env: WEBHOOK_SECRET  # Reference by name, not value
 ```
 
 ```yaml
-# Bad: Secrets hardcoded in config
+# Bad: Secrets hardcoded in config (agent config)
 mcp_servers:
   github:
     command: npx
@@ -210,14 +228,16 @@ For production deployments, use your platform's secrets management:
 ### API Tokens and Keys
 
 ```yaml
-# MCP servers (can be configured at agent or fleet level)
+# MCP servers - agent config top level, or fleet-level under defaults.mcp_servers
 mcp_servers:
   github:
     command: npx
     args: ["-y", "@modelcontextprotocol/server-github"]
     env:
       GITHUB_TOKEN: ${GITHUB_TOKEN}
+```
 
+```yaml
 # Docker environment variables (fleet-level only)
 # herdctl.yaml
 defaults:
@@ -249,8 +269,8 @@ mcp_servers:
 ### Paths and Directories
 
 ```yaml
-workspace:
-  root: ${HERDCTL_WORKSPACE:-~/herdctl-workspace}
+working_directory:
+  root: ${HERDCTL_WORKSPACE:-/home/user/herdctl-workspace}
 
 agents:
   - path: ${AGENTS_DIR:-./agents}/coder.yaml
@@ -267,9 +287,10 @@ fleet:
 defaults:
   model: ${CLAUDE_MODEL:-claude-sonnet-4-20250514}
 
-  # Different settings per environment
+  # Numeric fields like instances.max_concurrent cannot be interpolated
+  # (validation runs before interpolation) - set them literally:
   instances:
-    max_concurrent: ${MAX_CONCURRENT_AGENTS:-2}
+    max_concurrent: 2
 ```
 
 ### Dynamic Agent Selection
@@ -312,7 +333,8 @@ fleet:
 
 defaults:
   model: ${CLAUDE_MODEL:-claude-sonnet-4-20250514}
-  max_turns: ${MAX_TURNS:-50}
+  # max_turns is a number field - it cannot use ${VAR} interpolation
+  max_turns: 50
 
   permission_mode: acceptEdits
   allowed_tools:
@@ -320,8 +342,18 @@ defaults:
     - "Bash(git *)"
     - "Bash(node *)"
 
-workspace:
-  root: ${HERDCTL_WORKSPACE:-~/herdctl-workspace}
+  mcp_servers:
+    github:
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-github"]
+      env:
+        GITHUB_TOKEN: ${GITHUB_TOKEN}
+    filesystem:
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "${ALLOWED_PATHS:-/tmp}"]
+
+working_directory:
+  root: ${HERDCTL_WORKSPACE:-/home/user/herdctl-workspace}
   auto_clone: true
   clone_depth: 1
 
@@ -329,23 +361,14 @@ agents:
   - path: ./agents/${AGENT_PROFILE:-default}/coder.yaml
   - path: ./agents/${AGENT_PROFILE:-default}/reviewer.yaml
 
-mcp_servers:
-  github:
-    command: npx
-    args: ["-y", "@modelcontextprotocol/server-github"]
-    env:
-      GITHUB_TOKEN: ${GITHUB_TOKEN}
-  filesystem:
-    command: npx
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "${ALLOWED_PATHS:-/tmp}"]
-
 # Note: Chat is configured per-agent, not at fleet level.
 # Discord: each agent references its own bot token env var.
 # Slack: agents share one bot token, with channel-to-agent routing.
 
 webhooks:
   enabled: true
-  port: ${WEBHOOK_PORT:-8081}
+  # port is a number field - it cannot use ${VAR} interpolation
+  port: 8081
   secret_env: WEBHOOK_SECRET
 ```
 
@@ -377,7 +400,7 @@ export MISSING_VAR="value"
 2. Malformed syntax (missing `}`, extra spaces)
 3. Value is not a string type in YAML
 
-```yaml
+```text
 # Invalid variable names
 ${123_VAR}        # Can't start with number
 ${VAR-NAME}       # Hyphens not allowed (use underscores)

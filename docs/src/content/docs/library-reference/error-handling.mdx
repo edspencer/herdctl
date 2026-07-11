@@ -149,7 +149,9 @@ class JobNotFoundError extends FleetManagerError {
 import { isJobNotFoundError } from '@herdctl/core';
 
 try {
-  const output = await manager.getJobFinalOutput('job-2024-01-15-abc');
+  for await (const log of manager.streamJobOutput('job-2024-01-15-abc')) {
+    console.log(log.message);
+  }
 } catch (error) {
   if (isJobNotFoundError(error)) {
     console.error(`Job "${error.jobId}" not found`);
@@ -157,6 +159,10 @@ try {
   }
 }
 ```
+
+<Aside type="note">
+Not every job-reading method throws this error: `getJobFinalOutput()` never throws — it resolves to an empty string `""` when the job or its output can't be found.
+</Aside>
 
 ---
 
@@ -566,6 +572,29 @@ class IntervalParseError extends SchedulerError {
 
 ---
 
+### CronParseError
+
+Thrown when a cron expression cannot be parsed.
+
+```typescript
+class CronParseError extends SchedulerError {
+  expression: string; // The cron expression that failed to parse
+  field?: string;     // The field that caused the error, if identifiable
+  example?: string;   // A suggested valid example
+}
+```
+
+**Example:**
+
+```typescript
+// This would throw CronParseError
+// schedules:
+//   - name: nightly
+//     cron: "0 25 * * *"  // Invalid! Hour must be 0-23
+```
+
+---
+
 ### ScheduleTriggerError
 
 Thrown when a schedule trigger fails.
@@ -921,11 +950,16 @@ const FleetManagerErrorCode = {
   // Job Control
   JOB_CANCEL_ERROR: 'JOB_CANCEL_ERROR',
   JOB_FORK_ERROR: 'JOB_FORK_ERROR',
+  INVALID_WORKING_DIRECTORY_OVERRIDE: 'INVALID_WORKING_DIRECTORY_OVERRIDE',
 
   // Streaming Sessions
   STREAMING_SESSION_UNSUPPORTED: 'STREAMING_SESSION_UNSUPPORTED',
 } as const;
 ```
+
+<Aside type="note">
+The class behind `INVALID_WORKING_DIRECTORY_OVERRIDE` (`InvalidWorkingDirectoryOverrideError`, thrown when a per-trigger `workingDirectory` override is not a non-empty string) is currently **not exported from the `@herdctl/core` package root** — match on `error.code` rather than `instanceof`. Tracked in [#325](https://github.com/edspencer/herdctl/issues/325).
+</Aside>
 
 ---
 
@@ -1211,7 +1245,12 @@ process.on('SIGTERM', () => gracefulShutdown(manager));
 Continue with reduced functionality when external services fail:
 
 ```typescript
-import { FleetManager, GitHubAPIError, GitHubAuthError } from '@herdctl/core';
+import {
+  getWorkSource,
+  GitHubAPIError,
+  GitHubAuthError,
+  type WorkItem,
+} from '@herdctl/core';
 
 interface AppState {
   degradedMode: boolean;
@@ -1238,14 +1277,18 @@ manager.on('job:failed', (payload) => {
 });
 
 // Check degraded mode before using features
-async function fetchWork(manager: FleetManager): Promise<WorkItem[]> {
+async function fetchWork(): Promise<WorkItem[]> {
   if (state.disabledFeatures.has('github-work-source')) {
     console.log('Using local work queue (GitHub disabled)');
     return getLocalWorkQueue();
   }
 
   try {
-    return await manager.fetchWorkFromSources();
+    // Work items are fetched through a work-source adapter,
+    // not through the FleetManager itself
+    const adapter = getWorkSource({ type: 'github' });
+    const { items } = await adapter.fetchAvailableWork();
+    return items;
   } catch (error) {
     // Degrade gracefully
     state.degradedMode = true;
@@ -1349,7 +1392,7 @@ async function startFleet(): Promise<FleetManager> {
 ```typescript
 import { SDKInitializationError } from '@herdctl/core';
 
-manager.on('job:failed', (payload) => {
+manager.on('job:failed', async (payload) => {
   if (
     payload.error instanceof SDKInitializationError &&
     payload.error.isMissingApiKey()
@@ -1365,8 +1408,13 @@ manager.on('job:failed', (payload) => {
     console.error('  Or add it to your .env file.');
     console.error('═══════════════════════════════════════════');
 
-    // Disable affected agent to prevent repeated failures
-    manager.disableSchedule(payload.agentName, '*');
+    // Disable the agent's schedules to prevent repeated failures.
+    // disableSchedule() takes a single schedule name (no wildcard support),
+    // so iterate the agent's schedules.
+    const agent = await manager.getAgentInfoByName(payload.agentName);
+    for (const schedule of agent.schedules) {
+      await manager.disableSchedule(payload.agentName, schedule.name);
+    }
   }
 });
 ```
@@ -1482,6 +1530,7 @@ import type {
   // Scheduler errors
   SchedulerError,
   IntervalParseError,
+  CronParseError,
   ScheduleTriggerError,
   SchedulerShutdownError,
 

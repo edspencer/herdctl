@@ -12,7 +12,7 @@ The GitHub Issues work source adapter allows agents to automatically fetch, clai
 name: my-coder
 description: "Implements features from GitHub issues"
 
-workspace: my-project
+working_directory: ./my-project
 repo: myorg/my-project
 
 work_source:
@@ -52,7 +52,7 @@ work_source:
     in_progress: agent-working      # default: "agent-working"
 
   # Optional: Labels to exclude from processing
-  exclude_labels:                   # default: ["blocked", "wip"]
+  exclude_labels:                   # default: [] (no labels excluded)
     - blocked
     - needs-design
     - wip
@@ -74,7 +74,7 @@ work_source:
 | `repo` | string | — | Repository in `owner/repo` format |
 | `labels.ready` | string | `"ready"` | Label marking issues available for work |
 | `labels.in_progress` | string | `"agent-working"` | Label applied when claiming |
-| `exclude_labels` | string[] | `["blocked", "wip"]` | Issues with these labels are skipped |
+| `exclude_labels` | string[] | `[]` | Issues with these labels are skipped |
 | `cleanup_on_failure` | boolean | `true` | Re-add ready label on release |
 | `auth.token_env` | string | `"GITHUB_TOKEN"` | Env var containing PAT |
 
@@ -363,7 +363,9 @@ work_source:
   labels:
     ready: frontend-ready
     in_progress: frontend-working
+```
 
+```yaml
 # agents/backend-coder.yaml
 name: backend-coder
 work_source:
@@ -470,7 +472,7 @@ Here's a full agent configuration for a production setup:
 name: issue-worker
 description: "Implements features and fixes bugs from GitHub issues"
 
-workspace: my-project
+working_directory: ./my-project
 repo: myorg/my-project
 
 # Identity

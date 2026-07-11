@@ -34,15 +34,15 @@ The `herdctl.json` file contains metadata about a distributable agent. It docume
 |-------|------|----------|-------------|
 | `name` | string | Yes | Agent name (kebab-case) |
 | `version` | string | Yes | Semantic version (e.g., `1.0.0`) |
-| `description` | string | Yes | Short description (max 200 characters) |
+| `description` | string | Yes | Short description |
 | `author` | string | Yes | Author username or name |
-| `repository` | string | Yes | GitHub repository (`github:user/repo`) |
 
 ### Optional Fields
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `$schema` | string | JSON schema URL for validation |
+| `repository` | string | Source repository specifier (e.g., `github:user/repo`) |
 | `homepage` | string | Project homepage URL |
 | `license` | string | License identifier (MIT, Apache-2.0, etc.) |
 | `keywords` | string[] | Descriptive keywords |
@@ -115,7 +115,7 @@ Your username or name.
 
 ### repository
 
-The GitHub repository in `github:owner/repo` format:
+Optional. The source repository in `github:owner/repo` format:
 
 ```json
 {
@@ -123,7 +123,7 @@ The GitHub repository in `github:owner/repo` format:
 }
 ```
 
-This is used to resolve the agent source during installation.
+Documents where the agent's source lives. Recommended for published agents so users can find the canonical source.
 
 ### homepage
 
@@ -324,8 +324,7 @@ A minimal example with only the required fields:
   "name": "uptime-monitor",
   "version": "1.0.0",
   "description": "Website uptime monitoring with Discord alerts",
-  "author": "yourname",
-  "repository": "github:yourname/uptime-monitor"
+  "author": "yourname"
 }
 ```
 

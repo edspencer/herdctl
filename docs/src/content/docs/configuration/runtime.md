@@ -67,7 +67,7 @@ The SDK runtime is used automatically when no runtime is specified:
 name: my-agent
 # runtime: sdk  # Optional - sdk is the default
 
-workspace: my-project
+working_directory: ./my-project
 schedules:
   check:
     type: interval
@@ -89,7 +89,7 @@ To use the CLI runtime, set `runtime: cli` in your agent configuration:
 name: cli-agent
 runtime: cli
 
-workspace: my-project
+working_directory: ./my-project
 schedules:
   check:
     type: interval
@@ -140,7 +140,9 @@ Because both runtimes use the same underlying Claude Code session system:
 # Start with CLI runtime (Max plan pricing)
 name: my-agent
 runtime: cli
+```
 
+```yaml
 # Later switch to SDK runtime (standard pricing)
 name: my-agent
 runtime: sdk  # Or remove runtime field for default
@@ -160,7 +162,9 @@ You can switch an agent's runtime at any time by changing the `runtime` field. S
 # Before (SDK runtime - default)
 name: my-agent
 # No runtime field specified
+```
 
+```yaml
 # After (CLI runtime)
 name: my-agent
 runtime: cli
@@ -219,18 +223,24 @@ Sessions **are not compatible** when switching between Docker and local environm
 # Job 1: SDK runtime, local execution
 runtime: sdk
 # Session: abc-123 stored in ~/.claude/projects/
+```
 
+```yaml
 # Job 2: CLI runtime, local execution
 runtime: cli
 # ✅ Session abc-123 resumes - same environment
+```
 
+```yaml
 # Job 3: CLI runtime, Docker enabled
 runtime: cli
 docker:
   enabled: true
 # ❌ New session xyz-789 - different environment
 # Cannot access session abc-123 from Jobs 1-2
+```
 
+```yaml
 # Job 4: SDK runtime, Docker still enabled
 runtime: sdk
 docker:

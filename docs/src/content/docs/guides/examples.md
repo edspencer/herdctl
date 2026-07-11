@@ -9,7 +9,7 @@ The herdctl repository includes example projects demonstrating various features 
 
 ```bash
 # Clone the repository
-git clone https://github.com/herdctl/herdctl.git
+git clone https://github.com/edspencer/herdctl.git
 cd herdctl
 
 # Install and build

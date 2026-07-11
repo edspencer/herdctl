@@ -17,8 +17,8 @@ tail -f .herdctl/logs/scheduler.log
 # Check specific agent state
 herdctl status my-agent
 
-# Validate agent configuration
-herdctl validate agents/my-agent.yaml
+# Validate configuration (fleet + agents)
+herdctl config validate
 ```
 
 ## Common Issues
@@ -397,7 +397,7 @@ grep "Skipping" .herdctl/logs/scheduler.log | tail -20
 Verify your interval strings are valid:
 
 ```typescript
-import { parseInterval } from "@herdctl/core/scheduler";
+import { parseInterval } from "@herdctl/core";
 
 // Test your intervals
 console.log(parseInterval("5m"));  // 300000 (milliseconds)
@@ -479,7 +479,7 @@ top -p $(pgrep -f herdctl)
 If you're still having issues:
 
 1. **Check logs**: Look in `.herdctl/logs/` for detailed error messages
-2. **Validate configuration**: Run `herdctl validate` on your agent configs
+2. **Validate configuration**: Run `herdctl config validate` to check your fleet and agent configs
 3. **Review state**: Inspect `.herdctl/state.yaml` for inconsistencies
 4. **File an issue**: Report bugs at the project repository with:
    - Your agent configuration (sanitized)

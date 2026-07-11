@@ -3,7 +3,7 @@ title: CLI Reference
 description: Complete command reference for herdctl
 ---
 
-import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
 
 The `herdctl` CLI provides commands for managing and interacting with your agent fleet.
 
@@ -17,248 +17,9 @@ npm install -g herdctl
 npx herdctl [command]
 ```
 
+Run `herdctl --version` to print the installed version, and `herdctl --help` (or `herdctl <command> --help`) for built-in help.
+
 ## Commands
-
-### trigger
-
-Manually trigger an agent to run a job.
-
-```bash
-herdctl trigger <agent-name> [options]
-```
-
-**Arguments:**
-
-| Argument | Description |
-|----------|-------------|
-| `agent-name` | Name of the agent to trigger (use qualified name for sub-fleet agents) |
-
-**Options:**
-
-| Option | Description |
-|--------|-------------|
-| `-p, --prompt <text>` | Prompt to send to the agent (uses `default_prompt` if not specified) |
-| `-q, --quiet` | Suppress streaming output during execution |
-| `--json` | Output result in JSON format |
-
-**Examples:**
-
-```bash
-# Trigger with default prompt (if agent has default_prompt configured)
-herdctl trigger price-checker
-
-# Trigger with custom prompt
-herdctl trigger hurricane-watcher --prompt "Check for storms near Miami"
-
-# Trigger a sub-fleet agent using qualified name
-herdctl trigger herdctl.security-auditor
-
-# Quiet mode - no streaming, just final result
-herdctl trigger my-agent -q
-
-# JSON output for scripting
-herdctl trigger my-agent --json
-```
-
-**Streaming Output:**
-
-By default, the trigger command streams the agent's output in real-time:
-
-```
-$ herdctl trigger price-checker
-Triggering agent: price-checker
-Job started: job-2024-01-15-abc123
-
-I'll check the current prices for office chairs at Staples and IKEA.
-
-First, let me fetch the Staples Hyken chair page...
-[...]
-
-**Price Check Complete**: Staples Hyken at $159.99 (best deal, meets $200 target).
-IKEA MARKUS at $299.99. Buy here: https://www.staples.com/...
-
-Job completed successfully in 45.2s
-```
-
-**Output Display:**
-
-After job completion, the agent's final output is displayed (truncated at 20,000 characters if needed). Use `--quiet` to suppress this.
-
-**Hooks:**
-
-If the agent has [hooks](/concepts/hooks/) configured, they run after the job completes. Hook execution is logged:
-
-```
-Running hook: Price alert (discord)
-Hook completed: Price alert
-```
-
-### status
-
-Show the status of agents and running jobs.
-
-```bash
-herdctl status [agent-name]
-```
-
-**Examples:**
-
-```bash
-# Show all agents
-herdctl status
-
-# Show specific agent
-herdctl status price-checker
-
-# Show sub-fleet agent using qualified name
-herdctl status herdctl.security-auditor
-```
-
-When using [fleet composition](/configuration/fleet-config/#fleets), status output groups agents by their fleet hierarchy.
-
-### logs
-
-View logs for agents or specific jobs.
-
-```bash
-herdctl logs [agent-name] [options]
-```
-
-**Options:**
-
-| Option | Description |
-|--------|-------------|
-| `-f, --follow` | Stream logs in real-time |
-| `--job <id>` | Show logs for specific job |
-| `-n, --lines <count>` | Number of lines to show (default: 100) |
-
-**Examples:**
-
-```bash
-# View recent logs
-herdctl logs price-checker
-
-# Follow logs in real-time
-herdctl logs price-checker -f
-
-# View specific job logs
-herdctl logs --job job-2024-01-15-abc123
-```
-
-### start
-
-Start the fleet daemon to run scheduled jobs and optional web dashboard.
-
-```bash
-herdctl start [options]
-```
-
-**Options:**
-
-| Option | Description |
-|--------|-------------|
-| `-d, --daemon` | Run in background |
-| `-v, --verbose` | Enable debug-level logging (sets `HERDCTL_LOG_LEVEL=debug`) |
-| `--agent <name>` | Start specific agent only |
-| `--web` | Enable the web dashboard |
-| `--web-port <port>` | Web dashboard port (default: 3232) |
-
-**Examples:**
-
-```bash
-# Start all agents
-herdctl start
-
-# Start in background
-herdctl start -d
-
-# Start specific agent
-herdctl start --agent price-checker
-
-# Start with verbose debug output
-herdctl start --verbose
-
-# Start with web dashboard
-herdctl start --web
-```
-
-**Zero-Config Mode:**
-
-When no `herdctl.yaml` configuration file is found, `herdctl start` automatically launches in web-only mode. This enables session browsing without any fleet configuration:
-
-```bash
-# Start web dashboard without fleet config
-npx herdctl start
-
-# Output:
-# No fleet configuration found — starting web UI only.
-# Browse your Claude Code sessions at http://localhost:3232
-```
-
-In web-only mode, you can:
-- Browse all Claude Code sessions from `~/.claude/` on your machine
-- View session details and conversation history
-- Resume CLI sessions as ad hoc chats
-- Use the All Chats page to discover sessions across all projects
-
-This is particularly useful when you want to explore and interact with your Claude Code sessions without setting up a full herdctl fleet.
-
-### stop
-
-Stop running agents.
-
-```bash
-herdctl stop [agent-name]
-```
-
-**Examples:**
-
-```bash
-# Stop all agents
-herdctl stop
-
-# Stop specific agent
-herdctl stop price-checker
-```
-
-### cancel
-
-Cancel a running job.
-
-```bash
-herdctl cancel <job-id>
-```
-
-**Arguments:**
-
-| Argument | Description |
-|----------|-------------|
-| `job-id` | ID of the job to cancel |
-
-**Examples:**
-
-```bash
-# Cancel a specific job
-herdctl cancel job-2024-01-15-abc123
-```
-
-### validate
-
-Validate configuration files.
-
-```bash
-herdctl validate [path]
-```
-
-**Examples:**
-
-```bash
-# Validate all configuration
-herdctl validate
-
-# Validate specific agent
-herdctl validate agents/my-agent.yaml
-```
 
 ### init
 
@@ -269,6 +30,13 @@ herdctl init           # Interactive: choose fleet or agent
 herdctl init fleet     # Create a new herdctl.yaml
 herdctl init agent     # Add a new agent (interactive)
 ```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-y, --yes` | Accept all defaults without prompting (requires an explicit subcommand: `init fleet` or `init agent <name>`) |
+| `-f, --force` | Overwrite existing files |
 
 #### init fleet
 
@@ -297,7 +65,7 @@ herdctl init fleet --name my-fleet
 
 #### init agent
 
-Add a new agent to the fleet via an interactive wizard or flags.
+Add a new agent to the fleet via an interactive wizard or flags. Generates `agents/<name>/agent.yaml` and appends a reference to `herdctl.yaml`.
 
 ```bash
 herdctl init agent [name] [options]
@@ -314,7 +82,7 @@ herdctl init agent [name] [options]
 | Option | Description |
 |--------|-------------|
 | `-d, --description <desc>` | Agent description |
-| `--permission-mode <mode>` | Permission mode (`default`, `acceptEdits`, `bypassPermissions`, `plan`) |
+| `--permission-mode <mode>` | Permission mode: `default`, `acceptEdits`, `bypassPermissions`, `plan`, `delegate`, `dontAsk` |
 | `--docker` / `--no-docker` | Enable or disable Docker isolation |
 | `--runtime <runtime>` | Runtime backend (`sdk` or `cli`) |
 | `--discord` | Add Discord chat integration |
@@ -338,6 +106,381 @@ herdctl init agent price-checker --yes --runtime cli --docker
 herdctl init agent my-bot --discord --slack --yes
 ```
 
+### start
+
+Start the fleet. Runs in the foreground, streaming fleet logs to stdout until you press Ctrl+C. Writes a PID file to the state directory (`.herdctl/herdctl.pid`) that `herdctl stop` uses.
+
+```bash
+herdctl start [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-c, --config <path>` | Path to config file or directory |
+| `-s, --state <path>` | Path to state directory (default: `.herdctl`) |
+| `-v, --verbose` | Enable verbose debug logging (sets `HERDCTL_LOG_LEVEL=debug`) |
+| `--web` | Enable the web dashboard |
+| `--web-port <port>` | Web dashboard port (default: 3232) |
+
+**Examples:**
+
+```bash
+# Start the fleet (all agents)
+herdctl start
+
+# Start with verbose debug output
+herdctl start --verbose
+
+# Start with web dashboard
+herdctl start --web
+
+# Start with web dashboard on a custom port
+herdctl start --web --web-port 8080
+
+# Use a specific config file
+herdctl start --config ./fleets/prod/herdctl.yaml
+```
+
+<Aside type="note">
+`herdctl start` starts the whole fleet — there is no flag to start a single agent. To run one agent on demand, use [`herdctl trigger`](#trigger).
+</Aside>
+
+**Zero-Config Mode:**
+
+When no `herdctl.yaml` configuration file is found, `herdctl start` automatically launches in web-only mode. This enables session browsing without any fleet configuration:
+
+```bash
+# Start web dashboard without fleet config
+npx herdctl start
+
+# Output:
+# No fleet configuration found — starting web UI only.
+# Browse your Claude Code sessions at http://localhost:3232
+```
+
+In web-only mode, you can:
+- Browse all Claude Code sessions from `~/.claude/` on your machine
+- View session details and conversation history
+- Resume CLI sessions as ad hoc chats
+- Use the All Chats page to discover sessions across all projects
+
+This is particularly useful when you want to explore and interact with your Claude Code sessions without setting up a full herdctl fleet.
+
+### stop
+
+Stop the running fleet process. Reads the PID file from the state directory, sends `SIGTERM`, and waits for graceful shutdown. If the timeout is reached, the process is force-killed with `SIGKILL`.
+
+```bash
+herdctl stop [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-f, --force` | Immediate stop — send `SIGKILL` right away (cancels running jobs) |
+| `-t, --timeout <seconds>` | Wait max seconds for graceful shutdown before force kill (default: 30) |
+| `-s, --state <path>` | Path to state directory (default: `.herdctl`) |
+
+**Examples:**
+
+```bash
+# Graceful stop (waits up to 30s)
+herdctl stop
+
+# Wait up to 60 seconds before force killing
+herdctl stop --timeout 60
+
+# Immediate force stop
+herdctl stop --force
+```
+
+<Aside type="note">
+`herdctl stop` stops the entire fleet process — it takes no agent argument. To stop a single running job, use [`herdctl cancel`](#cancel).
+</Aside>
+
+### status
+
+Show fleet status or details for a specific agent.
+
+```bash
+herdctl status [agent] [options]
+```
+
+**Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `agent` | Agent name (optional — use qualified name for sub-fleet agents) |
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Output as JSON for scripting |
+| `-c, --config <path>` | Path to config file or directory |
+| `-s, --state <path>` | Path to state directory (default: `.herdctl`) |
+
+**Examples:**
+
+```bash
+# Show all agents
+herdctl status
+
+# Show specific agent
+herdctl status price-checker
+
+# Show sub-fleet agent using qualified name
+herdctl status herdctl.security-auditor
+
+# JSON output for scripting
+herdctl status --json
+```
+
+When using [fleet composition](/configuration/fleet-config/#fleets), status output groups agents by their fleet hierarchy.
+
+### logs
+
+Show agent logs, or logs for a specific job.
+
+```bash
+herdctl logs [agent] [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-f, --follow` | Follow log output continuously |
+| `--job <id>` | Logs from a specific job |
+| `-n, --lines <count>` | Number of lines to show (default: 50) |
+| `--json` | Output as newline-delimited JSON (one log entry per line) |
+| `-c, --config <path>` | Path to config file or directory |
+| `-s, --state <path>` | Path to state directory (default: `.herdctl`) |
+
+**Examples:**
+
+```bash
+# Recent logs from all agents
+herdctl logs
+
+# View recent logs for one agent
+herdctl logs price-checker
+
+# Follow logs in real-time
+herdctl logs price-checker -f
+
+# Show the last 200 lines
+herdctl logs price-checker -n 200
+
+# View specific job logs
+herdctl logs --job job-2024-01-15-abc123
+
+# Newline-delimited JSON for scripting
+herdctl logs --json
+```
+
+### trigger
+
+Manually trigger an agent to run a job. By default the agent's output is streamed to the terminal as it runs, then a job summary is printed.
+
+```bash
+herdctl trigger <agent> [options]
+```
+
+**Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `agent` | Name of the agent to trigger (use qualified name for sub-fleet agents) |
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-S, --schedule <name>` | Trigger a specific schedule defined for the agent |
+| `-p, --prompt <prompt>` | Custom prompt (overrides the schedule/default prompt) |
+| `-w, --wait` | Wait for the job to complete and stream job output |
+| `-q, --quiet` | Suppress output display (just show job info) |
+| `--json` | Output as JSON for scripting |
+| `-c, --config <path>` | Path to config file or directory |
+| `-s, --state <path>` | Path to state directory (default: `.herdctl`) |
+
+**Examples:**
+
+```bash
+# Trigger with the agent's default prompt
+herdctl trigger price-checker
+
+# Trigger a specific schedule
+herdctl trigger price-checker -S daily-check
+
+# Trigger with custom prompt
+herdctl trigger hurricane-watcher --prompt "Check for storms near Miami"
+
+# Trigger a sub-fleet agent using qualified name
+herdctl trigger herdctl.security-auditor
+
+# Wait for completion and stream job output
+herdctl trigger my-agent --wait
+
+# Quiet mode - no streamed output, just job info
+herdctl trigger my-agent -q
+
+# JSON output for scripting
+herdctl trigger my-agent --json
+```
+
+**Streaming Output:**
+
+By default, the trigger command streams the agent's output in real-time:
+
+```
+$ herdctl trigger price-checker
+I'll check the current prices for office chairs at Staples and IKEA.
+
+First, let me fetch the Staples Hyken chair page...
+[...]
+
+Job completed
+Job ID:   job-2024-01-15-abc123
+Agent:    price-checker
+
+Run 'herdctl logs --job job-2024-01-15-abc123' to view detailed logs.
+```
+
+If nothing was streamed, the agent's final output is displayed after completion (truncated at 20,000 characters if needed). Use `--quiet` to suppress output entirely.
+
+With `--wait`, pressing Ctrl+C exits with code 130 but the job keeps running in the background.
+
+**Hooks:**
+
+If the agent has [hooks](/concepts/hooks/) configured, they run after the job completes. Hook execution is logged:
+
+```
+Executing 1 after_run hook(s) for event: completed
+Discord hook completed successfully in 245ms: channel 123456789012345678 (204)
+Hook execution complete: 1 succeeded, 0 failed, 0 skipped (245ms)
+```
+
+### jobs
+
+List recent jobs, with filtering and a configurable limit.
+
+```bash
+herdctl jobs [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-a, --agent <name>` | Filter by agent name |
+| `-S, --status <status>` | Filter by status: `pending`, `running`, `completed`, `failed`, `cancelled` |
+| `-l, --limit <count>` | Number of jobs to show (default: 20) |
+| `--json` | Output as JSON for scripting |
+| `-c, --config <path>` | Path to config file or directory |
+| `-s, --state <path>` | Path to state directory (default: `.herdctl`) |
+
+**Examples:**
+
+```bash
+# List the 20 most recent jobs
+herdctl jobs
+
+# Jobs for a specific agent
+herdctl jobs --agent price-checker
+
+# Only running jobs
+herdctl jobs --status running
+
+# Show more history
+herdctl jobs --limit 50
+
+# JSON output for scripting
+herdctl jobs --json
+```
+
+### job
+
+Show details for a single job.
+
+```bash
+herdctl job <id> [options]
+```
+
+**Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `id` | Job ID |
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-L, --logs` | Also show the job's output |
+| `--json` | Output as JSON for scripting |
+| `-c, --config <path>` | Path to config file or directory |
+| `-s, --state <path>` | Path to state directory (default: `.herdctl`) |
+
+**Examples:**
+
+```bash
+# Show job details
+herdctl job job-2024-01-15-abc123
+
+# Include the job's output
+herdctl job job-2024-01-15-abc123 --logs
+
+# JSON output for scripting
+herdctl job job-2024-01-15-abc123 --json
+```
+
+### cancel
+
+Cancel a running (or pending) job. By default this shows the job details and asks for interactive confirmation before cancelling — use `--yes` in scripts to skip the prompt.
+
+```bash
+herdctl cancel <id> [options]
+```
+
+**Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `id` | ID of the job to cancel |
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-f, --force` | Force cancel — shortens the graceful-termination window to 1 second before `SIGKILL` (a normal cancel allows 10 seconds) |
+| `-y, --yes` | Skip the confirmation prompt (for scripted use) |
+| `--json` | Output as JSON for scripting (also skips the interactive prompt) |
+| `-c, --config <path>` | Path to config file or directory |
+| `-s, --state <path>` | Path to state directory (default: `.herdctl`) |
+
+**Examples:**
+
+```bash
+# Cancel a job (prompts for confirmation)
+herdctl cancel job-2024-01-15-abc123
+
+# Cancel without confirmation (scripts/CI)
+herdctl cancel job-2024-01-15-abc123 --yes
+
+# Force cancel with SIGKILL
+herdctl cancel job-2024-01-15-abc123 --force --yes
+
+# JSON output for scripting
+herdctl cancel job-2024-01-15-abc123 --json
+```
+
+Only jobs with status `running` or `pending` can be cancelled; attempting to cancel a finished job exits with an error.
+
 ### sessions
 
 List and manage Claude Code sessions for your agents. When agents run with session persistence enabled, herdctl tracks their Claude Code session IDs, making them discoverable and resumable.
@@ -353,6 +496,8 @@ herdctl sessions [options]
 | `-a, --agent <name>` | Filter sessions by agent name |
 | `-v, --verbose` | Show full resume commands for each session |
 | `--json` | Output as JSON for scripting |
+| `-c, --config <path>` | Path to config file or directory |
+| `-s, --state <path>` | Path to state directory (default: `.herdctl`) |
 
 **Examples:**
 
@@ -378,25 +523,32 @@ herdctl sessions --verbose
 herdctl sessions --json
 ```
 
-### sessions resume
+#### sessions resume
 
 Resume a Claude Code session interactively. This launches Claude Code with the `--resume` flag in the agent's configured workspace directory.
 
 ```bash
-herdctl sessions resume [session-id]
+herdctl sessions resume [session-id] [options]
 ```
 
 **Arguments:**
 
 | Argument | Description |
 |----------|-------------|
-| `session-id` | Session ID, partial ID, or agent name (optional - defaults to most recent) |
+| `session-id` | Session ID, partial ID, or agent name (optional — defaults to most recent) |
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-c, --config <path>` | Path to config file or directory |
+| `-s, --state <path>` | Path to state directory (default: `.herdctl`) |
 
 **Behavior:**
 
 - If no argument is provided, resumes the most recently active session
 - Supports partial session ID matching (e.g., `a166a1e4` matches `a166a1e4-c89e-41f8-80c8-d73f6cd0d39c`)
-- Accepts agent name to resume that agent's session
+- Accepts an agent name to resume that agent's session
 - Automatically changes to the agent's workspace directory before launching Claude
 
 **Examples:**
@@ -436,6 +588,12 @@ See [Sessions](/concepts/sessions/) for more about session modes and persistence
 
 Manage distributable agents — install from GitHub or local paths, list installed agents, and remove agents you no longer need.
 
+The `agent` command group accepts a shared option:
+
+| Option | Description |
+|--------|-------------|
+| `-c, --config <path>` | Path to config file or directory (applies to all `agent` subcommands) |
+
 #### agent add
 
 Install an agent from GitHub or a local path.
@@ -454,9 +612,9 @@ herdctl agent add <source> [options]
 
 | Option | Description |
 |--------|-------------|
-| `--path <path>` | Install to specific directory (default: `./agents/<name>/`) |
-| `--dry-run` | Show what would be installed without making changes |
-| `--force` | Overwrite existing agent if it exists |
+| `--path <path>` | Override installation directory (default: `./agents/<name>/`) |
+| `--dry-run` | Preview changes without installing |
+| `-f, --force` | Overwrite existing agent directory |
 
 **Examples:**
 
@@ -493,7 +651,7 @@ After installation, the command displays:
 
 #### agent list
 
-List all installed agents.
+List all agents in the fleet. When the fleet has sub-fleets, output is a tree grouped by fleet hierarchy; otherwise it's a flat table.
 
 ```bash
 herdctl agent list [options]
@@ -508,14 +666,14 @@ herdctl agent list [options]
 **Examples:**
 
 ```bash
-# List all installed agents
+# List all agents
 herdctl agent list
 
 # Output:
-# NAME                  SOURCE                                      VERSION  INSTALLED
-# competitor-tracker    github:user/competitive-analysis-agent      1.0.0    2 days ago
-# content-writer        github:user/content-agent                   0.5.0    1 week ago
-# github-triager        ./agents/custom-triager                     -        3 days ago
+# Name                Source                                   Version  Installed     Status
+# ------------------------------------------------------------------------------------------
+# competitor-tracker  user/competitive-analysis-agent          1.0.0    Jan 13, 2024  installed
+# github-triager      manual                                   -        -             manual
 
 # JSON output for scripting
 herdctl agent list --json
@@ -523,7 +681,7 @@ herdctl agent list --json
 
 #### agent info
 
-Show detailed information about an installed agent.
+Show detailed information about an agent.
 
 ```bash
 herdctl agent info <name> [options]
@@ -533,7 +691,7 @@ herdctl agent info <name> [options]
 
 | Argument | Description |
 |----------|-------------|
-| `name` | Name of the installed agent |
+| `name` | Name of the agent |
 
 **Options:**
 
@@ -548,26 +706,25 @@ herdctl agent info <name> [options]
 herdctl agent info competitor-tracker
 
 # Output:
-# Name: competitor-tracker
+# Agent: competitor-tracker
 # Description: Competitive intelligence for Acme SaaS Platform
-# Source: github:edspencer/competitive-analysis-agent
+# Status: Installed (via GitHub)
+# Source: https://github.com/edspencer/competitive-analysis-agent
 # Version: 1.0.0
-# Installed: 2 days ago
-#
-# Files:
-#   ./agents/competitor-tracker/
-#     agent.yaml
-#     CLAUDE.md
-#     knowledge/ (3 files)
-#     workspace/
-#
-# Environment variables:
-#   COMPETITOR_WEBSITES
-#   DISCORD_WEBHOOK_URL
-#   SLACK_CHANNEL
+# Installed: 2024-01-13T10:00:00.000Z
 #
 # Schedules:
-#   daily-competitive-scan (0 8 * * *)
+#   daily-competitive-scan: cron (0 8 * * *)
+#
+# Environment Variables:
+#   Required:
+#     COMPETITOR_WEBSITES
+#
+# Files:
+#   agent.yaml
+#   CLAUDE.md
+#
+# Workspace: agents/competitor-tracker/workspace/
 
 # JSON output
 herdctl agent info competitor-tracker --json
@@ -575,7 +732,7 @@ herdctl agent info competitor-tracker --json
 
 #### agent remove
 
-Remove an installed agent.
+Remove an installed agent from the fleet.
 
 ```bash
 herdctl agent remove <name> [options]
@@ -591,17 +748,14 @@ herdctl agent remove <name> [options]
 
 | Option | Description |
 |--------|-------------|
-| `--force` | Skip confirmation prompt |
-| `--keep-workspace` | Preserve workspace data while removing agent |
+| `-f, --force` | Reserved for future use — currently a no-op (removal does not prompt for confirmation) |
+| `--keep-workspace` | Preserve the workspace directory while removing the agent |
 
 **Examples:**
 
 ```bash
-# Remove an agent (prompts for confirmation)
+# Remove an agent (no confirmation prompt — removes immediately)
 herdctl agent remove competitor-tracker
-
-# Remove without confirmation
-herdctl agent remove competitor-tracker --force
 
 # Remove but keep workspace data
 herdctl agent remove competitor-tracker --keep-workspace
@@ -612,38 +766,100 @@ The removal process:
 2. Removes the agent reference from `herdctl.yaml`
 3. Lists environment variables that were used (for manual cleanup)
 
+<Aside type="caution">
+`agent remove` deletes the agent directory immediately, without an interactive confirmation. The `--force` flag is currently a reserved no-op kept for a future interactive confirmation flow.
+</Aside>
+
 See [Installing Agents](/guides/installing-agents/) for a complete guide to the agent distribution system.
 
-## Global Options
+### config
 
-These options work with all commands:
+Configuration management commands.
+
+#### config validate
+
+Validate the current configuration (fleet config plus all referenced agent configs). Exits with code 0 if valid, 1 if not.
+
+```bash
+herdctl config validate [options]
+```
+
+**Options:**
 
 | Option | Description |
 |--------|-------------|
-| `-c, --config <path>` | Path to herdctl.yaml (default: `./herdctl.yaml`) |
-| `-v, --verbose` | Enable verbose output |
-| `--version` | Show version number |
-| `--help` | Show help |
+| `--fix` | Show suggestions for fixing validation errors |
+| `-c, --config <path>` | Path to config file or directory |
+
+**Examples:**
+
+```bash
+# Validate the configuration in the current directory
+herdctl config validate
+
+# Validate with fix suggestions
+herdctl config validate --fix
+
+# Validate a specific config file
+herdctl config validate --config ./fleets/prod/herdctl.yaml
+```
+
+On success, prints the fleet name, config path, and the list of resolved agents. On failure, prints schema/YAML/environment-variable errors (with suggested fixes when `--fix` is set).
+
+#### config show
+
+Show the merged/resolved configuration — fleet info, defaults, and every resolved agent with its schedules and tool permissions.
+
+```bash
+herdctl config show [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Output as JSON |
+| `-c, --config <path>` | Path to config file or directory |
+
+**Examples:**
+
+```bash
+# Human-readable resolved config
+herdctl config show
+
+# Full resolved config as JSON
+herdctl config show --json
+```
+
+## Common Options
+
+There are no global options other than `--version` and `--help` — options like `-c` and `-v` are defined per command. Most commands share these:
+
+| Option | Description | Available on |
+|--------|-------------|--------------|
+| `-c, --config <path>` | Path to config file or directory | Most commands (see each command's table) |
+| `-s, --state <path>` | Path to state directory (default: `.herdctl`) | `start`, `stop`, `status`, `logs`, `trigger`, `jobs`, `job`, `cancel`, `sessions` |
+| `--json` | Machine-readable output for scripting | `status`, `logs`, `trigger`, `jobs`, `job`, `cancel`, `sessions`, `agent list`, `agent info`, `config show` |
+| `-v, --verbose` | Verbose output | `start` (debug logging), `sessions` (full resume commands) |
 
 ## Exit Codes
 
 | Code | Meaning |
 |------|---------|
 | `0` | Success |
-| `1` | General error |
-| `2` | Configuration error |
-| `3` | Agent error |
-| `4` | Job error |
+| `1` | General error (config not found, agent not found, job failed, etc.) |
+| `130` | Interrupted by signal (128 + SIGINT signal number 2) |
+
+`trigger --wait` propagates the job's success or failure through its exit code. Interrupting `trigger --wait` or `logs --follow` with Ctrl+C exits with 130; a job being waited on continues running in the background.
 
 ## Environment Variables
 
 | Variable | Description |
 |----------|-------------|
-| `ANTHROPIC_API_KEY` | **Required.** Claude API key |
-| `HERDCTL_CONFIG` | Path to config file (alternative to `-c`) |
-| `HERDCTL_LOG_LEVEL` | Log level: `debug`, `info`, `warn`, `error` |
+| `HERDCTL_LOG_LEVEL` | Log level: `debug`, `info`, `warn`, `error` (default: `info`; `start --verbose` sets `debug`) |
 | `NO_COLOR` | Disable colored output (see [no-color.org](https://no-color.org/)) |
 | `FORCE_COLOR` | Force colored output even when not a TTY |
+| `ANTHROPIC_API_KEY` | Claude API key, passed through to agent runs (Docker isolation requires it; local runs can also use your existing Claude Code authentication) |
 
 Additional environment variables may be required for integrations:
 
@@ -651,16 +867,17 @@ Additional environment variables may be required for integrations:
 |----------|-------------|
 | `GITHUB_TOKEN` | GitHub API access for work sources |
 | `DISCORD_BOT_TOKEN` | Discord bot token for notifications/chat |
-| `DISCORD_CHANNEL_ID` | Default Discord channel for notifications |
+
+Agent configs can reference arbitrary environment variables with `${VAR}` interpolation — `herdctl agent info <name>` lists the variables an installed agent requires.
 
 ## Configuration Files
 
 herdctl looks for configuration in this order:
 
 1. Path specified with `-c` / `--config`
-2. `HERDCTL_CONFIG` environment variable
-3. `./herdctl.yaml` in current directory
-4. `./agents/*.yaml` for agent definitions
+2. `herdctl.yaml` (or `herdctl.yml`) found by walking up the directory tree from the current directory
+
+Agent definitions live in files referenced from `herdctl.yaml` (conventionally `./agents/<name>/agent.yaml`).
 
 See [Fleet Configuration](/configuration/fleet-config/) and [Agent Configuration](/configuration/agent-config/) for details.
 

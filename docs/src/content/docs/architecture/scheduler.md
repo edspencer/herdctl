@@ -33,7 +33,7 @@ The `Scheduler` class is the primary entry point. It manages the polling loop an
 ### Construction
 
 ```typescript
-import { Scheduler } from "@herdctl/core/scheduler";
+import { Scheduler } from "@herdctl/core";
 
 const scheduler = new Scheduler({
   checkInterval: 1000,  // Check every 1 second
@@ -250,7 +250,7 @@ private async checkSchedule(agent, scheduleName, schedule): Promise<ScheduleChec
 The `parseInterval` function converts human-readable duration strings to milliseconds:
 
 ```typescript
-import { parseInterval } from "@herdctl/core/scheduler";
+import { parseInterval } from "@herdctl/core";
 
 parseInterval("30s");  // 30000
 parseInterval("5m");   // 300000
@@ -286,7 +286,7 @@ import {
   parseCronExpression,
   calculateNextCronTrigger,
   isValidCronExpression,
-} from "@herdctl/core/scheduler";
+} from "@herdctl/core";
 
 // Parse and validate
 const parsed = parseCronExpression("0 9 * * 1-5");
@@ -312,7 +312,7 @@ CronParseError: Invalid cron expression "* * *" - expected 5 fields, got 3
 The `calculateNextTrigger` function determines when an interval schedule should next run:
 
 ```typescript
-import { calculateNextTrigger } from "@herdctl/core/scheduler";
+import { calculateNextTrigger } from "@herdctl/core";
 
 // First run: triggers immediately
 calculateNextTrigger(null, "5m");  // returns now
@@ -330,7 +330,7 @@ calculateNextTrigger(lastRun, "1h", 5);  // adds 0-5% random jitter
 For cron schedules, `calculateNextCronTrigger` finds the next matching time after a given date:
 
 ```typescript
-import { calculateNextCronTrigger } from "@herdctl/core/scheduler";
+import { calculateNextCronTrigger } from "@herdctl/core";
 
 // Next 9am after 8am today -> today at 9am
 calculateNextCronTrigger("0 9 * * *", new Date("2025-01-15T08:00:00"));
@@ -358,7 +358,7 @@ import {
   getScheduleState,
   updateScheduleState,
   getAgentScheduleStates,
-} from "@herdctl/core/scheduler";
+} from "@herdctl/core";
 
 // Read current state
 const state = await getScheduleState(stateDir, "my-agent", "check-issues");
@@ -399,7 +399,7 @@ The state moves from `idle` to `running` when a trigger fires, and back to `idle
 The `runSchedule` function handles the full execution flow when a schedule triggers. For details on how jobs are created and managed, see the [Job System](/architecture/job-system/). For runner internals, see the [Agent Execution Engine](/architecture/runner/).
 
 ```typescript
-import { runSchedule, buildSchedulePrompt } from "@herdctl/core/scheduler";
+import { runSchedule, buildSchedulePrompt } from "@herdctl/core";
 
 const result = await runSchedule({
   agent,
@@ -501,14 +501,14 @@ import {
   IntervalParseError,
   ScheduleTriggerError,
   SchedulerShutdownError,
-} from "@herdctl/core/scheduler";
+} from "@herdctl/core";
 ```
 
 | Error | Extends | When Thrown |
 |-------|---------|------------|
-| `SchedulerError` | `Error` | Base class for all scheduler errors |
+| `SchedulerError` | `FleetManagerError` | Base class for all scheduler errors |
 | `IntervalParseError` | `SchedulerError` | Invalid interval string (e.g., `"5x"`, `"0m"`) |
-| `CronParseError` | `FleetManagerError` | Invalid cron expression |
+| `CronParseError` | `SchedulerError` | Invalid cron expression |
 | `ScheduleTriggerError` | `SchedulerError` | Schedule trigger execution failed |
 | `SchedulerShutdownError` | `SchedulerError` | Graceful shutdown timed out |
 
@@ -575,10 +575,10 @@ If the system is down when a cron trigger should have fired, the scheduler does 
 
 ## Public Exports
 
-The module exports everything needed for integration:
+The module exports everything needed for integration. These are all re-exported from the package root, so import them from `@herdctl/core`:
 
 ```typescript
-// From packages/core/src/scheduler/index.ts
+// From packages/core/src/scheduler/index.ts (simplified)
 
 // Scheduler class
 export { Scheduler } from "./scheduler.js";

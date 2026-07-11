@@ -3,7 +3,7 @@ title: Agents
 description: Understanding autonomous agents in herdctl
 ---
 
-An **Agent** is a configured Claude Code instance with its own identity, workspace, permissions, and schedules. Think of it as a specialized team member that operates autonomously on your codebase.
+An **Agent** is a configured Claude Code instance with its own identity, working directory, permissions, and schedules. Think of it as a specialized team member that operates autonomously on your codebase.
 
 ## What is an Agent?
 
@@ -11,16 +11,16 @@ An **Agent** is a configured Claude Code instance with its own identity, workspa
 
 Each agent operates independently with:
 
-- **Identity**: CLAUDE.md instructions, knowledge files, personality
-- **Workspace**: The working directory (repo clone) the agent operates in
-- **Permissions**: Exactly which tools the agent can use
+- **Identity**: A name, role, and personality, plus whatever `CLAUDE.md` lives in its working directory
+- **Working directory**: The directory the agent operates in
+- **Permissions**: A permission mode and exactly which tools the agent can use
 - **Schedules**: When and how to invoke (multiple allowed per agent)
 
 ## Standalone vs. Project-Embedded Agents
 
-Every herdctl agent has a workspace directory. This creates two natural categories depending on how that workspace is used.
+Every herdctl agent has a working directory. This creates two natural categories depending on how that directory is used.
 
-**Standalone agents** have their own dedicated workspace for storing data. A price checker keeps price history in its folder. A hurricane tracker stores weather data. These agents do not need an existing codebase — they create their own working environment from scratch and use their workspace primarily for data persistence.
+**Standalone agents** have their own dedicated directory for storing data. A price checker keeps price history in its folder. A hurricane tracker stores weather data. These agents do not need an existing codebase — they create their own working environment from scratch and use their directory primarily for data persistence.
 
 **Project-embedded agents** run inside an existing Claude Code project — one that already has a `CLAUDE.md`, local skills, sub-agents, and project-specific configuration. When you point a herdctl agent at an existing project directory, it operates exactly as if you ran `claude` in that directory. Your instructions are honored, your slash commands work, and your MCP servers are available. This means you can add autonomous capabilities (scheduled jobs, chat interfaces, webhook triggers) to any existing Claude Code project without changing how that project is set up.
 
@@ -28,15 +28,21 @@ Every herdctl agent has a workspace directory. This creates two natural categori
 
 | Property | Required | Description |
 |----------|----------|-------------|
-| `name` | Yes | Unique identifier for the agent within your fleet |
+| `name` | Yes | Unique identifier for the agent within your fleet (letters, numbers, `-`, `_`) |
 | `description` | No | Human-readable explanation of the agent's purpose |
-| `workspace` | Yes | Directory name for the agent's working copy |
-| `repo` | Yes | Git repository to clone (e.g., `owner/repo`) |
-| `identity` | No | Agent-specific CLAUDE.md and knowledge files |
-| `schedules` | Yes | One or more triggers defining when the agent runs |
+| `working_directory` | No | Directory the agent runs in — a path string, or an object with a `root` |
+| `identity` | No | Optional `name`, `role`, and `personality` strings |
+| `system_prompt` | No | Extra system prompt text for the agent |
+| `default_prompt` | No | Prompt used when triggering without an explicit prompt |
+| `schedules` | No | Named map of triggers defining when the agent runs |
 | `work_source` | No | Where the agent gets tasks from (e.g., GitHub Issues) |
-| `permissions` | No | Tool access and file restrictions |
-| `session` | No | Session persistence and timeout settings |
+| `permission_mode` | No | Claude Code permission mode (e.g., `default`, `acceptEdits`, `bypassPermissions`, `plan`) |
+| `tools` / `allowed_tools` / `denied_tools` | No | Tool access control lists |
+| `session` | No | Session settings: `max_turns`, `timeout`, `model` |
+| `chat` | No | Discord/Slack chat integration |
+| `model` / `max_turns` | No | Model override and turn limit for jobs |
+
+Agent configs are validated **strictly** — unknown keys are rejected at load time. Only `name` is required. The `workspace` key is a deprecated alias for `working_directory` and logs a warning. See [Agent Configuration](/configuration/agent-config/) for the full schema.
 
 ## Example Agent Configuration
 
@@ -47,45 +53,47 @@ Here's a complete example of an agent that implements features and fixes bugs:
 name: bragdoc-coder
 description: "Implements features and fixes bugs in Bragdoc"
 
-# Workspace (the repo this agent works in)
-workspace: bragdoc-ai
-repo: edspencer/bragdoc-ai
+# Directory the agent runs in (clone the repo here yourself)
+working_directory: ./bragdoc-ai
 
 # Agent identity
 identity:
-  claude_md: inherit  # Use repo's CLAUDE.md
-  knowledge_dir: .claude/knowledge/
-  journal: journal.md  # Persistent memory
+  name: Bragdoc Coder
+  role: Software engineer
+  personality: Pragmatic, test-driven, writes small focused PRs
 
-# Work source configuration
+# Work source: pull ready issues from GitHub
 work_source:
   type: github
-  filter:
-    labels:
-      any: ["ready", "bug", "feature"]
-    exclude_labels: ["blocked", "needs-design"]
-  claim:
-    add_label: "in-progress"
-    remove_label: "ready"
-  complete:
-    remove_label: "in-progress"
-    close_issue: true
-    comment: "Completed: {{summary}}"
+  repo: edspencer/bragdoc-ai
+  labels:
+    ready: ready
+    in_progress: agent-working
+  exclude_labels:
+    - blocked
+    - needs-design
+  cleanup_on_failure: true
+  auth:
+    token_env: GITHUB_TOKEN
 
-# Schedule for checking issues
+# Schedules: a named map, each entry pairs a trigger with a prompt
 schedules:
-  - name: issue-check
-    trigger:
-      type: interval
-      every: 5m
+  issue-check:
+    type: interval
+    interval: 5m
     prompt: |
       Check for ready issues in the repository.
       Pick the oldest one and implement it.
-      Update journal.md with your progress.
 
-# Session management
+# Session limits
 session:
-  mode: fresh_per_job  # New session per job
+  max_turns: 50
+  timeout: 30m
+
+# Permissions
+permission_mode: acceptEdits
+denied_tools:
+  - WebSearch
 ```
 
 ## Agent Identity
@@ -104,34 +112,45 @@ A unique identifier for the agent within your fleet. Use descriptive names that 
 
 A human-readable description of what the agent does. This appears in the dashboard and helps team members understand each agent's role.
 
-### CLAUDE.md
+### Identity Block
 
-Agent-specific instructions that define behavior, conventions, and context. You can:
-
-- **Inherit** the repo's existing CLAUDE.md
-- **Specify** a custom file (e.g., `.claude/marketer-CLAUDE.md`)
-- **Extend** with additional knowledge files
+The optional `identity` block gives the agent a persona:
 
 ```yaml
 identity:
-  claude_md: .claude/marketer-CLAUDE.md  # Custom identity
-  knowledge_dir: .claude/knowledge/       # Additional context
+  name: Support Bot
+  role: Customer support specialist
+  personality: Friendly, concise, always links to relevant docs
 ```
 
-## Multiple Agents, Same Workspace
+### Instructions (CLAUDE.md and system prompts)
 
-Multiple agents can share the same workspace (repo clone). For example:
+Behavioral instructions come from two places:
+
+- **The working directory's `CLAUDE.md`** — by default herdctl loads project settings (`CLAUDE.md`, skills, commands) from the working directory, just like running `claude` there. The `setting_sources` option controls this discovery.
+- **`system_prompt`** — extra instructions supplied directly in the agent config.
+
+```yaml
+system_prompt: |
+  You are the marketing specialist for this project.
+  Always write in the brand voice described in docs/voice.md.
+setting_sources: [project]
+```
+
+## Multiple Agents, Same Working Directory
+
+Multiple agents can share the same working directory. For example:
 
 - `bragdoc-coder` - Implements features in bragdoc-ai
 - `bragdoc-marketer` - Handles marketing in bragdoc-ai
 - `bragdoc-support` - Answers questions about bragdoc-ai
 
-Each has different schedules, prompts, and potentially different identity files, but they all work on the same codebase.
+Each has different schedules, prompts, and potentially different identities, but they all work on the same codebase.
 
 ## Agent Lifecycle
 
 1. **Created**: Agent configuration loaded from YAML
-2. **Initialized**: Workspace cloned and prepared
+2. **Initialized**: Working directory resolved and validated
 3. **Idle**: Waiting for next trigger
 4. **Running**: Executing a scheduled task (creates a [Job](/concepts/jobs/))
 5. **Completed**: Task finished, returns to idle
@@ -146,20 +165,19 @@ Implements features and fixes bugs from issue trackers:
 ```yaml
 name: project-coder
 description: "Implements features from GitHub Issues"
-workspace: my-project
-repo: owner/my-project
+working_directory: ./my-project
 
 work_source:
   type: github
-  filter:
-    labels:
-      any: ["ready"]
+  repo: owner/my-project
+  labels:
+    ready: ready
+    in_progress: agent-working
 
 schedules:
-  - name: issue-check
-    trigger:
-      type: interval
-      every: 5m
+  issue-check:
+    type: interval
+    interval: 5m
     prompt: "Check for ready issues and implement the oldest one."
 ```
 
@@ -170,20 +188,17 @@ Monitors channels and generates reports:
 ```yaml
 name: project-marketer
 description: "Monitors social media and generates analytics"
-workspace: my-project
-repo: owner/my-project
+working_directory: ./my-project
 
 schedules:
-  - name: hourly-scan
-    trigger:
-      type: cron
-      cron: "0 * * * *"
+  hourly-scan:
+    type: cron
+    cron: "0 * * * *"
     prompt: "Scan social media for product mentions."
 
-  - name: daily-report
-    trigger:
-      type: cron
-      cron: "0 9 * * *"
+  daily-report:
+    type: cron
+    cron: "0 9 * * *"
     prompt: "Generate daily analytics report."
 ```
 
@@ -196,8 +211,7 @@ Responds to chat messages. Chat-enabled agents appear as distinct "colleagues" i
 ```yaml
 name: project-support
 description: "Answers user questions in Discord"
-workspace: my-project
-repo: owner/my-project
+working_directory: ./my-project
 
 chat:
   discord:
@@ -210,9 +224,6 @@ chat:
         dm:
           enabled: true
           mode: auto
-
-session:
-  mode: per_channel  # Separate context per channel
 ```
 
 **Slack** — agents share one bot, with different channels routing to different agents:
@@ -220,8 +231,7 @@ session:
 ```yaml
 name: project-support
 description: "Answers user questions in Slack"
-workspace: my-project
-repo: owner/my-project
+working_directory: ./my-project
 
 chat:
   slack:
@@ -230,10 +240,9 @@ chat:
     channels:
       - id: "C0123456789"
         mode: mention  # Responds when @mentioned
-
-session:
-  mode: per_channel  # Separate context per channel
 ```
+
+Chat conversations get their own sessions per channel automatically — see [Sessions](/concepts/sessions/).
 
 ## Related Concepts
 
