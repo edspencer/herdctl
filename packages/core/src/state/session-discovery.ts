@@ -49,6 +49,15 @@ import { mapWithConcurrency } from "./utils/concurrency.js";
 const SESSION_ENRICHMENT_CONCURRENCY = 16;
 
 /**
+ * Max number of parsed-transcript entries retained by the message cache in
+ * {@link SessionDiscoveryService.getSessionMessages}. Parsed message arrays for
+ * large chats are multiple MB each, so the cache is kept small (LRU-evicted) to
+ * bound memory on the constrained host while still covering the common
+ * open/refresh-the-same-few-chats pattern.
+ */
+const MESSAGE_CACHE_MAX_ENTRIES = 8;
+
+/**
  * A discovered session with attribution and metadata
  */
 export interface DiscoveredSession {
@@ -206,6 +215,20 @@ export class SessionDiscoveryService {
 
   private directoryCache: Map<string, DirectoryCacheEntry> = new Map();
   private metadataCache: Map<string, SessionMetadata> = new Map();
+  /**
+   * mtime-keyed cache of fully-parsed transcript messages, keyed on the
+   * transcript file path. A transcript is immutable except when a new turn
+   * appends (which bumps its mtime), so an entry is served only when the
+   * recorded mtime still matches the file's current mtime. This kills the
+   * repeat-open cost — parsing an ~8MB / 500K-token transcript is ~114ms of
+   * synchronous JSON.parse-per-line that otherwise ran on *every* open and
+   * stalled the event loop on the constrained host.
+   *
+   * Bounded to {@link MESSAGE_CACHE_MAX_ENTRIES} entries (each parsed array can
+   * be multiple MB) with simple LRU eviction — Map preserves insertion order, so
+   * the oldest key is evicted first and a hit re-inserts to mark it most-recent.
+   */
+  private messageCache: Map<string, { mtime: string; messages: ChatMessage[] }> = new Map();
 
   private readonly sessionMetadataStore: SessionMetadataStore;
 
@@ -1040,7 +1063,38 @@ export class SessionDiscoveryService {
       sessionId,
       options?.dockerEnabled,
     );
-    return parseSessionMessages(filePath);
+
+    // Key the cache on the transcript's current mtime. A transcript only changes
+    // when a new turn appends (bumping mtime), so an exact mtime match means the
+    // parsed messages are still current and we can skip the full re-parse. If the
+    // file can't be stat'd (e.g. gone), fall back to a direct parse rather than
+    // caching against a bogus key.
+    let mtimeStr: string | undefined;
+    try {
+      mtimeStr = (await stat(filePath)).mtime.toISOString();
+    } catch {
+      return parseSessionMessages(filePath);
+    }
+
+    const cached = this.messageCache.get(filePath);
+    if (cached && cached.mtime === mtimeStr) {
+      // LRU touch: re-insert so this key is marked most-recently-used.
+      this.messageCache.delete(filePath);
+      this.messageCache.set(filePath, cached);
+      return cached.messages;
+    }
+
+    const messages = await parseSessionMessages(filePath);
+
+    this.messageCache.set(filePath, { mtime: mtimeStr, messages });
+    // Evict least-recently-used entries beyond the cap (oldest insertion first).
+    while (this.messageCache.size > MESSAGE_CACHE_MAX_ENTRIES) {
+      const oldest = this.messageCache.keys().next().value;
+      if (oldest === undefined) break;
+      this.messageCache.delete(oldest);
+    }
+
+    return messages;
   }
 
   /**
@@ -1159,6 +1213,7 @@ export class SessionDiscoveryService {
       this.attributionIndex = null;
       this.attributionFetchedAt = 0;
       this.metadataCache.clear();
+      this.messageCache.clear();
       logger.debug("Invalidated all caches");
     }
   }
