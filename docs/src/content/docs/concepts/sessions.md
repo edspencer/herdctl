@@ -28,110 +28,79 @@ sequenceDiagram
   T-->>A: (file contents)
   A->>A: I'll add the validation logic...
 
-  Note over U,T: Metadata: id, agentId, mode, createdAt, lastActiveAt
+  Note over U,T: Tracked: session_id, agent_name, created_at, last_used_at, job_count
 ```
 
-## Session Modes
+## Session Configuration
 
-herdctl supports three session modes that control how context is managed across job executions:
-
-### fresh_per_job
-
-Each job starts with a completely fresh session—no prior context from previous runs.
+Session behavior is configured with the agent-level `session` block, which accepts three optional keys — `max_turns`, `timeout`, and `model`:
 
 ```yaml
 session:
-  mode: fresh_per_job
+  max_turns: 50    # Maximum conversation turns per job
+  timeout: 24h     # Session expiry window (default: 24h)
 ```
 
-**Use cases:**
-- Stateless tasks that should start clean each time
-- Jobs where prior context might cause confusion
-- High-security scenarios requiring context isolation
+| Key | Type | Description |
+|-----|------|-------------|
+| `max_turns` | number | Maximum conversation turns per job execution. If the top-level agent `max_turns` is also set, the top-level value wins. Setting this also limits the agent to one concurrently running schedule. |
+| `timeout` | string | How long a session remains resumable after its last use (e.g. `30m`, `1h`, `24h`, `7d`). Once this window passes, the stored session is treated as expired and the next run starts fresh. Default: `24h`. |
+| `model` | string | Accepted by the schema, but the runtimes read the top-level agent `model` setting — set the model there instead. |
 
-**Behavior:**
-- New session created for every job execution
-- No conversation history carried forward
-- Previous sessions are archived but not used
+:::note
+`timeout` is a session **expiry window**, not a job duration cap. It is measured from the session's `last_used_at` timestamp and controls how long herdctl will keep resuming the same Claude session.
+:::
 
-```
-Job 1 → Session A (fresh) → Completed
-Job 2 → Session B (fresh) → Completed  # No memory of Job 1
-Job 3 → Session C (fresh) → Completed  # No memory of Jobs 1 or 2
-```
+## Session Continuity
 
-### persistent
+By default, **every job starts a fresh session** — a scheduled run has no memory of previous runs, and no configuration is needed for that. Continuity is opt-in:
 
-Maintains context across multiple job executions. The agent "remembers" previous work.
+### Per-schedule resume: `resume_session`
+
+Set `resume_session: true` on a schedule to resume the agent's stored session instead of starting fresh:
 
 ```yaml
-session:
-  mode: persistent
+schedules:
+  daily-analysis:
+    type: cron
+    cron: "0 9 * * *"
+    prompt: "Continue your codebase analysis from yesterday."
+    resume_session: true     # Default: false
 ```
 
-**Use cases:**
-- Long-running projects requiring continuity
-- Agents that build on previous work
-- Tasks where context improves performance
+Each run then continues the same conversation, as long as the stored session is still valid (not expired past `session.timeout`, same working directory, same runtime context).
 
-**Behavior:**
-- Session persists across job executions
-- Conversation history accumulates
-- Context is automatically summarized when it grows large
+:::caution
+`--resume` causes Claude Code to mark the resumed session as a *sidechain*, which hides it from dashboard session discovery. See [Sidechain Sessions](#sidechain-sessions) below.
+:::
 
-```
-Job 1 → Session A → Completed (context saved)
-Job 2 → Session A → Completed (continues with Job 1's context)
-Job 3 → Session A → Completed (continues with Jobs 1+2 context)
-```
+### Library triggers: `resume` and `fork`
 
-**Configuration options:**
+When triggering jobs programmatically, `FleetManager.trigger()` accepts a `resume` option (continue a specific session) and a `fork` option (branch a new session off an existing one). See [Forking from the Library](#forking-from-the-library) below and the [trigger() reference](/library-reference/fleet-manager/#triggeragentname-schedulename-options).
 
-```yaml
-session:
-  mode: persistent
-  max_context_tokens: 100000   # Summarize when exceeded
-  context_window: 50           # Keep last N messages in full detail
-```
+### Per-channel chat sessions
 
-### per_channel
-
-Creates separate sessions for each communication channel. Ideal for chat integrations where different channels represent different conversations or users.
-
-```yaml
-session:
-  mode: per_channel
-```
-
-**Use cases:**
-- Discord/Slack bot integrations
-- Multi-user support scenarios
-- Channel-specific context isolation
-
-**Behavior:**
-- Each channel gets its own persistent session
-- Context is isolated between channels
-- Sessions are identified by channel ID
+Chat integrations (Discord, Slack, and the web dashboard) maintain a **separate session per channel**, so context is isolated between channels:
 
 ```
-Discord #general  → Session A (persistent within channel)
+Discord #general  → Session A (persists across messages)
 Discord #support  → Session B (separate context)
 Slack #dev        → Session C (separate context)
 ```
 
-**Example configuration:**
+This is built into the chat connectors — it is not a `session` block setting. Each connector stores its channel-to-session map in `.herdctl/<platform>-sessions/<agent-name>.yaml`, and a channel's session expires after a configurable period of inactivity via `chat.<platform>.session_expiry_hours` (default: 24).
 
-Each chat-enabled agent has its own Discord bot (created in Discord Developer Portal), appearing as a distinct "person" in chat.
+Each chat-enabled agent has its own Discord bot (created in Discord Developer Portal), appearing as a distinct "person" in chat:
 
 ```yaml
 name: project-support
 description: "Answers questions in Discord channels"
-workspace: my-project
-repo: owner/my-project
+working_directory: ./my-project
 
 chat:
   discord:
     bot_token_env: SUPPORT_DISCORD_TOKEN  # This agent's own bot
+    session_expiry_hours: 24              # Per-channel session expiry (default: 24)
     guilds:
       - id: "guild-id-here"
         channels:
@@ -139,56 +108,54 @@ chat:
             mode: mention
           - id: "987654321"       # #support
             mode: auto
-
-session:
-  mode: per_channel           # Separate context per channel
-  timeout: 24h                # Session expires after 24h inactivity
 ```
+
+:::note
+The web dashboard accepts `web.session_expiry_hours` in config, but its chat session expiry is currently fixed at 24 hours in practice — tracked in [issue #326](https://github.com/edspencer/herdctl/issues/326).
+:::
 
 ## Session Properties
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `id` | string | Unique session identifier |
-| `agentId` | string | Agent that owns this session |
-| `mode` | enum | Session mode (fresh_per_job, persistent, per_channel) |
-| `channelId` | string | Channel ID (for per_channel mode) |
-| `status` | enum | Current session status |
-| `createdAt` | timestamp | When session was created |
-| `lastActiveAt` | timestamp | Last activity timestamp |
-| `messageCount` | number | Number of messages in context |
-| `tokenEstimate` | number | Estimated context token count |
+herdctl tracks one session pointer per agent, stored as JSON in `.herdctl/sessions/`. Each record contains:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `agent_name` | string | Qualified name of the agent that owns the session (e.g. `my-agent`, or `herdctl.security-auditor` in composed fleets) |
+| `session_id` | string | Claude Code session ID used for resume |
+| `created_at` | timestamp | When the session was created (ISO 8601) |
+| `last_used_at` | timestamp | Last time the session was used; the expiry window is measured from here |
+| `job_count` | number | Number of jobs executed in this session |
+| `mode` | enum | Operational mode: `autonomous`, `interactive`, or `review` |
+| `working_directory` | string | Working directory when the session was created; a change invalidates the session |
+| `runtime_type` | enum | Runtime that created the session: `sdk` or `cli` |
+| `docker_enabled` | boolean | Whether Docker was enabled when the session was created |
 
 ## Session Lifecycle
 
-Sessions progress through defined states:
+There is no explicit session state machine — a stored session is either **valid** (resumable) or it gets **cleared**, and the next job starts fresh. Before resuming, herdctl validates the stored session:
 
-```
-CREATED → ACTIVE → PAUSED → COMPLETED
-                 → EXPIRED
-```
+1. **Not expired** — `last_used_at` is within the `session.timeout` window (default: 24 hours)
+2. **Same working directory** — the agent's working directory hasn't changed since the session was created
+3. **Same runtime context** — the runtime type (`sdk`/`cli`) and Docker setting match what created the session
+4. **Transcript exists** (CLI runtime only) — the session file is still present on disk
 
-| Status | Description |
-|--------|-------------|
-| `created` | Session initialized, not yet used |
-| `active` | Claude is currently executing within this session |
-| `paused` | Session suspended, ready for resume |
-| `completed` | Session finished successfully |
-| `expired` | Session timed out due to inactivity |
+If any check fails, the stale session is cleared automatically and a fresh session starts; you never need to clean sessions up by hand. When a session is resumed, its `last_used_at` timestamp is refreshed so long-running work doesn't expire mid-execution.
 
 ## Resume Capability
 
 Sessions store Claude's conversation context, enabling powerful recovery scenarios:
 
-### Automatic Resume
+### Automatic Expiry and Recovery
 
-When a job is interrupted (network issues, system restart), herdctl can automatically resume:
+There is no `auto_resume` toggle — resume behavior is governed by validation and automatic retry:
+
+- **Expiry window** — a session is resumable for `session.timeout` (default: 24 hours) after its last use. Past that, it is cleared and the next run starts fresh.
+- **Auto-clear** — expired sessions, sessions whose transcript file is missing (CLI runtime), and sessions whose working directory or runtime context changed are cleared automatically.
+- **Retry on failed resume** — if Claude Code reports the session as not found or expired server-side when herdctl attempts `--resume`, herdctl clears the stale pointer and automatically retries the job once with a fresh session.
 
 ```yaml
 session:
-  mode: persistent
-  auto_resume: true           # Automatically resume interrupted jobs
-  resume_timeout: 1h          # Only auto-resume within 1 hour
+  timeout: 1h    # Only resume sessions used within the last hour
 ```
 
 ### Manual Resume
@@ -210,33 +177,22 @@ This launches Claude Code in the agent's workspace with the full conversation hi
 
 ### Resume Behavior
 
-When resuming:
-1. Full conversation history is restored
-2. Claude receives context about the interruption
-3. Execution continues from the last known state
+When a session is resumed:
+1. Claude Code loads the full conversation history from the session transcript
+2. The new prompt is delivered as the next user turn in that conversation
+3. If the resume fails (session missing or expired on the server), herdctl clears the stored session and retries once with a fresh session
 
 ```
-Original Job:
-  Message 1 → Message 2 → Message 3 → [INTERRUPTED]
+Run 1:
+  Message 1 → Message 2 → Message 3   (session saved)
 
-Resumed Job:
-  Message 1 → Message 2 → Message 3 → [System: Resuming...] → Message 4
+Run 2 (resumed):
+  Message 1 → Message 2 → Message 3 → New prompt → Message 4
 ```
 
 ## Fork Capability
 
-Fork an existing session to explore alternative approaches without affecting the original:
-
-```bash
-# Fork a session at its current state
-herdctl session fork <session-id>
-
-# Fork and immediately start a new job
-herdctl session fork <session-id> --run --prompt "Try a different approach"
-
-# Fork from a specific point in history
-herdctl session fork <session-id> --at-message 5
-```
+Fork an existing session to explore alternative approaches without affecting the original. Forking is a **library API** — there is no `fork` subcommand in the CLI (the CLI offers `herdctl sessions` and `herdctl sessions resume`).
 
 ### Forking from the Library
 
@@ -256,13 +212,15 @@ The child session ID is reported the same way a fresh session's is — on the `s
 
 1. **Experimentation**: Try different solutions without losing progress
 2. **A/B Testing**: Compare approaches from the same starting point
-3. **Rollback**: Return to a known good state
+3. **Preserving a baseline**: Keep a known-good session untouched while testing risky changes in the fork
+
+A fork always branches from the source session's **current** state — there is no way to fork from an earlier point in the history:
 
 ```
 Original Session:
-  M1 → M2 → M3 → M4 → M5 (current)
-                 ↓
-Forked Session:  M4' → M5' (different approach)
+  M1 → M2 → M3 → M4 → M5 (unchanged)
+                       ↓ fork
+Forked Session:        M6' → M7' (different approach)
 ```
 
 ## Streaming Chat Sessions
@@ -298,64 +256,61 @@ See [Session Lifecycle Methods](/library-reference/fleet-manager/#session-lifecy
 
 ### Stateless Coder Agent
 
-For a coder that should evaluate each issue fresh:
+For a coder that should evaluate each issue fresh, no session configuration is needed — every run starts fresh by default:
 
 ```yaml
 name: stateless-coder
 description: "Implements features without prior context"
-workspace: my-project
-repo: owner/my-project
+working_directory: ./my-project
 
 schedules:
-  - name: issue-check
-    trigger:
-      type: interval
-      every: 5m
+  issue-check:
+    type: interval
+    interval: 5m
     prompt: "Check for ready issues and implement one."
+    # resume_session defaults to false — every run starts fresh
 
 session:
-  mode: fresh_per_job        # Clean slate each run
-  timeout: 30m               # Maximum job duration
+  max_turns: 50              # Cap conversation turns per job
 ```
 
-### Persistent Research Agent
+### Continuous Research Agent
 
-For an agent that builds knowledge over time:
+For an agent that builds knowledge over time, enable `resume_session` on the schedule:
 
 ```yaml
 name: research-agent
 description: "Builds understanding of the codebase over time"
-workspace: my-project
-repo: owner/my-project
+working_directory: ./my-project
 
 schedules:
-  - name: daily-analysis
-    trigger:
-      type: cron
-      cron: "0 9 * * *"
+  daily-analysis:
+    type: cron
+    cron: "0 9 * * *"
     prompt: |
       Continue your codebase analysis. Review what you learned yesterday
       and explore new areas. Update your findings in research-notes.md.
+    resume_session: true     # Continue the same session each day
 
 session:
-  mode: persistent           # Remember previous sessions
-  max_context_tokens: 150000 # Allow large context
-  context_window: 100        # Keep last 100 messages in detail
+  timeout: 48h               # Keep the session resumable for 48h between runs
 ```
+
+Remember that resumed sessions are marked as sidechains and hidden from the dashboard's session list (see [Sidechain Sessions](#sidechain-sessions)).
 
 ### Multi-Channel Support Bot
 
-For a support agent handling multiple chat channels (each agent has its own Discord bot):
+For a support agent handling multiple chat channels (each agent has its own Discord bot). Per-channel session isolation is automatic — no `session` block is needed:
 
 ```yaml
 name: support-bot
 description: "Answers questions across Discord channels"
-workspace: my-project
-repo: owner/my-project
+working_directory: ./my-project
 
 chat:
   discord:
     bot_token_env: SUPPORT_DISCORD_TOKEN  # This agent's own bot
+    session_expiry_hours: 24              # Channel sessions expire after 24h idle
     guilds:
       - id: "guild-id-here"
         channels:
@@ -363,105 +318,93 @@ chat:
             mode: mention
           - id: "444555666"
             mode: auto
-
-session:
-  mode: per_channel          # Isolated context per channel
-  timeout: 24h               # Sessions expire after 24h
-  idle_timeout: 2h           # Or 2h of inactivity
 ```
 
-### Hybrid Configuration
+### Mixed Continuity per Schedule
 
-Combine session settings with agent-level defaults:
+`resume_session` is set per schedule, so one agent can mix continuous and fresh runs:
 
 ```yaml
 name: hybrid-agent
 description: "Different session behavior per schedule"
-workspace: my-project
-repo: owner/my-project
+working_directory: ./my-project
 
-# Default session settings for this agent
 session:
-  mode: persistent
-  timeout: 1h
+  timeout: 24h               # Session expiry window (this is also the default)
 
 schedules:
-  - name: continuous-work
-    trigger:
-      type: interval
-      every: 30m
+  continuous-work:
+    type: interval
+    interval: 30m
     prompt: "Continue working on the current feature."
-    # Uses default persistent session
+    resume_session: true     # Resumes the same session each run
 
-  - name: fresh-review
-    trigger:
-      type: cron
-      cron: "0 9 * * 1"  # Monday mornings
+  fresh-review:
+    type: cron
+    cron: "0 9 * * 1"        # Monday mornings
     prompt: "Review the codebase with fresh eyes."
-    session:
-      mode: fresh_per_job      # Override: start fresh for reviews
+    # resume_session defaults to false — reviews start fresh
 ```
 
 ## Session Storage
 
-Session storage location varies by runtime and execution environment:
+Session storage location varies by execution environment:
 
-### Storage Locations by Mode
+### Storage Locations
 
-| Runtime | Environment | Storage Location | Notes |
-|---------|-------------|------------------|-------|
-| **Both** | Local | `~/.claude/projects/` | Claude stores sessions; herdctl tracks metadata in `.herdctl/sessions/` |
-| **Both** | Docker | `.herdctl/docker-sessions/` | Isolated from local sessions |
-
-**Key behaviors:**
-- **Local SDK ↔ CLI**: Sessions compatible (both use Claude Code session system)
-- **Docker SDK ↔ CLI**: Sessions compatible (both use Docker mount)
-- **Local ↔ Docker**: Sessions NOT compatible (different storage locations)
+| Environment | Conversation transcript | herdctl session pointer |
+|-------------|-------------------------|-------------------------|
+| **Local** (SDK or CLI runtime) | `~/.claude/projects/` (managed by Claude Code) | `.herdctl/sessions/<qualified-name>.json` |
+| **Docker** | `.herdctl/docker-sessions/<session-id>.jsonl` (mounted into the container) | `.herdctl/sessions/<qualified-name>.json` |
 
 ### Session Compatibility
 
-Sessions persist when switching runtimes **within the same environment**:
+Sessions are tied to the **runtime context that created them**. Each session pointer records `runtime_type` (`sdk` or `cli`) and `docker_enabled`; if either has changed by the next run, validation reports a runtime mismatch, the stored session is cleared, and a fresh session starts:
 
 ```yaml
-# Local environment - sessions resume
-runtime: sdk    # Job 1
-runtime: cli    # Job 2 resumes Job 1's session
+# Job 1
+runtime: sdk    # Creates session A
 
-# Enable Docker - new session starts
+# Job 2 — switching runtime does NOT resume session A
+runtime: cli    # Session A cleared (runtime mismatch), fresh session B
+
+# Job 3 — toggling Docker also starts fresh
 docker:
-  enabled: true
-runtime: sdk    # Job 3 - fresh session (Docker isolation)
-runtime: cli    # Job 4 resumes Job 3's session (both in Docker)
+  enabled: true # Session B cleared (context mismatch), fresh session C
 ```
 
-:::tip[Environment Isolation]
-Docker and local sessions are isolated by design. This prevents path conflicts and maintains container security. If you need to switch between Docker and local execution, expect sessions to start fresh.
+:::tip[Context Isolation]
+Runtime and Docker changes invalidate sessions by design — SDK and CLI sessions cannot resume each other, and Docker containers can't see local session files (or vice versa). Whenever you change `runtime` or toggle `docker.enabled`, expect the next job to start fresh.
 :::
 
 ### Session File Structure
 
-herdctl stores session metadata for tracking and management:
+herdctl stores its session state in the project-local `.herdctl/` state directory (default: `.herdctl` in the directory you run herdctl from, overridable with `--state`):
 
 ```
-~/.herdctl/
-└── sessions/
-    ├── agent-name.json           # Session info per agent
-    └── ...
-
-~/.herdctl/
-└── docker-sessions/              # Docker container sessions
-    └── (mounted to containers)
+.herdctl/
+├── sessions/
+│   ├── my-agent.json                    # One pointer per agent (qualified name)
+│   └── herdctl.security-auditor.json    # Composed-fleet agents use dotted names
+├── docker-sessions/                     # Docker session transcripts
+│   └── <session-id>.jsonl               # (mounted into containers)
+└── discord-sessions/                    # Per-channel chat session maps
+    └── support-bot.yaml                 # (also slack-sessions/, web-sessions/)
 ```
 
-Example session metadata:
+Example session pointer:
 
 ```json
 {
-  "session_id": "a1b2c3d4-5678-90ab-cdef-123456789abc",
   "agent_name": "bragdoc-coder",
-  "created_at": "2024-01-15T09:00:00Z",
-  "last_used_at": "2024-01-15T10:30:00Z",
-  "working_directory": "/Users/you/projects/myapp"
+  "session_id": "a1b2c3d4-5678-90ab-cdef-123456789abc",
+  "created_at": "2026-01-15T09:00:00Z",
+  "last_used_at": "2026-01-15T10:30:00Z",
+  "job_count": 3,
+  "mode": "autonomous",
+  "working_directory": "/Users/you/projects/myapp",
+  "runtime_type": "sdk",
+  "docker_enabled": false
 }
 ```
 
@@ -498,7 +441,7 @@ See the [CLI Reference](/cli-reference/#sessions) for complete command options.
 
 ## Session Discovery
 
-The session modes above describe sessions that herdctl creates and manages directly. But herdctl can also discover sessions it didn't create.
+The sections above describe sessions that herdctl creates and manages directly. But herdctl can also discover sessions it didn't create.
 
 The `SessionDiscoveryService` scans Claude Code's JSONL session files in `~/.claude/projects/` to find every session associated with a working directory that an herdctl agent uses. This means the web dashboard shows a complete picture of all Claude Code activity in a project, not just herdctl-initiated sessions:
 
@@ -514,9 +457,13 @@ Every discovered session is attributed to an **origin** that describes how it wa
 
 | Origin | Description |
 |--------|-------------|
-| `herdctl` | Started by herdctl — either through a scheduled job or interactive web chat. Attribution is determined by cross-referencing job metadata files and platform session records in `.herdctl/sessions/`. |
-| `native` | Started by running `claude` directly in the terminal, in a working directory that an herdctl agent also uses. These sessions are discovered and displayed but not managed by herdctl. |
-| `ad hoc` | A native session that a user chose to continue interactively from the web dashboard. herdctl creates a new interactive session that picks up the conversation. |
+| `web` | Started through interactive chat in the web dashboard |
+| `discord` | Started by the agent's Discord bot |
+| `slack` | Started by the agent's Slack bot |
+| `schedule` | Started by a scheduled job (`trigger_type: schedule`) |
+| `native` | Started by running `claude` directly in the terminal, in a working directory that an herdctl agent also uses. Jobs with other trigger types (manual, webhook, chat, fork) are also grouped here. These sessions are discovered and displayed but not managed by herdctl. |
+
+Attribution is determined by cross-referencing herdctl's job metadata files and the platform session records under `.herdctl/`. A native session can also be continued interactively from the web dashboard ("ad hoc" continuation) — herdctl then creates a new interactive session that picks up the conversation.
 
 Attribution matters because it tells you at a glance whether a session is something herdctl is responsible for or something a developer started independently. In the dashboard, sessions are labeled with their origin so you can filter and distinguish between managed and unmanaged activity.
 
@@ -529,7 +476,7 @@ Claude Code internally marks certain sessions as **sidechain** sessions. These i
 
 Sidechain sessions are automatically filtered from the dashboard because they are usually noise. A Task tool sub-agent session might contain only a single "Warmup" message and provides no useful context in the session list.
 
-This filtering has a practical consequence for schedule configuration: herdctl defaults `resume_session: false` in schedule configuration. Setting it to `true` causes Claude Code to mark the resumed session as a sidechain, which hides it from the dashboard. If you need session continuity, use `persistent` mode instead of `resume_session: true`.
+This filtering has a practical consequence for schedule configuration: herdctl defaults `resume_session: false` in schedule configuration. Setting it to `true` causes Claude Code to mark the resumed session as a sidechain, which hides it from the dashboard. Only enable `resume_session: true` when you need the continuity and are comfortable with the resumed session not appearing in the dashboard's session list.
 
 ## Session Names
 
