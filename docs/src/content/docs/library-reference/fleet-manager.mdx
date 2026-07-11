@@ -184,7 +184,7 @@ await manager.stop(options?: FleetManagerStopOptions): Promise<void>
 | `options.waitForJobs` | `boolean` | No | `true` | Wait for running jobs to complete before stopping |
 | `options.timeout` | `number` | No | `30000` | Maximum time in ms to wait for jobs to complete |
 | `options.cancelOnTimeout` | `boolean` | No | `false` | Cancel jobs that don't complete within timeout |
-| `options.cancelTimeout` | `number` | No | `10000` | Time in ms for each job to respond to SIGTERM before SIGKILL |
+| `options.cancelTimeout` | `number` | No | `10000` | Passed through to each job's `cancelJob()` call; currently unused — cancellation aborts runs immediately |
 
 #### Description
 
@@ -752,12 +752,15 @@ await manager.getAgentSessionMessages(
 
 ```typescript
 interface ChatMessage {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'tool';
   content: string;
-  timestamp?: string;
-  // ... (additional fields)
+  timestamp: string;             // ISO 8601
+  toolCall?: ChatToolCall;       // Present for role: 'tool' (paired tool_use/tool_result)
+  uuid?: string;                 // Stable id from the source transcript entry
 }
 ```
+
+The `uuid` field is the stable ID of the message's source JSONL transcript entry. It is assigned when the line is written, is append-only, and remains stable across reloads and session forks — making it suitable for keying per-message UI state (e.g. React list keys, collapse state, deep links). For a paired tool message, it is the originating `tool_use` entry's uuid, so the ID is deterministic even when several tool results share one user line. It is `undefined` when the source line carried no uuid.
 
 #### Throws
 
@@ -963,6 +966,116 @@ const sessions = await manager.getAgentSessions('my-agent');
 
 ---
 
+### `openChatSession(agentName, options?)`
+
+Opens a long-lived, multi-turn streaming chat session with an agent and returns a live `RuntimeSession` handle.
+
+```typescript
+await manager.openChatSession(
+  agentName: string,
+  options?: ChatSessionOptions
+): Promise<RuntimeSession>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `agentName` | `string` | **Yes** | Agent qualified name or local name |
+| `options.prompt` | `string` | No | Optional initial user turn to send when the session opens. When omitted, the session opens idle and the first turn is sent via `session.send(...)` |
+| `options.resume` | `string \| null` | No | Session ID to resume. `string` resumes that session; `null` explicitly starts fresh (skips agent-level fallback); `undefined` falls back to the agent's stored session |
+| `options.workingDirectory` | `string` | No | Override the agent's configured working directory for this session only |
+| `options.injectedMcpServers` | `Record<string, InjectedMcpServerDef>` | No | MCP servers to inject at runtime (in-process SDK servers) |
+| `options.systemPromptAppend` | `string` | No | Text to append to the agent's system prompt for this session |
+| `options.manageLifecycle` | `boolean` | No | Opt in to herdctl-managed session lifecycle (reap-on-idle + durable wakes). See [Session Lifecycle Methods](#session-lifecycle-methods). Default: `false` (caller owns `close()`) |
+
+#### Returns
+
+A live `RuntimeSession`:
+
+```typescript
+interface RuntimeSession {
+  // The live SDK message stream for the session. Iterate to receive output.
+  readonly messages: AsyncIterable<SDKMessage>;
+
+  // Send a user turn. A leading-slash string (e.g. "/compact", "/clear") is
+  // dispatched by Claude Code as a slash command — commands are just user
+  // messages whose text is the command.
+  send(text: string): Promise<void>;
+
+  // Interrupt the current turn without closing the session.
+  // Further send() calls remain valid.
+  interrupt(): Promise<void>;
+
+  // List the slash commands available in this session
+  // (name, description, argument hint). Does not run anything.
+  listCommands(): Promise<SlashCommand[]>;
+
+  // Change the model used for subsequent turns in this session.
+  setModel(model?: string): Promise<void>;
+
+  // Close the session, ending the input stream and shutting down the query.
+  close(): Promise<void>;
+}
+```
+
+#### Description
+
+Unlike `trigger()`, `openChatSession()` does **not** create a job record and does not drain the run to completion — the caller drives the session across turns and must call `session.close()` when finished. This is the primitive behind interactive chat UIs: multi-turn streaming input, mid-turn `interrupt()`, and slash-command discovery via `listCommands()`.
+
+The session **always runs on the SDK runtime**, regardless of the agent's configured `runtime`. This is safe for `cli`-configured agents (same `CLAUDE_CODE_OAUTH_TOKEN` auth, shared on-disk session store) and is what unlocks the SDK control requests (interrupt, listCommands, streaming send), which require streaming input/output mode.
+
+Session resume follows the same precedence as `trigger()`: an explicit `options.resume` string wins; `null` forces a fresh session; `undefined` falls back to the agent's stored session.
+
+The session ID is not a property of the handle — it arrives inside the message stream, on the `system`/`init` message.
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+| `AgentNotFoundError` | Agent doesn't exist |
+| `StreamingSessionUnsupportedError` | Agent is Docker-wrapped (`docker.enabled: true`) — streaming sessions require the SDK runtime |
+
+#### Example
+
+```typescript
+const session = await manager.openChatSession('my-agent', {
+  prompt: 'Summarize the open PRs',
+});
+
+// Consume the output stream
+const reader = (async () => {
+  for await (const message of session.messages) {
+    if (message.type === 'system' && message.subtype === 'init') {
+      console.log(`Session started: ${message.session_id}`);
+    }
+    // ... render assistant text, tool calls, results
+  }
+})();
+
+// Send follow-up turns — slash commands are just user messages
+await session.send('Now focus on the oldest one');
+await session.send('/compact');
+
+// Stop a runaway turn without losing the session
+await session.interrupt();
+await session.send('Never mind, try a shorter answer');
+
+// Discover available slash commands
+const commands = await session.listCommands();
+
+// Always close when done
+await session.close();
+await reader;
+```
+
+<Aside type="caution">
+A `RuntimeSession` holds a live `claude` query for as long as it is open. Always call `close()` (e.g. in a `finally` block), or opt in to `manageLifecycle: true` to let herdctl reap idle sessions automatically.
+</Aside>
+
+---
+
 ### `listAgentCommands(agentName, options?)`
 
 Lists the slash commands available to an agent — for populating a command palette or autocomplete — in a single call.
@@ -1023,6 +1136,108 @@ for (const cmd of commands) {
 
 ---
 
+## Session Lifecycle Methods
+
+When a streaming chat session is opened with `manageLifecycle: true`, herdctl manages its lifecycle: the session is **reaped** (closed) the instant it goes idle — instead of accumulating warm `claude` processes at roughly 300 MB each — and any timer-class wakeups the agent scheduled in-session (`ScheduleWakeup`, `CronCreate`) are captured as durable **wake entries** and re-fired through the fleet's scheduler, resuming the session with the wake's prompt. Wake entries persist in `state.yaml` under `session_wakes`, so they survive fleet restarts. See [State Persistence](/architecture/state-management/#session-wakes) for the on-disk format and [Sessions](/concepts/sessions/#managed-session-lifecycle-reaping-and-wakes) for the concept.
+
+### `getSessionLifecycle()`
+
+Returns the fleet's session-lifecycle manager, or `null` before `initialize()`.
+
+```typescript
+manager.getSessionLifecycle(): SessionLifecycleManager | null
+```
+
+#### Description
+
+The `SessionLifecycleManager` is the facade over the session reaper and wake registry. It is constructed during `initialize()` and wired into the scheduler loop (due wakes are dispatched once per scheduler tick). Most applications only need `setSessionWakeHandler()`, but the manager is exposed for advanced use:
+
+```typescript
+class SessionLifecycleManager {
+  readonly registry: WakeRegistry;   // Durable wake entries (reconcile/remove/dispatchDue)
+  readonly reaper: SessionReaper;    // Reap-on-idle policy over managed sessions
+
+  manage(session: RuntimeSession, agent: string): ManagedSession;
+  dispatchDue(now?: Date): Promise<SessionWakeEntry[]>;
+  setSessionWakeHandler(handler: SessionWakeHandler | undefined): void;
+}
+```
+
+The reap policy is a single rule: a session is kept alive **if and only if it holds live background work** (running shells, subagents, monitors); otherwise it is reaped as soon as its turn ends. Pending wakeups do *not* keep a session alive — they are captured durably and re-triggered later. Resuming recovers the full conversation, and Claude's prompt cache is server-side, so a reap costs only about half a second of respawn time on the next wake.
+
+#### Example
+
+```typescript
+const lifecycle = manager.getSessionLifecycle();
+if (lifecycle) {
+  // Inspect or force-dispatch due wakes (normally done by the scheduler tick)
+  const fired = await lifecycle.dispatchDue();
+  console.log(`Fired ${fired.length} due wakes`);
+}
+```
+
+---
+
+### `setSessionWakeHandler(handler)`
+
+Registers the consumer hook that receives sessions resumed by a fired wake.
+
+```typescript
+manager.setSessionWakeHandler(
+  handler: SessionWakeHandler | undefined
+): void
+
+type SessionWakeHandler = (
+  session: RuntimeSession,
+  entry: SessionWakeEntry,
+) => void | Promise<void>;
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `handler` | `SessionWakeHandler \| undefined` | **Yes** | Called with the already-resumed, lifecycle-managed session and the wake entry that fired. Pass `undefined` to clear |
+
+#### Description
+
+When a wake fires, herdctl resumes the session via `openChatSession({ resume, prompt, manageLifecycle: true })` — the wake's prompt is already injected. If a handler is registered, it receives the live `RuntimeSession` and is responsible for consuming its message stream (e.g. delivering the woken turn to a chat UI). If no handler is registered, the manager drains the stream headlessly so recurring wakes keep firing.
+
+Because the resumed session is itself lifecycle-managed, the reaper closes it again when the woken turn goes idle, so the handler should treat the message stream ending as normal. Safe to call before or after `initialize()`.
+
+The `SessionWakeEntry` describes the wake that fired:
+
+```typescript
+interface SessionWakeEntry {
+  id: string;          // SDK cron id — the reconciliation key across turns
+  agent: string;       // Qualified agent name that owns the session
+  sessionId: string;   // Session resumed when the wake fired
+  schedule: string;    // Cron expression (a one-shot wakeup encodes a single fire time)
+  recurring: boolean;  // false = one-shot; true = re-fires on every match
+  prompt: string;      // Prompt injected into the resumed session
+  nextRunAt: string;   // Resolved absolute next fire time (ISO)
+  createdAt: string;   // ISO capture time — anchors the 7-day recurring expiry
+}
+```
+
+#### Example
+
+```typescript
+manager.setSessionWakeHandler(async (session, entry) => {
+  console.log(`Wake ${entry.id} fired for ${entry.agent} (${entry.sessionId})`);
+  // Deliver the woken turn to your UI
+  for await (const message of session.messages) {
+    renderMessage(message);
+  }
+});
+```
+
+<Aside type="note">
+Cron expressions in session wakes are resolved in the **host's local timezone**, not UTC — matching how Claude Code serializes `ScheduleWakeup`/`CronCreate` schedules and how the scheduler resolves fleet crons. One-shot wakes are removed after firing; recurring wakes re-arm on each fire and auto-expire 7 days after capture.
+</Aside>
+
+---
+
 ## Action Methods
 
 ### `trigger(agentName, scheduleName?, options?)`
@@ -1044,9 +1259,17 @@ await manager.trigger(
 | `agentName` | `string` | **Yes** | Name of the agent to trigger |
 | `scheduleName` | `string` | No | Schedule to use for configuration (prompt, work source) |
 | `options.prompt` | `string` | No | Override the prompt for this trigger |
+| `options.resume` | `string \| null` | No | Session ID to resume for conversation continuity. `string` resumes that session; `null` explicitly starts fresh (skips agent-level fallback); `undefined` uses the agent-level session fallback |
+| `options.fork` | `string` | No | Session ID to **fork**: the run resumes this session's transcript as context but writes all new turns to a brand-new session ID (Claude Code `--fork-session`), leaving the source session untouched. Mutually exclusive with `resume` — when both are set, `fork` takes precedence |
+| `options.forkedFrom` | `string` | No | Parent job ID recorded as the new job's `forked_from` lineage. Only meaningful alongside `fork`; purely informational |
 | `options.workItems` | `WorkItem[]` | No | Custom work items instead of fetching from work source |
 | `options.bypassConcurrencyLimit` | `boolean` | No | Force trigger even if agent is at capacity (default: `false`) |
 | `options.workingDirectory` | `string` | No | Override the agent's configured working directory for this trigger only |
+| `options.triggerType` | `string` | No | How the trigger was initiated (`"discord"`, `"slack"`, `"web"`, `"manual"`, ...) — connectors set this to identify the source platform (default: `"manual"`) |
+| `options.systemPromptAppend` | `string` | No | Text appended to the agent's system prompt for this trigger only |
+| `options.injectedMcpServers` | `Record<string, InjectedMcpServerDef>` | No | MCP servers merged with the agent's config-declared servers at execution time, for runtime tool injection |
+| `options.onMessage` | `(message: SDKMessage) => void \| Promise<void>` | No | Callback invoked for each SDK message during execution, for real-time streaming of output |
+| `options.onJobCreated` | `(jobId: string) => void \| Promise<void>` | No | Callback invoked as soon as the job ID is created — useful for immediate job control (e.g. enabling cancel while output streams) |
 
 #### Returns
 
@@ -1094,10 +1317,20 @@ const job = await manager.trigger('my-agent', undefined, {
   workingDirectory: '/path/to/specific/project',
   prompt: 'Analyze this project',
 });
+
+// Fork an existing session into an independent child conversation
+const job = await manager.trigger('my-agent', undefined, {
+  fork: 'session-abc123',
+  prompt: 'Try a different approach from here',
+});
 ```
 
 <Aside type="tip">
 Prompt priority: `options.prompt` > schedule prompt > undefined. If you specify a prompt in options, it overrides the schedule's configured prompt.
+</Aside>
+
+<Aside type="note">
+**Forking vs resuming:** `resume` continues writing to the *same* session; `fork` branches it — the new run starts with the source session's full transcript as context but all new turns go to a brand-new session ID, so the source is never modified. The child session ID is reported the same way a fresh session's is (on the `system`/`init` message and the final result). This lets you explore several directions from a shared context without exhausting one context window. See [Sessions: Fork Capability](/concepts/sessions/#fork-capability).
 </Aside>
 
 <Aside type="note">
@@ -1122,7 +1355,7 @@ await manager.cancelJob(
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `jobId` | `string` | **Yes** | — | ID of the job to cancel |
-| `options.timeout` | `number` | No | `10000` | Time in ms to wait for graceful shutdown before SIGKILL |
+| `options.timeout` | `number` | No | `10000` | Accepted for backwards compatibility but currently unused — cancellation aborts the run immediately (see Description) |
 
 #### Returns
 
@@ -1137,7 +1370,14 @@ interface CancelJobResult {
 
 #### Description
 
-Cancels a running job by first sending SIGTERM to allow graceful shutdown. If the job doesn't terminate within the timeout, it will be forcefully killed with SIGKILL.
+Cancels a running job by aborting its in-flight execution and marking the job record `cancelled`. The fleet manager keeps an `AbortController` registered for every job it is currently running; `cancelJob()` fires that controller's abort signal, which genuinely interrupts the run:
+
+- **CLI runtime** — the `claude` subprocess is killed.
+- **SDK runtime** — the in-flight SDK query is aborted.
+
+The aborted run is finalized with `status: cancelled` and `exit_reason: cancelled` (not `failed`), and a `job:cancelled` event is emitted.
+
+If the job is already finished, the call returns early with `terminationType: 'already_stopped'`. If the job was started by a *different* process (the registry is per-process), only the job's status file is updated — the cancellation is best-effort in that case.
 
 #### Throws
 
@@ -1620,6 +1860,7 @@ FleetManagerError (base)
 ├── ConcurrencyLimitError     // Agent at max capacity
 ├── JobCancelError            // Job cancellation failed
 ├── JobForkError              // Job fork failed
+├── StreamingSessionUnsupportedError // Agent runtime can't open streaming sessions
 ├── FleetManagerConfigError   // Legacy config error
 ├── FleetManagerStateError    // Legacy state error
 ├── FleetManagerStateDirError // State directory init failed
@@ -1642,6 +1883,7 @@ const FleetManagerErrorCode = {
   SHUTDOWN_ERROR: 'SHUTDOWN_ERROR',
   JOB_CANCEL_ERROR: 'JOB_CANCEL_ERROR',
   JOB_FORK_ERROR: 'JOB_FORK_ERROR',
+  STREAMING_SESSION_UNSUPPORTED: 'STREAMING_SESSION_UNSUPPORTED',
 };
 ```
 
@@ -1709,6 +1951,13 @@ class InvalidStateError extends FleetManagerError {
   operation: string;              // The attempted operation
   currentState: string;           // Current fleet state
   expectedState: string | string[]; // Required state(s)
+}
+```
+  </TabItem>
+  <TabItem label="StreamingSessionUnsupportedError">
+```typescript
+class StreamingSessionUnsupportedError extends FleetManagerError {
+  runtime?: string;               // Runtime that can't stream (e.g. "docker")
 }
 ```
   </TabItem>

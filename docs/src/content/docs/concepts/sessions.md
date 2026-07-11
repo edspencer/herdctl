@@ -238,6 +238,20 @@ herdctl session fork <session-id> --run --prompt "Try a different approach"
 herdctl session fork <session-id> --at-message 5
 ```
 
+### Forking from the Library
+
+Programmatically, pass `fork` to `FleetManager.trigger()`. The run resumes the source session's transcript as context but writes all new turns to a **brand-new session ID** (via Claude Code's `--fork-session`), leaving the source session untouched:
+
+```typescript
+const job = await manager.trigger('my-agent', undefined, {
+  fork: 'source-session-id',        // Mutually exclusive with `resume`
+  forkedFrom: 'job-2026-07-01-abc123', // Optional lineage metadata
+  prompt: 'Try a different approach from here',
+});
+```
+
+The child session ID is reported the same way a fresh session's is — on the `system`/`init` message and on the final result. `fork` and `resume` are mutually exclusive; when both are set, `fork` takes precedence. See the [trigger() reference](/library-reference/fleet-manager/#triggeragentname-schedulename-options) for details.
+
 ### Fork Use Cases
 
 1. **Experimentation**: Try different solutions without losing progress
@@ -250,6 +264,35 @@ Original Session:
                  ↓
 Forked Session:  M4' → M5' (different approach)
 ```
+
+## Streaming Chat Sessions
+
+Beyond one-shot job triggers, herdctl can hold a **live, multi-turn streaming session** with an agent. `FleetManager.openChatSession()` returns a `RuntimeSession` handle that supports sending follow-up turns (`send()`), interrupting a runaway turn without losing the session (`interrupt()`), discovering the available slash commands (`listCommands()`), and switching models mid-conversation (`setModel()`). Slash commands are just user messages — sending `"/compact"` runs the command in-session.
+
+Streaming sessions always run on the SDK runtime, even for `runtime: cli` agents (they share the same auth and on-disk session store); only Docker-wrapped agents are unsupported. This is the primitive behind interactive chat UIs like the web dashboard.
+
+See [openChatSession() in the FleetManager reference](/library-reference/fleet-manager/#openchatsessionagentname-options) for the full API.
+
+## Managed Session Lifecycle (Reaping and Wakes)
+
+A live streaming session keeps a warm `claude` process around (~300 MB each). Sessions opened with `manageLifecycle: true` opt in to herdctl-managed lifecycle:
+
+- **Reap on idle** — the session is closed the instant its turn ends, *unless* it holds live background work (running shells, subagents, monitors). Resuming later recovers the full conversation, and Claude's prompt cache is server-side and survives the reap, so closing an idle session costs only ~0.5s of respawn time.
+- **Durable wakes** — timer-class wakeups the agent scheduled in-session (`ScheduleWakeup` one-shots, `CronCreate` recurring crons) would normally die with the `claude` process. Instead, herdctl captures them as durable wake entries in `state.yaml` (`session_wakes`) and re-fires them from its own scheduler loop, resuming the session with the wake's prompt.
+
+Wake semantics:
+
+| Behavior | Rule |
+|----------|------|
+| One-shot wakes | Fire once, then removed |
+| Recurring wakes | Re-arm after each fire; auto-expire **7 days** after capture |
+| Timezone | Cron expressions resolve in the **host's local timezone**, not UTC (matching how Claude Code serializes them) |
+| Live sessions | A due wake is skipped while its session is still open — the session's own next turn re-captures it |
+| Persistence | Wake entries survive fleet restarts (stored in `state.yaml`) |
+
+Consumers that want to deliver woken turns somewhere (e.g. a chat UI) register a handler via `FleetManager.setSessionWakeHandler()`; without one, herdctl drains the woken turn headlessly so recurring wakes keep firing.
+
+See [Session Lifecycle Methods](/library-reference/fleet-manager/#session-lifecycle-methods) for the API and [State Persistence](/architecture/state-management/#session-wakes) for the on-disk format.
 
 ## Example Configurations
 
@@ -504,4 +547,5 @@ Auto-generated names are cached in the `SessionMetadataStore` so that session li
 - [Jobs](/concepts/jobs/) - Individual executions that use sessions
 - [Agents](/concepts/agents/) - Configure session behavior per agent
 - [State Management](/architecture/state-management/) - Session persistence details
+- [FleetManager API](/library-reference/fleet-manager/#session-management-methods) - Programmatic session management, streaming chat sessions, and forking
 - [CLI Reference: sessions](/cli-reference/#sessions) - Full command options for session management
