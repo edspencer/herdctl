@@ -6,7 +6,6 @@ import {
   AgentReferenceSchema,
   BaseWorkSourceSchema,
   ChatDMSchema,
-  ChatSchema,
   DefaultsSchema,
   DiscordChannelSchema,
   DiscordGuildSchema,
@@ -44,13 +43,24 @@ describe("FleetConfigSchema", () => {
       defaults: {},
       working_directory: { root: "/tmp" },
       agents: [{ path: "./test.yaml" }],
-      chat: {},
       webhooks: {},
       web: {},
       docker: {},
     };
     const result = FleetConfigSchema.safeParse(config);
     expect(result.success).toBe(true);
+  });
+
+  it("rejects a fleet-level chat block (deprecated, no longer part of the schema)", () => {
+    // Fleet-level chat was never used at runtime and has been removed from the
+    // schema (see loader.ts handleDeprecatedFleetChat for the deprecation
+    // warning + strip that happens before this strict parse runs).
+    const config = {
+      version: 1,
+      chat: { discord: { enabled: true } },
+    };
+    const result = FleetConfigSchema.safeParse(config);
+    expect(result.success).toBe(false);
   });
 
   it("parses config with web block enabled", () => {
@@ -930,36 +940,6 @@ describe("DockerSchema (deprecated alias)", () => {
     if (result.success) {
       expect(result.data.enabled).toBe(true);
       expect(result.data.base_image).toBe("herdctl-base:latest");
-    }
-  });
-});
-
-describe("ChatSchema", () => {
-  it("parses empty chat", () => {
-    const result = ChatSchema.safeParse({});
-    expect(result.success).toBe(true);
-  });
-
-  it("parses discord config", () => {
-    const chat = {
-      discord: {
-        enabled: true,
-        token_env: "DISCORD_TOKEN",
-      },
-    };
-    const result = ChatSchema.safeParse(chat);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.discord?.enabled).toBe(true);
-      expect(result.data.discord?.token_env).toBe("DISCORD_TOKEN");
-    }
-  });
-
-  it("applies default discord enabled", () => {
-    const result = ChatSchema.safeParse({ discord: {} });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.discord?.enabled).toBe(false);
     }
   });
 });

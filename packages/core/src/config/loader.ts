@@ -350,6 +350,23 @@ function handleBackwardCompatibility(config: Record<string, unknown>, context: s
   }
 }
 
+/**
+ * Handle the deprecated fleet-level "chat" block
+ *
+ * Fleet-level chat config was accepted by the schema but never used at
+ * runtime. Chat is configured per-agent under the agent's "chat" key.
+ * Emits a deprecation warning and strips the key so strict parsing succeeds.
+ */
+function handleDeprecatedFleetChat(config: Record<string, unknown>, context: string): void {
+  if ("chat" in config) {
+    const logger = createLogger("config");
+    logger.warn(
+      `"${context}" contains a fleet-level "chat" block. It has never been used at runtime, is deprecated, and will be rejected in a future major version. Configure chat per-agent under each agent's "chat" key instead.`,
+    );
+    delete config.chat;
+  }
+}
+
 // =============================================================================
 // Internal Parsing Functions
 // =============================================================================
@@ -380,6 +397,7 @@ function parseFleetYaml(content: string, filePath: string): FleetConfig {
   // Handle backward compatibility for fleet config
   if (typeof rawConfig === "object" && rawConfig !== null) {
     handleBackwardCompatibility(rawConfig as Record<string, unknown>, `Fleet config '${filePath}'`);
+    handleDeprecatedFleetChat(rawConfig as Record<string, unknown>, `Fleet config '${filePath}'`);
 
     // Also handle defaults section
     const config = rawConfig as Record<string, unknown>;
