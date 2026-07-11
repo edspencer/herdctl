@@ -161,8 +161,9 @@ export function toSDKOptions(
     result.allowedTools = agent.allowed_tools;
   }
 
+  // The SDK option is named `disallowedTools` (not `deniedTools`)
   if (agent.denied_tools?.length) {
-    result.deniedTools = agent.denied_tools;
+    result.disallowedTools = agent.denied_tools;
   }
 
   // Tools whitelist (direct passthrough to SDK)

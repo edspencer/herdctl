@@ -127,12 +127,21 @@ describe("toSDKOptions", () => {
       expect(result.allowedTools).toEqual(["Read", "Write", "Edit"]);
     });
 
-    it("passes denied_tools as deniedTools (direct passthrough)", () => {
+    it("passes denied_tools as disallowedTools (SDK option name)", () => {
       const agent = createTestAgent({
         denied_tools: ["Bash(rm *)", "WebFetch"],
       });
       const result = toSDKOptions(agent);
-      expect(result.deniedTools).toEqual(["Bash(rm *)", "WebFetch"]);
+      expect(result.disallowedTools).toEqual(["Bash(rm *)", "WebFetch"]);
+    });
+
+    it("does not emit a deniedTools key (regression: #322)", () => {
+      const agent = createTestAgent({
+        denied_tools: ["Bash(rm *)", "WebFetch"],
+      });
+      const result = toSDKOptions(agent);
+      expect(result).not.toHaveProperty("deniedTools");
+      expect(result.disallowedTools).toEqual(["Bash(rm *)", "WebFetch"]);
     });
 
     it("does not include allowedTools when empty array", () => {
@@ -143,12 +152,12 @@ describe("toSDKOptions", () => {
       expect(result.allowedTools).toBeUndefined();
     });
 
-    it("does not include deniedTools when empty array", () => {
+    it("does not include disallowedTools when empty array", () => {
       const agent = createTestAgent({
         denied_tools: [],
       });
       const result = toSDKOptions(agent);
-      expect(result.deniedTools).toBeUndefined();
+      expect(result.disallowedTools).toBeUndefined();
     });
 
     it("does not include allowedTools when not specified", () => {
@@ -173,7 +182,7 @@ describe("toSDKOptions", () => {
       });
       const result = toSDKOptions(agent);
       expect(result.allowedTools).toEqual(["Read", "Bash(git *)", "Bash(npm *)"]);
-      expect(result.deniedTools).toEqual(["Bash(sudo *)", "Bash(rm -rf *)"]);
+      expect(result.disallowedTools).toEqual(["Bash(sudo *)", "Bash(rm -rf *)"]);
     });
   });
 
@@ -366,7 +375,7 @@ describe("toSDKOptions", () => {
         permissionMode: "bypassPermissions",
         tools: ["Read", "Write", "Bash", "Grep"],
         allowedTools: ["Read", "Write", "Bash(git *)"],
-        deniedTools: ["WebFetch", "Bash(sudo *)"],
+        disallowedTools: ["WebFetch", "Bash(sudo *)"],
         systemPrompt: "You are a specialized test agent.", // Custom prompts are plain strings
         settingSources: [], // Empty - autonomous agents don't load project settings
         mcpServers: {

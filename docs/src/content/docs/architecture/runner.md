@@ -157,7 +157,7 @@ The SDK Adapter (`sdk-adapter.ts`) transforms a `ResolvedAgent` configuration in
 |--------------------|-----------|-------|
 | `permission_mode` | `permissionMode` | Defaults to `acceptEdits` |
 | `allowed_tools` | `allowedTools` | Direct passthrough, supports wildcards |
-| `denied_tools` | `deniedTools` | Direct passthrough |
+| `denied_tools` | `disallowedTools` | Direct passthrough |
 | `system_prompt` | `systemPrompt` | Plain string; falls back to `claude_code` preset |
 | `setting_sources` | `settingSources` | Explicit config, or `["project"]` if working directory set, else `[]` |
 | `mcp_servers` | `mcpServers` | Each server transformed individually |

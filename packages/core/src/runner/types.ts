@@ -226,7 +226,7 @@ export type SDKSystemPrompt = string | { type: "preset"; preset: "claude_code"; 
 export interface SDKQueryOptions {
   tools?: string[];
   allowedTools?: string[];
-  deniedTools?: string[];
+  disallowedTools?: string[];
   permissionMode?:
     | "default"
     | "acceptEdits"
