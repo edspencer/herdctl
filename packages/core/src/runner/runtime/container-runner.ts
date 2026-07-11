@@ -26,7 +26,12 @@ import { createLogger } from "../../utils/logger.js";
 import { toSDKOptions } from "../sdk-adapter.js";
 import type { SDKMessage } from "../types.js";
 import { CLIRuntime } from "./cli-runtime.js";
-import { buildContainerEnv, buildContainerMounts, ContainerManager } from "./container-manager.js";
+import {
+  buildContainerEnv,
+  buildContainerMounts,
+  ContainerManager,
+  extractCredentialEnv,
+} from "./container-manager.js";
 import type { DockerConfig } from "./docker-config.js";
 import type { RuntimeExecuteOptions, RuntimeInterface } from "./interface.js";
 import { type McpHttpBridge, startMcpHttpBridge } from "./mcp-http-bridge.js";
@@ -80,6 +85,13 @@ export class ContainerRunner implements RuntimeInterface {
     const mounts = buildContainerMounts(agent, this.config, this.stateDir);
     const env = await buildContainerEnv(agent, this.config);
 
+    // Credentials (incl. any freshly-refreshed OAuth token) are baked into a
+    // container's env only at creation time. Persistent (ephemeral: false)
+    // containers are reused across executions, so the current credentials must
+    // be re-injected into each exec — otherwise a refreshed token never reaches
+    // an already-running container. See edspencer/herdctl#327.
+    const credentialEnv = extractCredentialEnv(env);
+
     // Get or create container
     const container = await this.manager.getOrCreateContainer(agent.name, this.config, mounts, env);
 
@@ -90,11 +102,11 @@ export class ContainerRunner implements RuntimeInterface {
 
       // Handle CLI runtime with session file watching
       if (this.wrapped instanceof CLIRuntime) {
-        yield* this.executeCLIRuntime(containerId, dockerSessionsDir, options);
+        yield* this.executeCLIRuntime(containerId, dockerSessionsDir, options, credentialEnv);
       }
       // Handle SDK runtime with wrapper script
       else if (this.wrapped instanceof SDKRuntime) {
-        yield* this.executeSDKRuntime(container, options);
+        yield* this.executeSDKRuntime(container, options, credentialEnv);
       }
       // Unknown runtime type
       else {
@@ -143,6 +155,7 @@ export class ContainerRunner implements RuntimeInterface {
     containerId: string,
     dockerSessionsDir: string,
     options: RuntimeExecuteOptions,
+    credentialEnv: string[],
   ): AsyncIterable<SDKMessage> {
     // Create CLI runtime with Docker-specific spawner
     const cliRuntime = new CLIRuntime({
@@ -163,11 +176,17 @@ export class ContainerRunner implements RuntimeInterface {
           .join(" ");
         const claudeCommand = `cd /workspace && printf %s "${escapedPrompt}" | claude ${claudeArgs}`;
 
+        // Inject current credentials into this exec so reused persistent
+        // containers pick up a freshly-refreshed OAuth token (see #327).
+        // Array args avoid shell escaping/injection; never build a shell
+        // string from credential values.
+        const envArgs = credentialEnv.flatMap((entry) => ["-e", entry]);
+
         logger.debug(`Executing docker exec in container ${containerId}`);
         logger.debug(`Prompt length: ${prompt.length}`);
 
         // execa returns Subprocess directly (which is promise-like)
-        return execa("docker", ["exec", containerId, "sh", "-c", claudeCommand], {
+        return execa("docker", ["exec", ...envArgs, containerId, "sh", "-c", claudeCommand], {
           cancelSignal: signal,
         });
       },
@@ -189,6 +208,7 @@ export class ContainerRunner implements RuntimeInterface {
   private async *executeSDKRuntime(
     container: import("dockerode").Container,
     options: RuntimeExecuteOptions,
+    credentialEnv: string[],
   ): AsyncIterable<SDKMessage> {
     // Start HTTP bridges for injected MCP servers
     const bridges: McpHttpBridge[] = [];
@@ -255,6 +275,10 @@ export class ContainerRunner implements RuntimeInterface {
 
       const exec = await container.exec({
         Cmd: ["bash", "-l", "-c", command],
+        // Inject current credentials so reused persistent containers pick up a
+        // freshly-refreshed OAuth token rather than the one baked in at
+        // container-creation time (see #327).
+        Env: credentialEnv,
         AttachStdout: true,
         AttachStderr: true,
         AttachStdin: false,
