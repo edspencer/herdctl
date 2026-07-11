@@ -142,6 +142,85 @@ describe("Manual Agent Triggering (US-5)", () => {
       );
     });
 
+    it("emits job:created with 'pending' status at creation time (issue #328)", async () => {
+      await createAgentConfig("pending-agent", { name: "pending-agent" });
+      const configPath = await createConfig({
+        version: 1,
+        agents: [{ path: "./agents/pending-agent.yaml" }],
+      });
+
+      const manager = createTestManager(configPath);
+      await manager.initialize();
+
+      const jobCreatedHandler = vi.fn();
+      manager.on("job:created", jobCreatedHandler);
+
+      await manager.trigger("pending-agent");
+
+      // The record carried by job:created must reflect its state AT creation
+      // (pending), not the finalized (completed) status — proving the event is
+      // emitted up front rather than after execution resolves.
+      expect(jobCreatedHandler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          job: expect.objectContaining({ status: "pending" }),
+        }),
+      );
+    });
+
+    it("emits job:created BEFORE job:output and job:completed on manual trigger (issue #328)", async () => {
+      await createAgentConfig("order-agent", { name: "order-agent" });
+      const configPath = await createConfig({
+        version: 1,
+        agents: [{ path: "./agents/order-agent.yaml" }],
+      });
+
+      const manager = createTestManager(configPath);
+      await manager.initialize();
+
+      const order: string[] = [];
+      manager.on("job:created", () => order.push("job:created"));
+      manager.on("job:output", () => order.push("job:output"));
+      manager.on("job:completed", () => order.push("job:completed"));
+
+      await manager.trigger("order-agent");
+
+      // Manual triggers previously emitted ZERO job:output and fired
+      // job:created only AFTER completion. Now: created → output → completed.
+      expect(order[0]).toBe("job:created");
+      expect(order).toContain("job:output");
+      expect(order.at(-1)).toBe("job:completed");
+      expect(order.indexOf("job:created")).toBeLessThan(order.indexOf("job:output"));
+      expect(order.indexOf("job:output")).toBeLessThan(order.indexOf("job:completed"));
+      // Exactly one job:created — the event was MOVED, not duplicated.
+      expect(order.filter((e) => e === "job:created")).toHaveLength(1);
+    });
+
+    it("emits job:output for streamed assistant messages on manual trigger (issue #328)", async () => {
+      await createAgentConfig("output-agent", { name: "output-agent" });
+      const configPath = await createConfig({
+        version: 1,
+        agents: [{ path: "./agents/output-agent.yaml" }],
+      });
+
+      const manager = createTestManager(configPath);
+      await manager.initialize();
+
+      const jobOutputHandler = vi.fn();
+      manager.on("job:output", jobOutputHandler);
+
+      const result = await manager.trigger("output-agent");
+
+      // The mocked SDK yields an assistant message with content "Test complete".
+      expect(jobOutputHandler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          jobId: result.jobId,
+          agentName: "output-agent",
+          output: "Test complete",
+          outputType: "assistant",
+        }),
+      );
+    });
+
     it("throws InvalidStateError before initialization", async () => {
       const configPath = await createConfig({
         version: 1,

@@ -26,6 +26,7 @@ import {
   emitJobFailed as emitJobFailedFn,
   emitJobOutput as emitJobOutputFn,
 } from "./event-emitters.js";
+import { buildJobOutputPayload } from "./job-output-mapper.js";
 import type {
   JobCompletedPayload,
   JobCreatedPayload,
@@ -105,42 +106,38 @@ export class ScheduleExecutor {
         triggerType: "schedule",
         schedule: scheduleName,
         outputToFile: schedule.outputToFile ?? false,
-        onJobCreated: (id: string) => {
-          // Set jobId early so onMessage can emit events during execution
+        onJobCreated: (id: string, job: JobMetadata) => {
+          // Set jobId early so onMessage can emit events during execution.
           jobId = id;
           logger.debug(`Job ${id} created for ${agent.qualifiedName}/${scheduleName}`);
+
+          // Emit job:created at creation time (status `pending`), BEFORE any
+          // job:output streams. The record is passed in-hand so no disk read
+          // is needed and ordering is guaranteed.
+          this.emitJobCreated({
+            job,
+            agentName: agent.qualifiedName,
+            scheduleName,
+            timestamp: new Date().toISOString(),
+          });
         },
         onMessage: async (message: SDKMessage) => {
           // Emit job:output events for real-time streaming
           if (jobId) {
-            const outputType = this.mapMessageTypeToOutputType(message.type);
-            const outputContent = this.extractMessageContent(message);
-
-            if (outputContent) {
-              this.emitJobOutput({
-                jobId,
-                agentName: agent.qualifiedName,
-                output: outputContent,
-                outputType,
-                timestamp: new Date().toISOString(),
-              });
+            const payload = buildJobOutputPayload(jobId, agent.qualifiedName, message);
+            if (payload) {
+              this.emitJobOutput(payload);
             }
           }
         },
       });
 
-      // Emit job:created event now that we have the job info
+      // Read the finalized record for completion/failure events + hooks.
+      // (job:created is emitted up front in onJobCreated above.)
       const jobsDir = join(stateDir, "jobs");
       const jobMetadata = await getJob(jobsDir, result.jobId, { logger });
 
       if (jobMetadata) {
-        this.emitJobCreated({
-          job: jobMetadata,
-          agentName: agent.qualifiedName,
-          scheduleName,
-          timestamp: new Date().toISOString(),
-        });
-
         // Emit completion or failure event based on result
         if (result.success) {
           this.emitJobCompleted({
@@ -182,55 +179,6 @@ export class ScheduleExecutor {
       logger.error(`Error in ${agent.qualifiedName}/${scheduleName}: ${err.message}`);
       // Don't re-throw - we want to continue running the fleet even if a job fails
     }
-  }
-
-  /**
-   * Map SDK message type to job output type
-   */
-  private mapMessageTypeToOutputType(
-    messageType: string,
-  ): "stdout" | "stderr" | "assistant" | "tool" | "system" {
-    switch (messageType) {
-      case "assistant":
-        return "assistant";
-      case "tool_use":
-      case "tool_result":
-        return "tool";
-      case "system":
-        return "system";
-      case "error":
-        return "stderr";
-      default:
-        return "stdout";
-    }
-  }
-
-  /**
-   * Extract content string from SDK message
-   */
-  private extractMessageContent(message: SDKMessage): string | null {
-    // Handle different message types
-    if (message.content && typeof message.content === "string") {
-      return message.content;
-    }
-
-    if (message.message && typeof message.message === "string") {
-      return message.message;
-    }
-
-    // For tool_use messages, stringify the input
-    if (message.type === "tool_use" && message.name && message.input) {
-      return `Tool: ${message.name}\n${JSON.stringify(message.input, null, 2)}`;
-    }
-
-    // For tool_result messages
-    if (message.type === "tool_result" && message.content) {
-      return typeof message.content === "string"
-        ? message.content
-        : JSON.stringify(message.content);
-    }
-
-    return null;
   }
 
   // ===========================================================================

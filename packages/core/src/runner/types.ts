@@ -5,7 +5,7 @@
  */
 
 import type { ResolvedAgent } from "../config/index.js";
-import type { JobOutputInput, TriggerType } from "../state/index.js";
+import type { JobMetadata, JobOutputInput, TriggerType } from "../state/index.js";
 
 // =============================================================================
 // Runner Options Types
@@ -95,8 +95,12 @@ export type MessageCallback = (message: SDKMessage) => void | Promise<void>;
 
 /**
  * Callback for when a job is created (before execution starts)
+ *
+ * Receives both the job id and the freshly-created {@link JobMetadata} record
+ * (status `pending`), so callers can emit a `job:created` event up front —
+ * before any output streams — without re-reading the record from disk.
  */
-export type JobCreatedCallback = (jobId: string) => void;
+export type JobCreatedCallback = (jobId: string, job: JobMetadata) => void | Promise<void>;
 
 /**
  * Extended options including callbacks
