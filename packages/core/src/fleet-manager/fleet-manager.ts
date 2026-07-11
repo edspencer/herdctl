@@ -133,6 +133,13 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   // Key is platform name (e.g., "discord", "slack")
   private chatManagers: Map<string, IChatManager> = new Map();
 
+  // In-memory registry of currently-running jobs → their AbortController, keyed
+  // by job id. Shared across JobControl (manual triggers) and ScheduleExecutor
+  // (scheduled jobs) so shutdown's bulk-cancel can interrupt BOTH kinds of
+  // in-flight job. Keyed by id → concurrency-safe when max_concurrent > 1.
+  // See edspencer/herdctl#324.
+  private readonly runningJobControllers: Map<string, AbortController> = new Map();
+
   constructor(options: FleetManagerOptions) {
     super();
     this.configPath = options.configPath;
@@ -166,6 +173,18 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   }
   getSessionLifecycle(): SessionLifecycleManager | null {
     return this.sessionLifecycle;
+  }
+  registerJob(jobId: string, controller: AbortController): void {
+    this.runningJobControllers.set(jobId, controller);
+  }
+  unregisterJob(jobId: string): void {
+    this.runningJobControllers.delete(jobId);
+  }
+  getJobController(jobId: string): AbortController | undefined {
+    return this.runningJobControllers.get(jobId);
+  }
+  getRunningJobIds(): string[] {
+    return Array.from(this.runningJobControllers.keys());
   }
   getStatus(): FleetManagerStatus {
     return this.status;
@@ -899,7 +918,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       },
       (name) => this.statusQueries.getAgentInfoByName(name),
     );
-    this.jobControl = new JobControl(this, () => this.statusQueries.getAgentInfo());
+    this.jobControl = new JobControl(this);
     this.logStreaming = new LogStreaming(this);
     this.scheduleExecutor = new ScheduleExecutor(this);
 

@@ -62,6 +62,42 @@ export interface FleetManagerContext {
   getSessionLifecycle?(): SessionLifecycleManager | null;
 
   /**
+   * Register a running job's AbortController under its job id.
+   *
+   * This is the single, shared in-memory registry of in-flight jobs. BOTH manual
+   * (`JobControl.trigger`) and scheduled (`ScheduleExecutor`) jobs register here
+   * the moment their id is known, and unregister when the run finishes. Shutdown's
+   * bulk-cancel and {@link cancelJob} consult it to actually interrupt a live run
+   * (kill the CLI subprocess / abort the SDK query) rather than only rewriting a
+   * status file. Scheduled jobs used to be absent from any registry, so shutdown
+   * bulk-cancel silently cancelled nothing (edspencer/herdctl#324).
+   *
+   * Optional (like the other lifecycle accessors) so lightweight mock contexts —
+   * e.g. those the chat-manager unit tests build — need not implement it; the
+   * real {@link FleetManager} always does, so job cancellation is fully wired in
+   * production.
+   */
+  registerJob?(jobId: string, controller: AbortController): void;
+
+  /**
+   * Remove a job from the running-job registry. Called when a run finishes
+   * (completed, failed, or cancelled).
+   */
+  unregisterJob?(jobId: string): void;
+
+  /**
+   * Look up the AbortController for a running job, or `undefined` if this process
+   * is not executing it (e.g. a job owned by another process).
+   */
+  getJobController?(jobId: string): AbortController | undefined;
+
+  /**
+   * Snapshot the ids of every job currently running in this process. Keyed by job
+   * id, so it is concurrency-safe when `instances.max_concurrent > 1`.
+   */
+  getRunningJobIds?(): string[];
+
+  /**
    * Get the current fleet manager status
    */
   getStatus(): FleetManagerStatus;
