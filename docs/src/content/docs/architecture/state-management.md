@@ -91,6 +91,17 @@ agents:
     next_schedule: null
     next_trigger_at: null
     container_id: "def456"
+
+session_wakes:                # Captured session wakes, keyed by SDK cron ID
+  cron-abc123:
+    id: cron-abc123
+    agent: bragdoc-coder
+    sessionId: claude-session-xyz789
+    schedule: "10 19 * * *"
+    recurring: false
+    prompt: "Check whether the CI run finished."
+    nextRunAt: "2026-07-09T23:10:00.000Z"
+    createdAt: "2026-07-09T23:08:46.380Z"
 ```
 
 ### Zod Schema
@@ -103,10 +114,11 @@ const FleetStateSchema = z.object({
     started_at: z.string().optional(),
   }).optional().default({}),
   agents: z.record(z.string(), AgentStateSchema).optional().default({}),
+  session_wakes: z.record(z.string(), SessionWakeSchema).optional(),
 });
 ```
 
-When `state.yaml` is missing or empty, the schema defaults produce a valid empty state (`{ fleet: {}, agents: {} }`).
+When `state.yaml` is missing or empty, the schema defaults produce a valid empty state (`{ fleet: {}, agents: {} }`). The `session_wakes` slice is optional with no default — it only appears once a lifecycle-managed session has scheduled a wake.
 
 ### Agent State Fields
 
@@ -421,6 +433,48 @@ The `createDefaultScheduleState()` factory function initializes a new schedule w
 
 For more details on schedule state, see [Scheduler Architecture](/architecture/scheduler/).
 
+## Session Wakes
+
+The optional top-level `session_wakes` slice of `state.yaml` stores durable **wake entries** captured from lifecycle-managed streaming chat sessions (see [Sessions: Managed Session Lifecycle](/concepts/sessions/#managed-session-lifecycle-reaping-and-wakes)). When an agent schedules a timer-class wakeup in-session (`ScheduleWakeup` or `CronCreate`), the SDK reports the session's pending crons at turn end; herdctl reconciles them into this slice so they survive both the session reap and fleet restarts. The scheduler fires due wakes on its polling loop, resuming the session with the wake's prompt.
+
+```yaml
+session_wakes:
+  <sdk-cron-id>:
+    id: <sdk-cron-id>           # SDK cron ID — reconciliation key across turns
+    agent: bragdoc-coder        # Qualified agent name that owns the session
+    sessionId: claude-session-xyz789  # Session resumed when the wake fires
+    schedule: "10 19 * * *"     # Cron expression (one-shot wakes encode a single fire time)
+    recurring: false            # false = one-shot; true = re-fires on every match
+    prompt: "Check whether the CI run finished."
+    nextRunAt: "2026-07-09T23:10:00.000Z"  # Resolved absolute next fire time
+    createdAt: "2026-07-09T23:08:46.380Z"  # Capture time — anchors recurring expiry
+```
+
+### Session Wake Fields
+
+Entries are validated against `SessionWakeSchema` (in `packages/core/src/state/schemas/fleet-state.ts`). All fields are required within an entry:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | `string` | SDK cron ID — the reconciliation key across turns |
+| `agent` | `string` | Qualified agent name that owns the session |
+| `sessionId` | `string` | Session ID resumed when the wake fires |
+| `schedule` | `string` | Cron expression; a one-shot `ScheduleWakeup` encodes a single fire time |
+| `recurring` | `boolean` | `false` for one-shot wakeups; `true` for crons that re-fire on every match |
+| `prompt` | `string` | Prompt injected into the resumed session when the wake fires |
+| `nextRunAt` | `string` (ISO) | Resolved absolute next fire time — stored so an overdue fleet fires immediately on startup |
+| `createdAt` | `string` (ISO) | When the wake was first captured — anchors the 7-day recurring-wake expiry |
+
+### Wake Reconciliation Rules
+
+The wake registry reconciles the SDK's reported crons against the stored set on every turn end:
+
+- **New ID** (reported but not stored) — captured, with `nextRunAt` resolved immediately. Cron expressions are resolved in the **host's local timezone**, matching how Claude Code serializes them.
+- **Known ID** (both) — the stored entry is kept unchanged, so re-reporting doesn't reset a recurring cycle.
+- **Dropped ID** (stored but no longer reported) — a one-shot is removed (it fired or was cancelled); a recurring wake is *kept*, because a herdctl-fired resumed turn legitimately reports empty. Recurring wakes are retired only by the 7-day expiry (`RECURRING_WAKE_MAX_AGE_MS`) or explicit removal.
+
+Reads and writes go through the same atomic `readFleetState()`/`writeFleetState()` helpers as the rest of `state.yaml`, via the `FleetStateWakePersistence` adapter.
+
 ## Atomic Write Pattern
 
 All state file writes (YAML and JSON) use atomic writes to prevent corruption. This is implemented in `packages/core/src/state/utils/atomic.ts`.
@@ -607,7 +661,7 @@ packages/core/src/state/
 ├── index.ts              # Public exports
 ├── schemas/
 │   ├── index.ts          # Schema exports
-│   ├── fleet-state.ts    # FleetStateSchema, AgentStateSchema, ScheduleStateSchema
+│   ├── fleet-state.ts    # FleetStateSchema, AgentStateSchema, ScheduleStateSchema, SessionWakeSchema
 │   ├── job-metadata.ts   # JobMetadataSchema, TriggerTypeSchema, ExitReasonSchema
 │   ├── job-output.ts     # JobOutputMessageSchema (discriminated union)
 │   └── session-info.ts   # SessionInfoSchema, SessionModeSchema

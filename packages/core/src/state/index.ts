@@ -83,6 +83,7 @@ export {
 // Re-export session attribution functions
 export {
   type AttributionIndex,
+  AttributionIndexBuilder,
   buildAttributionIndex,
   type SessionAttribution,
   type SessionOrigin,

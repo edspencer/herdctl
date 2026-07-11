@@ -30,14 +30,23 @@ import {
 } from "./jsonl-parser.js";
 import {
   type AttributionIndex,
-  buildAttributionIndex,
+  AttributionIndexBuilder,
   type SessionOrigin,
 } from "./session-attribution.js";
 import { SessionMetadataStore } from "./session-metadata.js";
+import { mapWithConcurrency } from "./utils/concurrency.js";
 
 // =============================================================================
 // Types
 // =============================================================================
+
+/**
+ * Max concurrent per-session enrichments in {@link SessionDiscoveryService.getAgentSessions}.
+ * The work is I/O-bound (transcript-head reads), so overlapping it hides most of
+ * the latency; the cap keeps a project with hundreds of sessions from opening a
+ * file descriptor per session all at once.
+ */
+const SESSION_ENRICHMENT_CONCURRENCY = 16;
 
 /**
  * A discovered session with attribution and metadata
@@ -188,6 +197,12 @@ export class SessionDiscoveryService {
 
   private attributionIndex: AttributionIndex | null = null;
   private attributionFetchedAt: number = 0;
+  /**
+   * Incremental builder for the attribution index. Held for the service's
+   * lifetime so its per-job-file cache survives across rebuilds — a post-TTL
+   * refresh then re-parses only new/changed job files instead of all of them.
+   */
+  private readonly attributionBuilder = new AttributionIndexBuilder();
 
   private directoryCache: Map<string, DirectoryCacheEntry> = new Map();
   private metadataCache: Map<string, SessionMetadata> = new Map();
@@ -245,7 +260,8 @@ export class SessionDiscoveryService {
     }
 
     logger.debug("Building attribution index");
-    this.attributionIndex = await buildAttributionIndex(this.stateDir);
+    // Incremental: re-parses only new/changed job files since the last build.
+    this.attributionIndex = await this.attributionBuilder.build(this.stateDir);
     this.attributionFetchedAt = Date.now();
     logger.debug(`Attribution index built with ${this.attributionIndex.size} entries`);
 
@@ -502,84 +518,110 @@ export class SessionDiscoveryService {
     // Get attribution index
     const attributionIndex = await this.getAttributionIndex();
 
-    // Build discovered sessions and collect cache updates
+    // Enrich each session. The per-session work is independent and I/O-bound
+    // (reading transcript heads for the sidechain check + any uncached name /
+    // preview), so run it with bounded concurrency instead of one-at-a-time —
+    // the sequential loop's latency grew linearly with the session count.
+    // Results come back in input order, so the mtime-descending sort is kept.
+    const enriched = await mapWithConcurrency(
+      filesToEnrich,
+      SESSION_ENRICHMENT_CONCURRENCY,
+      async ({ sessionId, mtime }) => {
+        const mtimeStr = mtime.toISOString();
+
+        // Filter out sidechain (sub-agent) sessions. Claude Code marks sessions
+        // as sidechain when they're Task tool sub-agents or when --resume is used.
+        // These are mostly prompt-cache warmup sessions ("Warmup" + single response)
+        // that clutter the UI with no useful content. The flag comes from the first
+        // JSONL line and is cached (keyed on mtime) so we don't re-open every
+        // transcript on each listing. Record the (possibly refreshed) flag even for
+        // excluded sessions so the next listing can skip re-reading them.
+        const { isSidechain, needsUpdate: sidechainNeedsUpdate } = await this.resolveSidechain(
+          agentName,
+          sessionId,
+          mtimeStr,
+          workingDirectory,
+          dockerEnabled,
+        );
+        const sidechainUpdate = sidechainNeedsUpdate
+          ? { sessionId, isSidechain, mtime: mtimeStr }
+          : undefined;
+        if (isSidechain) {
+          return { session: null, sidechainUpdate };
+        }
+
+        const attribution = attributionIndex.getAttribute(sessionId);
+
+        // Only show sessions that are attributed to this specific agent.
+        // When multiple agents share a working directory, this prevents the same
+        // native CLI sessions from appearing under every agent. Unattributed sessions
+        // are still visible in the global recent sessions list and All Chats view.
+        if (attribution.agentName !== agentName) {
+          return { session: null, sidechainUpdate };
+        }
+
+        const customName = await this.sessionMetadataStore.getCustomName(agentName, sessionId);
+
+        // Resolve autoName with caching — pass docker flag so it reads the right file
+        const { autoName, needsUpdate } = await this.resolveAutoName(
+          agentName,
+          sessionId,
+          mtimeStr,
+          workingDirectory,
+          dockerEnabled,
+        );
+
+        // Resolve preview with caching — pass docker flag so it reads the right file
+        const { preview, needsUpdate: previewNeedsUpdate } = await this.resolvePreview(
+          agentName,
+          sessionId,
+          mtimeStr,
+          workingDirectory,
+          dockerEnabled,
+        );
+
+        const session: DiscoveredSession = {
+          sessionId,
+          workingDirectory,
+          mtime: mtimeStr,
+          origin: attribution.origin,
+          agentName: attribution.agentName ?? agentName,
+          resumable: !dockerEnabled,
+          customName,
+          autoName,
+          preview,
+        };
+        return {
+          session,
+          sidechainUpdate,
+          autoNameUpdate:
+            needsUpdate && autoName ? { sessionId, autoName, mtime: mtimeStr } : undefined,
+          previewUpdate:
+            previewNeedsUpdate && preview ? { sessionId, preview, mtime: mtimeStr } : undefined,
+        };
+      },
+    );
+
+    // Reduce the (order-preserving) results into the session list + cache updates.
     const sessions: DiscoveredSession[] = [];
     const autoNameUpdates: Array<{ sessionId: string; autoName: string; mtime: string }> = [];
     const previewUpdates: Array<{ sessionId: string; preview: string; mtime: string }> = [];
     const sidechainUpdates: Array<{ sessionId: string; isSidechain: boolean; mtime: string }> = [];
-
-    for (const { sessionId, mtime } of filesToEnrich) {
-      const mtimeStr = mtime.toISOString();
-
-      // Filter out sidechain (sub-agent) sessions. Claude Code marks sessions
-      // as sidechain when they're Task tool sub-agents or when --resume is used.
-      // These are mostly prompt-cache warmup sessions ("Warmup" + single response)
-      // that clutter the UI with no useful content. The flag comes from the first
-      // JSONL line and is cached (keyed on mtime) so we don't re-open every
-      // transcript on each listing.
-      const { isSidechain, needsUpdate: sidechainNeedsUpdate } = await this.resolveSidechain(
-        agentName,
-        sessionId,
-        mtimeStr,
-        workingDirectory,
-        dockerEnabled,
-      );
-      if (sidechainNeedsUpdate) {
-        sidechainUpdates.push({ sessionId, isSidechain, mtime: mtimeStr });
+    for (const result of enriched) {
+      // A refreshed sidechain flag is recorded even for excluded sessions.
+      if (result.sidechainUpdate) {
+        sidechainUpdates.push(result.sidechainUpdate);
       }
-      if (isSidechain) {
+      if (!result.session) {
         continue;
       }
-
-      const attribution = attributionIndex.getAttribute(sessionId);
-
-      // Only show sessions that are attributed to this specific agent.
-      // When multiple agents share a working directory, this prevents the same
-      // native CLI sessions from appearing under every agent. Unattributed sessions
-      // are still visible in the global recent sessions list and All Chats view.
-      if (attribution.agentName !== agentName) {
-        continue;
+      sessions.push(result.session);
+      if (result.autoNameUpdate) {
+        autoNameUpdates.push(result.autoNameUpdate);
       }
-
-      const customName = await this.sessionMetadataStore.getCustomName(agentName, sessionId);
-
-      // Resolve autoName with caching — pass docker flag so it reads the right file
-      const { autoName, needsUpdate } = await this.resolveAutoName(
-        agentName,
-        sessionId,
-        mtimeStr,
-        workingDirectory,
-        dockerEnabled,
-      );
-
-      if (needsUpdate && autoName) {
-        autoNameUpdates.push({ sessionId, autoName, mtime: mtimeStr });
+      if (result.previewUpdate) {
+        previewUpdates.push(result.previewUpdate);
       }
-
-      // Resolve preview with caching — pass docker flag so it reads the right file
-      const { preview, needsUpdate: previewNeedsUpdate } = await this.resolvePreview(
-        agentName,
-        sessionId,
-        mtimeStr,
-        workingDirectory,
-        dockerEnabled,
-      );
-
-      if (previewNeedsUpdate && preview) {
-        previewUpdates.push({ sessionId, preview, mtime: mtimeStr });
-      }
-
-      sessions.push({
-        sessionId,
-        workingDirectory,
-        mtime: mtimeStr,
-        origin: attribution.origin,
-        agentName: attribution.agentName ?? agentName,
-        resumable: !dockerEnabled,
-        customName,
-        autoName,
-        preview,
-      });
     }
 
     // Batch write any cache updates

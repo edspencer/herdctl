@@ -29,7 +29,7 @@ npm install @herdctl/chat
 
 ### SDK Message Translation
 
-`SDKMessageTranslator` provides transport-agnostic translation from Claude SDK message streams to chat-UI events. It extracts assistant text deltas, tracks turn boundaries, and pairs tool calls with their results (enriched with input summaries and durations). This eliminates the need to reimplement message processing logic in each chat connector or downstream application.
+`SDKMessageTranslator` provides transport-agnostic translation from Claude SDK message streams to chat-UI events. It extracts assistant text deltas, tracks turn boundaries, and pairs tool calls with their results (enriched with input summaries and durations). Every event carries agent attribution (`AgentAttribution`): `onText` and `onBoundary` receive it as an argument and `TranslatedToolCall` includes a `parentToolUseId` (`null` for the main agent, else the spawning `Task` tool_use ID), so consumers can separate the main agent from `Task`-spawned subagents into per-agent lanes. This eliminates the need to reimplement message processing logic in each chat connector or downstream application. See the [Shared Chat Layer docs](https://herdctl.dev/architecture/chat-infrastructure/) for details.
 
 ### Streaming Responses
 

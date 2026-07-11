@@ -7,10 +7,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // Mocks
 // =============================================================================
 
-// Mock session-attribution
-vi.mock("../session-attribution.js", () => ({
-  buildAttributionIndex: vi.fn(),
-}));
+// Mock session-attribution. The service now builds its index through
+// AttributionIndexBuilder#build; route that to the SAME fn exported as
+// buildAttributionIndex, so `vi.mocked(buildAttributionIndex)` drives both.
+vi.mock("../session-attribution.js", () => {
+  const fn = vi.fn();
+  return {
+    buildAttributionIndex: fn,
+    AttributionIndexBuilder: class MockAttributionIndexBuilder {
+      build = fn;
+    },
+  };
+});
 
 // Mock jsonl-parser
 vi.mock("../jsonl-parser.js", () => ({
@@ -516,6 +524,46 @@ describe("SessionDiscoveryService", () => {
       const sessions = await service.getAgentSessions("my-agent", workingDir, false);
 
       expect(sessions).toHaveLength(0);
+    });
+
+    it("enriches sessions concurrently and preserves mtime-descending order", async () => {
+      const workingDir = "/Users/ed/Code/myproject";
+      const projectDir = join(tempClaudeHome, "projects", "-Users-ed-Code-myproject");
+      await mkdir(projectDir, { recursive: true });
+
+      // Create enough sessions to exceed a single concurrency slot.
+      const ids = Array.from({ length: 25 }, (_, i) => `session-${String(i).padStart(2, "0")}`);
+      for (const id of ids) {
+        await createSessionFile(projectDir, id);
+      }
+
+      // Track how many sidechain checks are in flight at once — if the loop were
+      // sequential this would never exceed 1.
+      let inFlight = 0;
+      let maxInFlight = 0;
+      mockIsSidechainSession.mockImplementation(async () => {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise((r) => setTimeout(r, 5));
+        inFlight -= 1;
+        return false;
+      });
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      const sessions = await service.getAgentSessions("my-agent", workingDir, false);
+
+      // All sessions returned exactly once, and every one was checked.
+      expect(sessions).toHaveLength(25);
+      expect(mockIsSidechainSession).toHaveBeenCalledTimes(25);
+      expect(new Set(sessions.map((s) => s.sessionId))).toEqual(new Set(ids));
+      // Ran concurrently...
+      expect(maxInFlight).toBeGreaterThan(1);
+      // ...but stayed bounded by the concurrency cap.
+      expect(maxInFlight).toBeLessThanOrEqual(16);
     });
   });
 
