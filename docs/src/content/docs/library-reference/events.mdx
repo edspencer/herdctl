@@ -106,6 +106,10 @@ manager.on('config:reloaded', (payload) => {
 | `agent:started` | `AgentStartedPayload` | Agent registered with fleet |
 | `agent:stopped` | `AgentStoppedPayload` | Agent unregistered |
 
+<Aside type="caution">
+`agent:started` and `agent:stopped` are declared in `FleetManagerEventMap` (and their payload types are exported), but the current FleetManager **never emits them** — subscribing is type-safe but the handlers will not fire. Tracked in [#323](https://github.com/edspencer/herdctl/issues/323).
+</Aside>
+
 ```typescript
 interface AgentStartedPayload {
   agent: ResolvedAgent;    // Full agent configuration
@@ -140,7 +144,6 @@ manager.on('agent:stopped', (payload) => {
 | Event | Payload | Description |
 |-------|---------|-------------|
 | `schedule:triggered` | `ScheduleTriggeredPayload` | Schedule fired, job about to start |
-| `schedule:skipped` | `ScheduleSkippedPayload` | Schedule check skipped |
 
 ```typescript
 interface ScheduleTriggeredPayload {
@@ -149,30 +152,12 @@ interface ScheduleTriggeredPayload {
   schedule: Schedule;      // Full schedule configuration
   timestamp: string;       // ISO timestamp
 }
-
-interface ScheduleSkippedPayload {
-  agentName: string;
-  scheduleName: string;
-  reason: 'already_running' | 'disabled' | 'max_concurrent' | 'work_source_empty';
-  timestamp: string;
-}
 ```
 
 ```typescript
 manager.on('schedule:triggered', (payload) => {
   console.log(`Triggered: ${payload.agentName}/${payload.scheduleName}`);
   console.log(`  Type: ${payload.schedule.type}`);
-});
-
-manager.on('schedule:skipped', (payload) => {
-  const reasons = {
-    already_running: 'Agent already running',
-    disabled: 'Schedule disabled',
-    max_concurrent: 'At concurrency limit',
-    work_source_empty: 'No work items available',
-  };
-  console.log(`Skipped: ${payload.agentName}/${payload.scheduleName}`);
-  console.log(`  Reason: ${reasons[payload.reason]}`);
 });
 ```
 
@@ -191,6 +176,10 @@ The core events for monitoring job execution.
 | `job:cancelled` | `JobCancelledPayload` | Job was cancelled |
 | `job:forked` | `JobForkedPayload` | Job was forked from another |
 
+<Aside type="caution">
+For **manual `trigger()` runs**, `job:output` is never emitted and `job:created` only fires after the run has already finished ([#328](https://github.com/edspencer/herdctl/issues/328)) — use the `onMessage` / `onJobCreated` trigger callbacks for real-time streaming instead. The job events behave as documented for **scheduled** runs.
+</Aside>
+
 #### JobCreatedPayload
 
 ```typescript
@@ -202,18 +191,26 @@ interface JobCreatedPayload {
 }
 
 interface JobMetadata {
-  id: string;              // Unique job identifier
-  agentName: string;
-  status: JobStatus;       // 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
-  createdAt: string;
-  startedAt?: string;
-  completedAt?: string;
-  prompt?: string;
-  sessionId?: string;      // For session resume
-  exitReason?: ExitReason;
-  // ... additional fields
+  id: string;                      // Unique job identifier (job-YYYY-MM-DD-<random6>)
+  agent: string;                   // Agent name
+  status: JobStatus;               // 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+  trigger_type: TriggerType;       // 'manual' | 'schedule' | 'webhook' | 'chat' | 'discord' | 'slack' | 'web' | 'fork'
+  schedule?: string | null;        // Schedule name that triggered the job (if any)
+  started_at: string;              // ISO timestamp
+  finished_at?: string | null;     // ISO timestamp, null while running
+  duration_seconds?: number | null;
+  prompt?: string | null;          // Prompt given to the agent
+  session_id?: string | null;      // For session resume
+  exit_reason?: ExitReason | null; // Set when status is completed/failed/cancelled
+  forked_from?: string | null;     // Parent job ID (if trigger_type is 'fork')
+  summary?: string | null;         // Brief summary of what the job accomplished
+  output_file?: string | null;     // Path to the full session output file
 }
 ```
+
+<Aside type="note">
+`JobMetadata` fields are **snake_case** — they mirror the on-disk `job-<id>.yaml` schema. See the [Job Manager reference](/library-reference/job-manager/) for the same type in job query results.
+</Aside>
 
 #### JobOutputPayload
 
@@ -248,12 +245,11 @@ interface JobCompletedPayload {
 }
 
 type ExitReason =
-  | 'end_turn'             // Agent completed naturally
-  | 'stop_sequence'        // Hit a stop sequence
-  | 'max_turns'            // Reached turn limit
+  | 'success'              // Job completed successfully
+  | 'error'                // Failed with error
   | 'timeout'              // Execution timeout
-  | 'interrupt'            // User interrupted
-  | 'error';               // Failed with error
+  | 'cancelled'            // Job was cancelled
+  | 'max_turns';           // Reached turn limit
 ```
 
 #### JobFailedPayload
@@ -414,10 +410,6 @@ manager.on('config:reloaded', (payload) => {
 // Schedule events
 manager.on('schedule:triggered', (payload) => {
   console.log(`[Schedule] ${payload.agentName}/${payload.scheduleName} triggered`);
-});
-
-manager.on('schedule:skipped', (payload) => {
-  console.log(`[Schedule] ${payload.agentName}/${payload.scheduleName} skipped: ${payload.reason}`);
 });
 
 // Job lifecycle events
@@ -956,7 +948,6 @@ import type {
 
   // Schedule events
   ScheduleTriggeredPayload,
-  ScheduleSkippedPayload,
 
   // Job events
   JobCreatedPayload,
@@ -975,6 +966,7 @@ import type {
   // Supporting types
   JobMetadata,
   JobStatus,
+  TriggerType,
   ExitReason,
 } from '@herdctl/core';
 ```
