@@ -912,6 +912,65 @@ describe("SessionDiscoveryService", () => {
       expect(result).toEqual(mockMessages);
       expect(mockParseSessionMessages).toHaveBeenCalled();
     });
+
+    it("serves a repeat open from the mtime cache without re-parsing", async () => {
+      // Use a docker session so the transcript lives under the (controllable)
+      // state dir and stat() actually succeeds — the cache keys on the file mtime.
+      mockParseSessionMessages.mockClear();
+      const dockerSessionsDir = join(tempStateDir, "docker-sessions");
+      await mkdir(dockerSessionsDir, { recursive: true });
+      await createSessionFile(dockerSessionsDir, "session-abc");
+
+      const mockMessages = [
+        { role: "user" as const, content: "Hello", timestamp: "2024-01-15T10:00:00Z" },
+      ];
+      mockParseSessionMessages.mockResolvedValue(mockMessages);
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      const first = await service.getSessionMessages("/opt/workspace", "session-abc", {
+        dockerEnabled: true,
+      });
+      const second = await service.getSessionMessages("/opt/workspace", "session-abc", {
+        dockerEnabled: true,
+      });
+
+      expect(first).toEqual(mockMessages);
+      expect(second).toEqual(mockMessages);
+      // Second open is a cache hit — no second parse of the whole transcript.
+      expect(mockParseSessionMessages).toHaveBeenCalledTimes(1);
+    });
+
+    it("re-parses when the transcript mtime advances (new turn appended)", async () => {
+      mockParseSessionMessages.mockClear();
+      const dockerSessionsDir = join(tempStateDir, "docker-sessions");
+      await mkdir(dockerSessionsDir, { recursive: true });
+      const filePath = join(dockerSessionsDir, "session-abc.jsonl");
+      await createSessionFile(dockerSessionsDir, "session-abc");
+
+      mockParseSessionMessages.mockResolvedValue([
+        { role: "user" as const, content: "Hello", timestamp: "2024-01-15T10:00:00Z" },
+      ]);
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      await service.getSessionMessages("/opt/workspace", "session-abc", { dockerEnabled: true });
+
+      // Advance the file mtime to simulate a new turn being appended.
+      const later = new Date(Date.now() + 5000);
+      await utimes(filePath, later, later);
+
+      await service.getSessionMessages("/opt/workspace", "session-abc", { dockerEnabled: true });
+
+      // Stale cache entry is invalidated by the mtime change — parse runs again.
+      expect(mockParseSessionMessages).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe("getSessionMetadata", () => {
