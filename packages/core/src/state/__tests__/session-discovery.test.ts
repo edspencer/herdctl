@@ -1711,7 +1711,7 @@ describe("SessionDiscoveryService", () => {
       );
     });
 
-    it("returns undefined autoName when session has no summary", async () => {
+    it("negative-caches (records mtime) when session has no summary", async () => {
       const workingDir = "/Users/ed/Code/myproject";
       const encodedPath = "-Users-ed-Code-myproject";
       const projectDir = join(tempClaudeHome, "projects", encodedPath);
@@ -1730,7 +1730,41 @@ describe("SessionDiscoveryService", () => {
       const sessions = await service.getAgentSessions("my-agent", workingDir, false);
 
       expect(sessions[0].autoName).toBeUndefined();
-      // Should not batch write when there's nothing to write
+      // The empty result must still be persisted (autoName undefined but a fresh
+      // autoNameMtime) so the next listing trusts the cache instead of
+      // re-streaming the whole transcript via extractLastSummary (issue #350).
+      expect(mockBatchSetAutoNames).toHaveBeenCalledTimes(1);
+      expect(mockBatchSetAutoNames).toHaveBeenCalledWith(
+        "my-agent",
+        expect.arrayContaining([
+          expect.objectContaining({ sessionId: "session-abc", autoName: undefined }),
+        ]),
+      );
+    });
+
+    it("skips extractLastSummary on a valid negative cache (autoNameMtime set, no autoName)", async () => {
+      const workingDir = "/Users/ed/Code/myproject";
+      const encodedPath = "-Users-ed-Code-myproject";
+      const projectDir = join(tempClaudeHome, "projects", encodedPath);
+      await mkdir(projectDir, { recursive: true });
+      await createSessionFile(projectDir, "session-abc");
+
+      // A previously-recorded negative result: fresh mtime, no autoName value.
+      mockGetAutoName.mockResolvedValue({
+        autoName: undefined,
+        autoNameMtime: "2099-01-01T00:00:00.000Z",
+      });
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      const sessions = await service.getAgentSessions("my-agent", workingDir, false);
+
+      expect(sessions[0].autoName).toBeUndefined();
+      // Negative cache is authoritative — no transcript re-scan, no re-write.
+      expect(mockExtractLastSummary).not.toHaveBeenCalled();
       expect(mockBatchSetAutoNames).not.toHaveBeenCalled();
     });
   });

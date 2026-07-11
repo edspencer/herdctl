@@ -392,11 +392,13 @@ export class SessionDiscoveryService {
       : getCliSessionFile(workingDirectory, sessionId);
     const summary = await extractLastSummary(filePath);
 
-    if (summary) {
-      return { autoName: summary, needsUpdate: true };
-    }
-
-    return { autoName: undefined, needsUpdate: false };
+    // Always signal an update so the (possibly empty) result is negative-cached:
+    // record `autoNameMtime` even when no summary was found. CLI keeper sessions
+    // essentially never produce a `type:"summary"` entry, so without this the
+    // cache would be 0%-effective and `extractLastSummary` would re-stream the
+    // whole transcript on every listing. Mirrors `resolveSidechain`, which
+    // already records the mtime for negative results.
+    return { autoName: summary || undefined, needsUpdate: true };
   }
 
   /**
@@ -429,11 +431,11 @@ export class SessionDiscoveryService {
       : getCliSessionFile(workingDirectory, sessionId);
     const preview = await extractFirstMessagePreview(filePath);
 
-    if (preview) {
-      return { preview, needsUpdate: true };
-    }
-
-    return { preview: undefined, needsUpdate: false };
+    // Always signal an update so the (possibly empty) result is negative-cached:
+    // record `previewMtime` even when no preview was found. A transcript with no
+    // plain-text user line otherwise streams end-to-end on every listing looking
+    // for one. Mirrors `resolveSidechain`/`resolveAutoName`.
+    return { preview: preview || undefined, needsUpdate: true };
   }
 
   /**
@@ -594,18 +596,19 @@ export class SessionDiscoveryService {
         return {
           session,
           sidechainUpdate,
-          autoNameUpdate:
-            needsUpdate && autoName ? { sessionId, autoName, mtime: mtimeStr } : undefined,
-          previewUpdate:
-            previewNeedsUpdate && preview ? { sessionId, preview, mtime: mtimeStr } : undefined,
+          // Record the update even when the value is empty so the negative result
+          // (no summary / no preview) is cached against this mtime — see
+          // resolveAutoName/resolvePreview.
+          autoNameUpdate: needsUpdate ? { sessionId, autoName, mtime: mtimeStr } : undefined,
+          previewUpdate: previewNeedsUpdate ? { sessionId, preview, mtime: mtimeStr } : undefined,
         };
       },
     );
 
     // Reduce the (order-preserving) results into the session list + cache updates.
     const sessions: DiscoveredSession[] = [];
-    const autoNameUpdates: Array<{ sessionId: string; autoName: string; mtime: string }> = [];
-    const previewUpdates: Array<{ sessionId: string; preview: string; mtime: string }> = [];
+    const autoNameUpdates: Array<{ sessionId: string; autoName?: string; mtime: string }> = [];
+    const previewUpdates: Array<{ sessionId: string; preview?: string; mtime: string }> = [];
     const sidechainUpdates: Array<{ sessionId: string; isSidechain: boolean; mtime: string }> = [];
     for (const result of enriched) {
       // A refreshed sidechain flag is recorded even for excluded sessions.
@@ -864,8 +867,8 @@ export class SessionDiscoveryService {
 
     for (const dir of directories) {
       const sessions: DiscoveredSession[] = [];
-      const autoNameUpdates: Array<{ sessionId: string; autoName: string; mtime: string }> = [];
-      const previewUpdates: Array<{ sessionId: string; preview: string; mtime: string }> = [];
+      const autoNameUpdates: Array<{ sessionId: string; autoName?: string; mtime: string }> = [];
+      const previewUpdates: Array<{ sessionId: string; preview?: string; mtime: string }> = [];
       const sidechainUpdates: Array<{ sessionId: string; isSidechain: boolean; mtime: string }> =
         [];
       let visibleSessionCount = 0;
@@ -937,7 +940,9 @@ export class SessionDiscoveryService {
           dir.dockerEnabled,
         );
 
-        if (needsUpdate && autoName) {
+        // Record even an empty result so the negative case is cached (see
+        // resolveAutoName). autoName may be undefined here.
+        if (needsUpdate) {
           autoNameUpdates.push({ sessionId, autoName, mtime: mtimeStr });
         }
 
@@ -950,7 +955,7 @@ export class SessionDiscoveryService {
           dir.dockerEnabled,
         );
 
-        if (previewNeedsUpdate && preview) {
+        if (previewNeedsUpdate) {
           previewUpdates.push({ sessionId, preview, mtime: mtimeStr });
         }
 
