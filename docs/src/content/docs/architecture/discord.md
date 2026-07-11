@@ -17,8 +17,8 @@ The Discord package sits at the edge of the system. It depends on `@herdctl/chat
 |-----------|---------|
 | `discord.js` ^14 | Discord gateway connection, REST API, message types |
 | `@discordjs/rest` ^2.6 | Slash command registration via Discord REST API |
-| `@herdctl/chat` | `ChatSessionManager`, `StreamingResponder`, message splitting, tool parsing, error utilities |
-| `@herdctl/core` | `AgentChatDiscord` config types, `FleetManager`, `IChatManager` interface |
+| `@herdctl/chat` | `ChatSessionManager`, `StreamingResponder`, message splitting, content extraction, error utilities |
+| `@herdctl/core` | `AgentChatDiscord` config types, `FleetManager`, `IChatManager` interface, tool parsing (`extractToolUseBlocks`, `extractToolResults`, `TOOL_EMOJIS`, `getToolInputSummary`), file-sender MCP (`createFileSenderDef`) |
 
 ## Per-Agent Bot Model
 
@@ -49,9 +49,12 @@ The package consists of the following components, each in its own source file:
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| **DiscordConnector** | `discord-connector.ts` | discord.js client lifecycle, gateway intents, event handler registration, message routing |
-| **DiscordManager** | `manager.ts` | Multiple connector management, message pipeline, tool embeds, `IChatManager` implementation |
-| **CommandManager** | `commands/command-manager.ts` | Slash command registration via Discord REST API, interaction routing |
+| **DiscordConnector** | `discord-connector.ts` | discord.js client lifecycle, gateway intents, event handler registration, message routing, voice/attachment detection, file upload |
+| **DiscordManager** | `manager.ts` | Multiple connector management, message pipeline, voice transcription and attachment processing, run-card/tool embeds, `IChatManager` implementation |
+| **MessageNormalizer** | `message-normalizer.ts` | `normalizeDiscordMessage()` — converts the loose SDK message union into typed display events (assistant final/delta, tool results, system status, result, error) |
+| **Embeds** | `embeds.ts` | `buildRunCardEmbed()`, `buildToolResultEmbed()`, `buildResultSummaryEmbed()`, `buildStatusEmbed()`, `buildErrorEmbed()`, shared embed colors and footer |
+| **VoiceTranscriber** | `voice-transcriber.ts` | `transcribeAudio()` — OpenAI Whisper transcription of voice-message audio buffers |
+| **CommandManager** | `commands/command-manager.ts` | Slash command registration via Discord REST API, interaction and autocomplete routing |
 | **MentionHandler** | `mention-handler.ts` | Bot mention detection via `message.mentions`, role mention handling, conversation context building from channel history |
 | **AutoModeHandler** | `auto-mode-handler.ts` | Guild-based channel resolution, DM channel configuration, mode determination |
 | **ErrorHandler** | `error-handler.ts` | Error classification (gateway, rate limit, network, timeout), retry with exponential backoff, user-friendly error messages |
@@ -59,7 +62,7 @@ The package consists of the following components, each in its own source file:
 | **Formatting** | `utils/formatting.ts` | `escapeMarkdown()`, typing indicator management, `sendSplitMessage()` |
 | **Errors** | `errors.ts` | `DiscordConnectorError` hierarchy with typed error codes |
 | **Types** | `types.ts` | Connector options, state, event map, reply payload types |
-| **Slash commands** | `commands/help.ts`, `reset.ts`, `status.ts` | Individual `/help`, `/reset`, `/status` command implementations |
+| **Slash commands** | `commands/*.ts` | Fourteen built-in commands (`/help`, `/ping`, `/config`, `/tools`, `/usage`, `/skills`, `/skill`, `/status`, `/session`, `/reset`, `/new`, `/stop`, `/cancel`, `/retry`) |
 
 ## DiscordConnector
 
@@ -119,8 +122,8 @@ During `connect()`, the connector registers handlers for the following discord.j
 | `Warn` | Logs warning |
 | `Debug` | Logs debug message (only when log level is `verbose`) |
 | `RESTEvents.RateLimited` | Tracks rate limit state, emits `rateLimit` event |
-| `MessageCreate` | Routes to `_handleMessage()` for mention/mode/config resolution |
-| `InteractionCreate` | Routes slash commands to `CommandManager` |
+| `MessageCreate` | Routes to `_handleMessage()` for mention/mode/config resolution, voice-message detection, and attachment extraction |
+| `InteractionCreate` | Routes slash commands to `CommandManager.handleInteraction()` and autocomplete interactions to `CommandManager.handleAutocomplete()` |
 
 ### Connector Event Map
 
@@ -133,7 +136,7 @@ The connector emits a typed event map (`DiscordConnectorEventMap`) with the foll
 | `error` | `{ agentName, error }` | Client error |
 | `reconnecting` | `{ agentName, attempt }` | Auto-reconnect in progress |
 | `reconnected` | `{ agentName }` | Successfully reconnected |
-| `message` | `{ agentName, prompt, context, metadata, reply, startTyping }` | Processable message received |
+| `message` | `{ agentName, prompt, context, metadata, reply, replyWithRef, startTyping, addReaction, removeReaction }` | Processable message received. `metadata` includes voice-message fields (`isVoiceMessage`, `voiceAttachmentUrl`, `voiceAttachmentName`) and non-voice `attachments`. `replyWithRef` returns an edit/delete handle used for live-updating messages. |
 | `messageIgnored` | `{ agentName, reason, channelId, messageId }` | Message filtered out |
 | `commandExecuted` | `{ agentName, commandName, userId, channelId }` | Slash command executed |
 | `sessionLifecycle` | `{ agentName, event, channelId, sessionId }` | Session created/resumed/expired/cleared |
@@ -181,49 +184,53 @@ When a connector emits a `message` event, the manager's `handleMessage()` method
 
 1. **Session lookup** -- Checks for an existing session for the channel via `ChatSessionManager`. If found, the session ID is passed to the agent execution for conversation continuity.
 
-2. **Streaming responder** -- Creates a `StreamingResponder` (from `@herdctl/chat`) configured with Discord's 2,000-character message limit and a 1,500-character buffer size.
+2. **File-sender MCP injection** -- If the agent has a working directory, a per-message [file-sender MCP server](#file-sender-mcp) is created and passed to the agent execution.
 
-3. **Typing indicator** -- Starts a typing indicator that refreshes every 8 seconds until the agent completes execution.
+3. **Streaming responder** -- Creates a `StreamingResponder` (from `@herdctl/chat`) configured with Discord's 2,000-character message limit and a 1,500-character buffer size. Its reply closure drains any files buffered by the file-sender MCP and attaches them to the outgoing message.
 
-4. **Agent execution** -- Calls `FleetManagerContext.trigger()` with the prompt and an `onMessage` streaming callback. The callback handles different message types:
+4. **Typing indicator and acknowledgement** -- Starts a typing indicator that refreshes every 8 seconds (unless `output.typing_indicator: false`) and reacts to the user's message with `output.acknowledge_emoji` (default 👀; removed when processing finishes).
 
-   | SDK message type | Behavior |
+5. **Prompt preparation** -- For new sessions, recent channel history is prepended via `formatContextForPrompt()`. [Voice messages](#voice-message-transcription) are transcribed and [file attachments](#file-attachments) are downloaded/inlined before the agent is triggered.
+
+6. **Agent execution** -- Calls `FleetManagerContext.trigger()` with the prompt and an `onMessage` streaming callback. Every raw SDK message is first passed through `normalizeDiscordMessage()` (`message-normalizer.ts`), which converts the loose SDK union into typed display events:
+
+   | Normalized event | Behavior |
    |-----------------|----------|
-   | `assistant` | Extracts text content via `extractMessageContent()`, sends immediately through the streamer |
-   | `user` (tool results) | Builds Discord embeds showing tool name, input summary, duration, and truncated output |
-   | `system` | Shows system status embeds (e.g., "Compacting context...") |
-   | `result` | Shows task summary embed with duration, turns, cost, and token counts |
-   | `error` | Shows error embed with the error message |
+   | `assistant_final` | Records tool-use blocks (for the run card and tool-result pairing), dedups repeated snapshots by message ID, skips intermediate snapshots (`stop_reason: null`), then delivers text. With `assistant_messages: "answers"` (default) only turns without tool-use blocks are sent; with `"all"` every turn is sent. |
+   | `assistant_delta` | Only when `assistant_messages: "all"` -- streams text deltas into a single live-edited Discord message (via `replyWithRef`), synced with the final snapshot to avoid duplicates. |
+   | `tool_results` | Updates the run-card trace. Only outputs longer than `tool_result_max_length` become a `buildToolResultEmbed()` preview plus a `.txt` file attachment with the full output; shorter outputs appear only in the run-card trace. |
+   | `system_status` / `tool_progress` / `auth_status` | Update the run-card status line (e.g., "Compacting context…"); auth errors are sent as standalone error embeds. |
+   | `result` | Records per-channel and cumulative usage stats (for `/usage`), finalizes the run card, and optionally sends a `buildResultSummaryEmbed()` when `result_summary: true`. |
+   | `error` | Sends a `buildErrorEmbed()` when `errors: true`. |
 
-5. **Session storage** -- After successful execution, stores the returned SDK session ID for future conversation continuity. Failed jobs do not update the session.
+7. **Fallbacks** -- If no answer turn produced text, the SDK `result` text is sent instead; if nothing at all was sent, a completion or error status embed is posted. Files still buffered by the file-sender MCP are sent as a standalone message.
 
-6. **Fallback** -- If no messages were sent during streaming (neither text nor embeds), sends a fallback message indicating completion or error.
+8. **Session storage** -- After successful execution, stores the returned SDK session ID for future conversation continuity. Failed jobs do not update the session.
 
-### Tool Embeds
+### Run Card and Tool Embeds
 
-The manager builds Discord embeds for tool call results using `buildToolEmbed()`. Each embed includes:
+While a job runs, the manager maintains a single **run card** -- an embed built by `buildRunCardEmbed()` (`embeds.ts`) and updated in place via `replyWithRef` (throttled to one edit per 1.5s). It shows the run status (running/success/error, color-coded), the sequence of tools executed, the latest status line, and a rolling **trace** field of the last few tool invocations and results, each prefixed with a tool-specific emoji from `TOOL_EMOJIS` (in `@herdctl/core`) and an input summary from `getToolInputSummary()`. The run card is controlled by `output.progress_indicator` (default: true).
 
-- A title with a tool-specific emoji (from `TOOL_EMOJIS` in `@herdctl/chat`) and the tool name
-- A description with the input summary (e.g., the bash command, the file path)
-- Inline fields for duration and output size
-- A result or error field with truncated output in a code block
-
-Output is truncated to a configurable maximum (default: 900 characters) to stay within Discord's embed field limits.
+Individual tool results only get their own embed when the output exceeds `tool_result_max_length` (default: 900 characters). In that case `buildToolResultEmbed()` renders a short preview -- tool emoji and name, input summary, duration, and up to 300 characters of output in a code block -- and the full output is attached as a `.txt` file.
 
 ### Output Configuration
 
-Each agent's Discord config includes an `output` section that controls which message types are displayed:
+Each agent's Discord config includes an `output` section (`DiscordOutputSchema`) that controls what gets displayed:
 
 ```yaml
 chat:
   discord:
     bot_token_env: MY_TOKEN
     output:
-      tool_results: true          # Show tool call embeds (default: true)
-      tool_result_max_length: 900 # Max chars for tool output (default: 900)
-      system_status: true         # Show system status embeds (default: true)
+      tool_results: true          # Show tool result embeds for oversized outputs (default: true)
+      tool_result_max_length: 900 # Threshold before output becomes embed + .txt file (default: 900, max: 1000)
+      system_status: true         # Show system status updates on the run card (default: true)
       result_summary: false       # Show task completion embed (default: false)
       errors: true                # Show error embeds (default: true)
+      typing_indicator: true      # Show typing indicator while processing (default: true)
+      acknowledge_emoji: "👀"     # Reaction added on receipt; "" to disable (default: "👀")
+      assistant_messages: answers # "answers" (final turns without tool use) | "all" (every turn + delta streaming)
+      progress_indicator: true    # Show the live-updating run-card embed (default: true)
     guilds:
       - id: "123456789"
         channels:
@@ -231,29 +238,104 @@ chat:
             mode: mention
 ```
 
+## Voice Message Transcription
+
+When a user sends a Discord voice message (an audio recording in a text channel), the connector detects it via the `MessageFlags.IsVoiceMessage` flag and includes the audio attachment URL in the message event metadata. If `voice.enabled` is set, the manager:
+
+1. Downloads the audio attachment (30s timeout).
+2. Transcribes it with `transcribeAudio()` (`voice-transcriber.ts`), which posts the buffer to the OpenAI Whisper API (`/v1/audio/transcriptions`) using native `fetch` + `FormData` -- no extra dependencies.
+3. Echoes the transcription back to the channel as a grey embed so everyone can read the voice message.
+4. Uses `[Voice message transcription]: <text>` as the agent prompt.
+
+If voice is not enabled or the API key env var is missing, the user gets an explanatory reply instead. Configuration lives in `DiscordVoiceSchema`:
+
+```yaml
+chat:
+  discord:
+    voice:
+      enabled: true              # default: false
+      provider: openai           # only "openai" currently
+      api_key_env: OPENAI_API_KEY
+      model: whisper-1
+      language: en               # optional ISO 639-1 hint
+```
+
+## File Attachments
+
+Non-voice attachments (images, PDFs, text/code files) are handled when `attachments.enabled` is set. The connector categorizes each attachment by MIME type (`image`, `pdf`, `text`, or `unsupported`) and passes the list in the message event. The manager's `processAttachments()` then, per attachment (after enforcing `allowed_types`, `max_file_size_mb`, and `max_files_per_message`):
+
+- **Text/code files** are downloaded and inlined directly into the prompt (truncated at 50,000 characters).
+- **Images and PDFs** are downloaded to `<working_directory>/<download_dir>/<uuid>/` and referenced in the prompt as paths the agent can open with its Read tool. When the agent runs in Docker, host paths are rewritten to `/workspace` container paths.
+
+The assembled sections are prepended to the user's message as an attachment block. Downloaded files are deleted after the job finishes unless `cleanup_after_processing: false`. Configuration lives in `DiscordAttachmentsSchema`:
+
+```yaml
+chat:
+  discord:
+    attachments:
+      enabled: true                      # default: false
+      max_file_size_mb: 10               # default: 10
+      max_files_per_message: 5           # default: 5
+      allowed_types:                     # wildcards supported (defaults shown)
+        - "image/*"
+        - "application/pdf"
+        - "text/*"
+      download_dir: ".discord-attachments"  # relative to working_directory
+      cleanup_after_processing: true     # default: true
+```
+
+## File-Sender MCP
+
+Agents can send files back to Discord through an injected MCP (Model Context Protocol) server. For each message, if the agent has a `working_directory`, the manager creates a `FileSenderContext` and wraps it with `createFileSenderDef()` from `@herdctl/core`, passing the resulting server definition to `FleetManager.trigger()` via `injectedMcpServers`.
+
+Unlike the Slack connector (which uploads immediately), the Discord implementation **buffers** uploaded files: when the agent calls the file-sender tool, the file is queued in memory, and the streaming responder attaches all pending files to the *next answer message* so they appear below the text rather than as standalone messages above it. Any files still buffered when the job ends are sent as a standalone message.
+
+`DiscordConnector.uploadFile()` also exists on the connector API for direct uploads -- it fetches the channel and sends the buffer via discord.js `AttachmentBuilder`.
+
 ## CommandManager
 
 The `CommandManager` handles Discord slash command registration and interaction routing. Each agent's bot registers its own set of commands via the Discord REST API.
 
 ### Registration
 
-On connector startup (after the `ClientReady` event), the manager builds `SlashCommandBuilder` payloads for all built-in commands and sends them to Discord using the REST API's `Routes.applicationCommands()` endpoint. Registration includes retry logic with exponential backoff (up to 3 attempts) to handle rate limits and transient network failures.
+On connector startup (after the `ClientReady` event), the manager builds `SlashCommandBuilder` payloads for all built-in commands and sends them to Discord using the REST API. Registration includes retry logic with exponential backoff (up to 3 attempts) to handle rate limits and transient network failures.
 
-Commands are registered as global application commands (not guild-specific), so they are available in all servers the bot has joined.
+Registration scope is configurable via `command_registration` (`DiscordCommandRegistrationSchema`): the default `scope: global` registers through `Routes.applicationCommands()` (available in every server the bot joins, but slow to propagate), while `scope: guild` with a `guild_id` registers through `Routes.applicationGuildCommands()` (propagates immediately -- useful for development):
+
+```yaml
+chat:
+  discord:
+    command_registration:
+      scope: guild        # global (default) | guild
+      guild_id: "123456789012345678"  # required when scope: guild
+```
 
 ### Built-in Commands
 
-| Command | Description | Response type |
-|---------|------------|---------------|
-| `/help` | Lists available commands and interaction instructions | Ephemeral |
-| `/reset` | Clears the conversation session for the current channel | Ephemeral |
-| `/status` | Shows agent connection status, bot info, uptime, and session details | Ephemeral |
+Fourteen commands are registered per bot (`getBuiltInCommands()` in `commands/command-manager.ts`):
 
-All commands respond ephemerally (only visible to the user who invoked them).
+| Command | Description |
+|---------|------------|
+| `/help` | Show available commands |
+| `/ping` | Quick health check |
+| `/config` | Show runtime-relevant agent configuration (runtime, model, permission mode, working directory) |
+| `/tools` | Show allowed/denied tools and MCP integration status |
+| `/usage` | Show usage stats: last run and cumulative totals (cost, tokens, duration) |
+| `/skills` | List discovered skills for this agent |
+| `/skill` | Trigger a skill in this channel (skill name has autocomplete) |
+| `/status` | Show agent status and session info |
+| `/session` | Show current session and run state for this channel |
+| `/reset` | Clear conversation context (start fresh session) |
+| `/new` | Start a fresh conversation (clear current session) |
+| `/stop` | Stop the active run in this channel |
+| `/cancel` | Alias for `/stop` |
+| `/retry` | Retry the last prompt in this channel |
+
+All commands respond ephemerally (only visible to the user who invoked them). Manager-backed commands (`/stop`, `/cancel`, `/retry`, `/skill`, `/skills`, `/usage`, `/config`, `/tools`, `/session`) call back into `DiscordManager` through a `CommandActions` interface wired up at connector creation; `/skill` and `/skills` use skill discovery that prefers an explicit `chat.discord.skills` list and otherwise scans the agent working directory (`.claude/skills`, `.codex/skills`, `skills`) for `SKILL.md` files. `/retry` and `/skill` re-enter the normal message pipeline via a synthetic message event.
 
 ### Interaction Handling
 
-When an `InteractionCreate` event fires, the connector delegates to `CommandManager.handleInteraction()`. The manager looks up the command by name, builds a `CommandContext` (containing the interaction, client, agent name, session manager, and connector state), and calls the command's `execute()` function. Errors are caught and surfaced as user-friendly ephemeral replies.
+When an `InteractionCreate` event fires, the connector delegates chat-input commands to `CommandManager.handleInteraction()` and autocomplete interactions to `CommandManager.handleAutocomplete()`. The manager looks up the command by name, builds a `CommandContext` (containing the interaction, client, agent name, session manager, connector state, and command actions), and calls the command's `execute()` (or `autocomplete()`) function. Errors are caught and surfaced as user-friendly ephemeral replies.
 
 ## MentionHandler
 
@@ -298,9 +380,10 @@ The auto mode handler resolves channel configuration from Discord's guild/channe
 
 | Scenario | Resolution |
 |----------|-----------|
-| **DM (no guild ID)** | Checks if DMs are enabled in config. If enabled, returns auto mode with default 10 context messages. |
-| **Guild channel** | Finds the guild by ID, then the channel within that guild. Returns the channel's configured mode and context message count. |
-| **Unknown channel** | Returns `null`, causing the message to be ignored. |
+| **DM (no guild ID)** | Checks if DMs are enabled in config. If enabled, returns the configured `dm.mode` (default: `auto`) with default 10 context messages. |
+| **Listed guild channel** | Finds the guild by ID, then the channel within that guild. Returns the channel's configured mode and context message count. |
+| **Unlisted channel in a configured guild** | Falls back to the guild's `default_channel_mode` when set (e.g., respond to `@mention`s in any channel of the server); otherwise returns `null` and the message is ignored. |
+| **Unknown guild** | Returns `null`, causing the message to be ignored. |
 
 ### DM Filtering
 
@@ -391,7 +474,7 @@ If `@herdctl/discord` is not installed, FleetManager logs a warning and skips Di
 
 ## Configuration Schema
 
-The Discord configuration is defined in `@herdctl/core` using Zod schemas. The full agent chat configuration:
+The Discord configuration is defined in `@herdctl/core` using Zod schemas (`AgentChatDiscordSchema` and friends in `packages/core/src/config/schema.ts`). The full agent chat configuration:
 
 ```yaml
 name: support
@@ -402,22 +485,46 @@ chat:
     bot_token_env: SUPPORT_DISCORD_TOKEN     # Env var containing the bot token
     session_expiry_hours: 24                  # Session timeout (default: 24)
     log_level: standard                       # minimal | standard | verbose
-    output:
+    output:                                   # DiscordOutputSchema
       tool_results: true
       tool_result_max_length: 900
       system_status: true
       result_summary: false
       errors: true
-    presence:
+      typing_indicator: true
+      acknowledge_emoji: "👀"
+      assistant_messages: answers             # answers | all
+      progress_indicator: true
+    presence:                                 # DiscordPresenceSchema
       activity_type: watching                 # playing | watching | listening | competing
       activity_message: "for support requests"
-    dm:
+    dm:                                       # ChatDMSchema
       enabled: true
-      mode: auto
+      mode: auto                              # mention | auto (default: auto)
       allowlist: []
       blocklist: []
-    guilds:
+    voice:                                    # DiscordVoiceSchema
+      enabled: false
+      provider: openai
+      api_key_env: OPENAI_API_KEY
+      model: whisper-1
+      language: en
+    attachments:                              # DiscordAttachmentsSchema
+      enabled: false
+      max_file_size_mb: 10
+      max_files_per_message: 5
+      allowed_types: ["image/*", "application/pdf", "text/*"]
+      download_dir: ".discord-attachments"
+      cleanup_after_processing: true
+    command_registration:                     # DiscordCommandRegistrationSchema
+      scope: global                           # global | guild
+      # guild_id: "..."                       # required when scope: guild
+    skills:                                   # DiscordSkillSchema[] — explicit /skill list
+      - name: deploy
+        description: "Deploy the app"
+    guilds:                                   # DiscordGuildSchema[]
       - id: "123456789012345678"
+        default_channel_mode: mention         # optional fallback for unlisted channels
         channels:
           - id: "987654321098765432"
             name: "#support"
@@ -430,6 +537,8 @@ chat:
 
 The `bot_token_env` field references an environment variable name, not a token value. At startup, `DiscordManager` reads `process.env[bot_token_env]` and passes the resolved token to the connector.
 
+`DiscordGuildSchema` also accepts a per-guild `dm` block, though the runtime DM path (connector filtering and `resolveChannelConfig()`) currently reads the agent-level `dm` config. The `output` block uses a `prefault` so an omitted `output:` still applies all nested defaults.
+
 ## Message Flow
 
 <img src="/diagrams/chat-message-flow.svg" alt="Chat message flow diagram showing user message through platform layer, shared layer, core execution, and reply path" width="100%" />
@@ -440,13 +549,13 @@ The end-to-end flow for a Discord message:
 2. **discord.js fires `MessageCreate`** -- The connector receives the raw Discord message.
 3. **Bot message filter** -- Messages from bots (including self) are discarded.
 4. **DM filtering** -- For DMs, allowlist/blocklist is checked.
-5. **Channel resolution** -- `resolveChannelConfig()` determines the mode (mention or auto) and context message count.
+5. **Channel resolution** -- `resolveChannelConfig()` determines the mode (mention or auto) and context message count, falling back to the guild's `default_channel_mode` for unlisted channels.
 6. **Mode check** -- In mention mode, `shouldProcessMessage()` verifies the bot was mentioned. In auto mode, all non-bot messages pass.
-7. **Context building** -- `buildConversationContext()` fetches channel history, strips mentions, and produces a `ConversationContext`.
-8. **Connector emits `message` event** -- Payload includes the clean prompt, context, metadata, reply function, and typing start function.
-9. **Manager handles message** -- `DiscordManager.handleMessage()` looks up the session, creates a `StreamingResponder`, starts typing, and calls `FleetManager.trigger()`.
-10. **Agent executes** -- The [Runner](/architecture/runner/) executes the Claude agent. SDK messages stream back via `onMessage`.
-11. **Streaming response** -- Text is sent incrementally; tool results become embeds; system messages become status embeds.
+7. **Context building and attachment detection** -- `buildConversationContext()` fetches channel history, strips mentions, and produces a `ConversationContext`. The connector also flags voice messages and extracts supported file attachments into the metadata.
+8. **Connector emits `message` event** -- Payload includes the clean prompt, context, metadata, reply/replyWithRef functions, typing start function, and reaction functions.
+9. **Manager handles message** -- `DiscordManager.handleMessage()` looks up the session, injects the file-sender MCP, creates a `StreamingResponder`, adds the acknowledgement reaction, starts typing, transcribes voice / processes attachments if present, and calls `FleetManager.trigger()`.
+10. **Agent executes** -- The [Runner](/architecture/runner/) executes the Claude agent. SDK messages stream back via `onMessage` and are normalized by `normalizeDiscordMessage()`.
+11. **Streaming response** -- Answer text is sent incrementally (or delta-streamed into a live-edited message with `assistant_messages: all`); a run-card embed tracks tool activity in place; oversized tool outputs become embed + `.txt` attachments.
 12. **Session stored** -- The SDK session ID is persisted for future conversation continuity in this channel.
 
 ## Source Code Layout
@@ -456,7 +565,10 @@ packages/discord/
   src/
     index.ts                            # Package exports
     discord-connector.ts                # DiscordConnector class
-    manager.ts                          # DiscordManager (IChatManager impl)
+    manager.ts                          # DiscordManager (IChatManager impl), attachment processing
+    message-normalizer.ts               # normalizeDiscordMessage(): SDK messages -> display events
+    embeds.ts                           # Run card, tool result, result summary, status, error embeds
+    voice-transcriber.ts                # transcribeAudio() via OpenAI Whisper API
     mention-handler.ts                  # Mention detection, stripping, context building
     auto-mode-handler.ts                # Channel config resolution, DM filtering
     error-handler.ts                    # Error classification, retry, ErrorHandler class
@@ -465,24 +577,31 @@ packages/discord/
     types.ts                            # Connector options, state, event map, reply types
     commands/
       index.ts                          # Command module exports
-      command-manager.ts                # CommandManager class
-      types.ts                          # CommandContext, SlashCommand, ICommandManager
-      help.ts                           # /help command
-      reset.ts                          # /reset command
-      status.ts                         # /status command
+      command-manager.ts                # CommandManager class, built-in command registry
+      types.ts                          # CommandContext, CommandActions, SlashCommand, ICommandManager
+      help.ts ping.ts config.ts         # Info commands
+      tools.ts usage.ts status.ts       # Inspection commands
+      session.ts skills.ts skill.ts     # Session/skill commands
+      reset.ts new.ts                   # Session-clearing commands
+      stop.ts cancel.ts retry.ts        # Run-control commands
     utils/
       index.ts                          # Utility module exports
       formatting.ts                     # escapeMarkdown, typing indicator, sendSplitMessage
     __tests__/
-      discord-connector.test.ts
-      manager.test.ts
-      mention-handler.test.ts
+      attachments.test.ts
       auto-mode-handler.test.ts
+      discord-connector.test.ts
+      embeds.test.ts
       error-handler.test.ts
       errors.test.ts
       logger.test.ts
+      manager.test.ts
+      mention-handler.test.ts
+      message-normalizer.test.ts
+      runtime-parity.test.ts
     commands/__tests__/
       command-manager.test.ts
+      extended-commands.test.ts
       help.test.ts
       reset.test.ts
       status.test.ts
