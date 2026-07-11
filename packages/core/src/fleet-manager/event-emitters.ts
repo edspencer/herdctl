@@ -17,7 +17,6 @@ import type {
   JobFailedPayload,
   JobForkedPayload,
   JobOutputPayload,
-  ScheduleSkippedPayload,
 } from "./event-types.js";
 
 // =============================================================================
@@ -84,25 +83,6 @@ export function emitAgentStopped(
   payload: AgentStoppedPayload,
 ): void {
   emitter.emit("agent:stopped", payload);
-}
-
-/**
- * Emit a schedule:skipped event
- *
- * Called when a schedule check is skipped. This can happen when:
- * - The agent is already running (already_running)
- * - The schedule is disabled (disabled)
- * - Max concurrent limit reached (max_concurrent)
- * - Work source returned no items (work_source_empty)
- *
- * @param emitter - The event emitter instance
- * @param payload - Schedule skip details including reason
- */
-export function emitScheduleSkipped(
-  emitter: FleetManagerEventEmitter,
-  payload: ScheduleSkippedPayload,
-): void {
-  emitter.emit("schedule:skipped", payload);
 }
 
 /**

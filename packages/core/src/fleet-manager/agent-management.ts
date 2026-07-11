@@ -28,6 +28,7 @@ import {
 } from "../config/index.js";
 import type { FleetManagerContext } from "./context.js";
 import { ConfigurationError, InvalidStateError } from "./errors.js";
+import { emitAgentStarted, emitAgentStopped } from "./event-emitters.js";
 import type { AgentInfo, ConfigChange } from "./types.js";
 
 // =============================================================================
@@ -83,7 +84,8 @@ export class AgentManagement {
    * fleet defaults (unless disabled), and normalized the same way agents loaded
    * from disk are. The resolved agent is appended to the in-memory config and
    * pushed to the scheduler so it is immediately triggerable and visible in
-   * fleet status. A `config:reloaded` event is emitted describing the change.
+   * fleet status. A `config:reloaded` event is emitted describing the change,
+   * followed by an `agent:started` event for the new agent.
    *
    * @param agent - The agent configuration to register
    * @param options - Resolution options (base dir, defaults merge, replace)
@@ -137,6 +139,11 @@ export class AgentManagement {
       buildChange(existingIndex !== -1 ? "modified" : "added", resolved),
     ]);
 
+    emitAgentStarted(this.ctx, {
+      agent: resolved,
+      timestamp: new Date().toISOString(),
+    });
+
     logger.info(
       `Agent "${resolved.qualifiedName}" ${existingIndex !== -1 ? "replaced" : "added"} programmatically`,
     );
@@ -150,7 +157,8 @@ export class AgentManagement {
    * Removes the agent from the in-memory config and the scheduler. Accepts a
    * qualified name (e.g. `"sub.agent"`) or a local name; qualified names are
    * matched first. Running jobs are unaffected — the scheduler simply stops
-   * triggering the removed agent's schedules.
+   * triggering the removed agent's schedules. A `config:reloaded` event is
+   * emitted describing the change, followed by an `agent:stopped` event.
    *
    * @param name - The agent qualified name or local name to remove
    * @returns `true` if an agent was removed, `false` if no match was found
@@ -175,6 +183,12 @@ export class AgentManagement {
     const newAgents = config.agents.filter((_, i) => i !== index);
 
     this.commit(config, newAgents, [buildChange("removed", removed)]);
+
+    emitAgentStopped(this.ctx, {
+      agentName: removed.qualifiedName,
+      timestamp: new Date().toISOString(),
+      reason: "removed",
+    });
 
     logger.info(`Agent "${removed.qualifiedName}" removed programmatically`);
     return true;

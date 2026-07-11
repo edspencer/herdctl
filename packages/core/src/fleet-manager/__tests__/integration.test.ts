@@ -23,6 +23,8 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
 import { query as mockQueryFn } from "@anthropic-ai/claude-agent-sdk";
 import { AgentNotFoundError, InvalidStateError, ScheduleNotFoundError } from "../errors.js";
 import type {
+  AgentStartedPayload,
+  AgentStoppedPayload,
   FleetManagerLogger,
   JobCompletedPayload,
   JobCreatedPayload,
@@ -187,6 +189,45 @@ describe("FleetManager Integration Tests (US-13)", () => {
       await manager.stop();
 
       expect(eventOrder).toEqual(["initialized", "started", "job:created", "stopped"]);
+    });
+
+    it("emits agent:started on start() and agent:stopped on stop() for each agent", async () => {
+      await createAgentConfig("lifecycle-alpha", { name: "lifecycle-alpha" });
+      await createAgentConfig("lifecycle-beta", { name: "lifecycle-beta" });
+
+      const configPath = await createConfig({
+        version: 1,
+        agents: [
+          { path: "./agents/lifecycle-alpha.yaml" },
+          { path: "./agents/lifecycle-beta.yaml" },
+        ],
+      });
+
+      const manager = createTestManager(configPath);
+      const started: AgentStartedPayload[] = [];
+      const stopped: AgentStoppedPayload[] = [];
+      manager.on("agent:started", (payload) => started.push(payload));
+      manager.on("agent:stopped", (payload) => stopped.push(payload));
+
+      await manager.initialize();
+      expect(started).toHaveLength(0);
+
+      await manager.start();
+      expect(started.map((p) => p.agent.qualifiedName).sort()).toEqual([
+        "lifecycle-alpha",
+        "lifecycle-beta",
+      ]);
+      for (const payload of started) {
+        expect(payload.timestamp).toEqual(expect.any(String));
+      }
+      expect(stopped).toHaveLength(0);
+
+      await manager.stop();
+      expect(stopped.map((p) => p.agentName).sort()).toEqual(["lifecycle-alpha", "lifecycle-beta"]);
+      for (const payload of stopped) {
+        expect(payload.reason).toBe("shutdown");
+        expect(payload.timestamp).toEqual(expect.any(String));
+      }
     });
 
     it("handles multiple agents in full workflow", async () => {

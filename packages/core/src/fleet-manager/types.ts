@@ -25,7 +25,6 @@ export type {
   JobFailedPayload,
   JobForkedPayload,
   JobOutputPayload,
-  ScheduleSkippedPayload,
   ScheduleTriggeredPayload,
   SlackErrorPayload,
   SlackMessageErrorPayload,

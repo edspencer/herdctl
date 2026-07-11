@@ -148,6 +148,29 @@ describe("FleetManager programmatic agent management", () => {
       );
     });
 
+    it("emits agent:started with the resolved agent", async () => {
+      const configPath = await createConfig({ version: 1, agents: [] });
+      const manager = createTestManager(configPath);
+      await manager.initialize();
+
+      const handler = vi.fn();
+      manager.on("agent:started", handler);
+
+      await manager.addAgent({ name: "started-agent", working_directory: tempDir });
+
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(handler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agent: expect.objectContaining({
+            name: "started-agent",
+            qualifiedName: "started-agent",
+            working_directory: tempDir,
+          }),
+          timestamp: expect.any(String),
+        }),
+      );
+    });
+
     it("merges fleet defaults into the added agent", async () => {
       const configPath = await createConfig({
         version: 1,
@@ -302,12 +325,45 @@ describe("FleetManager programmatic agent management", () => {
       );
     });
 
+    it("emits agent:stopped with reason 'removed'", async () => {
+      const configPath = await createConfig({ version: 1, agents: [] });
+      const manager = createTestManager(configPath);
+      await manager.initialize();
+      await manager.addAgent({ name: "stopped-agent", working_directory: tempDir });
+
+      const handler = vi.fn();
+      manager.on("agent:stopped", handler);
+
+      await manager.removeAgent("stopped-agent");
+
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(handler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentName: "stopped-agent",
+          reason: "removed",
+          timestamp: expect.any(String),
+        }),
+      );
+    });
+
     it("returns false when the agent does not exist", async () => {
       const configPath = await createConfig({ version: 1, agents: [] });
       const manager = createTestManager(configPath);
       await manager.initialize();
 
       expect(await manager.removeAgent("nope")).toBe(false);
+    });
+
+    it("does not emit agent:stopped when no agent matches", async () => {
+      const configPath = await createConfig({ version: 1, agents: [] });
+      const manager = createTestManager(configPath);
+      await manager.initialize();
+
+      const handler = vi.fn();
+      manager.on("agent:stopped", handler);
+
+      expect(await manager.removeAgent("ghost")).toBe(false);
+      expect(handler).not.toHaveBeenCalled();
     });
 
     it("removes a file-loaded agent by name", async () => {

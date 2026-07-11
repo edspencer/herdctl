@@ -98,9 +98,6 @@ async function startDaemon() {
     console.log(`Schedule triggered: ${payload.agentName}/${payload.scheduleName}`);
   });
 
-  manager.on("schedule:skipped", (payload) => {
-    console.log(`Schedule skipped: ${payload.agentName}/${payload.scheduleName} - ${payload.reason}`);
-  });
 
   manager.on("job:created", (payload) => {
     console.log(`Job started: ${payload.job.id} (${payload.agentName})`);

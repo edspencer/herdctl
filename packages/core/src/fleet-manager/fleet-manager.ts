@@ -48,6 +48,7 @@ import {
   FleetManagerStateDirError,
   InvalidStateError,
 } from "./errors.js";
+import { emitAgentStarted, emitAgentStopped } from "./event-emitters.js";
 import { JobControl } from "./job-control.js";
 import { LogStreaming } from "./log-streaming.js";
 import { ScheduleExecutor } from "./schedule-executor.js";
@@ -412,6 +413,13 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
 
       this.logger.info("Fleet manager started");
       this.emit("started");
+
+      // Announce each configured agent as started now that the scheduler is
+      // monitoring its schedules and chat managers (event subscribers) are up.
+      const startTimestamp = new Date().toISOString();
+      for (const agent of this.config?.agents ?? []) {
+        emitAgentStarted(this, { agent, timestamp: startTimestamp });
+      }
     } catch (error) {
       this.status = "error";
       this.lastError = error instanceof Error ? error.message : String(error);
@@ -471,6 +479,17 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       await this.persistShutdownState();
       this.status = "stopped";
       this.stoppedAt = new Date().toISOString();
+
+      // Announce each configured agent as stopped — the scheduler is no longer
+      // monitoring its schedules.
+      const stopTimestamp = new Date().toISOString();
+      for (const agent of this.config?.agents ?? []) {
+        emitAgentStopped(this, {
+          agentName: agent.qualifiedName,
+          timestamp: stopTimestamp,
+          reason: "shutdown",
+        });
+      }
 
       this.logger.info("Fleet manager stopped");
       this.emit("stopped");

@@ -72,10 +72,6 @@ async function main() {
     console.log(`Schedule triggered: ${payload.agentName}/${payload.scheduleName}`);
   });
 
-  manager.on("schedule:skipped", (payload) => {
-    console.log(`Schedule skipped: ${payload.agentName}/${payload.scheduleName}`);
-    console.log(`  Reason: ${payload.reason}`);
-  });
 
   // Config reload events
   manager.on("config:reloaded", (payload) => {

@@ -70,13 +70,6 @@ manager.on("schedule:triggered", (p) => {
   recordEvent("schedule:triggered", { agent: p.agentName, schedule: p.scheduleName });
 });
 
-manager.on("schedule:skipped", (p) => {
-  recordEvent("schedule:skipped", {
-    agent: p.agentName,
-    schedule: p.scheduleName,
-    reason: p.reason,
-  });
-});
 
 manager.on("config:reloaded", (p) => {
   recordEvent("config:reloaded", { agentCount: p.agentCount, changes: p.changes });

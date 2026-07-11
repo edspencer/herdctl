@@ -195,7 +195,6 @@ FleetManager extends Node.js `EventEmitter` and provides strongly-typed events f
 | Event | Payload | When Emitted |
 |-------|---------|-------------|
 | `schedule:triggered` | `{ agentName, scheduleName, schedule, timestamp }` | Schedule fires, before job creation |
-| `schedule:skipped` | `{ agentName, scheduleName, reason, timestamp }` | Schedule check skipped (already running, disabled, concurrency limit, empty work source) |
 
 **Job events:**
 
