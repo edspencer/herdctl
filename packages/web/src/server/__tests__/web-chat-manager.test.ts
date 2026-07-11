@@ -172,14 +172,16 @@ function createMockSessionManager() {
  * Create a minimal WebConfig for testing
  * Uses `as any` because we only need to test the fields that WebChatManager uses
  */
-function createMockWebConfig(overrides: { tool_results?: boolean } = {}) {
+function createMockWebConfig(
+  overrides: { tool_results?: boolean; session_expiry_hours?: number } = {},
+) {
   return {
     tool_results: overrides.tool_results ?? true,
+    session_expiry_hours: overrides.session_expiry_hours ?? 24,
     // Other required fields from the schema (not used by WebChatManager)
     host: "localhost",
     enabled: true,
     port: 3232,
-    session_expiry_hours: 24,
     open_browser: false,
     message_grouping: "separate" as const,
   };
@@ -246,6 +248,21 @@ describe("WebChatManager", () => {
           platform: "web",
           agentName: "agent-2",
           stateDir: "/state/dir",
+        }),
+      );
+    });
+
+    it("forwards session_expiry_hours to ChatSessionManager", () => {
+      manager.initialize(
+        mockFleetManager,
+        "/state/dir",
+        createMockWebConfig({ session_expiry_hours: 168 }),
+        mockDiscoveryService,
+      );
+
+      expect(ChatSessionManager).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionExpiryHours: 168,
         }),
       );
     });
