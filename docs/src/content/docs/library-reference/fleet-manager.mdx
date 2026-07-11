@@ -1686,7 +1686,6 @@ interface FleetManagerEventMap {
 
   // Schedule events
   'schedule:triggered': [payload: ScheduleTriggeredPayload];
-  'schedule:skipped': [payload: ScheduleSkippedPayload];
 
   // Job events
   'job:created': [payload: JobCreatedPayload];
@@ -1759,13 +1758,6 @@ interface ScheduleTriggeredPayload {
   schedule: Schedule;
   timestamp: string;
 }
-
-interface ScheduleSkippedPayload {
-  agentName: string;
-  scheduleName: string;
-  reason: 'already_running' | 'disabled' | 'max_concurrent' | 'work_source_empty';
-  timestamp: string;
-}
 ```
   </TabItem>
   <TabItem label="Config Events">
@@ -1830,10 +1822,6 @@ manager.on('job:failed', (payload) => {
 // Schedule events
 manager.on('schedule:triggered', (payload) => {
   console.log(`${payload.agentName}/${payload.scheduleName} triggered`);
-});
-
-manager.on('schedule:skipped', (payload) => {
-  console.log(`${payload.agentName}/${payload.scheduleName} skipped: ${payload.reason}`);
 });
 
 // Config reload
@@ -2090,6 +2078,5 @@ import type {
   JobCancelledPayload,
   JobForkedPayload,
   ScheduleTriggeredPayload,
-  ScheduleSkippedPayload,
 } from '@herdctl/core';
 ```

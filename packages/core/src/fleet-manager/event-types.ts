@@ -80,20 +80,6 @@ export interface ScheduleTriggeredPayload {
 }
 
 /**
- * Payload for schedule:skipped event
- */
-export interface ScheduleSkippedPayload {
-  /** Name of the agent whose schedule was skipped */
-  agentName: string;
-  /** Name of the schedule that was skipped */
-  scheduleName: string;
-  /** Reason why the schedule was skipped */
-  reason: "already_running" | "disabled" | "max_concurrent" | "work_source_empty";
-  /** ISO timestamp when the skip occurred */
-  timestamp: string;
-}
-
-/**
  * Payload for job:created event
  */
 export interface JobCreatedPayload {
@@ -335,12 +321,6 @@ export interface FleetManagerEventMap {
    * This is emitted before the job is created.
    */
   "schedule:triggered": [payload: ScheduleTriggeredPayload];
-
-  /**
-   * Emitted when a schedule check is skipped.
-   * This happens when the agent is already running or disabled.
-   */
-  "schedule:skipped": [payload: ScheduleSkippedPayload];
 
   // ===========================================================================
   // Job Events

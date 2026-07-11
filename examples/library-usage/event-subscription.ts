@@ -87,19 +87,6 @@ async function main() {
     console.log(`[Schedule]   Type: ${payload.schedule.type}`);
   });
 
-  manager.on("schedule:skipped", (payload) => {
-    const reasons: Record<string, string> = {
-      already_running: "Agent already running",
-      disabled: "Schedule disabled",
-      max_concurrent: "At concurrency limit",
-      work_source_empty: "No work items available",
-    };
-    console.log(
-      `[Schedule] Skipped: ${payload.agentName}/${payload.scheduleName}`,
-    );
-    console.log(`[Schedule]   Reason: ${reasons[payload.reason]}`);
-  });
-
   // =========================================================================
   // Job Events
   // =========================================================================

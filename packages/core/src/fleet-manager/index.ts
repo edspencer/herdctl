@@ -89,7 +89,6 @@ export {
   emitJobFailed,
   emitJobForked,
   emitJobOutput,
-  emitScheduleSkipped,
   type FleetManagerEventEmitter,
 } from "./event-emitters.js";
 export type {
@@ -182,7 +181,6 @@ export type {
   LogSource,
   LogStreamOptions,
   ScheduleInfo,
-  ScheduleSkippedPayload,
   ScheduleTriggeredPayload,
   SlackErrorPayload,
   SlackMessageErrorPayload,

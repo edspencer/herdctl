@@ -140,7 +140,6 @@ manager.on('agent:stopped', (payload) => {
 | Event | Payload | Description |
 |-------|---------|-------------|
 | `schedule:triggered` | `ScheduleTriggeredPayload` | Schedule fired, job about to start |
-| `schedule:skipped` | `ScheduleSkippedPayload` | Schedule check skipped |
 
 ```typescript
 interface ScheduleTriggeredPayload {
@@ -149,30 +148,12 @@ interface ScheduleTriggeredPayload {
   schedule: Schedule;      // Full schedule configuration
   timestamp: string;       // ISO timestamp
 }
-
-interface ScheduleSkippedPayload {
-  agentName: string;
-  scheduleName: string;
-  reason: 'already_running' | 'disabled' | 'max_concurrent' | 'work_source_empty';
-  timestamp: string;
-}
 ```
 
 ```typescript
 manager.on('schedule:triggered', (payload) => {
   console.log(`Triggered: ${payload.agentName}/${payload.scheduleName}`);
   console.log(`  Type: ${payload.schedule.type}`);
-});
-
-manager.on('schedule:skipped', (payload) => {
-  const reasons = {
-    already_running: 'Agent already running',
-    disabled: 'Schedule disabled',
-    max_concurrent: 'At concurrency limit',
-    work_source_empty: 'No work items available',
-  };
-  console.log(`Skipped: ${payload.agentName}/${payload.scheduleName}`);
-  console.log(`  Reason: ${reasons[payload.reason]}`);
 });
 ```
 
@@ -414,10 +395,6 @@ manager.on('config:reloaded', (payload) => {
 // Schedule events
 manager.on('schedule:triggered', (payload) => {
   console.log(`[Schedule] ${payload.agentName}/${payload.scheduleName} triggered`);
-});
-
-manager.on('schedule:skipped', (payload) => {
-  console.log(`[Schedule] ${payload.agentName}/${payload.scheduleName} skipped: ${payload.reason}`);
 });
 
 // Job lifecycle events
@@ -956,7 +933,6 @@ import type {
 
   // Schedule events
   ScheduleTriggeredPayload,
-  ScheduleSkippedPayload,
 
   // Job events
   JobCreatedPayload,
