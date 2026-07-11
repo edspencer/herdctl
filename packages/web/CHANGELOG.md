@@ -1,5 +1,16 @@
 # @herdctl/web
 
+## 0.9.29
+
+### Patch Changes
+
+- [#341](https://github.com/edspencer/herdctl/pull/341) [`03c6a31`](https://github.com/edspencer/herdctl/commit/03c6a31d04c6658a1a55026ff9f195ea4472ba8a) Thanks [@edspencer](https://github.com/edspencer)! - Fix `web.session_expiry_hours` config not being honored by the web chat manager (edspencer/herdctl#326).
+
+  The value was already plumbed from fleet config into `WebChatManager.initialize()`, but `initialize()` never captured it and `createSessionManagerForAgent()` hardcoded `sessionExpiryHours: 24` when constructing each agent's `ChatSessionManager`. The configured value is now stored on the manager and forwarded to every `ChatSessionManager`, matching how the Discord and Slack connectors already handle it.
+
+- Updated dependencies [[`2d222e8`](https://github.com/edspencer/herdctl/commit/2d222e8d0bc505e55a02b6836ba96378eb774940), [`d01b388`](https://github.com/edspencer/herdctl/commit/d01b3882d06a21810ba16eaafc787356f7bbab1f), [`d09833d`](https://github.com/edspencer/herdctl/commit/d09833dee9c22c2d8add651c980243d9599c71b9), [`1571325`](https://github.com/edspencer/herdctl/commit/15713256986e5eac99a26a429c3261c5be183eb4), [`2da4b33`](https://github.com/edspencer/herdctl/commit/2da4b33fcfd0ccb7f010eb603479175c63589816), [`8fec611`](https://github.com/edspencer/herdctl/commit/8fec6113a01c07162d4e87ed852460850434a44c), [`18834f8`](https://github.com/edspencer/herdctl/commit/18834f8dac900eea3b1f8810cfa6d04453e3de32), [`d7589df`](https://github.com/edspencer/herdctl/commit/d7589dfd97819c84933b8502ca18ce5810bd1c69), [`38a408d`](https://github.com/edspencer/herdctl/commit/38a408d5d7b29c13863a79aa60370487bc37ffe3), [`f915f65`](https://github.com/edspencer/herdctl/commit/f915f656d973ebd17457c005476d519103f2b192)]:
+  - @herdctl/core@5.19.0
+
 ## 0.9.28
 
 ### Patch Changes
