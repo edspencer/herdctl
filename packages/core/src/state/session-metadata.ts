@@ -32,6 +32,28 @@ export const SessionMetadataEntrySchema = z.object({
   preview: z.string().optional(),
   /** ISO 8601 timestamp of when preview was extracted (for cache invalidation) */
   previewMtime: z.string().optional(),
+  /**
+   * Whether the session is a sidechain (Task sub-agent / --resume warmup). Derived
+   * from the transcript's first JSONL line; cached so session discovery doesn't
+   * re-open every transcript on each listing.
+   */
+  isSidechain: z.boolean().optional(),
+  /** ISO 8601 timestamp of when isSidechain was determined (for cache invalidation) */
+  isSidechainMtime: z.string().optional(),
+  /**
+   * Context-window usage as of the session's last completed turn, cached so the
+   * fill can be shown without re-streaming the whole transcript. `hasData:false`
+   * means the transcript carried no usage.
+   */
+  usage: z
+    .object({
+      inputTokens: z.number(),
+      turnCount: z.number(),
+      hasData: z.boolean(),
+    })
+    .optional(),
+  /** ISO 8601 timestamp of when usage was extracted (for cache invalidation) */
+  usageMtime: z.string().optional(),
   // Future: pinned, archived, tags
 });
 
@@ -463,6 +485,135 @@ export class SessionMetadataStore {
 
     logger.debug(`Batch set previews for ${entries.length} sessions`, {
       agentName,
+    });
+  }
+
+  /**
+   * Get cached sidechain flag and its mtime for a session
+   *
+   * @param agentName - The agent's qualified name (use "adhoc" for unattributed sessions)
+   * @param sessionId - The session ID
+   * @returns Object with isSidechain and isSidechainMtime, or undefined if not cached
+   */
+  async getSidechain(
+    agentName: string,
+    sessionId: string,
+  ): Promise<{ isSidechain?: boolean; isSidechainMtime?: string } | undefined> {
+    const metadata = await this.loadMetadata(agentName);
+    if (!metadata) {
+      return undefined;
+    }
+
+    const entry = metadata.sessions[sessionId];
+    if (!entry) {
+      return undefined;
+    }
+
+    return {
+      isSidechain: entry.isSidechain,
+      isSidechainMtime: entry.isSidechainMtime,
+    };
+  }
+
+  /**
+   * Batch set sidechain flags for multiple sessions
+   *
+   * More efficient than a per-session write since it performs a single file
+   * write for all updates.
+   *
+   * @param agentName - The agent's qualified name (use "adhoc" for unattributed sessions)
+   * @param entries - Array of { sessionId, isSidechain, mtime } objects
+   */
+  async batchSetSidechains(
+    agentName: string,
+    entries: Array<{ sessionId: string; isSidechain: boolean; mtime: string }>,
+  ): Promise<void> {
+    if (entries.length === 0) {
+      return;
+    }
+
+    let metadata = await this.loadMetadata(agentName);
+
+    if (!metadata) {
+      metadata = this.createEmptyMetadata(agentName);
+    }
+
+    for (const { sessionId, isSidechain, mtime } of entries) {
+      const sessionEntry = metadata.sessions[sessionId] ?? {};
+      metadata.sessions[sessionId] = {
+        ...sessionEntry,
+        isSidechain,
+        isSidechainMtime: mtime,
+      };
+    }
+
+    await this.saveMetadata(agentName, metadata);
+
+    logger.debug(`Batch set sidechain flags for ${entries.length} sessions`, {
+      agentName,
+    });
+  }
+
+  /**
+   * Get cached usage and its mtime for a session
+   *
+   * @param agentName - The agent's qualified name (use "adhoc" for unattributed sessions)
+   * @param sessionId - The session ID
+   * @returns Object with usage and usageMtime, or undefined if not cached
+   */
+  async getUsage(
+    agentName: string,
+    sessionId: string,
+  ): Promise<{ usage?: SessionMetadataEntry["usage"]; usageMtime?: string } | undefined> {
+    const metadata = await this.loadMetadata(agentName);
+    if (!metadata) {
+      return undefined;
+    }
+
+    const entry = metadata.sessions[sessionId];
+    if (!entry) {
+      return undefined;
+    }
+
+    return {
+      usage: entry.usage,
+      usageMtime: entry.usageMtime,
+    };
+  }
+
+  /**
+   * Set cached usage for a session
+   *
+   * @param agentName - The agent's qualified name (use "adhoc" for unattributed sessions)
+   * @param sessionId - The session ID
+   * @param usage - The extracted usage (inputTokens / turnCount / hasData)
+   * @param mtime - ISO 8601 timestamp of the session file when usage was extracted
+   */
+  async setUsage(
+    agentName: string,
+    sessionId: string,
+    usage: NonNullable<SessionMetadataEntry["usage"]>,
+    mtime: string,
+  ): Promise<void> {
+    let metadata = await this.loadMetadata(agentName);
+
+    if (!metadata) {
+      metadata = this.createEmptyMetadata(agentName);
+    }
+
+    const sessionEntry = metadata.sessions[sessionId] ?? {};
+
+    metadata.sessions[sessionId] = {
+      ...sessionEntry,
+      usage,
+      usageMtime: mtime,
+    };
+
+    await this.saveMetadata(agentName, metadata);
+
+    logger.debug(`Set usage for session ${sessionId}`, {
+      agentName,
+      inputTokens: usage.inputTokens,
     });
   }
 }

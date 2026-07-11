@@ -36,6 +36,10 @@ const mockGetAutoName = vi.fn().mockResolvedValue(undefined);
 const mockBatchSetAutoNames = vi.fn().mockResolvedValue(undefined);
 const mockGetPreview = vi.fn().mockResolvedValue(undefined);
 const mockBatchSetPreviews = vi.fn().mockResolvedValue(undefined);
+const mockGetSidechain = vi.fn().mockResolvedValue(undefined);
+const mockBatchSetSidechains = vi.fn().mockResolvedValue(undefined);
+const mockGetUsage = vi.fn().mockResolvedValue(undefined);
+const mockSetUsage = vi.fn().mockResolvedValue(undefined);
 vi.mock("../session-metadata.js", () => {
   return {
     SessionMetadataStore: class MockSessionMetadataStore {
@@ -44,6 +48,10 @@ vi.mock("../session-metadata.js", () => {
       batchSetAutoNames = mockBatchSetAutoNames;
       getPreview = mockGetPreview;
       batchSetPreviews = mockBatchSetPreviews;
+      getSidechain = mockGetSidechain;
+      batchSetSidechains = mockBatchSetSidechains;
+      getUsage = mockGetUsage;
+      setUsage = mockSetUsage;
     },
   };
 });
@@ -143,6 +151,14 @@ describe("SessionDiscoveryService", () => {
     mockGetPreview.mockResolvedValue(undefined);
     mockBatchSetPreviews.mockReset();
     mockBatchSetPreviews.mockResolvedValue(undefined);
+    mockGetSidechain.mockReset();
+    mockGetSidechain.mockResolvedValue(undefined);
+    mockBatchSetSidechains.mockReset();
+    mockBatchSetSidechains.mockResolvedValue(undefined);
+    mockGetUsage.mockReset();
+    mockGetUsage.mockResolvedValue(undefined);
+    mockSetUsage.mockReset();
+    mockSetUsage.mockResolvedValue(undefined);
 
     // Reset JSONL parser mocks
     mockExtractLastSummary.mockReset();
@@ -151,6 +167,8 @@ describe("SessionDiscoveryService", () => {
     mockExtractFirstMessagePreview.mockResolvedValue(undefined);
     mockIsSidechainSession.mockReset();
     mockIsSidechainSession.mockResolvedValue(false);
+    mockExtractSessionUsage.mockReset();
+    mockExtractSessionUsage.mockResolvedValue({ inputTokens: 0, turnCount: 0, hasData: false });
   });
 
   afterEach(async () => {
@@ -974,6 +992,69 @@ describe("SessionDiscoveryService", () => {
       expect(result).toEqual(mockUsage);
       expect(mockExtractSessionUsage).toHaveBeenCalled();
     });
+
+    it("without agentName it does not touch the persistent cache", async () => {
+      mockExtractSessionUsage.mockResolvedValue({ inputTokens: 1, turnCount: 1, hasData: true });
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      await service.getSessionUsage("/Users/ed/Code/myproject", "session-abc");
+
+      expect(mockGetUsage).not.toHaveBeenCalled();
+      expect(mockSetUsage).not.toHaveBeenCalled();
+    });
+
+    it("with agentName + a cache miss, it parses and persists the usage", async () => {
+      mockGetUsage.mockResolvedValue(undefined); // cache miss
+      mockExtractSessionUsage.mockResolvedValue({
+        inputTokens: 250_000,
+        turnCount: 12,
+        hasData: true,
+      });
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      const result = await service.getSessionUsage("/Users/ed/Code/myproject", "session-abc", {
+        agentName: "my-agent",
+        mtime: "2024-01-15T10:00:00.000Z",
+      });
+
+      expect(result.inputTokens).toBe(250_000);
+      expect(mockExtractSessionUsage).toHaveBeenCalled();
+      expect(mockSetUsage).toHaveBeenCalledWith(
+        "my-agent",
+        "session-abc",
+        { inputTokens: 250_000, turnCount: 12, hasData: true },
+        "2024-01-15T10:00:00.000Z",
+      );
+    });
+
+    it("with agentName + a fresh cache hit, it serves the cache without re-parsing", async () => {
+      // Cache entry newer than the supplied mtime → valid hit.
+      mockGetUsage.mockResolvedValue({
+        usage: { inputTokens: 42, turnCount: 3, hasData: true },
+        usageMtime: "2099-01-01T00:00:00.000Z",
+      });
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      const result = await service.getSessionUsage("/Users/ed/Code/myproject", "session-abc", {
+        agentName: "my-agent",
+        mtime: "2024-01-15T10:00:00.000Z",
+      });
+
+      expect(result).toEqual({ inputTokens: 42, turnCount: 3, hasData: true });
+      expect(mockExtractSessionUsage).not.toHaveBeenCalled();
+      expect(mockSetUsage).not.toHaveBeenCalled();
+    });
   });
 
   // ===========================================================================
@@ -1651,6 +1732,90 @@ describe("SessionDiscoveryService", () => {
       expect(sessions[0].autoName).toBeUndefined();
       // Should not batch write when there's nothing to write
       expect(mockBatchSetAutoNames).not.toHaveBeenCalled();
+    });
+  });
+
+  // ===========================================================================
+  // Sidechain caching (issue: project switch re-reads every transcript)
+  // ===========================================================================
+
+  describe("sidechain caching", () => {
+    const workingDir = "/Users/ed/Code/myproject";
+    // tempClaudeHome is only assigned in beforeEach, so resolve the dir per-test.
+    const projectDirOf = () => join(tempClaudeHome, "projects", "-Users-ed-Code-myproject");
+
+    it("re-reads the transcript on a cache miss and batch-writes the flag", async () => {
+      const projectDir = projectDirOf();
+      await mkdir(projectDir, { recursive: true });
+      await createSessionFile(projectDir, "session-1");
+
+      mockGetSidechain.mockResolvedValue(undefined); // miss
+      mockIsSidechainSession.mockResolvedValue(false);
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      const sessions = await service.getAgentSessions("my-agent", workingDir, false);
+
+      expect(sessions.map((s) => s.sessionId)).toContain("session-1");
+      expect(mockIsSidechainSession).toHaveBeenCalled();
+      expect(mockBatchSetSidechains).toHaveBeenCalledWith(
+        "my-agent",
+        expect.arrayContaining([
+          expect.objectContaining({ sessionId: "session-1", isSidechain: false }),
+        ]),
+      );
+    });
+
+    it("uses a fresh cache hit and does NOT re-open the transcript", async () => {
+      const projectDir = projectDirOf();
+      await mkdir(projectDir, { recursive: true });
+      await createSessionFile(projectDir, "session-1");
+
+      // Cache newer than the file → valid.
+      mockGetSidechain.mockResolvedValue({
+        isSidechain: false,
+        isSidechainMtime: "2099-01-01T00:00:00.000Z",
+      });
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      const sessions = await service.getAgentSessions("my-agent", workingDir, false);
+
+      expect(sessions.map((s) => s.sessionId)).toContain("session-1");
+      expect(mockIsSidechainSession).not.toHaveBeenCalled();
+      expect(mockBatchSetSidechains).not.toHaveBeenCalled();
+    });
+
+    it("excludes a session cached as a sidechain, without reading it", async () => {
+      const projectDir = projectDirOf();
+      await mkdir(projectDir, { recursive: true });
+      await createSessionFile(projectDir, "sidechain-1");
+      await createSessionFile(projectDir, "real-1");
+
+      mockGetSidechain.mockImplementation(async (_agent: string, sessionId: string) =>
+        sessionId === "sidechain-1"
+          ? { isSidechain: true, isSidechainMtime: "2099-01-01T00:00:00.000Z" }
+          : { isSidechain: false, isSidechainMtime: "2099-01-01T00:00:00.000Z" },
+      );
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      const ids = (await service.getAgentSessions("my-agent", workingDir, false)).map(
+        (s) => s.sessionId,
+      );
+
+      expect(ids).toContain("real-1");
+      expect(ids).not.toContain("sidechain-1");
+      expect(mockIsSidechainSession).not.toHaveBeenCalled();
     });
   });
 

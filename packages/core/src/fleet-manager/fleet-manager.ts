@@ -662,6 +662,9 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     }
     return this.getSessionDiscovery().getSessionUsage(workingDirectory, sessionId, {
       dockerEnabled,
+      // Enables the persistent, mtime-keyed usage cache so a chat list doesn't
+      // re-stream every transcript on each read.
+      agentName: name,
     });
   }
 
