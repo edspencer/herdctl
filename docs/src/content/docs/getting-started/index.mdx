@@ -224,14 +224,11 @@ Once your fleet is configured, use these commands:
 # Start the fleet (all agents)
 herdctl start
 
-# Start a specific agent
-herdctl start coder
-
 # Check fleet status
 herdctl status
 
-# Manually trigger an agent
-herdctl trigger coder check-issues
+# Manually trigger an agent's schedule
+herdctl trigger coder -S check-issues
 
 # View logs
 herdctl logs coder

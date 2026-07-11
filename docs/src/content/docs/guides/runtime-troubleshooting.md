@@ -465,8 +465,8 @@ docker --version
 docker info
 
 # herdctl info
-herdctl version
-herdctl agents list
+herdctl --version
+herdctl agent list
 
 # Docker diagnostics
 docker ps -a
