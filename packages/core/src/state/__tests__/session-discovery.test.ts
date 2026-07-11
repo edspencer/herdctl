@@ -7,10 +7,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // Mocks
 // =============================================================================
 
-// Mock session-attribution
-vi.mock("../session-attribution.js", () => ({
-  buildAttributionIndex: vi.fn(),
-}));
+// Mock session-attribution. The service now builds its index through
+// AttributionIndexBuilder#build; route that to the SAME fn exported as
+// buildAttributionIndex, so `vi.mocked(buildAttributionIndex)` drives both.
+vi.mock("../session-attribution.js", () => {
+  const fn = vi.fn();
+  return {
+    buildAttributionIndex: fn,
+    AttributionIndexBuilder: class MockAttributionIndexBuilder {
+      build = fn;
+    },
+  };
+});
 
 // Mock jsonl-parser
 vi.mock("../jsonl-parser.js", () => ({

@@ -30,7 +30,7 @@ import {
 } from "./jsonl-parser.js";
 import {
   type AttributionIndex,
-  buildAttributionIndex,
+  AttributionIndexBuilder,
   type SessionOrigin,
 } from "./session-attribution.js";
 import { SessionMetadataStore } from "./session-metadata.js";
@@ -188,6 +188,12 @@ export class SessionDiscoveryService {
 
   private attributionIndex: AttributionIndex | null = null;
   private attributionFetchedAt: number = 0;
+  /**
+   * Incremental builder for the attribution index. Held for the service's
+   * lifetime so its per-job-file cache survives across rebuilds — a post-TTL
+   * refresh then re-parses only new/changed job files instead of all of them.
+   */
+  private readonly attributionBuilder = new AttributionIndexBuilder();
 
   private directoryCache: Map<string, DirectoryCacheEntry> = new Map();
   private metadataCache: Map<string, SessionMetadata> = new Map();
@@ -245,7 +251,8 @@ export class SessionDiscoveryService {
     }
 
     logger.debug("Building attribution index");
-    this.attributionIndex = await buildAttributionIndex(this.stateDir);
+    // Incremental: re-parses only new/changed job files since the last build.
+    this.attributionIndex = await this.attributionBuilder.build(this.stateDir);
     this.attributionFetchedAt = Date.now();
     logger.debug(`Attribution index built with ${this.attributionIndex.size} entries`);
 

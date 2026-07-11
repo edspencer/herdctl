@@ -11,7 +11,8 @@ import yaml from "yaml";
 import { z } from "zod";
 import { createLogger } from "../utils/logger.js";
 import { listJobs } from "./job-metadata.js";
-import type { TriggerType } from "./schemas/job-metadata.js";
+import { JobMetadataSchema, type TriggerType } from "./schemas/job-metadata.js";
+import { safeReadYaml } from "./utils/reads.js";
 
 // =============================================================================
 // Types
@@ -195,6 +196,18 @@ export async function buildAttributionIndex(stateDir: string): Promise<Attributi
     buildPlatformIndex(stateDir),
   ]);
 
+  return createAttributionIndex(jobIndex, platformIndex);
+}
+
+/**
+ * Assemble the {@link AttributionIndex} lookup object from a job index and a
+ * platform index. Shared by the full {@link buildAttributionIndex} and the
+ * incremental {@link AttributionIndexBuilder}.
+ */
+function createAttributionIndex(
+  jobIndex: Map<string, JobIndexEntry>,
+  platformIndex: Map<string, PlatformIndexEntry>,
+): AttributionIndex {
   const getAttribute = (sessionId: string): SessionAttribution => {
     // Check job index first
     const jobEntry = jobIndex.get(sessionId);
@@ -242,4 +255,122 @@ export async function buildAttributionIndex(stateDir: string): Promise<Attributi
       return allSessionIds.size;
     },
   };
+}
+
+/** One job file's contribution to the index, memoized by the builder. */
+interface CachedJobFile {
+  /** File mtime (epoch ms) when last parsed — the cache-invalidation key. */
+  mtimeMs: number;
+  /**
+   * The session→attribution entry this job contributes, or `null` when the job
+   * has no `session_id` yet (e.g. still running) or failed to parse. Cached
+   * either way so we don't re-read an unchanged file.
+   */
+  entry: { sessionId: string; agent: string; triggerType: string } | null;
+}
+
+/**
+ * Incremental builder for the attribution index.
+ *
+ * The full {@link buildAttributionIndex} reads and YAML-parses *every* job record
+ * on each build. For a long-running fleet that accumulates thousands of jobs,
+ * that's the dominant cost of listing sessions once the per-listing cache
+ * expires. Job records are effectively immutable except for a small tail (a job
+ * gains its `session_id` and a terminal status when it finishes), so this builder
+ * keeps a per-file cache keyed on mtime and re-parses only files that are new or
+ * whose mtime changed — turning each rebuild from O(jobs) reads into O(jobs)
+ * cheap stats + O(changed) parses.
+ *
+ * Platform session files are few and mutable, so they're still read in full each
+ * build.
+ *
+ * A single builder instance must be reused across builds to get the benefit.
+ */
+export class AttributionIndexBuilder {
+  private readonly jobFileCache = new Map<string, CachedJobFile>();
+
+  /** Build (or incrementally refresh) the attribution index for a state dir. */
+  async build(stateDir: string): Promise<AttributionIndex> {
+    const jobsDir = path.join(stateDir, "jobs");
+    const [jobIndex, platformIndex] = await Promise.all([
+      this.buildJobIndexIncremental(jobsDir),
+      buildPlatformIndex(stateDir),
+    ]);
+    return createAttributionIndex(jobIndex, platformIndex);
+  }
+
+  private async buildJobIndexIncremental(jobsDir: string): Promise<Map<string, JobIndexEntry>> {
+    let files: string[];
+    try {
+      files = await fs.readdir(jobsDir);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        this.jobFileCache.clear();
+        return new Map();
+      }
+      throw error;
+    }
+
+    const jobFiles = files.filter((f) => f.startsWith("job-") && f.endsWith(".yaml"));
+    const present = new Set(jobFiles);
+
+    // Drop cache entries for job files that have been deleted/pruned.
+    for (const cachedFile of this.jobFileCache.keys()) {
+      if (!present.has(cachedFile)) {
+        this.jobFileCache.delete(cachedFile);
+      }
+    }
+
+    // Stat every file (cheap); re-parse only new or changed ones.
+    await Promise.all(
+      jobFiles.map(async (file) => {
+        const filePath = path.join(jobsDir, file);
+
+        let mtimeMs: number;
+        try {
+          mtimeMs = (await fs.stat(filePath)).mtimeMs;
+        } catch {
+          // Vanished between readdir and stat — forget it.
+          this.jobFileCache.delete(file);
+          return;
+        }
+
+        const cached = this.jobFileCache.get(file);
+        if (cached && cached.mtimeMs === mtimeMs) {
+          return; // unchanged — reuse the cached contribution
+        }
+
+        const result = await safeReadYaml<unknown>(filePath);
+        if (!result.success) {
+          logger.warn(`Failed to read job file ${filePath}: ${result.error.message}`);
+          this.jobFileCache.set(file, { mtimeMs, entry: null });
+          return;
+        }
+
+        const parsed = JobMetadataSchema.safeParse(result.data);
+        if (!parsed.success) {
+          logger.warn(`Corrupted job file ${filePath}: ${parsed.error.message}`);
+          this.jobFileCache.set(file, { mtimeMs, entry: null });
+          return;
+        }
+
+        const job = parsed.data;
+        this.jobFileCache.set(file, {
+          mtimeMs,
+          entry: job.session_id
+            ? { sessionId: job.session_id, agent: job.agent, triggerType: job.trigger_type }
+            : null,
+        });
+      }),
+    );
+
+    // Assemble the session→attribution map from the cached per-file contributions.
+    const index = new Map<string, JobIndexEntry>();
+    for (const { entry } of this.jobFileCache.values()) {
+      if (entry) {
+        index.set(entry.sessionId, { agent: entry.agent, triggerType: entry.triggerType });
+      }
+    }
+    return index;
+  }
 }
