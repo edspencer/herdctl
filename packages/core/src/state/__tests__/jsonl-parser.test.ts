@@ -72,6 +72,9 @@ describe("parseSessionMessages", () => {
     expect(toolMsg.toolCall!.isError).toBe(false);
     expect(toolMsg.toolCall!.output).toContain("import express from 'express'");
     expect(toolMsg.toolCall!.inputSummary).toBe("/src/index.ts");
+    // Tool output must not be duplicated onto top-level `content` — consumers
+    // render it from toolCall.output, so the second copy only bloats the payload.
+    expect(toolMsg.content).toBe("");
 
     // Final assistant message
     expect(messages[3].role).toBe("assistant");

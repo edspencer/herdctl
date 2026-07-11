@@ -253,7 +253,11 @@ export async function parseSessionMessages(
 
           messages.push({
             role: "tool",
-            content: result.output,
+            // Tool output lives on `toolCall.output` (below); consumers render
+            // tool messages from there, never from top-level `content`. Keeping a
+            // second copy here doubled the (often large) tool-output bytes in the
+            // serialized payload, so leave `content` empty for tool messages.
+            content: "",
             timestamp,
             // Anchor to the originating tool_use entry so the id is stable and
             // distinct even when several tool_results share one user line. Fall
