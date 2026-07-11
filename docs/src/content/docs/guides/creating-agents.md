@@ -71,9 +71,12 @@ allowed_tools:
   - WebFetch
   - Bash
 
+# docker.enabled is a boolean, so it cannot use ${VAR} interpolation
+# (validation runs before interpolation). Set it literally:
 docker:
-  enabled: ${DOCKER_ENABLED:-false}
-  network: bridge  # Always use bridge - agents need network for Anthropic API
+  enabled: false
+# Note: network mode is a fleet-level option (defaults.docker.network in
+# herdctl.yaml). Keep it on bridge - agents need network for the Anthropic API.
 ```
 
 ### Key Fields
@@ -101,21 +104,25 @@ Use `${VAR}` syntax for values that vary per installation:
 Common patterns:
 
 ```yaml
-# Required variables (user must set these)
-cron: "${CRON_SCHEDULE}"
-prompt: "Post to: ${DISCORD_WEBHOOK_URL}"
-
-# Optional variables with defaults
-docker:
-  enabled: ${DOCKER_ENABLED:-false}
-
 schedules:
+  report:
+    type: cron
+    # Required variables (user must set these)
+    cron: "${CRON_SCHEDULE}"
+    prompt: "Post to: ${DISCORD_WEBHOOK_URL}"
+
   check:
     type: cron
+    # Optional variable with a default
     cron: "${SCHEDULE:-0 9 * * *}"
+    prompt: "Run the scheduled check."
 ```
 
 Environment variables are resolved at runtime from the user's `.env` file or environment. There's no install-time substitution — the `agent.yaml` you write is exactly what gets installed.
+
+:::caution[String fields only]
+Interpolation only works in **string** fields. herdctl validates the config against its schema *before* interpolating, so `${VAR}` in a number or boolean field (e.g. `docker.enabled: ${DOCKER_ENABLED:-false}` or `max_turns: ${MAX_TURNS:-50}`) fails validation. Set non-string values literally. See [Environment Variables](/configuration/environment/#string-fields-only).
+:::
 
 ## Optional: herdctl.json
 
@@ -309,7 +316,7 @@ herdctl agent add github:yourname/my-agent@v1.0.0
 
 ### Security
 
-- **Always use `network: bridge`** for Docker — agents need network access for the Anthropic API
+- **Always use `network: bridge`** for Docker (a fleet-level option, `defaults.docker.network` in `herdctl.yaml`) — agents need network access for the Anthropic API
 - **Never use `network: none`** — this completely breaks agent functionality
 - **Document required permissions** — be clear about what tools and access the agent needs
 - **Minimize permissions** — only request tools the agent actually uses

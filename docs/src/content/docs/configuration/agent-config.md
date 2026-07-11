@@ -11,7 +11,7 @@ Each agent is defined by a YAML file that specifies its identity, behavior, sche
 name: my-coder
 description: "Implements features from GitHub issues"
 
-workspace: my-project
+working_directory: ./my-project
 repo: myorg/my-project
 
 identity:
@@ -55,7 +55,6 @@ mcp_servers:
 
 model: claude-sonnet-4-20250514
 max_turns: 100
-permission_mode: acceptEdits
 ```
 
 ## Complete Schema Reference
@@ -66,7 +65,7 @@ permission_mode: acceptEdits
 |-------|------|----------|-------------|
 | `name` | string | **Yes** | Unique identifier for the agent |
 | `description` | string | No | Human-readable description |
-| `workspace` | string \| object | No | Directory name or workspace config |
+| `working_directory` | string \| object | No | Working directory path or config (deprecated alias: `workspace`) |
 | `repo` | string | No | GitHub repository (e.g., `owner/repo`) |
 | `identity` | object | No | Agent identity configuration |
 | `system_prompt` | string | No | Custom system instructions for Claude |
@@ -77,8 +76,10 @@ permission_mode: acceptEdits
 | `instances` | object | No | Concurrency and instance settings |
 | `session` | object | No | Session runtime settings |
 | `permission_mode` | string | No | Permission mode setting |
-| `allowed_tools` | string[] | No | Tools the agent can use |
+| `tools` | string[] | No | Tool availability whitelist - only these tools exist |
+| `allowed_tools` | string[] | No | Tools pre-approved to skip permission prompts |
 | `denied_tools` | string[] | No | Tools explicitly denied |
+| `setting_sources` | string[] | No | Where Claude discovers settings: `user`, `project`, `local` |
 | `mcp_servers` | object | No | MCP server configurations |
 | `chat` | object | No | Chat integration settings |
 | `docker` | object | No | Docker execution settings |
@@ -107,20 +108,22 @@ Human-readable description of what this agent does.
 description: "Implements features and fixes bugs for the bragdoc project"
 ```
 
-### workspace
+### working_directory
 
-Where the agent operates. Can be a simple string (directory name) or a full configuration object.
+Where the agent operates. Can be a simple string (a path) or a full configuration object.
+
+If omitted, the working directory **defaults to the directory containing the agent's YAML file**. Relative paths are resolved against that same directory. Tilde (`~`) is not expanded — use absolute or relative paths.
 
 **Simple form:**
 
 ```yaml
-workspace: my-project
+working_directory: ./my-project
 ```
 
 **Full form:**
 
 ```yaml
-workspace:
+working_directory:
   root: /path/to/workspace
   auto_clone: true
   clone_depth: 1
@@ -129,10 +132,14 @@ workspace:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `root` | string | — | Absolute path to workspace root |
+| `root` | string | — | Path to workspace root (relative paths resolve against the agent config's directory) |
 | `auto_clone` | boolean | `true` | Auto-clone repo if missing |
 | `clone_depth` | integer | `1` | Git clone depth |
 | `default_branch` | string | `"main"` | Default branch to use |
+
+:::note[Deprecated alias: workspace]
+The old `workspace:` field name is a deprecated alias for `working_directory:`. It still loads (herdctl migrates it and logs a warning), but new configs should use `working_directory`.
+:::
 
 ### repo
 
@@ -217,7 +224,7 @@ A map of named schedules that trigger agent execution. Each schedule has a uniqu
 schedules:
   morning-standup:
     type: cron
-    expression: "0 9 * * 1-5"
+    cron: "0 9 * * 1-5"
     prompt: "Review open PRs and summarize status."
 
   issue-check:
@@ -243,7 +250,7 @@ schedules:
 | Type | Description | Key Fields |
 |------|-------------|------------|
 | `interval` | Run at fixed intervals | `interval` (e.g., "5m", "1h") |
-| `cron` | Run on cron schedule | `expression` (cron syntax) |
+| `cron` | Run on cron schedule | `cron` (cron syntax) |
 | `webhook` | Triggered by HTTP webhook | — |
 | `chat` | Triggered by chat messages | — |
 
@@ -282,12 +289,12 @@ Use cron expressions for precise time-based scheduling. Cron format: `minute hou
 schedules:
   daily-report:
     type: cron
-    expression: "@daily"
+    cron: "@daily"
     prompt: "Generate daily status report."
 
   weekly-review:
     type: cron
-    expression: "@weekly"
+    cron: "@weekly"
     prompt: "Conduct weekly code review summary."
 ```
 
@@ -310,9 +317,11 @@ schedules:
 schedules:
   morning-report:
     type: cron
-    expression: "0 9 * * 1-5"
+    cron: "0 9 * * 1-5"
     prompt: "Generate morning status report for the team."
+```
 
+```yaml
 # Interval: Just need regular checks, timing doesn't matter
 schedules:
   issue-check:
@@ -323,13 +332,17 @@ schedules:
 
 #### Schedule Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `type` | string | **Required.** One of: `interval`, `cron`, `webhook`, `chat` |
-| `interval` | string | Interval duration (e.g., "5m", "1h", "30s") |
-| `expression` | string | Cron expression (e.g., "0 9 * * 1-5") |
-| `prompt` | string | Task prompt for this schedule |
-| `work_source` | object | Override work source for this schedule |
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `type` | string | — | **Required.** One of: `interval`, `cron`, `webhook`, `chat` |
+| `interval` | string | — | Interval duration (e.g., "5m", "1h", "30s") |
+| `cron` | string | — | Cron expression (e.g., "0 9 * * 1-5") |
+| `expression` | string | — | **Deprecated.** Alias for `cron` (still accepted) |
+| `prompt` | string | — | Task prompt for this schedule |
+| `work_source` | object | — | Override work source for this schedule |
+| `enabled` | boolean | `true` | When `false`, the schedule doesn't auto-trigger but can still be triggered manually |
+| `resume_session` | boolean | `false` | Resume the existing session instead of starting fresh. Note: resumed sessions are marked `isSidechain: true` by Claude Code and are excluded from UI session discovery — use only when session continuity is needed |
+| `outputToFile` | boolean | `false` | Also write job output to `.herdctl/jobs/{jobId}/output.log` |
 
 For more details on scheduling, see [Schedules](/concepts/schedules/) and [Triggers](/concepts/triggers/).
 
@@ -479,7 +492,7 @@ session:
 | `timeout` | string | Session timeout (e.g., "30m", "2h") |
 | `model` | string | Claude model for this session |
 
-### permission_mode, allowed_tools, denied_tools
+### permission_mode, tools, allowed_tools, denied_tools
 
 Control what the agent can do. See [Permissions](/configuration/permissions/) for full details.
 
@@ -503,7 +516,8 @@ denied_tools:
 | Field | Type | Description |
 |-------|------|-------------|
 | `permission_mode` | string | Permission mode (see below) |
-| `allowed_tools` | string[] | Tools the agent can use (use `Bash(pattern)` for bash commands) |
+| `tools` | string[] | Availability whitelist - when set, only these tools exist for the agent |
+| `allowed_tools` | string[] | Tools pre-approved to skip permission prompts (use `Bash(pattern)` for bash commands) |
 | `denied_tools` | string[] | Tools explicitly denied (use `Bash(pattern)` for bash commands) |
 
 #### Permission Modes
@@ -514,6 +528,8 @@ denied_tools:
 | `acceptEdits` | Auto-accept file edits (default) |
 | `bypassPermissions` | Skip permission prompts |
 | `plan` | Plan-only mode, no execution |
+| `delegate` | Delegate permission decisions to a coordinating session |
+| `dontAsk` | Never prompt; non-pre-approved requests are denied |
 
 ### mcp_servers
 
@@ -687,6 +703,23 @@ runtime: cli  # Use CLI runtime (Max plan pricing)
 
 See [Runtime Configuration](/configuration/runtime/) for detailed guidance on choosing a runtime.
 
+### setting_sources
+
+Controls where the Claude SDK discovers configuration (`CLAUDE.md`, skills, slash commands, settings files).
+
+```yaml
+setting_sources:
+  - project
+```
+
+| Value | Description |
+|-------|-------------|
+| `user` | Read from `~/.claude/` (global user settings, plugins) |
+| `project` | Read from `.claude/` in the workspace directory |
+| `local` | Read from `.claude/settings.local.json` (project-local overrides) |
+
+Default: `["project"]` when a working directory is set, `[]` otherwise.
+
 ### model
 
 Override the Claude model for this agent.
@@ -727,7 +760,7 @@ A development agent that processes GitHub issues:
 name: project-coder
 description: "Senior developer that implements features and fixes bugs"
 
-workspace: my-project
+working_directory: ./my-project
 repo: myorg/my-project
 
 identity:
@@ -827,7 +860,7 @@ work_source:
 schedules:
   content-check:
     type: cron
-    expression: "0 8 * * 1-5"
+    cron: "0 8 * * 1-5"
     prompt: |
       Check for content requests labeled "content-ready".
       For each request:
@@ -838,7 +871,7 @@ schedules:
 
   social-daily:
     type: cron
-    expression: "0 10 * * *"
+    cron: "0 10 * * *"
     prompt: |
       Review recent blog posts and create social media
       snippets for Twitter and LinkedIn.
@@ -900,7 +933,7 @@ schedules:
 
   ticket-review:
     type: cron
-    expression: "0 9 * * 1-5"
+    cron: "0 9 * * 1-5"
     prompt: |
       Review open support tickets from yesterday.
       Summarize common issues and trends.

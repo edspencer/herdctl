@@ -7,7 +7,7 @@ A **Workspace** is simply the directory where an agent operates—the working di
 
 ## What is a Workspace?
 
-When you configure an agent with a `workspace`, herdctl sets that path as the current working directory before invoking Claude Code. This gives the agent access to:
+When you configure an agent with a `working_directory`, herdctl sets that path as the current working directory before invoking Claude Code. This gives the agent access to:
 
 - The project's `CLAUDE.md` and `.claude/` configuration
 - All source files in that directory
@@ -17,25 +17,31 @@ When you configure an agent with a `workspace`, herdctl sets that path as the cu
 ```yaml
 # agents/my-agent.yaml
 name: my-agent
-workspace: /Users/me/projects/my-app  # Agent runs here
+working_directory: /Users/me/projects/my-app  # Agent runs here
 ```
 
 ## Configuration
 
-The workspace can be specified as a simple path:
+The working directory can be specified as a simple path:
 
 ```yaml
-workspace: /path/to/project
+working_directory: /path/to/project
 ```
 
 Or as an object (for future extensibility):
 
 ```yaml
-workspace:
+working_directory:
   root: /path/to/project
 ```
 
-If no workspace is specified, the agent runs in whatever directory herdctl was started from.
+Relative paths are resolved against the directory containing the agent's YAML file. Tilde (`~`) is **not** expanded — use absolute or relative paths.
+
+If no `working_directory` is specified, it defaults to the directory containing the agent's YAML config file.
+
+:::note[Deprecated alias: workspace]
+The old `workspace:` field name is a deprecated alias for `working_directory:`. It still loads (herdctl migrates it and logs a warning), but new configs should use `working_directory`.
+:::
 
 ## You Manage the Repository
 
@@ -53,8 +59,8 @@ herdctl simply runs Claude Code in the directory you specify.
 A useful pattern is maintaining separate clones for human and agent work:
 
 ```
-~/Code/my-project/           # Your working copy
-~/agent-workspaces/my-project/  # Agent's copy
+/home/me/Code/my-project/              # Your working copy
+/home/me/agent-workspaces/my-project/  # Agent's copy
 ```
 
 This prevents agents from interfering with your uncommitted work. But this is a pattern you implement yourself—herdctl doesn't enforce or automate it.
@@ -68,9 +74,9 @@ mkdir -p ~/agent-workspaces
 # Clone a copy for the agent
 git clone https://github.com/you/my-project.git ~/agent-workspaces/my-project
 
-# Configure agent to use it
+# Configure agent to use it (use the absolute path - ~ is not expanded in config)
 # In agents/my-agent.yaml:
-#   workspace: ~/agent-workspaces/my-project
+#   working_directory: /home/me/agent-workspaces/my-project
 ```
 
 ## Multiple Agents, Same Workspace
@@ -80,16 +86,18 @@ Multiple agents can share the same workspace path. This is useful when different
 ```yaml
 # agents/coder.yaml
 name: coder
-workspace: ~/projects/my-app
+working_directory: /home/me/projects/my-app
 schedules:
   check-issues:
     type: interval
     interval: 5m
     prompt: "Check for ready issues and implement them."
+```
 
+```yaml
 # agents/reviewer.yaml
 name: reviewer
-workspace: ~/projects/my-app  # Same workspace
+working_directory: /home/me/projects/my-app  # Same workspace
 schedules:
   daily-review:
     type: cron
@@ -107,14 +115,14 @@ schedules:
 
 When an agent job runs, herdctl:
 
-1. Resolves the workspace path from agent config
+1. Resolves the `working_directory` path from agent config
 2. Sets `cwd` to that path when invoking the Claude SDK
 3. Claude Code runs with full access to files in that directory
 
 ```typescript
 // Simplified - what happens internally
 const sdkOptions = {
-  cwd: agent.workspace,  // e.g., "/Users/me/projects/my-app"
+  cwd: agent.working_directory,  // e.g., "/Users/me/projects/my-app"
   // ... other options
 };
 ```

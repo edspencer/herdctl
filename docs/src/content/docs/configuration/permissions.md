@@ -54,6 +54,8 @@ permission_mode: acceptEdits  # default
 | `acceptEdits` | Auto-approve file operations | **Recommended for most agents** |
 | `bypassPermissions` | Auto-approve everything | Trusted, isolated environments |
 | `plan` | Planning only, no execution | Research agents, dry runs |
+| `delegate` | Delegate permission decisions to a coordinating session | Multi-agent/team setups |
+| `dontAsk` | Never prompt; non-pre-approved requests are denied | Fully unattended runs with a strict allowlist |
 
 ### Mode Details
 
@@ -112,6 +114,29 @@ permission_mode: plan
 - Previewing agent behavior before execution
 - Research and analysis agents
 - Generating plans for human review
+
+#### `delegate`
+
+Delegates permission decisions to a coordinating session instead of handling them locally. This mode maps directly to the Claude Code `delegate` permission mode and is intended for multi-agent setups where a parent session arbitrates approvals.
+
+```yaml
+permission_mode: delegate
+```
+
+**When to use:**
+- Agent-team or subagent configurations where a coordinating session owns approvals
+
+#### `dontAsk`
+
+Never prompts for permission. Tool requests that are not pre-approved (via `allowed_tools`) are automatically denied rather than surfaced for approval.
+
+```yaml
+permission_mode: dontAsk
+```
+
+**When to use:**
+- Fully unattended runs where anything outside a strict allowlist should fail fast
+- Environments with no human available to answer prompts, where `bypassPermissions` is too permissive
 
 ---
 
@@ -328,7 +353,8 @@ permission_mode: bypassPermissions
 
 docker:
   enabled: true
-  base_image: node:20-slim
+# The container image is a fleet-level option:
+# set defaults.docker.image in herdctl.yaml
 ```
 
 ### Restricted Auto-Approve Agent
@@ -475,7 +501,7 @@ permission_mode: bypassPermissions
 
 docker:
   enabled: true
-  base_image: node:20-slim
+# Image selection is fleet-level: defaults.docker.image in herdctl.yaml
 ```
 
 ### 6. Limit Blast Radius
@@ -483,9 +509,8 @@ docker:
 Restrict workspace access when possible:
 
 ```yaml
-workspace:
-  root: ~/herdctl-workspace/project-a
-  # Agent can only access this directory
+working_directory: /home/user/herdctl-workspace/project-a
+# Agent can only access this directory
 ```
 
 ### 7. Audit Regularly
@@ -554,7 +579,7 @@ herdctl config show --agent my-agent --section permissions
 
 ```typescript
 // Top-level permission fields (not nested)
-permission_mode?: "default" | "acceptEdits" | "bypassPermissions" | "plan"
+permission_mode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "delegate" | "dontAsk"
 tools?: string[]
 allowed_tools?: string[]
 denied_tools?: string[]
