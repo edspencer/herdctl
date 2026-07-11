@@ -1,5 +1,54 @@
 # @herdctl/core
 
+## 5.19.1
+
+### Patch Changes
+
+- [#353](https://github.com/edspencer/herdctl/pull/353) [`44000f2`](https://github.com/edspencer/herdctl/commit/44000f2aa4ebb8b4c2caaed73e8d8d9c9c14d2ad) Thanks [@edspencer](https://github.com/edspencer)! - perf(state): negative-cache resolveAutoName/resolvePreview so warm listings skip transcript re-scans
+
+  `SessionDiscoveryService.resolveAutoName` (and `resolvePreview`) only wrote to the
+  mtime-keyed metadata cache when a value was _found_. A transcript with no
+  `type:"summary"` entry cached nothing, so the next `getAgentSessions` re-scanned it
+  from scratch via `extractLastSummary` — a full O(filesize) stream of a multi-MB
+  file. CLI keeper sessions essentially never carry a summary, so the autoName cache
+  was 0%-effective (measured 0/298 sessions cached) and a fully-warm project switch
+  still spent ~580ms re-streaming every attributed transcript.
+
+  Both resolvers now record the mtime even for an empty result (mirroring
+  `resolveSidechain`), so a validated _negative_ result is remembered and unchanged
+  sessions are never re-scanned. Warm project-switch enrichment drops from ~580ms to
+  tens of ms. `autoName`/`preview` may now be absent while `autoNameMtime`/
+  `previewMtime` are set — presence of the mtime, not the value, is what makes the
+  cache authoritative.
+
+- [#356](https://github.com/edspencer/herdctl/pull/356) [`7e1012d`](https://github.com/edspencer/herdctl/commit/7e1012dacb77bc6dd04536e999a091eb5c505dc2) Thanks [@edspencer](https://github.com/edspencer)! - perf(state): stop duplicating tool output in the parsed message payload
+
+  `parseSessionMessages` stored each tool result's (often large) output **twice** —
+  once as the message's top-level `content` and again as `toolCall.output` — so both
+  copies were serialized into the `/messages` payload, roughly doubling tool-output
+  bytes on the wire for tool-heavy chats.
+
+  Consumers (the web dashboard, Paddock's chat UI, the sweep summary) render tool
+  messages exclusively from `toolCall.output`; the top-level `content` copy for a
+  tool message was never read. `content` is now left empty (`""`) for tool messages,
+  keeping the single copy on `toolCall.output`. Smaller payloads and less client-side
+  `JSON.parse` for chats dominated by large tool results.
+
+- [#355](https://github.com/edspencer/herdctl/pull/355) [`e09bafd`](https://github.com/edspencer/herdctl/commit/e09bafd15f2d410287f61b3420fb592fcb4b4db3) Thanks [@edspencer](https://github.com/edspencer)! - perf(state): mtime-cache parsed transcript messages so repeat chat opens skip a full re-parse
+
+  `SessionDiscoveryService.getSessionMessages` delegated straight to
+  `parseSessionMessages` with no memo, so opening/refreshing a chat re-parsed the
+  entire JSONL every time — measured ~114ms of synchronous `JSON.parse`-per-line for
+  an ~8MB / 500K-token / 1107-message transcript, recomputed on every open and
+  stalling the event loop on the constrained host. Its siblings `getSessionUsage`
+  and `getSessionMetadata` were already mtime-cached; messages were the outlier.
+
+  Added a small mtime-keyed, LRU-bounded in-memory cache (keyed on the transcript
+  file path + its current mtime). A transcript is immutable except when a new turn
+  appends (which bumps mtime), so an exact-mtime match serves the parsed array with
+  no re-parse; a bumped mtime invalidates the entry. Repeat opens of an unchanged
+  chat drop from ~114ms to ~0.
+
 ## 5.19.0
 
 ### Minor Changes
