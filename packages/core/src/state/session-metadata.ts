@@ -24,11 +24,20 @@ const logger = createLogger("SessionMetadataStore");
  */
 export const SessionMetadataEntrySchema = z.object({
   customName: z.string().optional(),
-  /** Auto-generated session name (extracted from JSONL summary) */
+  /**
+   * Auto-generated session name (extracted from JSONL summary). May be absent
+   * while {@link autoNameMtime} is set — that records a validated *negative*
+   * result (the transcript carried no summary at that mtime) so discovery can
+   * skip re-streaming it. Presence of `autoNameMtime`, not of `autoName`, is
+   * what makes the cache authoritative.
+   */
   autoName: z.string().optional(),
   /** ISO 8601 timestamp of when autoName was extracted (for cache invalidation) */
   autoNameMtime: z.string().optional(),
-  /** First user message preview (truncated to 100 chars) */
+  /**
+   * First user message preview (truncated to 100 chars). Like {@link autoName},
+   * may be absent while {@link previewMtime} is set (negative-cached).
+   */
   preview: z.string().optional(),
   /** ISO 8601 timestamp of when preview was extracted (for cache invalidation) */
   previewMtime: z.string().optional(),
@@ -357,7 +366,7 @@ export class SessionMetadataStore {
    */
   async batchSetAutoNames(
     agentName: string,
-    entries: Array<{ sessionId: string; autoName: string; mtime: string }>,
+    entries: Array<{ sessionId: string; autoName?: string; mtime: string }>,
   ): Promise<void> {
     if (entries.length === 0) {
       return;
@@ -369,7 +378,9 @@ export class SessionMetadataStore {
       metadata = this.createEmptyMetadata(agentName);
     }
 
-    // Apply all updates
+    // Apply all updates. `autoName` may be undefined — that records a validated
+    // *negative* result (this transcript has no summary at this mtime) so the
+    // next listing trusts the cache instead of re-streaming the whole file.
     for (const { sessionId, autoName, mtime } of entries) {
       const sessionEntry = metadata.sessions[sessionId] ?? {};
       metadata.sessions[sessionId] = {
@@ -460,7 +471,7 @@ export class SessionMetadataStore {
    */
   async batchSetPreviews(
     agentName: string,
-    entries: Array<{ sessionId: string; preview: string; mtime: string }>,
+    entries: Array<{ sessionId: string; preview?: string; mtime: string }>,
   ): Promise<void> {
     if (entries.length === 0) {
       return;
@@ -472,6 +483,8 @@ export class SessionMetadataStore {
       metadata = this.createEmptyMetadata(agentName);
     }
 
+    // `preview` may be undefined — records a validated negative result (no
+    // plain-text user line at this mtime) so the next listing trusts the cache.
     for (const { sessionId, preview, mtime } of entries) {
       const sessionEntry = metadata.sessions[sessionId] ?? {};
       metadata.sessions[sessionId] = {
