@@ -28,17 +28,18 @@ All updates are pushed to the browser in real-time over WebSocket, so the dashbo
 
 ### Configuration File
 
-Add a `web` section to your `herdctl.yaml` fleet configuration:
+Add a top-level `web` section to your `herdctl.yaml` fleet configuration (it sits alongside `fleet:`, not inside it):
 
 ```yaml
 version: 1
 
 fleet:
   name: my-fleet
-  web:
-    enabled: true
-    port: 3232
-    open_browser: true
+
+web:
+  enabled: true
+  port: 3232
+  open_browser: true
 ```
 
 | Field | Type | Default | Description |
@@ -46,8 +47,10 @@ fleet:
 | `enabled` | boolean | `false` | Enable the web dashboard |
 | `port` | number | `3232` | Port to listen on |
 | `host` | string | `"localhost"` | Host to bind to |
-| `session_expiry_hours` | number | `24` | Chat session expiry in hours |
+| `session_expiry_hours` | number | `24` | Expiry for web session attribution records, in hours (currently not applied -- see [issue #326](https://github.com/edspencer/herdctl/issues/326)) |
 | `open_browser` | boolean | `false` | Automatically open browser when starting |
+| `tool_results` | boolean | `true` | Show tool call results in chat conversations |
+| `message_grouping` | `"separate"` \| `"grouped"` | `"separate"` | How to display consecutive assistant text turns: `separate` shows each as its own bubble, `grouped` merges them |
 
 ### CLI Flags
 
@@ -62,6 +65,18 @@ herdctl start --web --web-port 8080
 ```
 
 CLI flags override configuration file settings.
+
+### Web-Only Mode (No Fleet Config)
+
+You can run the dashboard without any fleet configuration at all. If `herdctl start --web` finds no `herdctl.yaml`, it falls back to **web-only mode** instead of failing:
+
+```
+$ herdctl start --web
+No fleet configuration found — starting web UI only.
+Browse your Claude Code sessions at http://localhost:3232
+```
+
+In web-only mode there are no agents, schedules, or jobs -- the dashboard serves as a browser for the Claude Code sessions on your machine (the All Chats page, read-only session views, and ad hoc chat). Use `--web-port` to pick a different port.
 
 ### Accessing the Dashboard
 
@@ -138,12 +153,12 @@ Output streaming subscribes to the agent's output events via WebSocket, so you s
 
 The chat feature lets you send messages to any agent directly from the dashboard:
 
-- **Create chat sessions** per agent
+- **Start new chats** per agent (the session is created on your first message)
 - **Send messages** and receive streaming responses
 - **View message history** with Markdown rendering
 - **Tool call visibility** showing when the agent uses tools like Bash, Read, or Write, with collapsible details including input, duration, and output
 - **Multiple sessions** per agent for separate conversation threads
-- **Session persistence** across page reloads (sessions expire after the configured hours)
+- **Session persistence** across page reloads -- sessions are Claude Code transcript files on disk and never expire
 - **Session names** auto-generated from the conversation summary, with the option to rename any session inline
 
 Chat messages are sent via WebSocket for low-latency streaming, with the full response appearing incrementally as the agent generates it. Tool calls appear as collapsible UI components in the message feed, allowing you to inspect what the agent did and the results it received.
@@ -268,13 +283,17 @@ The server registers these API endpoints:
 | `/api/schedules/:agent/:schedule/enable` | POST | Enable a schedule |
 | `/api/schedules/:agent/:schedule/disable` | POST | Disable a schedule |
 | `/api/chat/recent` | GET | Recent sessions across all agents |
+| `/api/chat/config` | GET | Chat display defaults (tool results, message grouping) |
 | `/api/chat/all` | GET | All discovered sessions, grouped by directory |
 | `/api/chat/all/:encodedPath` | GET | Sessions for a specific working directory |
-| `/api/chat/sessions/by-path/:path/:id` | GET | Session detail by working directory path |
-| `/api/chat/:agent/sessions` | GET/POST | List or create chat sessions for an agent |
-| `/api/chat/:agent/sessions/:id` | GET/DELETE | Get or delete a chat session |
-| `/api/chat/:agent/messages` | POST | Send a message to an agent |
+| `/api/chat/sessions/by-path/:encodedPath/:sessionId` | GET | Session detail by working directory path |
+| `/api/chat/sessions/by-path/:encodedPath/:sessionId/usage` | GET | Token usage by working directory path |
+| `/api/chat/:agent/sessions` | GET | List chat sessions for an agent |
+| `/api/chat/:agent/sessions/:id` | GET/PATCH | Get a session's messages, or rename it |
+| `/api/chat/:agent/sessions/:id/usage` | GET | Token usage for a chat session |
+| `/api/chat/:agent/messages` | POST | Send a message (creates a new session when no `sessionId` is given) |
 | `/api/health` | GET | Health check |
+| `/api/version` | GET | Package versions for web, CLI, and core |
 | `/ws` | WebSocket | Real-time event stream |
 
 ## Security
@@ -327,7 +346,7 @@ This keeps herdctl bound to `localhost` while providing authenticated HTTPS acce
 
 - **Node.js 18+**
 - A modern browser (Chrome, Firefox, Safari, Edge)
-- herdctl fleet running with `web.enabled: true`
+- herdctl running with `web.enabled: true` (or `herdctl start --web`, which also works with no fleet config at all -- see [Web-Only Mode](#web-only-mode-no-fleet-config))
 
 ## Related Pages
 

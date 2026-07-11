@@ -201,39 +201,80 @@ Both fields are optional. If `scheduleName` is omitted, the agent's default trig
 
 ### Chat
 
-The chat API manages web chat sessions. Actual message streaming happens via the [WebSocket protocol](#websocket-protocol), but REST endpoints handle session lifecycle and provide a non-streaming message endpoint.
+The chat API reads and manages Claude Code sessions discovered on disk. Actual message streaming happens via the [WebSocket protocol](#websocket-protocol), but REST endpoints handle session listing, reading, and renaming, and provide a non-streaming message endpoint.
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/chat/recent` | List recent sessions across all agents (sorted by last activity) |
 | `GET` | `/api/chat/config` | Get chat configuration defaults (message grouping, tool results) |
-| `POST` | `/api/chat/:agentName/sessions` | Create a new chat session for an agent |
-| `GET` | `/api/chat/:agentName/sessions` | List all sessions for an agent |
-| `GET` | `/api/chat/:agentName/sessions/:sessionId` | Get session details with full message history |
-| `DELETE` | `/api/chat/:agentName/sessions/:sessionId` | Delete a chat session |
+| `GET` | `/api/chat/all` | List all discovered sessions, grouped by working directory |
+| `GET` | `/api/chat/all/:encodedPath` | Expand a single directory group (paginated sessions) |
+| `GET` | `/api/chat/sessions/by-path/:encodedPath/:sessionId` | Get messages and metadata for a session addressed by working directory (unattributed sessions) |
+| `GET` | `/api/chat/sessions/by-path/:encodedPath/:sessionId/usage` | Get token usage for a session addressed by working directory |
+| `GET` | `/api/chat/:agentName/sessions` | List sessions for an agent |
+| `GET` | `/api/chat/:agentName/sessions/:sessionId` | Get messages and metadata for an agent session |
+| `GET` | `/api/chat/:agentName/sessions/:sessionId/usage` | Get token usage for an agent session |
 | `PATCH` | `/api/chat/:agentName/sessions/:sessionId` | Rename a session (set custom name) |
-| `POST` | `/api/chat/:agentName/sessions/:sessionId/messages` | Send a message (non-streaming, waits for full response) |
+| `POST` | `/api/chat/:agentName/messages` | Send a message (non-streaming, waits for full response) |
 
-**Create session response (`201 Created`):**
+There are no create or delete endpoints. Sessions are created **implicitly**: sending a message without a `sessionId` (via this REST endpoint or the WebSocket `chat:send` message) starts a new Claude Code session, and the new SDK session ID comes back in the response (or in the WebSocket `chat:complete` payload). Sessions cannot be deleted through the API -- they are Claude Code JSONL transcript files on disk.
+
+**Query parameters:**
+
+| Endpoint | Parameter | Default | Description |
+|----------|-----------|---------|-------------|
+| `GET /api/chat/recent` | `limit` | 100 | Max sessions returned |
+| `GET /api/chat/all` | `limit` | 20 | Max directory groups |
+| `GET /api/chat/all` | `sessionsPerGroup` | 10 | Max sessions per group |
+| `GET /api/chat/all/:encodedPath` | `limit` | 50 | Max sessions returned |
+| `GET /api/chat/all/:encodedPath` | `offset` | 0 | Sessions to skip |
+| `GET /api/chat/:agentName/sessions` | `limit` | (none) | Max sessions returned |
+
+**Session list response (`GET /api/chat/:agentName/sessions`):**
 
 ```json
 {
-  "sessionId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "createdAt": "2025-01-20T12:00:00.000Z"
+  "sessions": [
+    {
+      "sessionId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "createdAt": "2025-01-20T12:05:30.000Z",
+      "lastMessageAt": "2025-01-20T12:05:30.000Z",
+      "messageCount": 0,
+      "preview": "What issues are open on the repo?",
+      "customName": "Issue triage session",
+      "autoName": "Reviewing open repository issues",
+      "origin": "web",
+      "resumable": true
+    }
+  ]
 }
 ```
 
-**Session detail response:**
+`createdAt` and `lastMessageAt` both derive from the JSONL file's modification time, and `messageCount` is always `0` (it is not computed). `origin` is one of `web`, `discord`, `slack`, `schedule`, or `native`. `GET /api/chat/recent` returns the same shape plus an `agentName` field (empty string for unattributed sessions) and, for unattributed sessions only, an `encodedPath` the frontend uses to route to the read-only view.
+
+**Directory group response (`GET /api/chat/all`):**
 
 ```json
 {
-  "sessionId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "agentName": "herdctl.my-agent",
-  "createdAt": "2025-01-20T12:00:00.000Z",
-  "lastMessageAt": "2025-01-20T12:05:30.000Z",
-  "messageCount": 4,
-  "preview": "What issues are open on the repo?",
-  "customName": "Issue triage session",
+  "groups": [
+    {
+      "workingDirectory": "/home/user/projects/my-app",
+      "encodedPath": "-home-user-projects-my-app",
+      "agentName": "herdctl.my-agent",
+      "sessionCount": 12,
+      "sessions": [ { "sessionId": "...", "origin": "native", "resumable": true } ]
+    }
+  ],
+  "totalGroups": 5
+}
+```
+
+`GET /api/chat/all/:encodedPath` returns a single `{ "group": { ... } }` in the same shape.
+
+**Session detail response (`GET .../sessions/:sessionId` and `GET .../by-path/:encodedPath/:sessionId`):**
+
+```json
+{
   "messages": [
     {
       "role": "user",
@@ -257,27 +298,56 @@ The chat API manages web chat sessions. Actual message streaming happens via the
         "durationMs": 1200
       }
     }
-  ]
+  ],
+  "metadata": {
+    "gitBranch": "main",
+    "claudeCodeVersion": "1.0.33",
+    "preview": "What issues are open on the repo?"
+  }
 }
 ```
 
-**Send message request body:**
+**Usage response (`GET .../usage`):**
 
 ```json
 {
-  "message": "What issues are open on the repo?"
+  "inputTokens": 48213,
+  "turnCount": 7,
+  "hasData": true
 }
 ```
 
-The REST message endpoint collects all streaming chunks and returns the complete response synchronously. For real-time streaming, use the WebSocket `chat:send` message type instead.
-
-**Rename request body:**
+**Send message request body (`POST /api/chat/:agentName/messages`):**
 
 ```json
 {
-  "name": "Issue triage session"
+  "message": "What issues are open on the repo?",
+  "sessionId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 }
 ```
+
+`sessionId` is optional -- omit it to start a new session. The endpoint collects all streaming chunks and returns the complete response synchronously:
+
+```json
+{
+  "jobId": "job-2025-01-20-abc123",
+  "sessionId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "success": true,
+  "response": "There are 3 open issues..."
+}
+```
+
+A failed run also includes an `error` field. For real-time streaming, use the WebSocket `chat:send` message type instead.
+
+**Rename request body (`PATCH .../sessions/:sessionId`):**
+
+```json
+{
+  "customName": "Issue triage session"
+}
+```
+
+Returns `{ "success": true }`. A missing or non-string `customName` returns `400`.
 
 ### System
 
@@ -327,7 +397,9 @@ Messages sent from the browser to the server:
 | `subscribe` | `{ agentName }` | Subscribe to an agent's `job:output` events |
 | `unsubscribe` | `{ agentName }` | Stop receiving an agent's `job:output` events |
 | `ping` | (none) | Keepalive ping |
-| `chat:send` | `{ agentName, sessionId, message }` | Send a chat message to an agent |
+| `chat:send` | `{ agentName, sessionId?, message, workingDirectory? }` | Send a chat message to an agent |
+
+For `chat:send`, `sessionId` is optional -- omit it to start a new chat (the server returns the new SDK session ID in `chat:complete`). Ad hoc sessions (native CLI sessions resumed through the dashboard) use `agentName: "__adhoc__"`, in which case both `sessionId` and `workingDirectory` are required.
 
 **Example subscribe message:**
 
@@ -349,6 +421,20 @@ Messages sent from the browser to the server:
     "agentName": "herdctl.my-agent",
     "sessionId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "message": "Check the open issues"
+  }
+}
+```
+
+**Example ad hoc chat send message:**
+
+```json
+{
+  "type": "chat:send",
+  "payload": {
+    "agentName": "__adhoc__",
+    "sessionId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "workingDirectory": "/home/user/projects/my-app",
+    "message": "Continue where we left off"
   }
 }
 ```
@@ -387,7 +473,7 @@ Messages sent from the server to connected browsers:
 | `chat:response` | `{ agentName, sessionId, jobId, chunk }` | Requesting client | Streaming text chunk from agent |
 | `chat:tool_call` | `{ agentName, sessionId, jobId, toolName, inputSummary?, output, isError, durationMs? }` | Requesting client | Tool call result during chat |
 | `chat:message_boundary` | `{ agentName, sessionId, jobId }` | Requesting client | Boundary between distinct assistant text turns |
-| `chat:complete` | `{ agentName, sessionId, jobId }` | Requesting client | Chat response finished |
+| `chat:complete` | `{ agentName, sessionId, jobId, success, error? }` | Requesting client | Chat response finished; `sessionId` is the SDK session ID (this is how the client learns the ID of a new chat) |
 | `chat:error` | `{ agentName, sessionId, error }` | Requesting client | Chat error occurred |
 
 #### Keepalive
@@ -442,8 +528,7 @@ All error responses use a consistent structure:
 
 | Status Code | Usage |
 |-------------|-------|
-| `200` | Successful GET, POST, PATCH, DELETE |
-| `201` | Resource created (e.g., new chat session) |
+| `200` | Successful GET, POST, PATCH |
 | `400` | Invalid request (missing required fields, malformed input) |
 | `404` | Resource not found (agent, job, session) |
 | `500` | Internal server error |
@@ -487,39 +572,38 @@ The Fastify plugin architecture supports adding authentication middleware withou
 
 ## Chat Integration
 
-The web chat system uses `WebChatManager` to manage chat sessions. Unlike the monitoring endpoints that purely query FleetManager state, the chat system maintains its own persistent state for conversation history.
+The web chat system uses `WebChatManager` to manage chat sessions. Unlike the monitoring endpoints that purely query FleetManager state, the chat system reads Claude Code's own session transcripts from disk and keeps a small amount of attribution state alongside them.
 
 ### Session Model
 
-Chat sessions are **server-managed, per-agent, and shared**:
+Chat sessions are **Claude Code sessions discovered from disk**, not server-managed records:
 
-- Sessions are stored in `.herdctl/web/chat-history/<agentName>/<sessionId>.json`
-- Each agent can have multiple concurrent chat sessions
-- Sessions are visible to all connected browsers (no per-user scoping)
-- Session IDs are server-generated UUIDs
-- Sessions expire after `session_expiry_hours` (default: 24 hours)
+- Session enumeration comes from `SessionDiscoveryService` in `@herdctl/core`, which scans Claude Code's JSONL transcript files under `~/.claude/projects/`. There is no separate server-side session store.
+- The session ID **is** the Claude SDK session ID -- the same ID used by `claude --resume`.
+- herdctl stores only lightweight metadata alongside the transcripts: `.herdctl/web-sessions/<agent>.yaml` records which sessions were started from the web dashboard (attribution), and `.herdctl/session-metadata/<agent>.json` stores custom names set via rename.
+- Sessions are visible to all connected browsers (no per-user scoping).
+- Discovered sessions **never expire** -- they exist as long as the JSONL files exist on disk. The `web.session_expiry_hours` config only governs the web attribution records, and is currently ignored: `WebChatManager` hardcodes 24 hours in the one place it constructs a `ChatSessionManager` (open bug, see [issue #326](https://github.com/edspencer/herdctl/issues/326)).
 
-There is no concept of user identity in the web API. Any browser can see, continue, or delete any session. This design reflects the typical use case: a single operator (or small team) using the dashboard on `localhost`.
+There is no concept of user identity in the web API. Any browser can see, continue, or rename any session. This design reflects the typical use case: a single operator (or small team) using the dashboard on `localhost`.
 
 ### Message Flow
 
 When a user sends a chat message, the flow differs depending on whether they use the REST or WebSocket interface:
 
-**REST path** (`POST /api/chat/:agentName/sessions/:sessionId/messages`):
+**REST path** (`POST /api/chat/:agentName/messages`):
 
-1. Validate session exists
-2. Call `WebChatManager.sendMessage()` with a chunk collector callback
+1. Validate the agent exists
+2. Call `WebChatManager.sendMessage()` with a chunk collector callback (`sessionId` from the body, or `null` for a new chat)
 3. Wait for the agent to complete its response
-4. Return the full accumulated response
+4. Return the full accumulated response along with `jobId` and the SDK `sessionId`
 
 **WebSocket path** (`chat:send` message):
 
-1. Validate session exists via WebChatManager
-2. Call `WebChatManager.sendMessage()` with streaming callbacks
-3. Stream `chat:response` chunks, `chat:tool_call` results, and `chat:message_boundary` signals back to the requesting client in real time
-4. Send `chat:complete` when finished (or `chat:error` on failure)
+1. Route by `agentName`: `"__adhoc__"` goes to `WebChatManager.sendAdhocMessage()`, everything else to `sendMessage()` (with `sessionId ?? null`)
+2. Stream `chat:response` chunks, `chat:tool_call` results, and `chat:message_boundary` signals back to the requesting client in real time
+3. Send `chat:complete` when finished (carrying `success`, an optional `error`, and the SDK session ID -- which is how the client learns the ID of a newly created chat), or `chat:error` on failure
 
-Both paths use the same underlying `WebChatManager.sendMessage()` method, which triggers a FleetManager job with `triggerType: "web"` and streams the agent's response via SDK message callbacks. The `@herdctl/chat` package's `ChatSessionManager` handles SDK session tracking for conversation continuity across multiple messages.
+Both paths use the same underlying `WebChatManager.sendMessage()` method, which triggers a FleetManager job with `triggerType: "web"`, passes the session ID (if any) as `resume`, and streams the agent's response via SDK message callbacks. After each run, the SDK session ID is recorded via the `@herdctl/chat` package's `ChatSessionManager` so that discovered sessions can be attributed to the web origin.
 
 ## SPA Serving
 
