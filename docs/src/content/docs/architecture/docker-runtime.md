@@ -230,7 +230,7 @@ Claude Code includes native sandboxing via bubblewrap (Linux) and Seatbelt (macO
 
 Docker's primary advantages are environment variable isolation (the container has no access to host environment variables unless explicitly passed), resource limits (preventing runaway memory or CPU usage), and true filesystem isolation (host files do not exist inside the container unless mounted).
 
-Native sandboxing provides tool-level permission control that Docker does not -- the `permissionMode` and `allowedTools` / `deniedTools` settings operate at the Claude Code level regardless of whether Docker is used.
+Native sandboxing provides tool-level permission control that Docker does not -- the `permissionMode` and `allowedTools` / `disallowedTools` settings operate at the Claude Code level regardless of whether Docker is used.
 
 ### hostConfigOverride
 
