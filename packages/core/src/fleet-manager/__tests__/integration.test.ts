@@ -21,6 +21,7 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
 
 // Import the mocked query function for test configuration
 import { query as mockQueryFn } from "@anthropic-ai/claude-agent-sdk";
+import { listJobs } from "../../state/index.js";
 import { AgentNotFoundError, InvalidStateError, ScheduleNotFoundError } from "../errors.js";
 import type {
   AgentStartedPayload,
@@ -73,6 +74,40 @@ describe("FleetManager Integration Tests (US-13)", () => {
       warn: vi.fn(),
       error: vi.fn(),
     };
+  }
+
+  // Poll a directory tree until its contents (file paths + sizes) stop changing
+  // across consecutive samples, i.e. all background writes have flushed. Used to
+  // avoid a teardown race where a still-draining background job writes into the
+  // temp state dir while afterEach recursively removes it (ENOTEMPTY).
+  async function waitForStateDirQuiescent(dir: string): Promise<void> {
+    const { readdir, stat } = await import("node:fs/promises");
+    const snapshot = async (): Promise<string> => {
+      const entries = await readdir(dir, { recursive: true, withFileTypes: true });
+      const parts: string[] = [];
+      for (const e of entries) {
+        if (e.isFile()) {
+          const p = join(e.parentPath ?? e.path, e.name);
+          try {
+            parts.push(`${p}:${(await stat(p)).size}`);
+          } catch {
+            // File vanished between readdir and stat — treat as changing.
+            parts.push(`${p}:gone`);
+          }
+        }
+      }
+      return parts.sort().join("|");
+    };
+    let prev = await snapshot();
+    await vi.waitFor(
+      async () => {
+        const next = await snapshot();
+        const stable = next === prev;
+        prev = next;
+        expect(stable).toBe(true);
+      },
+      { timeout: 3000, interval: 60 },
+    );
   }
 
   // Create a test manager with common options
@@ -1379,6 +1414,98 @@ describe("FleetManager Integration Tests (US-13)", () => {
         });
 
         expect(manager.state.status).toBe("stopped");
+      });
+
+      it("aborts an in-flight SCHEDULED job at shutdown via the shared registry", async () => {
+        // Regression test for edspencer/herdctl#324: a scheduled job that is
+        // genuinely in-flight when the fleet shuts down must be aborted. Before
+        // the fix, scheduled jobs were registered in no cancellation registry, so
+        // cancelRunningJobs() read a never-written `current_job` field and was a
+        // guaranteed no-op — the agent process kept running.
+        await createAgentConfig("shutdown-sched-agent", {
+          name: "shutdown-sched-agent",
+          schedules: {
+            frequent: {
+              type: "interval",
+              interval: "100ms",
+              prompt: "long running scheduled task",
+            },
+          },
+        });
+
+        const configPath = await createConfig({
+          version: 1,
+          agents: [{ path: "./agents/shutdown-sched-agent.yaml" }],
+        });
+
+        // Mock the SDK to block mid-turn until the run's AbortController fires.
+        // If shutdown bulk-cancel reaches this scheduled job, `sawAbort` flips.
+        let sawAbort = false;
+        (mockQueryFn as Mock).mockImplementation(
+          ({ options }: { options?: { abortController?: AbortController } }) =>
+            (async function* () {
+              yield { type: "system", subtype: "init", session_id: "sched-cancel-session" };
+              const signal = options?.abortController?.signal;
+              await new Promise<void>((resolve) => {
+                if (!signal || signal.aborted) return resolve();
+                signal.addEventListener("abort", () => {
+                  sawAbort = true;
+                  resolve();
+                });
+              });
+            })(),
+        );
+
+        const manager = new FleetManager({
+          configPath,
+          stateDir,
+          checkInterval: 50,
+          logger: createSilentLogger(),
+        });
+
+        let triggered = false;
+        manager.on("schedule:triggered", () => {
+          triggered = true;
+        });
+
+        await manager.initialize();
+        await manager.start();
+
+        // Wait until the schedule has fired and its job is genuinely in-flight
+        // (a running job record exists on disk).
+        const jobsDir = join(stateDir, "jobs");
+        await vi.waitFor(
+          async () => {
+            expect(triggered).toBe(true);
+            const { jobs } = await listJobs(jobsDir);
+            expect(jobs.some((j) => j.status === "running")).toBe(true);
+          },
+          { timeout: 2000, interval: 20 },
+        );
+
+        // Stop: scheduler.stop() times out waiting for the blocked job →
+        // SchedulerShutdownError → cancelRunningJobs() must now actually abort it.
+        await manager.stop({
+          timeout: 100,
+          cancelOnTimeout: true,
+          cancelTimeout: 500,
+        });
+
+        // The scheduled job's AbortController fired — the fix worked.
+        expect(sawAbort).toBe(true);
+        expect(manager.state.status).toBe("stopped");
+
+        // And the job is persisted as cancelled, not left running.
+        const { jobs } = await listJobs(jobsDir);
+        const cancelled = jobs.find((j) => j.status === "cancelled");
+        expect(cancelled).toBeDefined();
+        expect(cancelled?.exit_reason).toBe("cancelled");
+
+        // Wait for the aborted run's background scheduler promise to fully drain
+        // (it writes final job + schedule-state files after abort) so those writes
+        // flush before afterEach removes the temp dir — otherwise the recursive
+        // rmdir races concurrent writes and throws ENOTEMPTY.
+        await waitForStateDirQuiescent(stateDir);
       });
     });
 

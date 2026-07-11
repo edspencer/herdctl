@@ -98,39 +98,69 @@ export class ScheduleExecutor {
       // Track job ID for streaming - set via onJobCreated callback before execution starts
       let jobId: string | undefined;
 
-      // Execute the job with streaming output
-      const result = await executor.execute({
-        agent,
-        prompt,
-        stateDir,
-        triggerType: "schedule",
-        schedule: scheduleName,
-        outputToFile: schedule.outputToFile ?? false,
-        onJobCreated: (id: string, job: JobMetadata) => {
-          // Set jobId early so onMessage can emit events during execution.
-          jobId = id;
-          logger.debug(`Job ${id} created for ${agent.qualifiedName}/${scheduleName}`);
+      // Cancellation support: give the scheduled run an AbortController and
+      // register it in the shared running-job registry under its job id (known
+      // via onJobCreated). This is what lets shutdown's bulk-cancel actually
+      // interrupt an in-flight scheduled job — before edspencer/herdctl#324,
+      // scheduled jobs registered nowhere, so shutdown's bulk-cancel cancelled
+      // nothing. Unregistered in the finally below. Mirrors JobControl.trigger().
+      const abortController = new AbortController();
+      let registeredJobId: string | undefined;
 
-          // Emit job:created at creation time (status `pending`), BEFORE any
-          // job:output streams. The record is passed in-hand so no disk read
-          // is needed and ordering is guaranteed.
-          this.emitJobCreated({
-            job,
-            agentName: agent.qualifiedName,
-            scheduleName,
-            timestamp: new Date().toISOString(),
-          });
-        },
-        onMessage: async (message: SDKMessage) => {
-          // Emit job:output events for real-time streaming
-          if (jobId) {
-            const payload = buildJobOutputPayload(jobId, agent.qualifiedName, message);
-            if (payload) {
-              this.emitJobOutput(payload);
+      // Execute the job with streaming output
+      let result: Awaited<ReturnType<typeof executor.execute>>;
+      try {
+        result = await executor.execute({
+          agent,
+          prompt,
+          stateDir,
+          triggerType: "schedule",
+          schedule: scheduleName,
+          outputToFile: schedule.outputToFile ?? false,
+          onJobCreated: (id: string, job: JobMetadata) => {
+            // Set jobId early so onMessage can emit events during execution.
+            jobId = id;
+            registeredJobId = id;
+            // Register in the shared running-job registry so shutdown bulk-cancel
+            // can interrupt this in-flight scheduled job (edspencer/herdctl#324).
+            this.ctx.registerJob?.(id, abortController);
+            logger.debug(`Job ${id} created for ${agent.qualifiedName}/${scheduleName}`);
+
+            // Emit job:created at creation time (status `pending`), BEFORE any
+            // job:output streams. The record is passed in-hand so no disk read
+            // is needed and ordering is guaranteed (edspencer/herdctl#328).
+            this.emitJobCreated({
+              job,
+              agentName: agent.qualifiedName,
+              scheduleName,
+              timestamp: new Date().toISOString(),
+            });
+          },
+          onMessage: async (message: SDKMessage) => {
+            // Emit job:output events for real-time streaming
+            if (jobId) {
+              const payload = buildJobOutputPayload(jobId, agent.qualifiedName, message);
+              if (payload) {
+                this.emitJobOutput(payload);
+              }
             }
-          }
-        },
-      });
+          },
+          abortController,
+        });
+      } finally {
+        if (registeredJobId) {
+          this.ctx.unregisterJob?.(registeredJobId);
+        }
+      }
+
+      // If the run was cancelled mid-flight (e.g. shutdown bulk-cancel),
+      // cancelJob() has already recorded the cancellation and emitted
+      // job:cancelled — don't also emit job:created/completed/failed for the
+      // aborted run. Mirrors JobControl.trigger().
+      if (abortController.signal.aborted) {
+        logger.info(`Scheduled job ${result.jobId} was cancelled`);
+        return;
+      }
 
       // Read the finalized record for completion/failure events + hooks.
       // (job:created is emitted up front in onJobCreated above.)

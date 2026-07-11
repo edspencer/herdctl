@@ -35,7 +35,6 @@ import {
 } from "./errors.js";
 import { buildJobOutputPayload } from "./job-output-mapper.js";
 import type {
-  AgentInfo,
   CancelJobResult,
   ChatSessionOptions,
   ForkJobResult,
@@ -55,19 +54,7 @@ import type {
  * using the FleetManagerContext pattern.
  */
 export class JobControl {
-  /**
-   * In-memory registry of currently-running jobs to their AbortController, keyed
-   * by job id. A job is registered the moment its id is known (via the executor's
-   * `onJobCreated`) and removed when the run finishes. {@link cancelJob} consults
-   * this to actually interrupt a live run — without it, cancelling only rewrote
-   * the job's status file while the agent process kept running.
-   */
-  private readonly runningControllers = new Map<string, AbortController>();
-
-  constructor(
-    private ctx: FleetManagerContext,
-    private getAgentInfoFn: () => Promise<AgentInfo[]>,
-  ) {}
+  constructor(private ctx: FleetManagerContext) {}
 
   /**
    * Manually trigger an agent outside its normal schedule
@@ -221,7 +208,9 @@ export class JobControl {
         },
         onJobCreated: (id, job) => {
           registeredJobId = id;
-          this.runningControllers.set(id, abortController);
+          // Register in the shared running-job registry so shutdown bulk-cancel
+          // can interrupt this in-flight job (edspencer/herdctl#324).
+          this.ctx.registerJob?.(id, abortController);
 
           // Emit job:created at creation time (status `pending`), BEFORE any
           // job:output streams and before completion. The record is passed
@@ -244,7 +233,7 @@ export class JobControl {
       });
     } finally {
       if (registeredJobId) {
-        this.runningControllers.delete(registeredJobId);
+        this.ctx.unregisterJob?.(registeredJobId);
       }
     }
 
@@ -508,11 +497,11 @@ export class JobControl {
     // its status file rewritten while it keeps running). Jobs owned by another
     // process won't be in the registry; those fall back to the status-file update
     // below (best-effort, unchanged behavior).
-    const controller = this.runningControllers.get(jobId);
+    const controller = this.ctx.getJobController?.(jobId);
     if (controller) {
       logger.info(`Aborting in-flight job ${jobId}`);
       controller.abort();
-      this.runningControllers.delete(jobId);
+      this.ctx.unregisterJob?.(jobId);
     }
 
     const timestamp = new Date().toISOString();
@@ -687,20 +676,21 @@ export class JobControl {
   /**
    * Cancel all running jobs during shutdown
    *
+   * Sources the set of in-flight jobs from the shared running-job registry (see
+   * {@link FleetManagerContext.registerJob}). BOTH manual and scheduled jobs
+   * register there, so this now actually cancels the scheduled jobs that stall
+   * shutdown — previously it read a `current_job` state field that nothing ever
+   * wrote, so it was a guaranteed no-op (edspencer/herdctl#324). The registry is
+   * keyed by job id, so this is concurrency-safe under `max_concurrent > 1`.
+   *
    * @param cancelTimeout - Timeout for each job cancellation
    */
   async cancelRunningJobs(cancelTimeout: number): Promise<void> {
     const logger = this.ctx.getLogger();
 
-    // Get all running jobs from the fleet status
-    const agentInfoList = await this.getAgentInfoFn();
-
-    const runningJobIds: string[] = [];
-    for (const agent of agentInfoList) {
-      if (agent.currentJobId) {
-        runningJobIds.push(agent.currentJobId);
-      }
-    }
+    // Snapshot the ids of every job running in this process from the shared
+    // registry. Snapshot up front because cancelJob() mutates the registry.
+    const runningJobIds = this.ctx.getRunningJobIds?.() ?? [];
 
     if (runningJobIds.length === 0) {
       logger.debug("No running jobs to cancel");
