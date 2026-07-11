@@ -1079,19 +1079,6 @@ export const FleetReferenceSchema = z.object({
 export type FleetReference = z.infer<typeof FleetReferenceSchema>;
 
 // =============================================================================
-// Chat Schemas
-// =============================================================================
-
-export const DiscordChatSchema = z.object({
-  enabled: z.boolean().optional().default(false),
-  token_env: z.string().optional(),
-});
-
-export const ChatSchema = z.object({
-  discord: DiscordChatSchema.optional(),
-});
-
-// =============================================================================
 // Webhook Schema
 // =============================================================================
 
@@ -1155,7 +1142,6 @@ export const FleetConfigSchema = z
     working_directory: WorkingDirectorySchema.optional(),
     fleets: z.array(FleetReferenceSchema).optional().default([]),
     agents: z.array(AgentReferenceSchema).optional().default([]),
-    chat: ChatSchema.optional(),
     webhooks: WebhooksSchema.optional(),
     web: WebSchema.optional(),
     docker: FleetDockerSchema.optional(),
@@ -1185,8 +1171,6 @@ export type Docker = z.infer<typeof DockerSchema>;
 export type Defaults = z.infer<typeof DefaultsSchema>;
 export type WorkingDirectory = z.infer<typeof WorkingDirectorySchema>;
 export type AgentReference = z.infer<typeof AgentReferenceSchema>;
-export type DiscordChat = z.infer<typeof DiscordChatSchema>;
-export type Chat = z.infer<typeof ChatSchema>;
 export type Webhooks = z.infer<typeof WebhooksSchema>;
 export type WebConfig = z.infer<typeof WebSchema>;
 export type FleetConfig = z.infer<typeof FleetConfigSchema>;

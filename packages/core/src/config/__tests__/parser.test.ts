@@ -60,11 +60,6 @@ agents:
   - path: ./agents/bragdoc-coder.yaml
   - path: ./agents/bragdoc-marketer.yaml
   - path: ./agents/turtle-content.yaml
-
-chat:
-  discord:
-    enabled: true
-    token_env: DISCORD_BOT_TOKEN
 `;
       const config = parseFleetConfig(yaml);
 
@@ -80,8 +75,21 @@ chat:
       expect(config.working_directory?.clone_depth).toBe(1);
       expect(config.agents).toHaveLength(3);
       expect(config.agents[0].path).toBe("./agents/bragdoc-coder.yaml");
-      expect(config.chat?.discord?.enabled).toBe(true);
-      expect(config.chat?.discord?.token_env).toBe("DISCORD_BOT_TOKEN");
+    });
+
+    it("rejects a fleet-level chat block (deprecated, stripped only by the loader)", () => {
+      // parser.ts performs strict schema validation with no backward-compat
+      // handling — only loader.ts (which sits in front of the parser) knows
+      // to warn and strip the deprecated fleet-level "chat" key. Fed directly
+      // into the strict parser, an unrecognized "chat" key is rejected.
+      const yaml = `
+version: 1
+chat:
+  discord:
+    enabled: true
+    token_env: DISCORD_BOT_TOKEN
+`;
+      expect(() => parseFleetConfig(yaml)).toThrow(SchemaValidationError);
     });
 
     it("parses configuration with fleet metadata", () => {

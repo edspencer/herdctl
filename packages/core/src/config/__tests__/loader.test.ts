@@ -741,7 +741,9 @@ system_prompt: |
     expect(result.fleet.fleet?.name).toBe("example-fleet");
     expect(result.fleet.defaults?.model).toBe("claude-sonnet-4-20250514");
     expect(result.fleet.working_directory?.root).toBe("./workspace");
-    expect(result.fleet.chat?.discord?.enabled).toBe(true);
+    // The deprecated fleet-level `chat` block above is stripped during load
+    // (see "backward compatibility for deprecated fleet-level chat" below) —
+    // it is not a recognized key on the resulting FleetConfig.
 
     // Agents loaded
     expect(result.agents).toHaveLength(2);
@@ -1077,6 +1079,82 @@ working_directory: /new/directory
         expect(warnings.some((w) => w.includes("deprecated") && w.includes("workspace"))).toBe(
           false,
         );
+      } finally {
+        console.warn = originalWarn;
+      }
+    });
+  });
+
+  describe("backward compatibility for deprecated fleet-level chat", () => {
+    it("strips a fleet-level chat block and emits a deprecation warning", async () => {
+      await createFile(
+        join(tempDir, "herdctl.yaml"),
+        `
+version: 1
+agents:
+  - path: ./agents/worker.yaml
+chat:
+  discord:
+    enabled: true
+    token_env: DISCORD_TOKEN
+`,
+      );
+      await createFile(
+        join(tempDir, "agents", "worker.yaml"),
+        `
+name: worker
+`,
+      );
+
+      // Capture console.warn
+      const originalWarn = console.warn;
+      const warnings: string[] = [];
+      console.warn = (...args: unknown[]) => {
+        warnings.push(args.join(" "));
+      };
+
+      try {
+        const result = await loadConfig(tempDir);
+
+        // Config still loads successfully with the chat key stripped
+        expect(result.fleet).not.toHaveProperty("chat");
+        expect(result.agents).toHaveLength(1);
+
+        // Should emit a deprecation warning
+        expect(warnings.length).toBeGreaterThan(0);
+        expect(warnings.some((w) => w.includes("deprecated"))).toBe(true);
+        expect(warnings.some((w) => w.includes("chat"))).toBe(true);
+      } finally {
+        console.warn = originalWarn;
+      }
+    });
+
+    it("does not warn when no fleet-level chat block is present", async () => {
+      await createFile(
+        join(tempDir, "herdctl.yaml"),
+        `
+version: 1
+agents:
+  - path: ./agents/worker.yaml
+`,
+      );
+      await createFile(
+        join(tempDir, "agents", "worker.yaml"),
+        `
+name: worker
+`,
+      );
+
+      const originalWarn = console.warn;
+      const warnings: string[] = [];
+      console.warn = (...args: unknown[]) => {
+        warnings.push(args.join(" "));
+      };
+
+      try {
+        await loadConfig(tempDir);
+
+        expect(warnings.some((w) => w.includes("deprecated") && w.includes("chat"))).toBe(false);
       } finally {
         console.warn = originalWarn;
       }
