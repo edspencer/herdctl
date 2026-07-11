@@ -7,27 +7,33 @@ A **Job** represents a single execution of an agent. Each time an agent runs—w
 
 ## Job Properties
 
+Each job is stored as a YAML metadata file with these fields:
+
 | Property | Type | Description |
 |----------|------|-------------|
-| `id` | string | Unique job identifier (UUID) |
+| `id` | string | Unique job identifier, format `job-YYYY-MM-DD-<random6>` (e.g., `job-2025-01-15-k2x9qa`) |
 | `agent` | string | Name of the agent executing this job |
-| `schedule` | string | Schedule that triggered this job (if scheduled) |
+| `schedule` | string \| null | Schedule that triggered this job (if scheduled) |
+| `trigger_type` | enum | How the job was triggered: `manual`, `schedule`, `webhook`, `chat`, `discord`, `slack`, `web`, or `fork` |
 | `status` | enum | Current job status |
-| `exitReason` | enum | Why the job ended (set on completion) |
-| `sessionId` | string | Claude session ID for resume capability |
-| `startedAt` | timestamp | When the job started execution |
-| `completedAt` | timestamp | When the job finished (success or failure) |
-| `output` | string | Path to job output file (JSONL format) |
-| `error` | string | Error message if job failed |
+| `exit_reason` | enum \| null | Why the job ended (set on completion) |
+| `session_id` | string \| null | Claude session ID for resume capability |
+| `forked_from` | string \| null | Parent job ID when `trigger_type` is `fork` |
+| `started_at` | ISO timestamp | When the job started |
+| `finished_at` | ISO timestamp \| null | When the job finished (null while running) |
+| `duration_seconds` | number \| null | Job duration, calculated when finished |
+| `prompt` | string \| null | The prompt given to the agent |
+| `summary` | string \| null | Brief summary of what the job accomplished |
+| `output_file` | string \| null | Path to the JSONL output file |
 
 ## Job Lifecycle
 
 Jobs progress through a defined lifecycle:
 
 ```
-PENDING → RUNNING → COMPLETED
-                  → FAILED
-                  → CANCELLED
+pending → running → completed
+                  → failed
+                  → cancelled
 ```
 
 ### Execution Flow
@@ -58,7 +64,7 @@ sequenceDiagram
     SE->>JE: executor.execute(options)
     activate JE
 
-    JE->>State: createJob(agent, trigger, prompt)
+    JE->>State: createJob(agent, trigger_type, prompt)
     State-->>JE: job record (status: pending)
 
     JE->>State: updateJob(status: running)
@@ -83,11 +89,11 @@ sequenceDiagram
     deactivate RT
 
     alt Success
-        JE->>State: updateJob(status: completed, summary)
+        JE->>State: updateJob(status: completed, exit_reason: success, summary)
         JE->>State: updateSessionInfo(sessionId)
         JE-->>SE: RunnerResult(success: true)
     else Error / Failure
-        JE->>State: updateJob(status: failed, error)
+        JE->>State: updateJob(status: failed, exit_reason)
         JE-->>SE: RunnerResult(success: false, error)
     end
     deactivate JE
@@ -112,6 +118,7 @@ The key participants in this flow are:
 
 | Status | Description |
 |--------|-------------|
+| `pending` | Job record created, execution not yet started |
 | `running` | Job is currently executing |
 | `completed` | Job finished successfully |
 | `failed` | Job terminated due to an error |
@@ -119,73 +126,99 @@ The key participants in this flow are:
 
 ## Exit Reasons
 
-When a job completes, it records an exit reason explaining why it ended:
+When a job finishes, it records an exit reason explaining why it ended:
 
 | Exit Reason | Description |
 |-------------|-------------|
-| `end_turn` | Job completed naturally |
-| `stop_sequence` | Job hit a stop sequence |
-| `max_turns` | Job reached maximum conversation turns |
-| `timeout` | Job exceeded its configured time limit |
-| `interrupt` | Job was cancelled by user intervention |
+| `success` | Job completed naturally |
 | `error` | Job failed due to an error |
+| `timeout` | Job exceeded its configured time limit |
+| `cancelled` | Job was cancelled by user intervention |
+| `max_turns` | Job reached maximum conversation turns |
 
 ### Example Job Record
 
-```json
-{
-  "id": "job-550e8400-e29b",
-  "agent": "bragdoc-coder",
-  "schedule": "daily-standup",
-  "status": "completed",
-  "exitReason": "success",
-  "sessionId": "sess-a1b2c3d4",
-  "startedAt": "2024-01-15T09:00:00Z",
-  "completedAt": "2024-01-15T09:15:32Z",
-  "output": "~/.herdctl/jobs/job-550e8400-e29b/output.jsonl"
-}
+Job metadata is stored as YAML (`.herdctl/jobs/<job-id>.yaml`):
+
+```yaml
+id: job-2025-01-15-k2x9qa
+agent: bragdoc-coder
+schedule: issue-check
+trigger_type: schedule
+status: completed
+exit_reason: success
+session_id: a1b2c3d4-5678-90ab-cdef-1234567890ab
+forked_from: null
+started_at: "2025-01-15T09:00:00.000Z"
+finished_at: "2025-01-15T09:15:32.000Z"
+duration_seconds: 932
+prompt: "Check for ready issues and implement the oldest one."
+summary: "Implemented issue #42: fixed authentication timeout."
+output_file: .herdctl/jobs/job-2025-01-15-k2x9qa.jsonl
 ```
 
 ## Job Output Format
 
-Job output is stored in **JSONL (JSON Lines)** format, where each line is a separate JSON object representing an event during execution:
+Job output is stored in **JSONL (JSON Lines)** format, where each line is a separate JSON object representing a message during execution:
 
 ```jsonl
-{"type":"start","timestamp":"2024-01-15T09:00:00Z","message":"Job started"}
-{"type":"tool_use","timestamp":"2024-01-15T09:00:05Z","tool":"Read","file":"src/index.ts"}
-{"type":"output","timestamp":"2024-01-15T09:00:10Z","content":"Reading file contents..."}
-{"type":"tool_use","timestamp":"2024-01-15T09:00:15Z","tool":"Edit","file":"src/index.ts"}
-{"type":"complete","timestamp":"2024-01-15T09:15:32Z","exitReason":"success"}
+{"type":"system","timestamp":"2025-01-15T09:00:00Z","subtype":"init","content":"Session started"}
+{"type":"assistant","timestamp":"2025-01-15T09:00:05Z","content":"I'll start by reading the issue."}
+{"type":"tool_use","timestamp":"2025-01-15T09:00:10Z","tool_name":"Read","tool_use_id":"toolu_01","input":{"file_path":"src/index.ts"}}
+{"type":"tool_result","timestamp":"2025-01-15T09:00:11Z","tool_use_id":"toolu_01","success":true,"result":"..."}
+{"type":"assistant","timestamp":"2025-01-15T09:15:30Z","content":"Done. The fix is in src/index.ts."}
 ```
 
-### Output Event Types
+### Output Message Types
 
 | Type | Description |
 |------|-------------|
-| `start` | Job execution began |
-| `output` | Text output from Claude |
-| `tool_use` | Tool invocation |
-| `tool_result` | Tool execution result |
-| `error` | Error occurred |
-| `complete` | Job finished |
+| `system` | System message (e.g., session init), with optional `subtype` |
+| `assistant` | Text output from Claude, with optional token `usage` |
+| `tool_use` | Tool invocation (`tool_name`, `tool_use_id`, `input`) |
+| `tool_result` | Tool execution result (`result`, `success`, `error`) |
+| `error` | Error occurred (`message`, `code`, `stack`) |
 
-### Viewing Job Output
+## Working with Jobs
+
+The primary commands for inspecting jobs are `herdctl jobs` (list) and `herdctl job <id>` (detail):
 
 ```bash
-# View logs for a specific job
-herdctl logs --job <job-id>
+# List recent jobs (default: 20)
+herdctl jobs
 
+# Filter by agent or status
+herdctl jobs --agent bragdoc-coder
+herdctl jobs --status failed
+
+# Show more jobs, or output JSON for scripting
+herdctl jobs --limit 50
+herdctl jobs --json
+
+# Show details for a specific job
+herdctl job job-2025-01-15-k2x9qa
+
+# Show a job's full output
+herdctl job job-2025-01-15-k2x9qa --logs
+```
+
+### Viewing Job Output as Logs
+
+The `herdctl logs` command streams job output per agent or per job:
+
+```bash
 # View logs for an agent (shows recent jobs)
 herdctl logs <agent-name>
+
+# View logs for a specific job
+herdctl logs --job <job-id>
 
 # Follow logs in real-time
 herdctl logs <agent-name> --follow
 
-# Export to file
-herdctl logs --job <job-id> > job-output.log
+# Control how many lines are shown (default: 50)
+herdctl logs <agent-name> --lines 200
 ```
-
-## Working with Jobs
 
 ### Viewing Agent and Job Status
 
@@ -200,8 +233,12 @@ herdctl status <agent-name>
 ### Cancelling Jobs
 
 ```bash
-# Cancel a running job
+# Cancel a running job (prompts for confirmation)
 herdctl cancel <job-id>
+
+# Skip confirmation, or force-kill (SIGKILL)
+herdctl cancel <job-id> --yes
+herdctl cancel <job-id> --force
 ```
 
 ## Session Resume
@@ -227,18 +264,18 @@ See [Sessions](/concepts/sessions/) for more details on session management and r
 
 ## Job Storage
 
-Jobs are persisted to disk for history and recovery. See [State Management](/architecture/state-management/) for details on storage backends and configuration.
+Jobs are persisted to the project-local `.herdctl/` state directory (configurable with `--state`). Metadata and output live side by side as flat files named by job ID:
 
 ```
-~/.herdctl/
-├── jobs/
-│   └── <job-id>/
-│       ├── job.json      # Job metadata
-│       └── output.jsonl  # Execution output
-└── logs/
-    └── <agent>/
-        └── <job-id>.log  # Agent-specific logs
+.herdctl/
+└── jobs/
+    ├── job-2025-01-15-k2x9qa.yaml   # Job metadata
+    ├── job-2025-01-15-k2x9qa.jsonl  # Execution output (JSONL)
+    └── job-2025-01-15-k2x9qa/       # Only when a schedule sets outputToFile: true
+        └── output.log               # Plain-text output log
 ```
+
+See [State Management](/architecture/state-management/) for details on the state directory.
 
 ## Related Concepts
 
