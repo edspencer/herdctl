@@ -121,6 +121,7 @@ export class WebChatManager {
   private discoveryService: SessionDiscoveryService | null = null;
   private metadataStore: SessionMetadataStore | null = null;
   private toolResults: boolean = true;
+  private sessionExpiryHours: number = 24;
   private initialized: boolean = false;
 
   /** Per-agent session managers for attribution */
@@ -147,6 +148,7 @@ export class WebChatManager {
     this.fleetManager = fleetManager;
     this.stateDir = stateDir;
     this.toolResults = config.tool_results ?? true;
+    this.sessionExpiryHours = config.session_expiry_hours ?? 24;
     this.discoveryService = discoveryService;
     this.metadataStore = new SessionMetadataStore(stateDir);
 
@@ -694,7 +696,7 @@ export class WebChatManager {
       platform: "web",
       agentName,
       stateDir: this.stateDir!,
-      sessionExpiryHours: 24, // Default expiry for attribution
+      sessionExpiryHours: this.sessionExpiryHours,
       logger: chatLogger,
     });
 
