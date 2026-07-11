@@ -61,11 +61,13 @@ export {
   FleetManagerShutdownError,
   FleetManagerStateDirError,
   InvalidStateError,
+  InvalidWorkingDirectoryOverrideError,
   isAgentNotFoundError,
   isConcurrencyLimitError,
   isConfigurationError,
   isFleetManagerError,
   isInvalidStateError,
+  isInvalidWorkingDirectoryOverrideError,
   // Job control error type guards (US-6)
   isJobCancelError,
   isJobForkError,

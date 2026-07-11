@@ -6,6 +6,10 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  InvalidWorkingDirectoryOverrideError as InvalidWorkingDirectoryOverrideErrorFromBarrel,
+  isInvalidWorkingDirectoryOverrideError as isInvalidWorkingDirectoryOverrideErrorFromBarrel,
+} from "../../index.js";
+import {
   AgentNotFoundError,
   ConcurrencyLimitError,
   ConfigurationError,
@@ -647,6 +651,24 @@ describe("FleetManagerError classes", () => {
       expect(FleetManagerErrorCode.INVALID_WORKING_DIRECTORY_OVERRIDE).toBe(
         "INVALID_WORKING_DIRECTORY_OVERRIDE",
       );
+    });
+  });
+
+  // ===========================================================================
+  // Public API surface (package barrel)
+  // ===========================================================================
+  describe("public exports", () => {
+    it("exports InvalidWorkingDirectoryOverrideError and its type guard from the package index", () => {
+      // Regression test for edspencer/herdctl#325: these were thrown to
+      // consumers by trigger() but missing from the barrel exports.
+      expect(InvalidWorkingDirectoryOverrideErrorFromBarrel).toBe(
+        InvalidWorkingDirectoryOverrideError,
+      );
+      expect(isInvalidWorkingDirectoryOverrideErrorFromBarrel).toBe(
+        isInvalidWorkingDirectoryOverrideError,
+      );
+      const error = new InvalidWorkingDirectoryOverrideErrorFromBarrel("");
+      expect(isInvalidWorkingDirectoryOverrideErrorFromBarrel(error)).toBe(true);
     });
   });
 });
