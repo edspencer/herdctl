@@ -1,5 +1,129 @@
 # @herdctl/core
 
+## 5.19.0
+
+### Minor Changes
+
+- [#320](https://github.com/edspencer/herdctl/pull/320) [`2d222e8`](https://github.com/edspencer/herdctl/commit/2d222e8d0bc505e55a02b6836ba96378eb774940) Thanks [@edspencer](https://github.com/edspencer)! - perf(state): cache derived per-session facts (isSidechain, usage) in the session metadata store
+
+  Session discovery re-derived two facts from every transcript on each listing: the
+  sidechain flag (`getAgentSessions` opened the first JSONL line of **every**
+  session, every call) and the context-window usage (`getSessionUsage` streamed the
+  whole transcript). Both are now memoized in `SessionMetadataStore` keyed on the
+  transcript's mtime — the same mtime-invalidated pattern already used for
+  `preview`/`autoName` — so an unchanged session is never re-read.
+
+  - New `SessionMetadataEntry` fields: `isSidechain`/`isSidechainMtime` and
+    `usage`/`usageMtime`, with `getSidechain`/`batchSetSidechains` and
+    `getUsage`/`setUsage` on the store.
+  - `getSessionUsage` gains optional `agentName` (enables the persistent cache) and
+    `mtime` (skips a `stat` when the caller already knows it). `FleetManager.getAgentSessionUsage`
+    passes the agent name, so callers get durable, restart-surviving usage caching
+    for free.
+
+  Measured on a real 289-transcript project (after a simulated restart): bulk usage
+  reads dropped from ~600 ms to ~2 ms, and `getAgentSessions` from ~1.29 s to ~0.91 s
+  (the remainder is the attribution-index rebuild, addressed separately).
+
+- [#344](https://github.com/edspencer/herdctl/pull/344) [`d01b388`](https://github.com/edspencer/herdctl/commit/d01b3882d06a21810ba16eaafc787356f7bbab1f) Thanks [@edspencer](https://github.com/edspencer)! - Deprecate the never-used fleet-level `chat` config block (edspencer/herdctl#329).
+
+  - The fleet-level `chat: { discord: { enabled, token_env } }` block was accepted by `FleetConfigSchema` but was never read at runtime — chat is configured per-agent under each agent's `chat` key. Loading a fleet config that still has a top-level `chat` block now logs a deprecation warning and strips the key before strict parsing, so the config continues to load.
+  - `FleetConfigSchema` no longer has a `chat` field, and the `ChatSchema` / `DiscordChatSchema` schemas (along with the `Chat` / `DiscordChat` types) have been removed from `@herdctl/core`'s public exports. Per-agent chat config (`AgentChatSchema`, `AgentChatDiscordSchema`, `AgentChatSlackSchema`, etc.) is unaffected.
+  - Fed directly through the lower-level `parseFleetConfig`/`FleetConfigSchema` (which has no backward-compat handling), a fleet-level `chat` key is now rejected as an unrecognized key — only the higher-level config loader (`loadConfig`/`safeLoadConfig`) warns and strips it, mirroring how the existing `workspace` → `working_directory` deprecation is handled.
+
+- [#348](https://github.com/edspencer/herdctl/pull/348) [`1571325`](https://github.com/edspencer/herdctl/commit/15713256986e5eac99a26a429c3261c5be183eb4) Thanks [@edspencer](https://github.com/edspencer)! - Fix job lifecycle event ordering and add `job:output` on manual triggers (#328)
+
+  `job:created` is now emitted the moment the job record is created (status
+  `pending`), before any `job:output` and before the run completes — on both the
+  manual `trigger()` path and the scheduled path. Previously it was emitted only
+  _after_ `JobExecutor.execute()` resolved, so consumers saw `job:created` fire
+  after the job had already run (and, on the scheduled path, after its own
+  `job:output` events).
+
+  Manual `trigger()` now also emits `job:output` events as the agent streams,
+  matching the scheduled path. Previously manual triggers emitted zero
+  `job:output`.
+
+  This aligns the observable event stream with the documented contract
+  ("`job:created` … status will be 'pending' at this point") and restores the
+  `created → output → completed` ordering. The SDK-message → `job:output` payload
+  mapping is now shared between both paths, so payloads are identical. This is a
+  public event-contract change, hence the minor bump.
+
+- [#330](https://github.com/edspencer/herdctl/pull/330) [`2da4b33`](https://github.com/edspencer/herdctl/commit/2da4b33fcfd0ccb7f010eb603479175c63589816) Thanks [@edspencer](https://github.com/edspencer)! - perf(state): make the attribution index incremental
+
+  Building the session attribution index read and YAML-parsed **every** job record
+  in `.herdctl/jobs/` on each build. For a long-running fleet that accumulates
+  thousands of jobs, that re-parse (repeated every time the per-listing attribution
+  cache expires) is the dominant cost of listing sessions.
+
+  Job records are effectively immutable except for a small tail — a job gains its
+  `session_id` and a terminal status when it finishes — so a new `AttributionIndexBuilder`
+  keeps a per-file cache keyed on mtime and re-parses only files that are new or
+  whose mtime changed. Each rebuild becomes O(jobs) cheap `stat`s plus O(changed)
+  parses instead of O(jobs) reads+parses. `SessionDiscoveryService` holds one
+  builder for its lifetime, so post-TTL refreshes are cheap. The standalone
+  `buildAttributionIndex` (full build) is unchanged for one-shot callers.
+
+  Measured on a real ~600-job state dir: a warm rebuild (nothing changed) dropped
+  from ~350 ms to ~10 ms.
+
+- [#343](https://github.com/edspencer/herdctl/pull/343) [`8fec611`](https://github.com/edspencer/herdctl/commit/8fec6113a01c07162d4e87ed852460850434a44c) Thanks [@edspencer](https://github.com/edspencer)! - Emit `agent:started` / `agent:stopped` lifecycle events and remove the never-emitted `schedule:skipped` event (edspencer/herdctl#323).
+
+  - `agent:started` is now emitted for each configured agent when `FleetManager.start()` completes, and when an agent is registered at runtime via `addAgent()`.
+  - `agent:stopped` is now emitted for each agent during `FleetManager.stop()` (reason `"shutdown"`), and when an agent is unregistered via `removeAgent()` (reason `"removed"`). Both events were previously declared and documented but never fired.
+  - The `schedule:skipped` event has been removed from the FleetManager public event surface (`FleetManagerEventMap`), along with the `ScheduleSkippedPayload` type and the `emitScheduleSkipped` helper. It was never emitted, nothing subscribed to it, and its declared reason enum did not match the scheduler's actual skip reasons. The separate `JobQueue` class's own `schedule:skipped` event is unaffected.
+
+### Patch Changes
+
+- [#342](https://github.com/edspencer/herdctl/pull/342) [`d09833d`](https://github.com/edspencer/herdctl/commit/d09833dee9c22c2d8add651c980243d9599c71b9) Thanks [@edspencer](https://github.com/edspencer)! - Export `InvalidWorkingDirectoryOverrideError` and `isInvalidWorkingDirectoryOverrideError` from `@herdctl/core` (edspencer/herdctl#325).
+
+- [#347](https://github.com/edspencer/herdctl/pull/347) [`18834f8`](https://github.com/edspencer/herdctl/commit/18834f8dac900eea3b1f8810cfa6d04453e3de32) Thanks [@edspencer](https://github.com/edspencer)! - fix(core): inject refreshed OAuth credentials into reused persistent containers
+
+  Docker credentials were only ever applied to a container's env at creation
+  time. For persistent agents (`docker.ephemeral: false`) the same container is
+  reused across executions, so a token refreshed by `buildContainerEnv()` never
+  reached the already-running container — on token-expiry retry the `docker exec`
+  still inherited the stale creation-time token and the agent looped on expired
+  credentials. Each execution now re-injects the current credential env
+  (`CLAUDE_CODE_OAUTH_TOKEN` / `CLAUDE_REFRESH_TOKEN` / `CLAUDE_EXPIRES_AT` /
+  `ANTHROPIC_API_KEY`) into every exec (SDK `exec` `Env`, CLI `docker exec -e`
+  args), so reused persistent containers always run with fresh credentials.
+  Ephemeral containers were unaffected. Fixes edspencer/herdctl#327.
+
+- [#321](https://github.com/edspencer/herdctl/pull/321) [`d7589df`](https://github.com/edspencer/herdctl/commit/d7589dfd97819c84933b8502ca18ce5810bd1c69) Thanks [@edspencer](https://github.com/edspencer)! - perf(state): enrich sessions with bounded concurrency in getAgentSessions
+
+  `getAgentSessions` enriched each session one at a time in a sequential
+  `for … await` loop, so its latency grew linearly with the session count even
+  though the per-session work (reading a transcript head for the sidechain check,
+  plus any uncached name/preview) is independent and I/O-bound. It now runs that
+  work through a bounded-concurrency map (cap 16), overlapping the I/O while
+  capping open file descriptors. Results are collected in input order, so the
+  mtime-descending sort is unchanged. Adds a small, tested `mapWithConcurrency`
+  helper.
+
+- [#340](https://github.com/edspencer/herdctl/pull/340) [`38a408d`](https://github.com/edspencer/herdctl/commit/38a408d5d7b29c13863a79aa60370487bc37ffe3) Thanks [@edspencer](https://github.com/edspencer)! - Fix `denied_tools` being silently ignored on `runtime: sdk` agents (edspencer/herdctl#322).
+
+  The SDK adapter passed an agent's `denied_tools` to the Claude Agent SDK as `deniedTools`, but the SDK's actual option is named `disallowedTools`. Because the options object is spread into `query()` untyped, the misspelled key was silently dropped — so tools listed in `denied_tools` remained fully available to SDK-runtime agents. The CLI runtime was unaffected (it already passes `--disallowedTools`).
+
+  `toSDKOptions` now emits `disallowedTools`, and `SDKQueryOptions` declares the correctly named field so the compiler catches any future drift.
+
+- [#349](https://github.com/edspencer/herdctl/pull/349) [`f915f65`](https://github.com/edspencer/herdctl/commit/f915f656d973ebd17457c005476d519103f2b192) Thanks [@edspencer](https://github.com/edspencer)! - fix(core): shutdown bulk-cancel now actually cancels in-flight jobs
+
+  `FleetManager.stop({ cancelOnTimeout: true })` was a guaranteed no-op: on a
+  shutdown timeout it read jobs from a `current_job` fleet-state field that nothing
+  ever wrote, so no jobs were ever cancelled. Manual and scheduled jobs that stalled
+  shutdown kept running.
+
+  In-flight jobs are now tracked in a single shared AbortController registry that
+  both manual triggers (`JobControl.trigger`) and scheduled jobs
+  (`ScheduleExecutor`) register into. Shutdown bulk-cancel iterates that registry and
+  genuinely aborts each live run (killing the CLI subprocess / aborting the SDK
+  query). The registry is keyed by job id, so it is concurrency-safe under
+  `instances.max_concurrent > 1`. This is an internal, non-breaking change.
+
+  Refs edspencer/herdctl#324.
+
 ## 5.18.2
 
 ### Patch Changes
