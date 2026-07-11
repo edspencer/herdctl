@@ -625,8 +625,11 @@ export class JobExecutor {
         }
 
         // Check if this is an OAuth token expiry error
-        // When the access token expires mid-session, retry triggers buildContainerEnv()
-        // which reads the credentials file and refreshes the token automatically.
+        // On retry, buildContainerEnv() re-reads the credentials file and
+        // refreshes the token. The fresh credentials reach the container via a
+        // new ephemeral container (created with the new env) or, for reused
+        // persistent containers, by being injected into each docker exec — so
+        // both cases pick up the refreshed token. See edspencer/herdctl#327.
         if (isTokenExpiredError(error as Error) && !retriedAfterTokenExpiry) {
           this.logger.warn(`OAuth token expired for ${agent.name}. Retrying with fresh token.`);
 

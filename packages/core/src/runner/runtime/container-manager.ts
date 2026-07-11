@@ -392,6 +392,42 @@ async function refreshClaudeOAuthToken(
 }
 
 /**
+ * Auth-credential env var keys that must be re-applied on every exec.
+ *
+ * A container's env is fixed at creation time and cannot change while it runs.
+ * For persistent (ephemeral: false) containers the same container is reused
+ * across executions, so a freshly-refreshed OAuth token computed by
+ * buildContainerEnv() never reaches the already-running container unless it is
+ * re-injected into each `docker exec`. These are the keys carrying such
+ * (potentially just-refreshed) credentials. See edspencer/herdctl#327.
+ */
+const CREDENTIAL_ENV_KEYS = [
+  "ANTHROPIC_API_KEY",
+  "CLAUDE_CODE_OAUTH_TOKEN",
+  "CLAUDE_REFRESH_TOKEN",
+  "CLAUDE_EXPIRES_AT",
+];
+
+/**
+ * Extract the auth-credential subset from a computed container env array.
+ *
+ * Returns only the "KEY=value" entries whose key is a credential key (see
+ * CREDENTIAL_ENV_KEYS). The result is injected into each exec so reused
+ * persistent containers always run with the current credentials rather than
+ * the ones baked in at container-creation time.
+ *
+ * @param env - Full container env as "KEY=value" strings
+ * @returns Credential-only subset, preserving order
+ */
+export function extractCredentialEnv(env: string[]): string[] {
+  return env.filter((entry) => {
+    const eq = entry.indexOf("=");
+    const key = eq === -1 ? entry : entry.slice(0, eq);
+    return CREDENTIAL_ENV_KEYS.includes(key);
+  });
+}
+
+/**
  * Build environment variables for container
  *
  * Reads OAuth tokens from the mounted credentials file and refreshes
