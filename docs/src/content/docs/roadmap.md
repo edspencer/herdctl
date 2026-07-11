@@ -1,68 +1,42 @@
 ---
 title: Roadmap
-description: Planned features and future direction for herdctl
+description: Recently shipped work, known open work, and future direction for herdctl
 ---
 
-This page outlines planned features and areas of active development for herdctl. These are forward-looking plans and may change as the project evolves. For a history of shipped features, see [What's New](/whats-new/).
+This page summarizes what has shipped recently, what is known open work, and the longer-term direction for herdctl. Forward-looking items may change as the project evolves. For the full history of shipped features, see [What's New](/whats-new/).
 
-## Dynamic Scheduling
+## Recently Shipped
 
-Currently, agent schedules are static — defined in YAML config and fixed at fleet startup. Dynamic scheduling will allow agents to request their own next run time based on what they observe during a job.
+The library surface has grown substantially through the `@herdctl/core` 5.13–5.18 releases:
 
-The current approach uses a `metadata.json` file that agents write to their workspace at the end of a job:
+- **Streaming chat sessions** — `FleetManager.openChatSession()` returns a live multi-turn `RuntimeSession` with `send()`, `interrupt()`, `listCommands()`, and `setModel()` (core 5.14.0). See [Sessions](/concepts/sessions/).
+- **Real job cancellation** — `cancelJob()` actually interrupts the running agent process instead of only rewriting the job's status file (core 5.14.1).
+- **Session forking** — `trigger('agent', undefined, { fork: sessionId })` branches an existing conversation into an independent child session (core 5.15.0).
+- **Slash command discovery** — `listAgentCommands()` returns an agent's available slash commands in one call (core 5.16.0).
+- **Claude Agent SDK 0.3 + Zod 4** — upgraded to the SDK line that runs the native Claude Code binary with the current agentic toolset (core 5.17.0).
+- **Session reaper and durable wakes** — managed sessions are reaped when idle, and in-session `ScheduleWakeup`/`CronCreate` timers are captured and re-fired through the fleet scheduler, giving agents real cross-turn autonomy (core 5.18.0).
+- **Agent distribution** — `herdctl agent add <source>` installs agents from GitHub repositories or local paths, with `herdctl.json` metadata (core 5.6.0).
+- **Persistent agent memory** — the `context.md` pattern for memory that survives across jobs is documented in the [Persistent Memory Guide](/guides/persistent-memory/) and used by the bundled examples.
 
-```json
-{
-  "requestedNextRun": "2024-01-15T10:37:00Z",
-  "reason": "Storm trajectory update expected"
-}
-```
+## Known Open Work
 
-herdctl reads this file and adjusts the next trigger accordingly. This works, but we're looking to replace this file-based approach with an injected MCP pattern — giving agents a dedicated tool they can call to request schedule changes directly, rather than relying on file conventions.
+Tracked in the [issue tracker](https://github.com/edspencer/herdctl/issues):
 
-This enables agents to respond to real-world conditions — monitoring more frequently when something interesting is happening and backing off when things are quiet.
+- **Event gaps for manual triggers** — `job:created` is emitted only after a manually triggered job finishes, and `job:output` is never emitted for manual `trigger()` runs (only scheduled runs). Use the `onMessage`/`onJobCreated` callbacks in the meantime. [#328](https://github.com/edspencer/herdctl/issues/328)
+- **Declared-but-unemitted events** — `agent:started` and `agent:stopped` are declared and documented but never fired. [#323](https://github.com/edspencer/herdctl/issues/323)
+- **`denied_tools` on the SDK runtime** — silently ignored due to a `deniedTools` vs `disallowedTools` mismatch. [#322](https://github.com/edspencer/herdctl/issues/322)
+- **Fleet-level chat config** — accepted by the schema but unused at runtime. [#329](https://github.com/edspencer/herdctl/issues/329)
+- **Default toolset** — provide a first-class default/standard toolset and clarify headless `allowed_tools` semantics. [#281](https://github.com/edspencer/herdctl/issues/281)
+- **Per-agent chat verbosity** — verbosity control across Discord, Slack, and Web frontends. [#181](https://github.com/edspencer/herdctl/issues/181)
+- **Session attribution** — assign unattributed Claude Code sessions to agents. [#143](https://github.com/edspencer/herdctl/issues/143)
+- **File transfer** — inbound file/image transfer from Discord and Slack to agents ([#59](https://github.com/edspencer/herdctl/issues/59)) and agent-to-Discord file sending ([#55](https://github.com/edspencer/herdctl/issues/55)).
+- **MCP bridge auth** — per-request bearer token authentication for the MCP HTTP bridge. [#54](https://github.com/edspencer/herdctl/issues/54)
 
-## Persistent Agent Memory
+## Longer-Term Direction
 
-Agents can maintain a `context.md` file in their workspace — a persistent memory that survives across jobs:
+These are ideas under consideration, not committed work:
 
-```markdown
-# Agent Context
-
-## Learned Preferences
-- User prefers concise summaries
-- Always include links to source data
-- Escalate price drops > 20%
-
-## Current State
-- Monitoring: Sony WH-1000XM5
-- Target price: $279
-- Best seen: $299 at Amazon (2024-01-14)
-```
-
-Each job reads this context, acts on it, and can update it for future runs. This gives agents continuity between executions without requiring persistent sessions. An agent that runs once an hour can remember what it learned last hour.
-
-## Agent Self-Modification
-
-Advanced agents will be able to modify their own behavior over time:
-
-- Update their own `CLAUDE.md` instructions based on feedback
-- Write new slash command skills to extend their capabilities
-- Modify their YAML configuration (e.g., adjusting schedules or permissions)
-- Commit and push changes to their own repository
-
-This enables agents that improve themselves over time, learning from each interaction and adapting their behavior accordingly.
-
-## Agent-to-Agent Communication
-
-Agents in a fleet currently operate independently. Agent-to-agent communication will allow agents to delegate tasks to other agents, share results, and coordinate work. For example, a triage agent could assign issues to the most appropriate specialist agent, or a monitoring agent could alert a remediation agent when it detects a problem.
-
-Like dynamic scheduling, we plan to implement this via an injected MCP pattern — agents would have tools available to send messages to and receive responses from other agents in their fleet.
-
-## More Chat Integrations
-
-herdctl currently supports Discord, Slack, and the web dashboard for interactive chat with agents. We don't have plans to add native support for other platforms at this time, but we're working on making the chat integration layer pluggable — allowing anyone to write their own chat connector without requiring changes to herdctl itself.
-
-## Agent Marketplace
-
-A marketplace for sharing and discovering agent configurations. This will allow users to publish reusable agent definitions — complete with prompts, schedules, identity files, and MCP configurations — and for others to install and adapt them for their own fleets.
+- **Dynamic scheduling for jobs** — let scheduled agents request their own next run time via an injected MCP tool. Session-based agents already get this through durable wakes (`ScheduleWakeup`); config-defined job schedules are still static.
+- **Agent-to-agent communication** — injected MCP tools for agents to delegate tasks to and share results with other agents in their fleet.
+- **Pluggable chat connectors** — allow anyone to write their own chat integration without changes to herdctl itself, building on the shared `@herdctl/chat` layer.
+- **Agent marketplace** — a place to publish and discover reusable agent definitions, building on the shipped `herdctl agent add` distribution system.
