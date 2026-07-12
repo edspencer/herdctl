@@ -18,7 +18,12 @@ import { execa, type Subprocess } from "execa";
 import { createLogger } from "../../utils/logger.js";
 import { transformMcpServers } from "../sdk-adapter.js";
 import type { SDKMessage } from "../types.js";
-import { getCliSessionDir, getCliSessionFile, waitForNewSessionFile } from "./cli-session-path.js";
+import {
+  getCliSessionDir,
+  getCliSessionFile,
+  snapshotSessionFiles,
+  waitForNewSessionFile,
+} from "./cli-session-path.js";
 import { CLISessionWatcher } from "./cli-session-watcher.js";
 import type { RuntimeExecuteOptions, RuntimeInterface } from "./interface.js";
 import { type McpHttpBridge, startMcpHttpBridge } from "./mcp-http-bridge.js";
@@ -362,6 +367,17 @@ export class CLIRuntime implements RuntimeInterface {
       // Record start time before spawning process
       const processStartTime = Date.now();
 
+      // Snapshot the session directory's existing .jsonl files BEFORE spawning.
+      // A fresh (or forked) session writes a brand-new file; we identify it by
+      // set difference against this snapshot rather than by mtime, so a
+      // co-located agent concurrently streaming its own session in a shared
+      // session dir can't be mistaken for the file we just created (issue #357).
+      // Only needed when we actually wait for a new file (new session or fork).
+      const needNewSessionFile = !options.resume || !!options.fork;
+      const preSpawnSessionFiles = needNewSessionFile
+        ? await snapshotSessionFiles(sessionDir)
+        : undefined;
+
       // Spawn claude subprocess with prompt via stdin
       // Uses custom spawner if provided (e.g., for Docker execution)
       // Note: processSpawner returns Subprocess directly (which is promise-like)
@@ -425,6 +441,7 @@ export class CLIRuntime implements RuntimeInterface {
         sessionFilePath = await waitForNewSessionFile(sessionDir, processStartTime, {
           timeoutMs: 60000, // Allow up to 60s for MCP servers to initialize
           pollIntervalMs: 200,
+          knownFiles: preSpawnSessionFiles,
         });
         logger.debug(`New session, watching newly created file: ${sessionFilePath}`);
       }

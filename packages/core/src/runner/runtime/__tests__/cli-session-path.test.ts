@@ -1,7 +1,7 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   encodePathForCli,
   getCliSessionDir,
@@ -9,6 +9,8 @@ import {
   getDockerSessionFile,
   readSessionCwd,
   sessionBelongsToWorkingDirectory,
+  snapshotSessionFiles,
+  waitForNewSessionFile,
 } from "../cli-session-path.js";
 
 describe("encodePathForCli", () => {
@@ -554,5 +556,166 @@ describe("sessionBelongsToWorkingDirectory", () => {
     expect(
       await sessionBelongsToWorkingDirectory(file, "/anything", { defaultWhenUnknown: false }),
     ).toBe(false);
+  });
+});
+
+describe("snapshotSessionFiles", () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "herdctl-snapshot-test-"));
+  });
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("returns the set of .jsonl filenames currently present", async () => {
+    await writeFile(join(dir, "a.jsonl"), "");
+    await writeFile(join(dir, "b.jsonl"), "");
+    await writeFile(join(dir, "notes.txt"), ""); // ignored — not a transcript
+
+    const snapshot = await snapshotSessionFiles(dir);
+    expect(snapshot).toEqual(new Set(["a.jsonl", "b.jsonl"]));
+  });
+
+  it("returns basenames (not full paths) so they compare against a later readdir", async () => {
+    await writeFile(join(dir, "abc123.jsonl"), "");
+    const snapshot = await snapshotSessionFiles(dir);
+    expect(snapshot.has("abc123.jsonl")).toBe(true);
+    expect(snapshot.has(join(dir, "abc123.jsonl"))).toBe(false);
+  });
+
+  it("returns an empty set for a non-existent directory (first-ever session)", async () => {
+    const snapshot = await snapshotSessionFiles(join(dir, "does-not-exist"));
+    expect(snapshot).toEqual(new Set());
+  });
+});
+
+describe("waitForNewSessionFile", () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "herdctl-waitnew-test-"));
+  });
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  // Set a file's mtime to `ms` epoch milliseconds so tests can order files
+  // deterministically regardless of write speed.
+  async function setMtime(file: string, ms: number): Promise<void> {
+    const when = new Date(ms);
+    await utimes(file, when, when);
+  }
+
+  describe("set-difference path (knownFiles supplied) — issue #357", () => {
+    it("returns the brand-new file even when a co-located session is newer", async () => {
+      // Agent A's session already exists and is actively streaming.
+      const coLocated = join(dir, "aaaaaaaa-cccc-4444-8888-000000000000.jsonl");
+      await writeFile(coLocated, "");
+      const knownFiles = await snapshotSessionFiles(dir);
+
+      const startTime = Date.now() - 10_000;
+
+      // Agent B spawns and creates its own new file...
+      const brandNew = join(dir, "bbbbbbbb-cccc-4444-8888-111111111111.jsonl");
+      await writeFile(brandNew, "");
+      await setMtime(brandNew, startTime + 1000);
+      // ...but agent A keeps streaming, so its file is now the NEWEST by mtime.
+      await setMtime(coLocated, startTime + 5000);
+
+      const resolved = await waitForNewSessionFile(dir, startTime, {
+        knownFiles,
+        timeoutMs: 2000,
+        pollIntervalMs: 10,
+      });
+
+      // Must be B's brand-new file, not A's newer-mtime streaming file.
+      expect(resolved).toBe(brandNew);
+    });
+
+    it("(contrast) the legacy mtime path picks the wrong (co-located) file", async () => {
+      // Same setup, but WITHOUT the snapshot — demonstrates the bug the
+      // set-difference path fixes.
+      const coLocated = join(dir, "aaaaaaaa-cccc-4444-8888-000000000000.jsonl");
+      await writeFile(coLocated, "");
+      const startTime = Date.now() - 10_000;
+
+      const brandNew = join(dir, "bbbbbbbb-cccc-4444-8888-111111111111.jsonl");
+      await writeFile(brandNew, "");
+      await setMtime(brandNew, startTime + 1000);
+      await setMtime(coLocated, startTime + 5000);
+
+      const resolved = await waitForNewSessionFile(dir, startTime, {
+        timeoutMs: 2000,
+        pollIntervalMs: 10,
+      });
+
+      // Legacy heuristic grabs the newest-by-mtime file — the co-located one.
+      expect(resolved).toBe(coLocated);
+    });
+
+    it("keeps polling until the new-named file appears (ignores co-located churn)", async () => {
+      const coLocated = join(dir, "aaaaaaaa-cccc-4444-8888-000000000000.jsonl");
+      await writeFile(coLocated, "");
+      const knownFiles = await snapshotSessionFiles(dir);
+      const startTime = Date.now() - 10_000;
+
+      // The new file appears only after a couple of poll intervals.
+      const brandNew = join(dir, "bbbbbbbb-cccc-4444-8888-111111111111.jsonl");
+      setTimeout(() => {
+        void writeFile(brandNew, "");
+      }, 60);
+
+      const resolved = await waitForNewSessionFile(dir, startTime, {
+        knownFiles,
+        timeoutMs: 2000,
+        pollIntervalMs: 10,
+      });
+      expect(resolved).toBe(brandNew);
+    });
+
+    it("falls back to newest-by-mtime after the deadline if no new-named file appears", async () => {
+      // Only co-located files exist; none is 'new'. After the timeout the
+      // function falls back to the mtime heuristic rather than the primary path.
+      const coLocated = join(dir, "aaaaaaaa-cccc-4444-8888-000000000000.jsonl");
+      await writeFile(coLocated, "");
+      const knownFiles = await snapshotSessionFiles(dir);
+      const startTime = Date.now() - 10_000;
+      await setMtime(coLocated, startTime + 1000);
+
+      const resolved = await waitForNewSessionFile(dir, startTime, {
+        knownFiles,
+        timeoutMs: 150,
+        pollIntervalMs: 20,
+      });
+      expect(resolved).toBe(coLocated);
+    });
+  });
+
+  describe("legacy mtime path (no knownFiles)", () => {
+    it("returns the newest file created after startTime", async () => {
+      const startTime = Date.now() - 10_000;
+      const older = join(dir, "older.jsonl");
+      const newer = join(dir, "newer.jsonl");
+      await writeFile(older, "");
+      await writeFile(newer, "");
+      await setMtime(older, startTime + 1000);
+      await setMtime(newer, startTime + 2000);
+
+      const resolved = await waitForNewSessionFile(dir, startTime, {
+        timeoutMs: 2000,
+        pollIntervalMs: 10,
+      });
+      expect(resolved).toBe(newer);
+    });
+
+    it("throws on timeout when no file is created after startTime", async () => {
+      const stale = join(dir, "stale.jsonl");
+      await writeFile(stale, "");
+      const startTime = Date.now() + 10_000; // future — nothing qualifies
+
+      await expect(
+        waitForNewSessionFile(dir, startTime, { timeoutMs: 120, pollIntervalMs: 20 }),
+      ).rejects.toThrow(/Timeout waiting for new session file/);
+    });
   });
 });
