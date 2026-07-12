@@ -632,7 +632,17 @@ describe("WebChatManager", () => {
       expect(mockDiscoveryService.getSessionUsage).toHaveBeenCalledWith(
         "/home/user/project",
         "session-123",
-        { dockerEnabled: false },
+        { dockerEnabled: false, agentName: "test-agent" },
+      );
+    });
+
+    it("forwards agentName so the persistent usage cache is engaged", async () => {
+      await manager.getSessionUsage("test-agent", "session-123");
+
+      expect(mockDiscoveryService.getSessionUsage).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        expect.objectContaining({ agentName: "test-agent" }),
       );
     });
 

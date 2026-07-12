@@ -246,6 +246,7 @@ export class WebChatManager {
     const dockerEnabled = agent.docker?.enabled ?? false;
     const usage = await this.discoveryService!.getSessionUsage(workDir, sessionId, {
       dockerEnabled,
+      agentName,
     });
     return this.transformCoreUsage(usage);
   }
