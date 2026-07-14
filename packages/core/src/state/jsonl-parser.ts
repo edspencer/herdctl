@@ -39,6 +39,17 @@ export interface ChatMessage {
    * deterministic regardless of how many tool_results share a single user line.
    */
   uuid?: string;
+  /**
+   * The source entry's `origin.kind`, when present — the provenance the Claude
+   * Code harness stamps on an entry it injects rather than the human typing it.
+   * The one seen in practice is `"task-notification"` (a background Task/Agent
+   * stop/complete block). Unlike `isMeta:true` lines, these are NOT dropped from
+   * the parsed history — they carry a human-readable summary a chat UI may want to
+   * render as a subtle status line — so `origin` is surfaced here to let a
+   * renderer (or a digest/count) classify them structurally instead of sniffing
+   * `content` (issue #363). Absent for ordinary human messages.
+   */
+  origin?: { kind: string };
 }
 
 /**
@@ -138,6 +149,22 @@ function hasToolResultBlocks(content: unknown): boolean {
     (block) =>
       block && typeof block === "object" && "type" in block && block.type === "tool_result",
   );
+}
+
+/**
+ * The `origin.kind` of a parsed transcript entry, if present.
+ *
+ * The Claude Code harness stamps an `origin` on some entries it injects itself
+ * rather than the human typing them. The one seen in practice is
+ * `"task-notification"` — a synthetic `type:"user"` block emitted whenever a
+ * background Task/Agent stops or completes (it carries a human-readable
+ * `<summary>`). Unlike a skill body / hook output, the harness does NOT flag
+ * these `isMeta:true`, so callers that want to exclude synthetic user input must
+ * check this in addition to `isMeta` (issue #363).
+ */
+function readOriginKind(parsed: Record<string, unknown>): string | undefined {
+  const origin = parsed.origin as { kind?: unknown } | undefined;
+  return typeof origin?.kind === "string" ? origin.kind : undefined;
 }
 
 /**
@@ -295,7 +322,20 @@ export async function parseSessionMessages(
 
       const text = extractTextContent(content);
       if (text.length > 0) {
-        messages.push({ role: "user", content: text, timestamp, uuid });
+        // A `<task-notification>` block (background-agent stop/complete) is a
+        // synthetic user line too, but — unlike `isMeta` — it carries a
+        // human-readable summary a chat UI may render as a subtle status line, so
+        // we KEEP it here and surface its provenance via `origin` rather than
+        // dropping it. Consumers that want conversation-only content (sweep
+        // digests, message counts) filter on `origin.kind` (issue #363).
+        const originKind = readOriginKind(parsed);
+        messages.push({
+          role: "user",
+          content: text,
+          timestamp,
+          uuid,
+          ...(originKind !== undefined ? { origin: { kind: originKind } } : {}),
+        });
       }
 
       continue;
@@ -423,6 +463,11 @@ export async function extractSessionMetadata(sessionFilePath: string): Promise<S
     // inflate `messageCount`. `isMeta` only ever marks these plain-text user
     // lines (never a genuine tool_result or an assistant turn).
     if (parsed.isMeta === true) continue;
+    // `<task-notification>` blocks (background-agent stop/complete) are the same
+    // category of harness-injected synthetic user line, but the harness does NOT
+    // flag them `isMeta`. Drop them here too so they don't seed the preview,
+    // advance the timestamp bounds, or inflate `messageCount` (issue #363).
+    if (readOriginKind(parsed) === "task-notification") continue;
 
     const timestamp = typeof parsed.timestamp === "string" ? parsed.timestamp : undefined;
 
@@ -671,6 +716,14 @@ export async function extractFirstMessagePreview(
     }
 
     if (parsed.type !== "user") continue;
+
+    // Skip harness-injected synthetic user lines — `isMeta:true` context (skill
+    // bodies, slash-command / hook output) and `<task-notification>` blocks — so
+    // neither can seed a chat's preview if it happens to be the first user entry.
+    // Mirrors the guards in parseSessionMessages / extractSessionMetadata; this
+    // streaming extractor previously had no such guard at all (issue #363).
+    if (parsed.isMeta === true) continue;
+    if (readOriginKind(parsed) === "task-notification") continue;
 
     const message = parsed.message as Record<string, unknown> | undefined;
     if (!message) continue;
