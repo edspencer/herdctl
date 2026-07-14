@@ -334,7 +334,7 @@ export async function parseSessionMessages(
           content: text,
           timestamp,
           uuid,
-          ...(originKind ? { origin: { kind: originKind } } : {}),
+          ...(originKind !== undefined ? { origin: { kind: originKind } } : {}),
         });
       }
 
