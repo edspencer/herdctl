@@ -22,10 +22,29 @@ async function* stream(messages: SDKMessage[]): AsyncGenerator<SDKMessage> {
 }
 
 describe("buildLifecycleHooks", () => {
-  it("registers Stop and SubagentStop matchers", () => {
+  it("registers a Stop matcher only (never SubagentStop)", () => {
     const hooks = buildLifecycleHooks(vi.fn());
     expect(hooks?.Stop?.[0].hooks).toHaveLength(1);
-    expect(hooks?.SubagentStop?.[0].hooks).toHaveLength(1);
+    // SubagentStop must NOT be wired: it fires mid-parent-turn when a synchronous
+    // subagent finishes, and treating it as a turn_end reaps the live parent
+    // session out from under the keeper. See isMainAgentStop.
+    expect(hooks?.SubagentStop).toBeUndefined();
+  });
+
+  it("ignores a SubagentStop input (no turn_end for a synchronous subagent)", async () => {
+    const sink = vi.fn();
+    const hooks = buildLifecycleHooks(sink);
+    const cb = hooks!.Stop![0].hooks[0];
+    const subagentStop = {
+      hook_event_name: "SubagentStop",
+      session_id: "sess-1",
+      transcript_path: "/tmp/t.jsonl",
+      cwd: "/tmp",
+      stop_hook_active: false,
+    } as unknown as HookInput;
+    const result = await cb(subagentStop, undefined, { signal: new AbortController().signal });
+    expect(result).toEqual({ continue: true });
+    expect(sink).not.toHaveBeenCalled();
   });
 
   it("forwards a turn_end signal carrying the crons/tasks snapshot", async () => {
