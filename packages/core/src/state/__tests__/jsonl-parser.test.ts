@@ -243,6 +243,29 @@ describe("parseSessionMessages", () => {
     }
   });
 
+  it("keeps <task-notification> user lines but tags them with origin.kind (#363)", async () => {
+    const messages = await parseSessionMessages(fixture("task-notification-session.jsonl"));
+
+    // Unlike isMeta lines, task-notifications are NOT dropped — a chat UI may want
+    // to render them as a subtle status line. Fixture: tn + real user + assistant
+    // + tn = 4 messages, all retained.
+    expect(messages).toHaveLength(4);
+
+    // The two task-notification lines carry their provenance so consumers can
+    // classify them structurally instead of sniffing content.
+    expect(messages[0].role).toBe("user");
+    expect(messages[0].origin).toEqual({ kind: "task-notification" });
+    expect(messages[0].content).toContain("<task-notification>");
+    expect(messages[3].origin).toEqual({ kind: "task-notification" });
+
+    // A genuine human message carries no origin.
+    expect(messages[1].role).toBe("user");
+    expect(messages[1].content).toBe("Investigate the parser");
+    expect(messages[1].origin).toBeUndefined();
+    expect(messages[2].role).toBe("assistant");
+    expect(messages[2].origin).toBeUndefined();
+  });
+
   it("skips synthetic '<synthetic>' assistant placeholder turns after a /compact", async () => {
     const messages = await parseSessionMessages(fixture("compact-synthetic-session.jsonl"));
 
@@ -464,6 +487,25 @@ describe("extractSessionMetadata", () => {
     expect(meta.firstMessageAt).toBe("2026-02-01T09:00:05.000Z");
     expect(meta.lastMessageAt).toBe("2026-02-01T09:00:10.000Z");
   });
+
+  it("excludes <task-notification> lines from count, preview, and time bounds (#363)", async () => {
+    // Fixture leads AND trails with a task-notification around 1 real user + 1
+    // assistant. The notifications must not count, seed the preview, or drag the
+    // timestamp bounds.
+    const meta = await extractSessionMetadata(fixture("task-notification-session.jsonl"));
+
+    // 1 real user + 1 assistant = 2; neither task-notification is counted.
+    expect(meta.messageCount).toBe(2);
+
+    // Preview is the real user's message, not the leading task-notification XML.
+    expect(meta.firstMessagePreview).toBe("Investigate the parser");
+    expect(meta.firstMessagePreview).not.toContain("task-notification");
+
+    // Bounds run from the real user turn (10:00:01) to the assistant (10:00:05),
+    // NOT the trailing task-notification at 10:00:30.
+    expect(meta.firstMessageAt).toBe("2026-01-26T10:00:01.000Z");
+    expect(meta.lastMessageAt).toBe("2026-01-26T10:00:05.000Z");
+  });
 });
 
 // =============================================================================
@@ -627,5 +669,13 @@ describe("extractFirstMessagePreview", () => {
     const preview = await extractFirstMessagePreview(fixture("summary-session.jsonl"));
     expect(preview).toBeDefined();
     expect(typeof preview).toBe("string");
+  });
+
+  it("skips a leading <task-notification> line when picking the preview (#363)", async () => {
+    // The fixture's first user entry is a task-notification; the preview must come
+    // from the first genuine human message instead of the injected XML.
+    const preview = await extractFirstMessagePreview(fixture("task-notification-session.jsonl"));
+    expect(preview).toBe("Investigate the parser");
+    expect(preview).not.toContain("task-notification");
   });
 });
