@@ -2,7 +2,7 @@
  * Translate SDK lifecycle events into herdctl {@link SessionLifecycleSignal}s.
  *
  * Two surfaces feed the session-reaper:
- * - {@link buildLifecycleHooks} — `Stop`/`SubagentStop` hooks that carry the
+ * - {@link buildLifecycleHooks} — the main-agent `Stop` hook that carries the
  *   authoritative turn-boundary snapshot (`session_crons` + `background_tasks`).
  * - {@link tapLifecycleStream} — a pass-through over the session's message
  *   stream that surfaces mid-turn `background_tasks_changed` events and a single
@@ -18,7 +18,6 @@ import type {
   Options,
   SessionCronSummary,
   StopHookInput,
-  SubagentStopHookInput,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { SDKMessage } from "../runner/types.js";
 import { createLogger } from "../utils/logger.js";
@@ -42,18 +41,34 @@ function emit(sink: LifecycleSignalSink, signal: SessionLifecycleSignal): void {
     });
 }
 
-function isStopLike(input: HookInput): input is StopHookInput | SubagentStopHookInput {
-  return input.hook_event_name === "Stop" || input.hook_event_name === "SubagentStop";
+/**
+ * A main-agent `Stop` is the only reap-eligible turn boundary.
+ *
+ * `SubagentStop` is deliberately NOT treated as one. It fires when a
+ * *synchronous* subagent (a `Task`/`Agent` tool call) finishes, which happens
+ * *mid* the parent turn — the parent is still live and about to consume the
+ * subagent's result and continue. Emitting a `turn_end` for it let the
+ * session-reaper (which reaps on any `turn_end` with no live background work)
+ * close the streaming session out from under the running parent turn: a keeper
+ * driving a managed session (`openChatSession({ manageLifecycle: true })`) then
+ * appeared to "stop" the instant a synchronous subagent returned, never
+ * consuming the result. The parent emits its own `Stop` when the turn actually
+ * ends, and any background tasks/crons a subagent registers still reach the
+ * reaper via the `background_tasks_changed` stream and that authoritative
+ * parent `Stop`.
+ */
+function isMainAgentStop(input: HookInput): input is StopHookInput {
+  return input.hook_event_name === "Stop";
 }
 
 /**
- * Build the `Stop`/`SubagentStop` hooks that forward each turn-boundary snapshot
- * to `sink`. The hook awaits the sink so cron capture completes before the turn
+ * Build the main-agent `Stop` hook that forwards each turn-boundary snapshot to
+ * `sink`. The hook awaits the sink so cron capture completes before the turn
  * unwinds, then returns `{ continue: true }` to leave turn flow untouched.
  */
 export function buildLifecycleHooks(sink: LifecycleSignalSink): Options["hooks"] {
   const callback = async (input: HookInput) => {
-    if (isStopLike(input)) {
+    if (isMainAgentStop(input)) {
       const sessionCrons: SessionCronSummary[] = input.session_crons ?? [];
       const backgroundTasks: BackgroundTaskSummary[] = input.background_tasks ?? [];
       // Never let a sink failure reject the hook (which would disrupt turn flow);
@@ -63,9 +78,10 @@ export function buildLifecycleHooks(sink: LifecycleSignalSink): Options["hooks"]
     return { continue: true };
   };
 
+  // Only `Stop` is registered — see {@link isMainAgentStop} for why a
+  // `SubagentStop` must not reach the reaper as a turn boundary.
   return {
     Stop: [{ hooks: [callback] }],
-    SubagentStop: [{ hooks: [callback] }],
   };
 }
 

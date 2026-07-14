@@ -17,7 +17,7 @@ export type { BackgroundTaskSummary, SessionCronSummary };
 
 /**
  * A snapshot of a session's pending background work, captured at a turn
- * boundary (the SDK `Stop`/`SubagentStop` hook) or when the live background-task
+ * boundary (the SDK main-agent `Stop` hook) or when the live background-task
  * set changes (`background_tasks_changed`).
  *
  * `sessionCrons` are the timer-class wakeups (`ScheduleWakeup`, `CronCreate`,
@@ -28,7 +28,7 @@ export type { BackgroundTaskSummary, SessionCronSummary };
 export interface SessionLifecycleSignal {
   /**
    * What produced the signal:
-   * - `turn_end` — a `Stop`/`SubagentStop` hook fired; `sessionCrons` and
+   * - `turn_end` — the main-agent `Stop` hook fired; `sessionCrons` and
    *   `backgroundTasks` are the authoritative turn-boundary snapshot.
    * - `background_tasks_changed` — the live background-task set changed
    *   mid-session; `backgroundTasks` is fresh, `sessionCrons` is not reported

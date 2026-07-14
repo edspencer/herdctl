@@ -51,7 +51,7 @@ export interface RuntimeExecuteOptions {
   /**
    * Streaming sessions only: observe the session's background-work lifecycle.
    *
-   * Called at each turn boundary (the SDK `Stop`/`SubagentStop` hook) and when
+   * Called at each turn boundary (the SDK main-agent `Stop` hook) and when
    * the live background-task set changes (`background_tasks_changed`), with a
    * snapshot of the session's pending timer-class wakeups (`sessionCrons`) and
    * continuous-class background work (`backgroundTasks`). The session-reaper
