@@ -1,5 +1,24 @@
 # @herdctl/web
 
+## 0.9.30
+
+### Patch Changes
+
+- [#360](https://github.com/edspencer/herdctl/pull/360) [`39885c8`](https://github.com/edspencer/herdctl/commit/39885c8c7f0b2c9fe0b75ac185df92a6d55b5286) Thanks [@edspencer](https://github.com/edspencer)! - fix(web): forward agentName so the dashboard usage endpoint hits the persistent usage cache
+
+  `WebChatManager.getSessionUsage` had the `agentName` in scope but omitted it from
+  the options passed to `SessionDiscoveryService.getSessionUsage`, so the
+  mtime-keyed persistent usage cache (added in #320) was never engaged on the web
+  `/usage` path. Every dashboard navigation that read per-session usage took the
+  uncached `extractSessionUsage` branch and re-streamed the whole transcript — the
+  exact O(transcript-size) cost the cache was meant to eliminate.
+
+  Forwarding `agentName` in the options opts the web path into the cache, matching
+  the sibling `getSessionMessages` call that already forwards its options.
+
+- Updated dependencies [[`a8939f0`](https://github.com/edspencer/herdctl/commit/a8939f07f631940c439b5717246cf98a719899d4)]:
+  - @herdctl/core@5.19.2
+
 ## 0.9.29
 
 ### Patch Changes

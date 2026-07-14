@@ -1,5 +1,30 @@
 # @herdctl/core
 
+## 5.19.2
+
+### Patch Changes
+
+- [#361](https://github.com/edspencer/herdctl/pull/361) [`a8939f0`](https://github.com/edspencer/herdctl/commit/a8939f07f631940c439b5717246cf98a719899d4) Thanks [@edspencer](https://github.com/edspencer)! - fix(core): resolve a fresh CLI session by set difference, not mtime, so co-located agents can't steal each other's session id
+
+  `waitForNewSessionFile` resolved a freshly-spawned `resume:null` (or forked) CLI
+  turn by picking the newest `.jsonl` whose `mtime > startTime` in the agent's
+  session directory. When two agents **share a working directory** — hence the same
+  `~/.claude/projects/<encoded-cwd>/` session dir — a concurrently _streaming_
+  session from the other agent also has `mtime > startTime`, and can be newer than
+  the file the CLI just created. The new turn was then mis-resolved to the **other
+  agent's** session id and its job record written with that foreign `session_id`.
+  Because job attribution is last-writer-wins per `session_id`, the victim session
+  flipped to the wrong agent and vanished from its owner's chat list until a later,
+  correctly-attributed turn (so it was intermittent). Observed live on Paddock,
+  whose per-project keeper and sweeper share the project directory as cwd.
+
+  Fix: snapshot the set of `.jsonl` filenames _before_ spawning the CLI
+  (`snapshotSessionFiles`) and identify the new session by **set difference** — the
+  file whose _name_ is new since the snapshot — which a co-located agent's
+  pre-existing (merely-appended-to) file can never be, regardless of mtime. The
+  mtime heuristic is retained only as a post-deadline fallback (with a warning) for
+  genuinely degenerate cases where no new-named file ever appears.
+
 ## 5.19.1
 
 ### Patch Changes
