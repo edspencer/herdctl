@@ -1,5 +1,30 @@
 # @herdctl/core
 
+## 5.20.0
+
+### Minor Changes
+
+- [#364](https://github.com/edspencer/herdctl/pull/364) [`a495bb0`](https://github.com/edspencer/herdctl/commit/a495bb0fde1ee9b45aa08806c3b43ac42b1501db) Thanks [@edspencer](https://github.com/edspencer)! - Parser: recognise harness-injected `<task-notification>` transcript entries (#363). The Claude Code harness writes a `<task-notification>` block (emitted whenever a background Task/Agent stops or completes) as a synthetic `type:"user"` line stamped `origin:{kind:"task-notification"}`. Unlike skill/hook context it is **not** flagged `isMeta:true`, so it previously slipped past the parser's synthetic-content guards and was surfaced to every consumer as if the human had typed the raw XML.
+
+  - `ChatMessage` now carries an optional `origin?: { kind: string }`. `parseSessionMessages` **keeps** task-notification user lines (a chat UI may render their `<summary>` as a subtle status line) but tags them with `origin` so consumers can classify them structurally instead of sniffing `content`.
+  - `extractSessionMetadata` now **drops** task-notifications (like `isMeta` lines) so they no longer inflate `messageCount`, seed the first-message preview, or drag the session's timestamp bounds.
+  - `extractFirstMessagePreview` gained the `isMeta` + task-notification guards it was missing entirely, so a synthetic leading line can never seed a chat's preview.
+
+### Patch Changes
+
+- [#367](https://github.com/edspencer/herdctl/pull/367) [`2fea23e`](https://github.com/edspencer/herdctl/commit/2fea23e934679d19189a473c23bc77a6c59bb33a) Thanks [@edspencer](https://github.com/edspencer)! - fix(session): a synchronous subagent finishing no longer reaps the parent session
+
+  `buildLifecycleHooks` mapped both `Stop` and `SubagentStop` to a `turn_end`
+  lifecycle signal. `SubagentStop` fires when a _synchronous_ subagent (a
+  `Task`/`Agent` tool call) completes mid-parent-turn, so the session reaper —
+  which reaps on any `turn_end` that has no live background work — closed the
+  streaming session out from under the still-live parent turn. A keeper driving a
+  managed session (`openChatSession({ manageLifecycle: true })`, i.e. Paddock's
+  session drive-mode) then appeared to "stop" the instant a synchronous subagent
+  returned, never consuming its result. Only the main-agent `Stop` is a
+  reap-eligible turn boundary now; subagent-registered background tasks and crons
+  still surface via the `background_tasks_changed` stream and the parent `Stop`.
+
 ## 5.19.2
 
 ### Patch Changes
