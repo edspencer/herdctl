@@ -11,6 +11,9 @@ import { readdir, stat } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as readline from "node:readline";
+import { createLogger } from "../../utils/logger.js";
+
+const logger = createLogger("CLISessionPath");
 
 /**
  * Maximum length of an encoded path before Claude Code truncates it.
@@ -283,81 +286,112 @@ export function getDockerSessionFile(stateDir: string, sessionId: string): strin
 }
 
 /**
- * Find the newest session file in a CLI session directory
+ * Snapshot the set of `.jsonl` session filenames currently present in a session
+ * directory.
  *
- * Scans the session directory for .jsonl files and returns the path to the
- * most recently modified one. This is useful when spawning a new CLI session
- * without knowing the session ID upfront - the newest file is typically the
- * one just created.
+ * Callers take this snapshot *immediately before* spawning a CLI subprocess that
+ * will create a new session file, then pass it to {@link waitForNewSessionFile}
+ * as `knownFiles`. The freshly-created session is then identified by **set
+ * difference** (a filename not in the snapshot) rather than by an mtime
+ * heuristic — see the issue-#357 note on {@link waitForNewSessionFile}.
  *
- * @example
- * ```typescript
- * const sessionDir = getCliSessionDir('/Users/ed/Code/myproject');
- * const newestFile = await findNewestSessionFile(sessionDir);
- * // => '/Users/ed/.claude/projects/-Users-ed-Code-myproject/abc123.jsonl'
- * ```
+ * Filenames (basenames, e.g. `abc123.jsonl`), not full paths, are returned so
+ * the set can be compared directly against a later `readdir`.
  *
  * @param sessionDir - Absolute path to CLI session directory
- * @returns Promise resolving to path of newest .jsonl file
- * @throws {Error} If directory doesn't exist or contains no .jsonl files
+ * @returns Set of `.jsonl` filenames present now; empty if the directory does
+ *   not exist yet or cannot be read
  */
-async function findNewestSessionFile(sessionDir: string): Promise<string> {
+export async function snapshotSessionFiles(sessionDir: string): Promise<Set<string>> {
   try {
     const files = await readdir(sessionDir);
-    const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
-
-    if (jsonlFiles.length === 0) {
-      throw new Error(`No session files found in ${sessionDir}`);
-    }
-
-    // Get stats for all .jsonl files
-    const fileStats = await Promise.all(
-      jsonlFiles.map(async (file) => {
-        const filePath = path.join(sessionDir, file);
-        const stats = await stat(filePath);
-        return { path: filePath, mtime: stats.mtime };
-      }),
-    );
-
-    // Sort by modification time (newest first)
-    fileStats.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
-
-    return fileStats[0].path;
+    return new Set(files.filter((f) => f.endsWith(".jsonl")));
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error(`Session directory does not exist: ${sessionDir}`);
+    // Directory may not exist yet (first-ever session for this cwd) — treat as
+    // an empty snapshot. Any other error is also non-fatal here; the caller
+    // still polls for the new file.
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      logger.debug(`Could not snapshot session dir ${sessionDir}: ${error}`);
     }
-    throw error;
+    return new Set();
   }
 }
 
 /**
- * Wait for a new session file to be created after a given timestamp
+ * Given a list of `.jsonl` filenames in a session directory, return the absolute
+ * path of the one with the newest mtime (or `null` if the list is empty or none
+ * could be stat'd).
+ */
+async function newestSessionFileByMtime(
+  sessionDir: string,
+  fileNames: string[],
+): Promise<string | null> {
+  const stats: Array<{ path: string; mtime: Date }> = [];
+  for (const file of fileNames) {
+    const filePath = path.join(sessionDir, file);
+    try {
+      const s = await stat(filePath);
+      stats.push({ path: filePath, mtime: s.mtime });
+    } catch {
+      // File vanished between readdir and stat — skip it.
+    }
+  }
+  if (stats.length === 0) return null;
+  stats.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+  return stats[0].path;
+}
+
+/**
+ * Wait for a new session file to be created after a CLI subprocess is spawned.
  *
- * Polls the session directory until a new .jsonl file appears that was
- * created after the specified start time. This prevents picking up old
- * session files when spawning a new CLI session.
+ * Polls the session directory until the freshly-created `.jsonl` appears, then
+ * returns its path so the caller can adopt its session id.
+ *
+ * ## Identifying the *right* new file (issue #357)
+ *
+ * When two agents share a working directory they also share a single
+ * `~/.claude/projects/<encoded-cwd>/` session directory. If agent A is
+ * *streaming* a turn (continuously appending to its own transcript) while agent
+ * B spawns a fresh `resume:null` turn, agent A's file also has
+ * `mtime > startTime` — and can even be *newer* than the file B just created.
+ * The old mtime-after-`startTime` heuristic then mis-resolved B's turn to **A's**
+ * session id, corrupting job attribution and making A's chat vanish from its
+ * owner's list until a later turn re-attributed it.
+ *
+ * The robust fix is **set difference**: the caller snapshots the session
+ * directory's `.jsonl` filenames *before* spawning (via
+ * {@link snapshotSessionFiles}) and passes them as `knownFiles`. The new session
+ * is then the file whose *name* is new since that snapshot — which a co-located
+ * agent's pre-existing (merely-appended-to) file can never be, regardless of
+ * mtime. The mtime heuristic is retained only as a fallback for when no
+ * snapshot is supplied, or defensively if no new-named file ever appears.
  *
  * @example
  * ```typescript
+ * const knownFiles = await snapshotSessionFiles(sessionDir);
  * const startTime = Date.now();
  * // ... spawn claude CLI ...
- * const sessionFile = await waitForNewSessionFile(sessionDir, startTime);
+ * const sessionFile = await waitForNewSessionFile(sessionDir, startTime, { knownFiles });
  * // => '/Users/ed/.claude/projects/-Users-ed-Code-myproject/new-session.jsonl'
  * ```
  *
  * @param sessionDir - Absolute path to CLI session directory
- * @param startTime - Timestamp (ms) before which files should be ignored
+ * @param startTime - Timestamp (ms) before which files should be ignored (used
+ *   only by the mtime fallback path)
  * @param options - Optional configuration
+ * @param options.knownFiles - Snapshot of `.jsonl` filenames present *before*
+ *   spawning. When supplied, the new session is identified by set difference
+ *   against this set (the collision-proof path); when omitted, the legacy
+ *   mtime-after-`startTime` heuristic is used.
  * @returns Promise resolving to path of newly created session file
  * @throws {Error} If timeout exceeded or directory doesn't exist
  */
 export async function waitForNewSessionFile(
   sessionDir: string,
   startTime: number,
-  options: { timeoutMs?: number; pollIntervalMs?: number } = {},
+  options: { timeoutMs?: number; pollIntervalMs?: number; knownFiles?: ReadonlySet<string> } = {},
 ): Promise<string> {
-  const { timeoutMs = 5000, pollIntervalMs = 100 } = options;
+  const { timeoutMs = 5000, pollIntervalMs = 100, knownFiles } = options;
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
@@ -365,22 +399,34 @@ export async function waitForNewSessionFile(
       const files = await readdir(sessionDir);
       const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
 
-      // Find files created after startTime
-      const newFiles: Array<{ path: string; mtime: Date }> = [];
-      for (const file of jsonlFiles) {
-        const filePath = path.join(sessionDir, file);
-        const stats = await stat(filePath);
-
-        // Check if file was modified after startTime
-        if (stats.mtime.getTime() > startTime) {
-          newFiles.push({ path: filePath, mtime: stats.mtime });
+      if (knownFiles) {
+        // Primary path (issue #357): the new session is a file whose NAME did
+        // not exist before we spawned. This is immune to a co-located agent
+        // concurrently appending to its own (older) session in a shared dir.
+        const brandNew = jsonlFiles.filter((f) => !knownFiles.has(f));
+        if (brandNew.length > 0) {
+          // Normally exactly one; if several appeared (e.g. multiple co-located
+          // spawns raced), the newest is ours.
+          const newest = await newestSessionFileByMtime(sessionDir, brandNew);
+          if (newest) return newest;
         }
-      }
-
-      // Return the newest file created after startTime
-      if (newFiles.length > 0) {
-        newFiles.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
-        return newFiles[0].path;
+        // No new-named file yet — keep polling. Do NOT fall through to the mtime
+        // heuristic here, or we would grab a co-located agent's streaming file.
+      } else {
+        // Legacy path: no snapshot supplied — find files touched after startTime
+        // and return the newest.
+        const newFiles = jsonlFiles.map((f) => path.join(sessionDir, f));
+        const stats: Array<{ path: string; mtime: Date }> = [];
+        for (const filePath of newFiles) {
+          const s = await stat(filePath);
+          if (s.mtime.getTime() > startTime) {
+            stats.push({ path: filePath, mtime: s.mtime });
+          }
+        }
+        if (stats.length > 0) {
+          stats.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+          return stats[0].path;
+        }
       }
     } catch (error) {
       // Directory might not exist yet - keep polling
@@ -391,6 +437,33 @@ export async function waitForNewSessionFile(
 
     // Wait before next poll
     await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+
+  // Deadline exceeded. If we were using the set-difference path and no new-named
+  // file ever appeared, fall back once to the mtime heuristic before giving up —
+  // this preserves the old behaviour for genuinely degenerate cases (e.g. the
+  // CLI reused a filename) at the cost of the collision risk the snapshot avoids.
+  if (knownFiles) {
+    try {
+      const files = await readdir(sessionDir);
+      const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
+      const candidates: string[] = [];
+      for (const file of jsonlFiles) {
+        const s = await stat(path.join(sessionDir, file));
+        if (s.mtime.getTime() > startTime) candidates.push(file);
+      }
+      const newest = await newestSessionFileByMtime(sessionDir, candidates);
+      if (newest) {
+        logger.warn(
+          `No new session file appeared in ${sessionDir} within ${timeoutMs}ms; ` +
+            `falling back to newest-by-mtime (${path.basename(newest)}). In a shared ` +
+            `session directory this may mis-attribute a co-located agent's session (issue #357).`,
+        );
+        return newest;
+      }
+    } catch {
+      // fall through to the timeout error
+    }
   }
 
   throw new Error(`Timeout waiting for new session file in ${sessionDir} (waited ${timeoutMs}ms)`);

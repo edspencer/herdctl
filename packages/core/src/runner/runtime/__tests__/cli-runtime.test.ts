@@ -8,6 +8,7 @@ const flushMessages: SDKMessage[] = [];
 vi.mock("../cli-session-path.js", () => ({
   getCliSessionDir: vi.fn(() => "/tmp/sessions"),
   getCliSessionFile: vi.fn(() => "/tmp/sessions/session-1.jsonl"),
+  snapshotSessionFiles: vi.fn(async () => new Set<string>()),
   waitForNewSessionFile: vi.fn(async () => "/tmp/sessions/session-1.jsonl"),
 }));
 
@@ -32,7 +33,12 @@ vi.mock("../cli-session-watcher.js", () => ({
 }));
 
 import { CLIRuntime } from "../cli-runtime.js";
-import { getCliSessionDir, getCliSessionFile, waitForNewSessionFile } from "../cli-session-path.js";
+import {
+  getCliSessionDir,
+  getCliSessionFile,
+  snapshotSessionFiles,
+  waitForNewSessionFile,
+} from "../cli-session-path.js";
 
 function makeSubprocess(exitCode = 0): Promise<{ exitCode: number }> & {
   pid: number;
@@ -252,6 +258,8 @@ describe("CLIRuntime session fork (--fork-session)", () => {
     flushMessages.length = 0;
     vi.mocked(getCliSessionFile).mockClear();
     vi.mocked(waitForNewSessionFile).mockClear();
+    vi.mocked(snapshotSessionFiles).mockClear();
+    vi.mocked(snapshotSessionFiles).mockResolvedValue(new Set(["pre-existing.jsonl"]));
     // Distinct paths so we can tell which resolver drove the watched file: a
     // plain resume watches the source file in place; a fork must wait for a new
     // one (Claude Code writes a new session file for `--fork-session`).
@@ -311,5 +319,22 @@ describe("CLIRuntime session fork (--fork-session)", () => {
     expect(vi.mocked(getCliSessionFile)).toHaveBeenCalled();
     expect(vi.mocked(waitForNewSessionFile)).not.toHaveBeenCalled();
     expect(initId(messages)).toBe("source");
+  });
+
+  it("snapshots the session dir pre-spawn and forwards it as knownFiles (issue #357)", async () => {
+    await run({ resume: "source", fork: true });
+    // The snapshot must be taken (before spawn) and threaded into the resolver
+    // so the new file is found by set difference, not mtime.
+    expect(vi.mocked(snapshotSessionFiles)).toHaveBeenCalled();
+    expect(vi.mocked(waitForNewSessionFile)).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(Number),
+      expect.objectContaining({ knownFiles: new Set(["pre-existing.jsonl"]) }),
+    );
+  });
+
+  it("does NOT snapshot on a plain resume (no new file is expected)", async () => {
+    await run({ resume: "source" });
+    expect(vi.mocked(snapshotSessionFiles)).not.toHaveBeenCalled();
   });
 });
