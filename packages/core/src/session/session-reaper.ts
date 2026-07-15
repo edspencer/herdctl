@@ -22,6 +22,20 @@ import type { WakeRegistry } from "./wake-registry.js";
 
 type Logger = ReturnType<typeof createLogger>;
 
+/**
+ * How long to hold an idle session open after its background-task set drains to
+ * empty, giving a re-invocation turn (the SDK handing the parent the completed
+ * task's result) time to announce itself via an `activity` signal before we reap.
+ *
+ * Reaping is cheap and lossless (#307), so erring generous costs only a little
+ * delayed RSS reclamation for a genuine fire-and-forget completion; erring short
+ * reintroduces #368 — reaping the session out from under the re-invocation, so
+ * the keeper "stops" the instant its background work finishes and never consumes
+ * the result. An `activity` cancels the wait early, so in the common case the
+ * full window is never spent.
+ */
+export const DEFAULT_REINVOCATION_GRACE_MS = 15_000;
+
 export interface SessionReaperOptions {
   /** Durable wake store the reaper reconciles captured crons into. */
   registry: WakeRegistry;
@@ -34,6 +48,12 @@ export interface SessionReaperOptions {
     sessionId: string;
     tasks: BackgroundTaskSummary[];
   }) => void;
+  /**
+   * Grace window (ms) before reaping a session whose background-task set just
+   * drained to empty — see {@link DEFAULT_REINVOCATION_GRACE_MS}. Overridable
+   * mainly for tests. Defaults to {@link DEFAULT_REINVOCATION_GRACE_MS}.
+   */
+  reinvocationGraceMs?: number;
 }
 
 /** A handle to a session the reaper is managing. */
@@ -66,6 +86,7 @@ export class SessionReaper {
   private readonly logger: Logger;
   private readonly onReap?: SessionReaperOptions["onReap"];
   private readonly onKeepAlive?: SessionReaperOptions["onKeepAlive"];
+  private readonly reinvocationGraceMs: number;
 
   /** Live managed sessions by resolved session id. */
   private readonly liveById = new Map<string, ManagedSessionImpl>();
@@ -75,6 +96,7 @@ export class SessionReaper {
     this.logger = options.logger ?? createLogger("session-reaper");
     this.onReap = options.onReap;
     this.onKeepAlive = options.onKeepAlive;
+    this.reinvocationGraceMs = options.reinvocationGraceMs ?? DEFAULT_REINVOCATION_GRACE_MS;
   }
 
   /** Begin managing a session's lifecycle. */
@@ -100,8 +122,13 @@ export class SessionReaper {
 
   async processSignal(managed: ManagedSessionImpl, signal: SessionLifecycleSignal): Promise<void> {
     // A new turn is producing output — the session is no longer idle-waiting, so
-    // a later background_tasks_changed must not reap it out from under a live turn.
+    // a later background_tasks_changed must not reap it out from under a live
+    // turn. This is also how a re-invocation announces itself: when the SDK hands
+    // the parent a completed background task's result, the resumed turn's first
+    // output arrives here — so cancel any grace reap that task's completion armed,
+    // or we close the session out from under the turn it just started (#368).
     if (signal.kind === "activity") {
+      managed.cancelPendingReap();
       managed.setAwaitingTasks(false);
       return;
     }
@@ -111,16 +138,32 @@ export class SessionReaper {
     // this event doesn't report session_crons (dropping stale ones would delete
     // the pending wakeups).
     if (signal.kind === "background_tasks_changed") {
-      if (managed.isAwaitingTasks() && signal.backgroundTasks.length === 0) {
-        this.reap(managed, signal.sessionId);
+      if (!managed.isAwaitingTasks()) return;
+      if (signal.backgroundTasks.length > 0) {
+        // Still (or newly) holding live background work — keep the session and
+        // drop any grace reap a prior drain-to-empty had armed.
+        managed.cancelPendingReap();
+        return;
       }
+      // The task set drained to empty. A completing background task is normally
+      // followed a beat later by a re-invocation turn (the SDK delivering its
+      // result), which surfaces as an `activity` signal. Reaping synchronously
+      // here closes the session out from under that re-invocation — the keeper
+      // appears to "stop" the instant its background work finishes, never
+      // consuming the result (#368). So arm a short grace reap: an `activity`
+      // cancels it if a re-invocation arrives; otherwise (a genuine
+      // fire-and-forget) it fires and reaps, so the session is never leaked.
+      managed.armPendingReap(this.reinvocationGraceMs, () => this.reap(managed, signal.sessionId));
       return;
     }
 
-    // turn_end: authoritative snapshot. Capture pending crons first so they
-    // survive whatever we decide next. A reconcile I/O failure loses that turn's
-    // capture but must NOT block the reap — leaving the session alive is the leak
-    // this module exists to prevent — so log and press on with the decision.
+    // turn_end: the authoritative snapshot supersedes any pending grace reap.
+    managed.cancelPendingReap();
+
+    // Capture pending crons first so they survive whatever we decide next. A
+    // reconcile I/O failure loses that turn's capture but must NOT block the reap
+    // — leaving the session alive is the leak this module exists to prevent — so
+    // log and press on with the decision.
     try {
       await this.registry.reconcile(managed.agent, signal.sessionId, signal.sessionCrons);
     } catch (error) {
@@ -181,6 +224,8 @@ class ManagedSessionImpl implements ManagedSession {
   private closing = false;
   private awaitingTasks = false;
   private queue: Promise<void> = Promise.resolve();
+  /** A deferred reap armed when the background-task set drained to empty (#368). */
+  private pendingReapTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(session: RuntimeSession, agent: string, reaper: SessionReaper) {
     this.session = session;
@@ -224,6 +269,31 @@ class ManagedSessionImpl implements ManagedSession {
     this.awaitingTasks = value;
   }
 
+  /**
+   * Arm a deferred reap that a subsequent `activity` (a re-invocation) — or new
+   * background work, or an authoritative turn_end — can cancel. Re-arming resets
+   * the window. See {@link SessionReaper.processSignal} and #368.
+   */
+  armPendingReap(graceMs: number, fire: () => void): void {
+    this.cancelPendingReap();
+    this.pendingReapTimer = setTimeout(() => {
+      this.pendingReapTimer = undefined;
+      fire();
+    }, graceMs);
+    // Don't let a pending grace reap single-handedly hold the process open on a
+    // clean shutdown (e.g. FleetManager.stop draining the event loop) — the timer
+    // still fires while other work keeps the loop alive.
+    this.pendingReapTimer.unref?.();
+  }
+
+  /** Cancel a pending grace reap, if one is armed. */
+  cancelPendingReap(): void {
+    if (this.pendingReapTimer !== undefined) {
+      clearTimeout(this.pendingReapTimer);
+      this.pendingReapTimer = undefined;
+    }
+  }
+
   detach(): void {
     this.markDone();
   }
@@ -244,6 +314,7 @@ class ManagedSessionImpl implements ManagedSession {
 
   private markDone(): void {
     this.live = false;
+    this.cancelPendingReap();
     if (this.resolvedSessionId) this.reaper.unregisterLive(this.resolvedSessionId);
   }
 }
