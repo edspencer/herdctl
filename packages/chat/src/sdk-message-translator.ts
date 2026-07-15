@@ -61,6 +61,28 @@ export interface TranslatedToolCall {
 }
 
 /**
+ * An in-flight tool_use, surfaced the moment it appears in an assistant message
+ * — before the tool has run or produced any result. Consumers use this to
+ * render a pending/"running…" affordance (keyed by {@link toolUseId}) for slow
+ * tools, then reconcile it against the eventual {@link TranslatedToolCall} once
+ * the tool_result arrives.
+ */
+export interface TranslatedToolStart {
+  /** Tool name (e.g. "Bash", "Read", "Task") */
+  toolName: string;
+  /** Human-readable summary of the tool input (e.g. the bash command or file path) */
+  inputSummary?: string;
+  /** The originating tool_use id — the key to reconcile with the later result */
+  toolUseId?: string;
+  /**
+   * Agent attribution: `null` when the main agent invoked the tool, or the
+   * `Task` tool_use id of the subagent that invoked it. Mirrors
+   * {@link TranslatedToolCall.parentToolUseId}.
+   */
+  parentToolUseId: string | null;
+}
+
+/**
  * Handlers invoked as SDK messages are translated. All are optional and may be
  * async; the translator awaits them in order so transports can apply
  * backpressure (e.g. a slow WebSocket send).
@@ -81,6 +103,15 @@ export interface SDKMessageHandlers {
    * attribution identifies the agent whose turn is beginning.
    */
   onBoundary?: (attribution: AgentAttribution) => void | Promise<void>;
+  /**
+   * Called as soon as a tool_use block appears in an assistant message —
+   * before the tool has run or produced a result. Lets consumers render an
+   * in-flight/"running…" affordance for slow tools (especially subagents that
+   * run for minutes) keyed by `toolUseId`, then reconcile it with the eventual
+   * completion via {@link onToolCall}. Fires regardless of the `toolResults`
+   * option; optional and backward compatible.
+   */
+  onToolStart?: (toolUse: TranslatedToolStart) => void | Promise<void>;
   /** Called once per tool result, paired with its originating tool_use. */
   onToolCall?: (toolCall: TranslatedToolCall) => void | Promise<void>;
 }
@@ -271,6 +302,16 @@ export class SDKMessageTranslator {
           name: block.name,
           input: block.input,
           startTime: this.now(),
+          parentToolUseId: attribution.parentToolUseId,
+        });
+        // Surface the tool_use immediately, before it runs, so consumers can
+        // render a pending/"running…" row. The eventual tool_result drives
+        // onToolCall (below) to reconcile it. Fires even when toolResults is
+        // disabled — onToolStart is an independent, opt-in concern.
+        await this.handlers.onToolStart?.({
+          toolName: block.name,
+          inputSummary: getToolInputSummary(block.name, block.input),
+          toolUseId: block.id,
           parentToolUseId: attribution.parentToolUseId,
         });
       }
