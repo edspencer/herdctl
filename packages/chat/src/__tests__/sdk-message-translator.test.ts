@@ -8,6 +8,7 @@ import {
   createSDKMessageHandler,
   SDKMessageTranslator,
   type TranslatedToolCall,
+  type TranslatedToolStart,
 } from "../sdk-message-translator.js";
 
 // =============================================================================
@@ -364,6 +365,85 @@ describe("SDKMessageTranslator", () => {
         expect(calls[0].durationMs).toBeUndefined();
         expect(calls[0].toolUseId).toBeUndefined();
       });
+    });
+  });
+
+  describe("tool starts (in-flight)", () => {
+    it("emits onToolStart immediately when a tool_use appears, before any result", async () => {
+      const starts: TranslatedToolStart[] = [];
+      const calls: TranslatedToolCall[] = [];
+      const t = new SDKMessageTranslator({
+        onToolStart: (s) => void starts.push(s),
+        onToolCall: (c) => void calls.push(c),
+      });
+
+      await t.handle(assistantToolUse("t1", "Bash", { command: "sleep 300" }));
+
+      // Fires before the tool_result arrives — no completion yet.
+      expect(starts).toHaveLength(1);
+      expect(starts[0]).toEqual({
+        toolName: "Bash",
+        inputSummary: "sleep 300",
+        toolUseId: "t1",
+        parentToolUseId: null,
+      });
+      expect(calls).toHaveLength(0);
+    });
+
+    it("reconciles: onToolStart then onToolCall share the same toolUseId", async () => {
+      const starts: TranslatedToolStart[] = [];
+      const calls: TranslatedToolCall[] = [];
+      const t = new SDKMessageTranslator({
+        onToolStart: (s) => void starts.push(s),
+        onToolCall: (c) => void calls.push(c),
+      });
+
+      await t.handle(assistantToolUse("t1", "Task", { description: "do work" }));
+      await t.handle(toolResult("t1", "done"));
+
+      expect(starts).toHaveLength(1);
+      expect(calls).toHaveLength(1);
+      expect(starts[0].toolUseId).toBe("t1");
+      expect(calls[0].toolUseId).toBe("t1");
+    });
+
+    it("attributes a subagent's in-flight tool_use to its spawning Task id", async () => {
+      const starts: TranslatedToolStart[] = [];
+      const t = new SDKMessageTranslator({ onToolStart: (s) => void starts.push(s) });
+
+      await t.handle(subagentToolUse("s1", "Grep", "task-42", { pattern: "foo" }));
+
+      expect(starts).toHaveLength(1);
+      expect(starts[0]).toEqual({
+        toolName: "Grep",
+        inputSummary: "foo",
+        toolUseId: "s1",
+        parentToolUseId: "task-42",
+      });
+    });
+
+    it("still fires onToolStart when toolResults is false (independent concern)", async () => {
+      const onToolStart = vi.fn();
+      const onToolCall = vi.fn();
+      const t = new SDKMessageTranslator({ onToolStart, onToolCall }, { toolResults: false });
+
+      await t.handle(assistantToolUse("t1", "Bash", { command: "ls" }));
+      await t.handle(toolResult("t1", "out"));
+
+      expect(onToolStart).toHaveBeenCalledTimes(1);
+      expect(onToolCall).not.toHaveBeenCalled();
+    });
+
+    it("does not require onToolStart to be present (backward compatible)", async () => {
+      const calls: TranslatedToolCall[] = [];
+      const t = new SDKMessageTranslator({ onToolCall: (c) => void calls.push(c) });
+
+      // No onToolStart handler — must not throw.
+      await t.handle(assistantToolUse("t1", "Bash", { command: "echo hi" }));
+      await t.handle(toolResult("t1", "hi"));
+
+      expect(calls).toHaveLength(1);
+      expect(calls[0].toolName).toBe("Bash");
     });
   });
 

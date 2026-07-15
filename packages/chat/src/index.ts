@@ -139,6 +139,7 @@ export {
   type SDKMessageTranslatorOptions,
   // Types
   type TranslatedToolCall,
+  type TranslatedToolStart,
 } from "./sdk-message-translator.js";
 
 // =============================================================================
