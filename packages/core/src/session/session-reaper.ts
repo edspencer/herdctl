@@ -280,6 +280,10 @@ class ManagedSessionImpl implements ManagedSession {
       this.pendingReapTimer = undefined;
       fire();
     }, graceMs);
+    // Don't let a pending grace reap single-handedly hold the process open on a
+    // clean shutdown (e.g. FleetManager.stop draining the event loop) — the timer
+    // still fires while other work keeps the loop alive.
+    this.pendingReapTimer.unref?.();
   }
 
   /** Cancel a pending grace reap, if one is armed. */
