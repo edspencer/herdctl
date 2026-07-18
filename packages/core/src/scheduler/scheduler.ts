@@ -249,24 +249,32 @@ export class Scheduler {
   }
 
   /**
-   * Forget the in-memory tracking for a schedule removed at runtime.
+   * Forget the warn-once bookkeeping for a schedule removed at runtime, so a
+   * later re-definition of the same name can warn again about a fresh
+   * misconfiguration. See edspencer/herdctl#376.
    *
-   * Arming reads live `agent.schedules` each tick, so dropping a schedule from an
-   * agent's config already stops it from firing. This additionally clears the two
-   * in-memory maps keyed by schedule that {@link setAgents} does not touch:
-   * - the per-agent running set (so a re-add with the same name isn't wrongly
-   *   treated as "already running" if the removed run's `finally` hasn't cleared
-   *   it yet), and
-   * - the warn-once set (so a previously-warned misconfiguration can warn again
-   *   after the schedule is redefined).
-   *
-   * Does not cancel an in-flight job — a running removed schedule finishes
-   * naturally; this only prevents stale bookkeeping from leaking into a re-add.
-   * A no-op if nothing is tracked for the pair. See edspencer/herdctl#376.
+   * Deliberately does **not** touch the per-agent running set: if a run for the
+   * removed schedule is still in flight, its entry must be retained until that
+   * run's own `finally` clears it. Clearing it early would (a) corrupt
+   * `max_concurrent` accounting and (b) let a same-name re-add fire a second,
+   * concurrent execution instead of being correctly skipped as "already
+   * running". A running removed schedule finishes naturally; arming reads live
+   * `agent.schedules` each tick, so dropping it from config already stops future
+   * fires. A no-op if nothing is tracked for the pair.
    */
   clearScheduleTracking(agentName: string, scheduleName: string): void {
-    this.runningSchedules.get(agentName)?.delete(scheduleName);
     this.warnedSchedules.delete(`${agentName}/${scheduleName}`);
+  }
+
+  /**
+   * Whether a run for the given schedule is currently tracked as in-flight.
+   *
+   * Lets a runtime mutation (e.g. `removeAgentSchedule`) reason about active
+   * execution — the removed schedule's config is dropped immediately, but any
+   * in-flight run continues to completion. See edspencer/herdctl#376.
+   */
+  isScheduleRunning(agentName: string, scheduleName: string): boolean {
+    return this.runningSchedules.get(agentName)?.has(scheduleName) ?? false;
   }
 
   /**

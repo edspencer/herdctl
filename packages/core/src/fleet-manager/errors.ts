@@ -360,11 +360,12 @@ export class ScheduleNotFoundError extends FleetManagerError {
  *
  * @example
  * ```typescript
+ * const logger = createLogger("my-app");
  * try {
  *   await fleetManager.setAgentSchedule("my-agent", "hourly", { type: "interval", interval: "1h" });
  * } catch (error) {
  *   if (error instanceof ScheduleMutationDisabledError) {
- *     console.error("Enable { allowScheduleMutation: true } to mutate schedules at runtime");
+ *     logger.error("Enable { allowScheduleMutation: true } to mutate schedules at runtime");
  *   }
  * }
  * ```

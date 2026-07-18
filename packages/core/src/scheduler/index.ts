@@ -34,6 +34,7 @@ export {
 } from "./schedule-runner.js";
 // Schedule state management
 export {
+  armScheduleState,
   deleteScheduleState,
   getAgentScheduleStates,
   getScheduleState,

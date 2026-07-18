@@ -23,9 +23,19 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ResolvedAgent } from "../../config/index.js";
 import type { TriggerInfo } from "../../scheduler/index.js";
 import { AgentNotFoundError, ScheduleMutationDisabledError } from "../errors.js";
 import { FleetManager } from "../fleet-manager.js";
+
+/** Poll `predicate` until true or the timeout elapses. */
+async function waitFor(predicate: () => boolean, timeoutMs = 1500): Promise<void> {
+  const start = Date.now();
+  while (!predicate()) {
+    if (Date.now() - start > timeoutMs) throw new Error("waitFor timed out");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
 
 const silentLogger = () => ({
   debug: vi.fn(),
@@ -151,6 +161,43 @@ describe("FleetManager schedule seam + runtime mutation", () => {
       expect(handler).not.toHaveBeenCalled();
       expect(headlessProbe).toHaveBeenCalled();
     });
+
+    it("routes a forced/immediate trigger through the host handler, not the headless path", async () => {
+      const manager = createManager();
+      await manager.initialize();
+
+      const headlessProbe = vi.fn();
+      manager.on("schedule:triggered", headlessProbe);
+      const handler = vi.fn(async (_info: TriggerInfo) => {});
+      manager.setScheduleTriggerHandler(handler);
+
+      await manager.addAgent({
+        name: "sched-agent",
+        working_directory: tempDir,
+        max_turns: 1,
+        schedules: { now: { type: "interval", interval: "1h" } },
+      });
+
+      // Drive a forced trigger straight through the scheduler seam — the single
+      // entry point every scheduler-fired trigger funnels through (a due poll,
+      // a catch-up fire, or a "trigger now") — rather than waiting for the poll
+      // loop. This asserts forced triggers use the seam, not just polled ones.
+      const agent = (manager as unknown as { config: { agents: ResolvedAgent[] } }).config
+        .agents[0];
+      const info: TriggerInfo = {
+        agent,
+        scheduleName: "now",
+        schedule: agent.schedules?.now as TriggerInfo["schedule"],
+        scheduleState: { last_run_at: null, next_run_at: null, status: "idle", last_error: null },
+      };
+      await (
+        manager as unknown as { handleScheduleTrigger(i: TriggerInfo): Promise<void> }
+      ).handleScheduleTrigger(info);
+
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(handler.mock.calls[0][0].scheduleName).toBe("now");
+      expect(headlessProbe).not.toHaveBeenCalled();
+    });
   });
 
   // ===========================================================================
@@ -210,6 +257,40 @@ describe("FleetManager schedule seam + runtime mutation", () => {
         manager.setAgentSchedule("nope", "tick", { type: "interval", interval: "1h" }),
       ).rejects.toBeInstanceOf(AgentNotFoundError);
     });
+
+    it("re-arming a previously disabled schedule clears the disabled state so it fires again", async () => {
+      const manager = createManager({ allowScheduleMutation: true });
+      await manager.initialize();
+
+      const handler = vi.fn(async (_info: TriggerInfo) => {});
+      manager.setScheduleTriggerHandler(handler);
+
+      await manager.addAgent({
+        name: "sched-agent",
+        working_directory: tempDir,
+        max_turns: 1,
+        schedules: { tick: { type: "interval", interval: "1h" } },
+      });
+
+      // Persist a disabled status for the schedule.
+      const disabled = await manager.disableSchedule("sched-agent", "tick");
+      expect(disabled.status).toBe("disabled");
+
+      // Re-setting the same schedule must normalize the lingering disabled state
+      // — config-only mutation would leave it disabled and it would never fire.
+      const info = await manager.setAgentSchedule("sched-agent", "tick", {
+        type: "interval",
+        interval: "1h",
+      });
+      expect(info.status).toBe("idle");
+
+      await manager.start();
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      await manager.stop();
+
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(handler.mock.calls[0][0].scheduleName).toBe("tick");
+    });
   });
 
   // ===========================================================================
@@ -265,6 +346,62 @@ describe("FleetManager schedule seam + runtime mutation", () => {
       const reAdded = await manager.getSchedule("sched-agent", "tick");
       expect(reAdded.status).toBe("idle");
       expect(reAdded.lastRunAt).toBeNull();
+    });
+
+    it("remove+re-add while a handler run is in flight: no double-execution, no resurrected state", async () => {
+      const manager = createManager({ allowScheduleMutation: true });
+      await manager.initialize();
+
+      let inFlight = 0;
+      let maxInFlight = 0;
+      let calls = 0;
+      let releaseFirstRun: () => void = () => {};
+      const firstRunGate = new Promise<void>((resolve) => {
+        releaseFirstRun = resolve;
+      });
+
+      manager.setScheduleTriggerHandler(async () => {
+        calls += 1;
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        // Hold only the first run open; it stays "in flight" across the mutation.
+        if (calls === 1) await firstRunGate;
+        inFlight -= 1;
+      });
+
+      await manager.addAgent({
+        name: "sched-agent",
+        working_directory: tempDir,
+        max_turns: 1,
+        schedules: { tick: { type: "interval", interval: "1h" } },
+      });
+      await manager.start();
+
+      // Wait until the first run is actually in flight (handler entered + gated).
+      await waitFor(() => calls === 1);
+
+      // While that run is still executing, remove and immediately re-add the
+      // same name. Removal must not resurrect deleted state, and the retained
+      // running-set entry must prevent a second concurrent fire of the re-add.
+      await manager.removeAgentSchedule("sched-agent", "tick");
+      await manager.setAgentSchedule("sched-agent", "tick", {
+        type: "interval",
+        interval: "1h",
+      });
+
+      // Let the in-flight run finish, then settle.
+      releaseFirstRun();
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      await manager.stop();
+
+      // No point had two concurrent executions of the schedule.
+      expect(maxInFlight).toBe(1);
+
+      // The re-added schedule's persisted state is clean, not a resurrected
+      // disabled/errored entry.
+      const reAdded = await manager.getSchedule("sched-agent", "tick");
+      expect(reAdded.status).not.toBe("disabled");
+      expect(reAdded.lastError).toBeNull();
     });
   });
 

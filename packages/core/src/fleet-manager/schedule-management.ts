@@ -254,6 +254,7 @@ export class ScheduleManagement {
     this.assertMutationAllowed("setAgentSchedule");
 
     const logger = this.ctx.getLogger();
+    const stateDir = this.ctx.getStateDir();
     const { config, agent } = this.requireAgent(agentName);
 
     // Validate against the schema so runtime input gets the same defaults
@@ -282,8 +283,19 @@ export class ScheduleManagement {
       details: validated.type,
     });
 
+    // Arm the persisted state: lift any tombstone from a prior removal and
+    // normalize a lingering `disabled` status to `idle`. Config-only changes
+    // don't touch state, but the scheduler skips a schedule whose *persisted*
+    // status is `disabled` — so a set-after-disable would otherwise never fire,
+    // contradicting the "immediately eligible to fire" contract (#376).
+    const { armScheduleState } = await import("../scheduler/schedule-state.js");
+    const clearedDisabled = await armScheduleState(stateDir, agent.qualifiedName, scheduleName, {
+      logger: { warn: logger.warn },
+    });
+
     logger.info(
-      `${isReplace ? "Updated" : "Added"} schedule ${agent.qualifiedName}/${scheduleName} programmatically`,
+      `${isReplace ? "Updated" : "Added"} schedule ${agent.qualifiedName}/${scheduleName} programmatically` +
+        (clearedDisabled ? " (cleared disabled state)" : ""),
     );
 
     return this.getSchedule(agent.qualifiedName, scheduleName);
@@ -292,14 +304,31 @@ export class ScheduleManagement {
   /**
    * Remove a single schedule from an agent at runtime.
    *
-   * Deletes the schedule key from the stored agent's `schedules` map, re-pushes
-   * the updated agent list to the scheduler, and — critically — prunes the
-   * schedule's persisted state via `deleteScheduleState` and clears the in-memory
-   * scheduler bookkeeping (`runningSchedules`/`warnedSchedules`) via
-   * `Scheduler.clearScheduleTracking`. Without the prune, a later re-add of the
-   * same name would inherit the removed schedule's stale `last_run_at`/`disabled`
-   * status, because the scheduler decides disabled/next-run from state, not config
-   * (edspencer/herdctl#376). A `config:reloaded` event is emitted.
+   * Removal is coordinated as one lifecycle operation so it is safe to call while
+   * the scheduler is actively firing (edspencer/herdctl#376):
+   * 1. Drop the schedule from the stored agent's `schedules` map and re-push via
+   *    `scheduler.setAgents(...)` — arming reads live config each tick, so this
+   *    stops any *future* fire immediately.
+   * 2. Prune the schedule's persisted state via `deleteScheduleState`, which also
+   *    **tombstones** the key: the read-modify-write is serialized per state file
+   *    (so a concurrent sibling update can't be lost), and any still-in-flight
+   *    run's trailing state write is suppressed rather than resurrecting the
+   *    just-deleted entry.
+   * 3. Clear only the scheduler's warn-once bookkeeping via
+   *    `clearScheduleTracking`. An in-flight run's entry in the running set is
+   *    deliberately retained until that run's own `finally` clears it, so a
+   *    same-name re-add is correctly skipped as "already running" rather than
+   *    starting a second concurrent execution.
+   *
+   * The removed schedule's own in-flight run (if any) is not cancelled — it
+   * finishes naturally and its trailing writes are absorbed by the tombstone. A
+   * `config:reloaded` event is emitted.
+   *
+   * Deferred (documented in the PR): full generation-fencing of an old run's
+   * completion write after a same-name re-add. The tombstone prevents
+   * resurrection of deleted state; the residual is that a re-add during an
+   * old run's tail may see one `idle`/`next_run` write from that run — bounded,
+   * non-resurrecting, and self-correcting on the next tick.
    *
    * Gated behind `allowScheduleMutation` (see {@link ScheduleMutationDisabledError}).
    *
@@ -332,17 +361,24 @@ export class ScheduleManagement {
       name: `${agent.qualifiedName}/${scheduleName}`,
     });
 
-    // Prune persisted state so a re-added name doesn't inherit stale
-    // last_run_at / disabled status (edspencer/herdctl#376).
+    const wasRunning =
+      this.ctx.getScheduler()?.isScheduleRunning(agent.qualifiedName, scheduleName) ?? false;
+
+    // Prune persisted state (serialized RMW) and tombstone the key so a trailing
+    // write from any in-flight run can't resurrect it (edspencer/herdctl#376).
     const { deleteScheduleState } = await import("../scheduler/schedule-state.js");
     await deleteScheduleState(stateDir, agent.qualifiedName, scheduleName, {
       logger: { warn: logger.warn },
     });
 
-    // Clear in-memory scheduler bookkeeping keyed by this schedule.
+    // Clear only the warn-once bookkeeping; an in-flight run's running-set entry
+    // is retained until it completes (see clearScheduleTracking).
     this.ctx.getScheduler()?.clearScheduleTracking(agent.qualifiedName, scheduleName);
 
-    logger.info(`Removed schedule ${agent.qualifiedName}/${scheduleName} programmatically`);
+    logger.info(
+      `Removed schedule ${agent.qualifiedName}/${scheduleName} programmatically` +
+        (wasRunning ? " (a run is still in flight and will finish)" : ""),
+    );
     return true;
   }
 

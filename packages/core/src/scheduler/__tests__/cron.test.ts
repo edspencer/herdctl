@@ -651,7 +651,9 @@ describe("resolveSystemTimeZone", () => {
   });
 
   it("returns the host IANA timezone reported by Intl", () => {
-    const expected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    // Mirror the fallback so this passes on an ICU-less host too (the exact env
+    // being hardened): if Intl reports no zone, resolveSystemTimeZone yields UTC.
+    const expected = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
     expect(resolveSystemTimeZone()).toBe(expected);
     // Whatever it is, the cron parser must accept it (used as `tz`).
     expect(() => parseCronExpression("0 9 * * *", { tz: resolveSystemTimeZone() })).not.toThrow();

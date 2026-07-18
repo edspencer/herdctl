@@ -50,6 +50,59 @@ function getStateFilePath(stateDir: string): string {
   return join(stateDir, STATE_FILE_NAME);
 }
 
+// =============================================================================
+// Concurrency coordination (edspencer/herdctl#376)
+// =============================================================================
+//
+// Schedule-state mutations are read-modify-write on a single shared `state.yaml`.
+// Runtime add/remove of a schedule can now race the scheduler's own per-tick
+// state writes, so two hazards need coordinating:
+//
+//   1. Lost updates — two concurrent RMWs each read the old file and write their
+//      own change; the second write clobbers the first (e.g. a sibling schedule's
+//      status update is dropped). Fixed by serializing every writer per state
+//      file through {@link withStateLock}.
+//   2. Resurrection — a schedule is removed (its persisted state pruned) while a
+//      run for it is still in flight; that run's completion write would recreate
+//      the just-deleted entry. Fixed by a tombstone set: {@link deleteScheduleState}
+//      records the key, and {@link updateScheduleState} becomes a no-op for a
+//      tombstoned key until the schedule is re-armed (which clears the tombstone).
+//
+// Both structures are process-local, keyed by absolute state-file path, so they
+// coordinate every FleetManager/Scheduler sharing one `.herdctl` in this process.
+
+/** Per-state-file promise chain that serializes read-modify-write operations. */
+const stateFileLocks = new Map<string, Promise<unknown>>();
+
+/**
+ * Run `fn` after all previously-enqueued operations on the same state file have
+ * settled, so schedule-state RMWs never interleave. A rejection in one operation
+ * does not poison the chain — the next operation still runs.
+ */
+function withStateLock<T>(stateFilePath: string, fn: () => Promise<T>): Promise<T> {
+  const prev = stateFileLocks.get(stateFilePath) ?? Promise.resolve();
+  // `then(fn, fn)` runs fn once, whether prev fulfilled or rejected.
+  const result = prev.then(fn, fn);
+  // Store a non-throwing tail as the new lock so a rejection can't wedge it.
+  stateFileLocks.set(
+    stateFilePath,
+    result.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  return result;
+}
+
+/** Keys of schedules whose state has been pruned and must not be resurrected. */
+const tombstonedSchedules = new Set<string>();
+
+function tombstoneKey(stateFilePath: string, agentName: string, scheduleName: string): string {
+  // JSON-encode the tuple so no separator can collide with a path/name that
+  // happens to contain the delimiter.
+  return JSON.stringify([stateFilePath, agentName, scheduleName]);
+}
+
 /**
  * Get the schedule state for a specific agent and schedule
  *
@@ -136,42 +189,52 @@ export async function updateScheduleState(
   options: ScheduleStateOptions = {},
 ): Promise<ScheduleState> {
   const stateFilePath = getStateFilePath(stateDir);
-  const fleetState = await readFleetState(stateFilePath, options);
 
-  // Get or create agent state
-  const currentAgentState = fleetState.agents[agentName] ?? { status: "idle" };
+  return withStateLock(stateFilePath, async () => {
+    // Resurrection guard: if this schedule has been pruned (removed at runtime)
+    // and not re-armed, an in-flight run's trailing state write must NOT recreate
+    // its entry. Return the would-be value without persisting it.
+    if (tombstonedSchedules.has(tombstoneKey(stateFilePath, agentName, scheduleName))) {
+      return { ...createDefaultScheduleState(), ...updates };
+    }
 
-  // Get current schedules map or create empty one
-  const currentSchedules = currentAgentState.schedules ?? {};
+    const fleetState = await readFleetState(stateFilePath, options);
 
-  // Get current schedule state or create default
-  const currentScheduleState = currentSchedules[scheduleName] ?? createDefaultScheduleState();
+    // Get or create agent state
+    const currentAgentState = fleetState.agents[agentName] ?? { status: "idle" };
 
-  // Merge updates
-  const updatedScheduleState: ScheduleState = {
-    ...currentScheduleState,
-    ...updates,
-  };
+    // Get current schedules map or create empty one
+    const currentSchedules = currentAgentState.schedules ?? {};
 
-  // Update the fleet state
-  const updatedFleetState: FleetState = {
-    ...fleetState,
-    agents: {
-      ...fleetState.agents,
-      [agentName]: {
-        ...currentAgentState,
-        schedules: {
-          ...currentSchedules,
-          [scheduleName]: updatedScheduleState,
+    // Get current schedule state or create default
+    const currentScheduleState = currentSchedules[scheduleName] ?? createDefaultScheduleState();
+
+    // Merge updates
+    const updatedScheduleState: ScheduleState = {
+      ...currentScheduleState,
+      ...updates,
+    };
+
+    // Update the fleet state
+    const updatedFleetState: FleetState = {
+      ...fleetState,
+      agents: {
+        ...fleetState.agents,
+        [agentName]: {
+          ...currentAgentState,
+          schedules: {
+            ...currentSchedules,
+            [scheduleName]: updatedScheduleState,
+          },
         },
       },
-    },
-  };
+    };
 
-  // Write back
-  await writeFleetState(stateFilePath, updatedFleetState);
+    // Write back
+    await writeFleetState(stateFilePath, updatedFleetState);
 
-  return updatedScheduleState;
+    return updatedScheduleState;
+  });
 }
 
 /**
@@ -187,6 +250,11 @@ export async function updateScheduleState(
  * A no-op (no write) if the agent or schedule has no persisted state, so callers
  * need not check existence first. The rest of the agent's state and its other
  * schedules are left untouched.
+ *
+ * Records a tombstone for the key so that any still-in-flight run's trailing
+ * state write is suppressed rather than resurrecting the entry (see
+ * {@link updateScheduleState}). The tombstone is lifted when the schedule is
+ * re-armed via {@link armScheduleState}.
  *
  * @param stateDir - Path to the state directory (e.g., .herdctl)
  * @param agentName - Name of the agent (qualified name is the state key)
@@ -207,30 +275,95 @@ export async function deleteScheduleState(
   options: ScheduleStateOptions = {},
 ): Promise<boolean> {
   const stateFilePath = getStateFilePath(stateDir);
-  const fleetState = await readFleetState(stateFilePath, options);
 
-  const agentState = fleetState.agents[agentName];
-  if (!agentState?.schedules || !(scheduleName in agentState.schedules)) {
-    // Nothing persisted for this schedule — leave state untouched.
-    return false;
-  }
+  return withStateLock(stateFilePath, async () => {
+    // Tombstone first — even if there is nothing on disk to prune yet, an
+    // in-flight run may still be about to write. The tombstone makes that write
+    // a no-op until the schedule is re-armed.
+    tombstonedSchedules.add(tombstoneKey(stateFilePath, agentName, scheduleName));
 
-  const { [scheduleName]: _removed, ...remainingSchedules } = agentState.schedules;
+    const fleetState = await readFleetState(stateFilePath, options);
 
-  const updatedFleetState: FleetState = {
-    ...fleetState,
-    agents: {
-      ...fleetState.agents,
-      [agentName]: {
-        ...agentState,
-        schedules: remainingSchedules,
+    const agentState = fleetState.agents[agentName];
+    if (!agentState?.schedules || !(scheduleName in agentState.schedules)) {
+      // Nothing persisted for this schedule — leave state untouched.
+      return false;
+    }
+
+    const { [scheduleName]: _removed, ...remainingSchedules } = agentState.schedules;
+
+    const updatedFleetState: FleetState = {
+      ...fleetState,
+      agents: {
+        ...fleetState.agents,
+        [agentName]: {
+          ...agentState,
+          schedules: remainingSchedules,
+        },
       },
-    },
-  };
+    };
 
-  await writeFleetState(stateFilePath, updatedFleetState);
+    await writeFleetState(stateFilePath, updatedFleetState);
 
-  return true;
+    return true;
+  });
+}
+
+/**
+ * Prepare a schedule's persisted state so it is eligible to fire when (re-)armed
+ * at runtime (edspencer/herdctl#376).
+ *
+ * Called by `setAgentSchedule`. It does two things under the state-file lock:
+ * 1. Lifts any tombstone for the key, so future writes for a re-added schedule
+ *    persist again (reversing {@link deleteScheduleState}).
+ * 2. Normalizes a lingering `disabled` status to `idle` (clearing `last_error`).
+ *    Adding/replacing a schedule only mutates config, but the scheduler skips a
+ *    schedule whose *persisted* status is `disabled` — so without this a
+ *    set-after-disable would silently never fire, contradicting the
+ *    "immediately eligible to fire" contract. Other statuses (e.g. `running`)
+ *    and `last_run_at` are left untouched so an in-flight run and interval
+ *    cadence are preserved.
+ *
+ * @returns `true` if a `disabled` status was normalized to `idle`, else `false`.
+ */
+export async function armScheduleState(
+  stateDir: string,
+  agentName: string,
+  scheduleName: string,
+  options: ScheduleStateOptions = {},
+): Promise<boolean> {
+  const stateFilePath = getStateFilePath(stateDir);
+
+  return withStateLock(stateFilePath, async () => {
+    tombstonedSchedules.delete(tombstoneKey(stateFilePath, agentName, scheduleName));
+
+    const fleetState = await readFleetState(stateFilePath, options);
+    const agentState = fleetState.agents[agentName];
+    const scheduleState = agentState?.schedules?.[scheduleName];
+
+    // Only a persisted `disabled` status blocks arming; nothing else to do.
+    if (!agentState || !scheduleState || scheduleState.status !== "disabled") {
+      return false;
+    }
+
+    const updatedFleetState: FleetState = {
+      ...fleetState,
+      agents: {
+        ...fleetState.agents,
+        [agentName]: {
+          ...agentState,
+          schedules: {
+            ...agentState.schedules,
+            [scheduleName]: { ...scheduleState, status: "idle", last_error: null },
+          },
+        },
+      },
+    };
+
+    await writeFleetState(stateFilePath, updatedFleetState);
+
+    return true;
+  });
 }
 
 /**

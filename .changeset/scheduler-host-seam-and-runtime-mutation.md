@@ -19,10 +19,17 @@ runtime. Existing headless fleets are unchanged — every new capability is opt-
   reports no timezone (which could otherwise revive the 24h-idle bug).
 - **Runtime schedule mutation (#376):** `FleetManager.setAgentSchedule(agent, name,
   schedule)` and `removeAgentSchedule(agent, name)` add/remove a single schedule on a
-  registered agent without a whole-agent `addAgent(replace)`. Removal prunes persisted
-  state via the new `deleteScheduleState` helper and clears the scheduler's in-memory
-  tracking (`Scheduler.clearScheduleTracking`), so a re-added name never inherits a
-  stale `last_run_at`/`disabled` status.
+  registered agent without a whole-agent `addAgent(replace)`. `setAgentSchedule` also
+  normalizes a lingering persisted `disabled` status to `idle` (via the new
+  `armScheduleState` helper) so a set-after-disable is actually eligible to fire.
+  Removal prunes persisted state via the new `deleteScheduleState` helper.
+- **Concurrency-safe mutation:** schedule-state read-modify-writes are now serialized
+  per state file (no lost sibling updates), `deleteScheduleState` tombstones the key so
+  an in-flight run's trailing write can't resurrect deleted state, and an in-flight
+  run's running-set entry is retained (only warn-once bookkeeping is cleared) so a
+  same-name re-add can't start a second concurrent execution. Full generation-fencing
+  of an old run's completion write after a same-name re-add is deferred (documented);
+  the residual is bounded, non-resurrecting, and self-correcting.
 - **Mutation gate:** a new `allowScheduleMutation` FleetManager option (default
   `false`) gates the two mutation methods; when disabled they throw the new
   `ScheduleMutationDisabledError`. Enable/disable of existing schedules stays ungated.

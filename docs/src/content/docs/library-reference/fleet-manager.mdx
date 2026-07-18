@@ -603,6 +603,8 @@ await manager.setAgentSchedule(
 
 The programmatic counterpart to editing an agent's `schedules` in `herdctl.yaml` and calling `reload()`, scoped to one schedule. Unlike `enableSchedule`/`disableSchedule` (which flip persisted state), this changes the agent's *configuration*: the schedule is validated against `ScheduleSchema`, set on the stored agent, and the updated agent list is re-pushed to the scheduler — so it is immediately eligible to fire (or picks up new timing when replacing an existing name) without a whole-agent `addAgent({ replace: true })`, which would leave stale state. A `config:reloaded` event is emitted.
 
+If a schedule of the same name was previously **disabled**, this also normalizes the lingering persisted `disabled` status back to `idle` — otherwise the scheduler (which reads status from persisted state, not config) would keep skipping it and it would never fire.
+
 Gated behind the [`allowScheduleMutation`](#constructor) deployment option — it throws `ScheduleMutationDisabledError` when mutation is not enabled.
 
 #### Example
@@ -636,7 +638,9 @@ await manager.removeAgentSchedule(agentName: string, scheduleName: string): Prom
 
 #### Description
 
-Deletes the schedule from the stored agent and the scheduler, **prunes its persisted state**, and clears the scheduler's in-memory tracking for it. The prune matters: the scheduler decides `disabled`/next-run from state, not config, so without it a later re-add of the same name would inherit the removed schedule's stale `last_run_at`/`disabled` status. Returns `true` if a schedule was removed, `false` if the agent had no such schedule. A `config:reloaded` event is emitted.
+Deletes the schedule from the stored agent and the scheduler and **prunes its persisted state**. The prune matters: the scheduler decides `disabled`/next-run from state, not config, so without it a later re-add of the same name would inherit the removed schedule's stale `last_run_at`/`disabled` status. Returns `true` if a schedule was removed, `false` if the agent had no such schedule. A `config:reloaded` event is emitted.
+
+Removal is coordinated so it is safe to call while the scheduler is actively firing: the persisted-state read-modify-write is serialized (no lost sibling updates), the pruned key is tombstoned so a still-in-flight run's trailing write can't resurrect it, and any in-flight run's tracking is retained until it completes so a same-name re-add can't start a second concurrent execution. The removed schedule's own in-flight run (if any) is not cancelled — it finishes naturally.
 
 Gated behind the [`allowScheduleMutation`](#constructor) deployment option — it throws `ScheduleMutationDisabledError` when mutation is not enabled.
 
