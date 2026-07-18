@@ -5,6 +5,7 @@ import {
   getNextCronTrigger,
   isValidCronExpression,
   parseCronExpression,
+  resolveSystemTimeZone,
 } from "../cron.js";
 import { CronParseError, SchedulerErrorCode } from "../errors.js";
 
@@ -637,6 +638,40 @@ describe("isValidCronExpression", () => {
       expect(isValidCronExpression("invalid")).toBe(false);
       expect(isValidCronExpression("not a cron")).toBe(false);
     });
+  });
+});
+
+// =============================================================================
+// resolveSystemTimeZone - #311 relative-wake timezone hardening
+// =============================================================================
+
+describe("resolveSystemTimeZone", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns the host IANA timezone reported by Intl", () => {
+    // Mirror the fallback so this passes on an ICU-less host too (the exact env
+    // being hardened): if Intl reports no zone, resolveSystemTimeZone yields UTC.
+    const expected = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    expect(resolveSystemTimeZone()).toBe(expected);
+    // Whatever it is, the cron parser must accept it (used as `tz`).
+    expect(() => parseCronExpression("0 9 * * *", { tz: resolveSystemTimeZone() })).not.toThrow();
+  });
+
+  it("falls back to UTC when Intl reports no timezone (ICU-less build)", () => {
+    // Some stripped Node builds return undefined/"" for the resolved timezone;
+    // passing that straight through would make cron resolution implementation-
+    // defined and could revive the #311 24h-idle bug. Fall back to UTC instead.
+    vi.spyOn(Intl, "DateTimeFormat").mockImplementation(
+      () =>
+        ({ resolvedOptions: () => ({ timeZone: undefined }) }) as unknown as Intl.DateTimeFormat,
+    );
+
+    expect(resolveSystemTimeZone()).toBe("UTC");
+    // A deterministic UTC calculation still works with the fallback in place.
+    const next = calculateNextCronTrigger("0 0 * * *", new Date("2024-01-15T12:00:00Z"));
+    expect(next.toISOString()).toBe("2024-01-16T00:00:00.000Z");
   });
 });
 

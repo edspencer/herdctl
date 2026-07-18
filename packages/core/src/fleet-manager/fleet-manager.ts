@@ -22,6 +22,7 @@ import {
   loadConfig,
   type ResolvedAgent,
   type ResolvedConfig,
+  type Schedule,
 } from "../config/index.js";
 import type { RuntimeSession, SlashCommand } from "../runner/index.js";
 import { getCliSessionFile, getDockerSessionFile } from "../runner/runtime/cli-session-path.js";
@@ -73,6 +74,7 @@ import type {
   LogEntry,
   LogStreamOptions,
   ScheduleInfo,
+  ScheduleTriggerHandler,
   TriggerOptions,
   TriggerResult,
 } from "./types.js";
@@ -97,6 +99,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   private readonly logger: FleetManagerLogger;
   private readonly checkInterval: number;
   private readonly configOverrides?: FleetConfigOverrides;
+  private readonly allowScheduleMutation: boolean;
 
   // Internal state
   private status: FleetManagerStatus = "uninitialized";
@@ -105,6 +108,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   private scheduler: Scheduler | null = null;
   private sessionLifecycle: SessionLifecycleManager | null = null;
   private sessionWakeHandler?: SessionWakeHandler;
+  private scheduleTriggerHandler?: ScheduleTriggerHandler;
 
   // Timing info
   private initializedAt: string | null = null;
@@ -147,6 +151,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     this.logger = options.logger ?? createDefaultLogger();
     this.checkInterval = options.checkInterval ?? DEFAULT_CHECK_INTERVAL;
     this.configOverrides = options.configOverrides;
+    this.allowScheduleMutation = options.allowScheduleMutation ?? false;
 
     // Initialize modules in constructor so they work before initialize() is called
     this.initializeModules();
@@ -548,6 +553,50 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     return this.scheduleManagement.disableSchedule(agentName, scheduleName);
   }
 
+  /**
+   * Add or replace a single schedule on an existing agent at runtime.
+   *
+   * The programmatic counterpart to editing an agent's `schedules` in
+   * `herdctl.yaml` and calling `reload()`, for one schedule. The definition is
+   * validated against `ScheduleSchema`, set on the stored agent, and re-pushed to
+   * the scheduler so it is immediately eligible to fire — no whole-agent
+   * `addAgent(replace)` (which leaves stale state) needed. Gated behind the
+   * `allowScheduleMutation` deployment option (edspencer/herdctl#376).
+   *
+   * @param agentName - Qualified or local name of an existing agent
+   * @param scheduleName - The schedule key to set
+   * @param schedule - The schedule definition
+   * @throws {ScheduleMutationDisabledError} If `allowScheduleMutation` is not set
+   * @throws {AgentNotFoundError} If the agent doesn't exist
+   * @throws {ConfigurationError} If the schedule fails validation
+   */
+  async setAgentSchedule(
+    agentName: string,
+    scheduleName: string,
+    schedule: Schedule | Record<string, unknown>,
+  ): Promise<ScheduleInfo> {
+    return this.scheduleManagement.setAgentSchedule(agentName, scheduleName, schedule);
+  }
+
+  /**
+   * Remove a single schedule from an agent at runtime.
+   *
+   * Deletes the schedule from the stored agent and the scheduler, prunes its
+   * persisted state (so a re-added name doesn't inherit stale `last_run_at` /
+   * `disabled` status), and clears the scheduler's in-memory tracking for it.
+   * Gated behind the `allowScheduleMutation` deployment option
+   * (edspencer/herdctl#376).
+   *
+   * @param agentName - Qualified or local name of an existing agent
+   * @param scheduleName - The schedule key to remove
+   * @returns `true` if a schedule was removed, `false` if there was none to remove
+   * @throws {ScheduleMutationDisabledError} If `allowScheduleMutation` is not set
+   * @throws {AgentNotFoundError} If the agent doesn't exist
+   */
+  async removeAgentSchedule(agentName: string, scheduleName: string): Promise<boolean> {
+    return this.scheduleManagement.removeAgentSchedule(agentName, scheduleName);
+  }
+
   // Config Reload
   async reload(): Promise<ConfigReloadedPayload> {
     return this.configReloadModule.reload();
@@ -901,8 +950,13 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
 
   private initializeModules(): void {
     this.statusQueries = new StatusQueries(this);
-    this.scheduleManagement = new ScheduleManagement(this, () =>
-      this.statusQueries.readFleetStateSnapshot(),
+    this.scheduleManagement = new ScheduleManagement(
+      this,
+      () => this.statusQueries.readFleetStateSnapshot(),
+      (config) => {
+        this.config = config;
+      },
+      () => this.allowScheduleMutation,
     );
     this.configReloadModule = new ConfigReload(
       this,
@@ -952,6 +1006,21 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   setSessionWakeHandler(handler: SessionWakeHandler | undefined): void {
     this.sessionWakeHandler = handler;
     this.sessionLifecycle?.setSessionWakeHandler(handler);
+  }
+
+  /**
+   * Register (or clear) the consumer that owns execution of fired schedules.
+   *
+   * Mirrors {@link setSessionWakeHandler}. A consumer (e.g. paddock) sets this to
+   * take over running scheduled turns — resuming/streaming them on its own hub and
+   * attribution path — instead of the built-in headless {@link ScheduleExecutor}.
+   * The scheduler's cron/interval timing is unchanged; only the execution of a due
+   * trigger is intercepted (edspencer/herdctl#375). Without a handler, schedules
+   * run headless so recurring fires keep working. Safe to call before or after
+   * initialize(); pass `undefined` to restore headless execution.
+   */
+  setScheduleTriggerHandler(handler: ScheduleTriggerHandler | undefined): void {
+    this.scheduleTriggerHandler = handler;
   }
 
   /**
@@ -1238,6 +1307,17 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   }
 
   private async handleScheduleTrigger(info: TriggerInfo): Promise<void> {
+    // Host-execution seam (edspencer/herdctl#375): when a consumer registers a
+    // handler it owns execution — running the turn on its own resume/hub path and
+    // streaming it into its UI — so we route the trigger there and skip the
+    // built-in headless executor. Every scheduler-fired trigger (interval, cron,
+    // and a forced immediate fire) funnels through here, so a "trigger now" flows
+    // through the handler path too. Without a handler, schedules run headless via
+    // ScheduleExecutor exactly as before.
+    if (this.scheduleTriggerHandler) {
+      await this.scheduleTriggerHandler(info);
+      return;
+    }
     await this.scheduleExecutor.executeSchedule(info);
   }
 

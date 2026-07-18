@@ -27,6 +27,9 @@ export const FleetManagerErrorCode = {
   JOB_NOT_FOUND: "JOB_NOT_FOUND",
   SCHEDULE_NOT_FOUND: "SCHEDULE_NOT_FOUND",
 
+  // Schedule mutation gate
+  SCHEDULE_MUTATION_DISABLED: "SCHEDULE_MUTATION_DISABLED",
+
   // State errors
   INVALID_STATE: "INVALID_STATE",
   STATE_DIR_ERROR: "STATE_DIR_ERROR",
@@ -341,6 +344,48 @@ export class ScheduleNotFoundError extends FleetManagerError {
     }
 
     return message;
+  }
+}
+
+/**
+ * Error thrown when programmatic schedule mutation is attempted but the
+ * deployment has not opted into it.
+ *
+ * Adding or removing a schedule at runtime (see
+ * {@link FleetManager.setAgentSchedule} / {@link FleetManager.removeAgentSchedule})
+ * is gated behind the `allowScheduleMutation` FleetManager option, which defaults
+ * to `false`. This is the per-deployment safety control: headless fleets that only
+ * run schedules declared in `herdctl.yaml` never enable it, while an embedding host
+ * (e.g. paddock) that exposes a schedule-editing UI opts in explicitly.
+ *
+ * @example
+ * ```typescript
+ * const logger = createLogger("my-app");
+ * try {
+ *   await fleetManager.setAgentSchedule("my-agent", "hourly", { type: "interval", interval: "1h" });
+ * } catch (error) {
+ *   if (error instanceof ScheduleMutationDisabledError) {
+ *     logger.error("Enable { allowScheduleMutation: true } to mutate schedules at runtime");
+ *   }
+ * }
+ * ```
+ */
+export class ScheduleMutationDisabledError extends FleetManagerError {
+  /** The operation that was blocked (e.g. "setAgentSchedule"). */
+  public readonly operation: string;
+
+  constructor(operation: string, options?: { cause?: Error }) {
+    super(
+      `Schedule mutation is disabled for this deployment: cannot ${operation}. ` +
+        `Construct the FleetManager with { allowScheduleMutation: true } to enable ` +
+        `programmatic add/remove of schedules.`,
+      {
+        cause: options?.cause,
+        code: FleetManagerErrorCode.SCHEDULE_MUTATION_DISABLED,
+      },
+    );
+    this.name = "ScheduleMutationDisabledError";
+    this.operation = operation;
   }
 }
 
@@ -734,6 +779,15 @@ export function isScheduleNotFoundError(error: unknown): error is ScheduleNotFou
  */
 export function isInvalidStateError(error: unknown): error is InvalidStateError {
   return error instanceof InvalidStateError;
+}
+
+/**
+ * Type guard to check if an error is a ScheduleMutationDisabledError
+ */
+export function isScheduleMutationDisabledError(
+  error: unknown,
+): error is ScheduleMutationDisabledError {
+  return error instanceof ScheduleMutationDisabledError;
 }
 
 /**

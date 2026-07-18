@@ -5,9 +5,14 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { readFleetState, writeFleetState } from "../../state/fleet-state.js";
 import { createDefaultScheduleState, type FleetState } from "../../state/schemas/fleet-state.js";
 import {
+  armScheduleState,
+  clearScheduleTombstone,
+  deleteScheduleState,
   getAgentScheduleStates,
   getScheduleState,
+  isScheduleTombstoned,
   type ScheduleStateLogger,
+  setScheduleTombstone,
   updateScheduleState,
 } from "../schedule-state.js";
 
@@ -663,5 +668,292 @@ describe("createDefaultScheduleState", () => {
     expect(state.next_run_at).toBeNull();
     expect(state.status).toBe("idle");
     expect(state.last_error).toBeNull();
+  });
+});
+
+describe("deleteScheduleState", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await createTempDir();
+  });
+
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("prunes a single schedule's persisted state, leaving siblings intact", async () => {
+    const stateFile = join(tempDir, "state.yaml");
+    const initialState: FleetState = {
+      fleet: {},
+      agents: {
+        "my-agent": {
+          status: "idle",
+          schedules: {
+            hourly: {
+              last_run_at: "2024-01-15T10:00:00Z",
+              next_run_at: "2024-01-15T11:00:00Z",
+              status: "disabled",
+              last_error: null,
+            },
+            daily: {
+              last_run_at: "2024-01-14T00:00:00Z",
+              next_run_at: "2024-01-15T00:00:00Z",
+              status: "idle",
+              last_error: null,
+            },
+          },
+        },
+      },
+    };
+    await writeFleetState(stateFile, initialState);
+
+    const pruned = await deleteScheduleState(tempDir, "my-agent", "hourly");
+    expect(pruned).toBe(true);
+
+    const remaining = await getAgentScheduleStates(tempDir, "my-agent");
+    expect(remaining).not.toHaveProperty("hourly");
+    expect(remaining).toHaveProperty("daily");
+  });
+
+  it("so a re-added schedule does not inherit stale last_run_at / disabled status", async () => {
+    const stateFile = join(tempDir, "state.yaml");
+    const initialState: FleetState = {
+      fleet: {},
+      agents: {
+        "my-agent": {
+          status: "idle",
+          schedules: {
+            hourly: {
+              last_run_at: "2024-01-15T10:00:00Z",
+              next_run_at: "2024-01-15T11:00:00Z",
+              status: "disabled",
+              last_error: "boom",
+            },
+          },
+        },
+      },
+    };
+    await writeFleetState(stateFile, initialState);
+
+    await deleteScheduleState(tempDir, "my-agent", "hourly");
+
+    // A re-add reads default state (idle, no last_run_at), not the pruned values.
+    const reAdded = await getScheduleState(tempDir, "my-agent", "hourly");
+    expect(reAdded.status).toBe("idle");
+    expect(reAdded.last_run_at).toBeNull();
+    expect(reAdded.last_error).toBeNull();
+  });
+
+  it("returns false and leaves state untouched when there is nothing to prune", async () => {
+    const stateFile = join(tempDir, "state.yaml");
+    const initialState: FleetState = {
+      fleet: {},
+      agents: {
+        "my-agent": {
+          status: "idle",
+          schedules: {
+            hourly: {
+              last_run_at: "2024-01-15T10:00:00Z",
+              next_run_at: null,
+              status: "idle",
+              last_error: null,
+            },
+          },
+        },
+      },
+    };
+    await writeFleetState(stateFile, initialState);
+
+    expect(await deleteScheduleState(tempDir, "my-agent", "missing")).toBe(false);
+    expect(await deleteScheduleState(tempDir, "missing-agent", "hourly")).toBe(false);
+
+    // Existing schedule is preserved.
+    const state = await readFleetState(stateFile);
+    expect(state.agents["my-agent"].schedules).toHaveProperty("hourly");
+  });
+
+  it("does not itself tombstone (tombstoning is the caller's responsibility)", async () => {
+    const stateFile = join(tempDir, "state.yaml");
+    await writeFleetState(stateFile, {
+      fleet: {},
+      agents: {
+        "my-agent": {
+          status: "idle",
+          schedules: {
+            hourly: {
+              last_run_at: "2024-01-15T10:00:00Z",
+              next_run_at: null,
+              status: "running",
+              last_error: null,
+            },
+          },
+        },
+      },
+    });
+
+    await deleteScheduleState(tempDir, "my-agent", "hourly");
+    expect(isScheduleTombstoned(tempDir, "my-agent", "hourly")).toBe(false);
+  });
+});
+
+describe("schedule tombstone (resurrection guard)", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await createTempDir();
+  });
+
+  afterEach(async () => {
+    // Clean up any process-global tombstone this test set.
+    clearScheduleTombstone(tempDir, "my-agent", "hourly");
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("suppresses a later updateScheduleState so it cannot resurrect deleted state", async () => {
+    const stateFile = join(tempDir, "state.yaml");
+    await writeFleetState(stateFile, {
+      fleet: {},
+      agents: {
+        "my-agent": {
+          status: "idle",
+          schedules: {
+            hourly: {
+              last_run_at: "2024-01-15T10:00:00Z",
+              next_run_at: null,
+              status: "running",
+              last_error: null,
+            },
+          },
+        },
+      },
+    });
+
+    // Simulate removeAgentSchedule: tombstone synchronously, then prune.
+    setScheduleTombstone(tempDir, "my-agent", "hourly");
+    await deleteScheduleState(tempDir, "my-agent", "hourly");
+
+    // A still-in-flight run's trailing write is suppressed (no resurrection).
+    await updateScheduleState(tempDir, "my-agent", "hourly", {
+      status: "idle",
+      next_run_at: "2024-01-15T11:00:00Z",
+    });
+    expect(await getAgentScheduleStates(tempDir, "my-agent")).not.toHaveProperty("hourly");
+
+    // Once the tombstone is lifted (re-arm), writes persist normally again.
+    clearScheduleTombstone(tempDir, "my-agent", "hourly");
+    await updateScheduleState(tempDir, "my-agent", "hourly", {
+      status: "idle",
+      last_run_at: "2024-02-01T00:00:00Z",
+    });
+    const state = await getScheduleState(tempDir, "my-agent", "hourly");
+    expect(state.last_run_at).toBe("2024-02-01T00:00:00Z");
+  });
+});
+
+describe("armScheduleState", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await createTempDir();
+  });
+
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("normalizes a persisted disabled status to idle and clears last_error", async () => {
+    const stateFile = join(tempDir, "state.yaml");
+    await writeFleetState(stateFile, {
+      fleet: {},
+      agents: {
+        "my-agent": {
+          status: "idle",
+          schedules: {
+            hourly: {
+              last_run_at: "2024-01-15T10:00:00Z",
+              next_run_at: null,
+              status: "disabled",
+              last_error: "boom",
+            },
+          },
+        },
+      },
+    });
+
+    expect(await armScheduleState(tempDir, "my-agent", "hourly")).toBe(true);
+
+    const state = await getScheduleState(tempDir, "my-agent", "hourly");
+    expect(state.status).toBe("idle");
+    expect(state.last_error).toBeNull();
+    // last_run_at is preserved (cadence is not reset).
+    expect(state.last_run_at).toBe("2024-01-15T10:00:00Z");
+  });
+
+  it("returns false and leaves non-disabled state untouched", async () => {
+    const stateFile = join(tempDir, "state.yaml");
+    await writeFleetState(stateFile, {
+      fleet: {},
+      agents: {
+        "my-agent": {
+          status: "running",
+          schedules: {
+            hourly: {
+              last_run_at: "2024-01-15T10:00:00Z",
+              next_run_at: null,
+              status: "running",
+              last_error: null,
+            },
+          },
+        },
+      },
+    });
+
+    expect(await armScheduleState(tempDir, "my-agent", "hourly")).toBe(false);
+    const state = await getScheduleState(tempDir, "my-agent", "hourly");
+    expect(state.status).toBe("running");
+  });
+
+  it("does NOT lift a tombstone (that is coordinated with the execution generation)", async () => {
+    // Tombstone lifting is deliberately not armScheduleState's job — clearing it
+    // here would let a still-in-flight removed run's trailing write contaminate
+    // the re-added schedule. setAgents / executeJob own the lifecycle instead.
+    setScheduleTombstone(tempDir, "my-agent", "hourly");
+
+    await armScheduleState(tempDir, "my-agent", "hourly");
+
+    expect(isScheduleTombstoned(tempDir, "my-agent", "hourly")).toBe(true);
+
+    // Cleanup for the process-global set.
+    clearScheduleTombstone(tempDir, "my-agent", "hourly");
+  });
+});
+
+describe("schedule-state serialized read-modify-write", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await createTempDir();
+  });
+
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("does not lose sibling updates when many writes race on one state file", async () => {
+    // Concurrent read-modify-write on the same file would clobber each other with
+    // last-writer-wins; the per-file lock serializes them so all survive.
+    const names = Array.from({ length: 12 }, (_, i) => `sched-${i}`);
+    await Promise.all(
+      names.map((name) =>
+        updateScheduleState(tempDir, "my-agent", name, {
+          status: "idle",
+          last_run_at: `2024-01-15T10:${String(name.length).padStart(2, "0")}:00Z`,
+        }),
+      ),
+    );
+
+    const schedules = await getAgentScheduleStates(tempDir, "my-agent");
+    expect(Object.keys(schedules).sort()).toEqual([...names].sort());
   });
 });

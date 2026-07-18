@@ -61,6 +61,7 @@ const manager = new FleetManager(options: FleetManagerOptions);
 | `options.logger` | `FleetManagerLogger` | No | Console logger | Custom logger with `debug`, `info`, `warn`, `error` methods. |
 | `options.checkInterval` | `number` | No | `1000` | Interval in milliseconds between scheduler checks. |
 | `options.configOverrides` | `FleetConfigOverrides` | No | — | Runtime overrides applied after the config file is loaded and parsed — lets CLI flags or programmatic callers override specific fleet-level values. Currently supports `web` (`enabled`, `port`, `host`). |
+| `options.allowScheduleMutation` | `boolean` | No | `false` | Per-deployment gate for programmatic schedule mutation. When `false`, [`setAgentSchedule`](#setagentscheduleagentname-schedulename-schedule) and [`removeAgentSchedule`](#removeagentscheduleagentname-schedulename) throw `ScheduleMutationDisabledError`. An embedding host that exposes a schedule-editing surface opts in by setting this to `true`. Does not affect enable/disable of existing schedules. |
 
 ```typescript
 interface FleetConfigOverrides {
@@ -583,6 +584,81 @@ console.log(`Schedule status: ${schedule.status}`); // 'disabled'
 // Later, re-enable it
 await manager.enableSchedule('my-agent', 'hourly');
 ```
+
+---
+
+### `setAgentSchedule(agentName, scheduleName, schedule)`
+
+Adds or replaces a single schedule on an already-registered agent at runtime.
+
+```typescript
+await manager.setAgentSchedule(
+  agentName: string,
+  scheduleName: string,
+  schedule: Schedule
+): Promise<ScheduleInfo>
+```
+
+#### Description
+
+The programmatic counterpart to editing an agent's `schedules` in `herdctl.yaml` and calling `reload()`, scoped to one schedule. Unlike `enableSchedule`/`disableSchedule` (which flip persisted state), this changes the agent's *configuration*: the schedule is validated against `ScheduleSchema`, set on the stored agent, and the updated agent list is re-pushed to the scheduler — so it is immediately eligible to fire (or picks up new timing when replacing an existing name) without a whole-agent `addAgent({ replace: true })`, which would leave stale state. A `config:reloaded` event is emitted.
+
+If a schedule of the same name was previously **disabled**, this also normalizes the lingering persisted `disabled` status back to `idle` — otherwise the scheduler (which reads status from persisted state, not config) would keep skipping it and it would never fire.
+
+Gated behind the [`allowScheduleMutation`](#constructor) deployment option — it throws `ScheduleMutationDisabledError` when mutation is not enabled.
+
+#### Example
+
+```typescript
+const schedule = await manager.setAgentSchedule('my-agent', 'hourly', {
+  type: 'interval',
+  interval: '1h',
+  prompt: 'Do the hourly sweep',
+});
+console.log(`Armed ${schedule.name} (${schedule.type})`);
+```
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `ScheduleMutationDisabledError` | `allowScheduleMutation` is not enabled |
+| `AgentNotFoundError` | The agent doesn't exist |
+| `ConfigurationError` | The schedule fails schema validation |
+
+---
+
+### `removeAgentSchedule(agentName, scheduleName)`
+
+Removes a single schedule from an agent at runtime.
+
+```typescript
+await manager.removeAgentSchedule(agentName: string, scheduleName: string): Promise<boolean>
+```
+
+#### Description
+
+Deletes the schedule from the stored agent and the scheduler and **prunes its persisted state**. The prune matters: the scheduler decides `disabled`/next-run from state, not config, so without it a later re-add of the same name would inherit the removed schedule's stale `last_run_at`/`disabled` status. Returns `true` if a schedule was removed, `false` if the agent had no such schedule. A `config:reloaded` event is emitted.
+
+Removal is coordinated so it is safe to call while the scheduler is actively firing: the persisted-state read-modify-write is serialized (no lost sibling updates), the pruned key is tombstoned so a still-in-flight run's trailing write can't resurrect it, and any in-flight run's tracking is retained until it completes so a same-name re-add can't start a second concurrent execution. The removed schedule's own in-flight run (if any) is not cancelled — it finishes naturally.
+
+Gated behind the [`allowScheduleMutation`](#constructor) deployment option — it throws `ScheduleMutationDisabledError` when mutation is not enabled.
+
+#### Example
+
+```typescript
+const removed = await manager.removeAgentSchedule('my-agent', 'hourly');
+
+// A later re-add starts clean — no stale disabled/last_run_at.
+await manager.setAgentSchedule('my-agent', 'hourly', { type: 'interval', interval: '1h' });
+```
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `ScheduleMutationDisabledError` | `allowScheduleMutation` is not enabled |
+| `AgentNotFoundError` | The agent doesn't exist |
 
 ---
 
@@ -1288,6 +1364,40 @@ manager.setSessionWakeHandler(async (session, entry) => {
 <Aside type="note">
 Cron expressions in session wakes are resolved in the **host's local timezone**, not UTC — matching how Claude Code serializes `ScheduleWakeup`/`CronCreate` schedules and how the scheduler resolves fleet crons. One-shot wakes are removed after firing; recurring wakes re-arm on each fire and auto-expire 7 days after capture.
 </Aside>
+
+---
+
+### `setScheduleTriggerHandler(handler)`
+
+Registers the consumer hook that owns execution of fired **config schedules** (interval/cron), mirroring `setSessionWakeHandler`.
+
+```typescript
+manager.setScheduleTriggerHandler(
+  handler: ScheduleTriggerHandler | undefined
+): void
+
+type ScheduleTriggerHandler = (info: TriggerInfo) => void | Promise<void>;
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `handler` | `ScheduleTriggerHandler \| undefined` | **Yes** | Called with the `TriggerInfo` (agent, schedule name, schedule config, current state) each time a schedule fires. Pass `undefined` to restore headless execution |
+
+#### Description
+
+When a schedule is due, herdctl normally runs it headlessly via the built-in `ScheduleExecutor` (a fresh `JobExecutor` run). Registering a handler intercepts **execution** — every scheduler-fired trigger is routed to the handler instead, so an embedding host can run the turn on its own resume/hub path and stream it into its UI. The scheduler's cron/interval **timing is unchanged**; only what happens on a due trigger is swapped. When no handler is registered, schedules run headless exactly as before, so recurring fires keep working. Safe to call before or after `initialize()`.
+
+#### Example
+
+```typescript
+manager.setScheduleTriggerHandler(async (info) => {
+  console.log(`Schedule ${info.agent.qualifiedName}/${info.scheduleName} fired`);
+  // Run the turn on your own path (e.g. resume + stream into a chat UI)
+  await runOnHub(info);
+});
+```
 
 ---
 

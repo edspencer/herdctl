@@ -13,6 +13,7 @@ export {
   isValidCronExpression,
   type ParsedCronExpression,
   parseCronExpression,
+  resolveSystemTimeZone,
 } from "./cron.js";
 // Errors
 export * from "./errors.js";
@@ -32,6 +33,14 @@ export {
   type TriggerMetadata,
 } from "./schedule-runner.js";
 // Schedule state management
+//
+// NOTE: the runtime-mutation plumbing added for edspencer/herdctl#376 —
+// `armScheduleState`, `deleteScheduleState`, `setScheduleTombstone`,
+// `clearScheduleTombstone`, `isScheduleTombstoned` — is deliberately NOT re-exported
+// here. The package root does `export *` from this module, so re-exporting them
+// would leak internal mutators onto the public `@herdctl/core` semver surface.
+// Internal callers (scheduler, schedule-management) and tests import them directly
+// from `./schedule-state.js`. Consumers use the `FleetManager` methods instead.
 export {
   getAgentScheduleStates,
   getScheduleState,

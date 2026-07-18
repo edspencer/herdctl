@@ -435,15 +435,28 @@ export function isValidCronExpression(expression: string): boolean {
  * calculateNextCronTrigger("0,15,30,45 * * * *", midHour)  // Returns 2024-01-15T10:15:00 (local)
  */
 export function calculateNextCronTrigger(expression: string, after?: Date): Date {
-  // Get the system timezone
-  const systemTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
   const parsed = parseCronExpression(expression, {
     currentDate: after,
-    tz: systemTimezone,
+    tz: resolveSystemTimeZone(),
   });
 
   return parsed.cronExpression.next().toDate();
+}
+
+/**
+ * Resolve the host's IANA timezone for cron calculations, with a UTC fallback.
+ *
+ * The relative-wake seam (edspencer/herdctl#311) serializes one-shot/relative
+ * wakeups as wall-clock crons in the host's **local** timezone, then resolves
+ * them back here — so this must return the same zone the harness serialized in.
+ * `Intl.DateTimeFormat().resolvedOptions().timeZone` normally yields it, but in
+ * an ICU-less / stripped Node build it can be `undefined` or empty; passing that
+ * straight through to the cron parser makes the resolved zone
+ * implementation-defined (and can silently roll `next()` a day, reviving #311).
+ * Falling back to `"UTC"` keeps resolution deterministic in that edge case.
+ */
+export function resolveSystemTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 }
 
 /**
@@ -462,12 +475,9 @@ export function calculateNextCronTrigger(expression: string, after?: Date): Date
  * calculatePreviousCronTrigger("@hourly")  // Returns 11:00
  */
 export function calculatePreviousCronTrigger(expression: string, before?: Date): Date {
-  // Get the system timezone
-  const systemTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
   const parsed = parseCronExpression(expression, {
     currentDate: before,
-    tz: systemTimezone,
+    tz: resolveSystemTimeZone(),
   });
 
   return parsed.cronExpression.prev().toDate();

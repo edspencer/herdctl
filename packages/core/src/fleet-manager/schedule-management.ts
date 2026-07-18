@@ -2,15 +2,26 @@
  * Schedule Management Module
  *
  * Centralizes all schedule management logic for FleetManager.
- * Provides methods to query, enable, and disable schedules.
+ * Provides methods to query, enable, disable, add, and remove schedules.
  *
  * @module schedule-management
  */
 
+import {
+  type ResolvedAgent,
+  type ResolvedConfig,
+  type Schedule,
+  ScheduleSchema,
+} from "../config/index.js";
 import type { FleetManagerContext } from "./context.js";
-import { AgentNotFoundError, ScheduleNotFoundError } from "./errors.js";
+import {
+  AgentNotFoundError,
+  ConfigurationError,
+  ScheduleMutationDisabledError,
+  ScheduleNotFoundError,
+} from "./errors.js";
 import { buildScheduleInfoList, type FleetStateSnapshot } from "./status-queries.js";
-import type { ScheduleInfo } from "./types.js";
+import type { ConfigChange, ScheduleInfo } from "./types.js";
 
 // =============================================================================
 // ScheduleManagement Class
@@ -19,13 +30,20 @@ import type { ScheduleInfo } from "./types.js";
 /**
  * ScheduleManagement provides all schedule management operations for the FleetManager.
  *
- * This class encapsulates the logic for querying, enabling, and disabling schedules
- * using the FleetManagerContext pattern.
+ * This class encapsulates the logic for querying, enabling, disabling, adding, and
+ * removing schedules using the FleetManagerContext pattern.
+ *
+ * Runtime add/remove of a single schedule ({@link setAgentSchedule} /
+ * {@link removeAgentSchedule}) is gated behind `allowScheduleMutation` — supplied
+ * as {@link isMutationAllowed} — so a deployment must opt in before schedules can
+ * be mutated programmatically (edspencer/herdctl#376).
  */
 export class ScheduleManagement {
   constructor(
     private ctx: FleetManagerContext,
     private readFleetStateSnapshotFn: () => Promise<FleetStateSnapshot>,
+    private setConfig: (config: ResolvedConfig) => void,
+    private isMutationAllowed: () => boolean,
   ) {}
 
   /**
@@ -204,5 +222,252 @@ export class ScheduleManagement {
 
     // Return the updated schedule info
     return this.getSchedule(agent.qualifiedName, scheduleName);
+  }
+
+  /**
+   * Add or replace a single schedule on an already-registered agent at runtime.
+   *
+   * Unlike {@link enableSchedule}/{@link disableSchedule} (which flip persisted
+   * state), this changes the agent's *configuration*: the schedule is validated
+   * against {@link ScheduleSchema}, set on the stored agent's `schedules` map, and
+   * the updated agent list is re-pushed to the scheduler. Arming reads live
+   * `agent.schedules` each tick, so the schedule is immediately eligible to fire
+   * (or, when re-registering an existing name, picks up the new timing) without a
+   * `reload()` or whole-agent `addAgent(replace)` round trip. A `config:reloaded`
+   * event describing the change is emitted.
+   *
+   * Gated behind `allowScheduleMutation` (see {@link ScheduleMutationDisabledError}).
+   *
+   * @param agentName - Qualified or local name of an existing agent
+   * @param scheduleName - The schedule key to set
+   * @param schedule - The schedule definition (validated against ScheduleSchema)
+   * @returns The resulting schedule info
+   * @throws {ScheduleMutationDisabledError} If schedule mutation is not enabled
+   * @throws {AgentNotFoundError} If the agent doesn't exist
+   * @throws {ConfigurationError} If the schedule fails validation
+   */
+  async setAgentSchedule(
+    agentName: string,
+    scheduleName: string,
+    schedule: Schedule | Record<string, unknown>,
+  ): Promise<ScheduleInfo> {
+    this.assertMutationAllowed("setAgentSchedule");
+
+    const logger = this.ctx.getLogger();
+    const stateDir = this.ctx.getStateDir();
+    const { config, agent } = this.requireAgent(agentName);
+
+    // Validate against the schema so runtime input gets the same defaults
+    // (e.g. enabled/resume_session) and coercions a file-loaded schedule would.
+    let validated: Schedule;
+    try {
+      validated = ScheduleSchema.parse(schedule);
+    } catch (error) {
+      throw new ConfigurationError(
+        `Invalid schedule configuration for "${agentName}/${scheduleName}": ` +
+          `${error instanceof Error ? error.message : String(error)}`,
+        { cause: error instanceof Error ? error : undefined },
+      );
+    }
+
+    const isReplace = Boolean(agent.schedules && scheduleName in agent.schedules);
+    const updatedAgent: ResolvedAgent = {
+      ...agent,
+      schedules: { ...(agent.schedules ?? {}), [scheduleName]: validated },
+    };
+
+    this.commitAgent(config, agent, updatedAgent, {
+      type: isReplace ? "modified" : "added",
+      category: "schedule",
+      name: `${agent.qualifiedName}/${scheduleName}`,
+      details: validated.type,
+    });
+
+    // Arm the persisted state: lift any tombstone from a prior removal and
+    // normalize a lingering `disabled` status to `idle`. Config-only changes
+    // don't touch state, but the scheduler skips a schedule whose *persisted*
+    // status is `disabled` — so a set-after-disable would otherwise never fire,
+    // contradicting the "immediately eligible to fire" contract (#376).
+    const { armScheduleState } = await import("../scheduler/schedule-state.js");
+    const clearedDisabled = await armScheduleState(stateDir, agent.qualifiedName, scheduleName, {
+      logger: { warn: logger.warn },
+    });
+
+    logger.info(
+      `${isReplace ? "Updated" : "Added"} schedule ${agent.qualifiedName}/${scheduleName} programmatically` +
+        (clearedDisabled ? " (cleared disabled state)" : ""),
+    );
+
+    return this.getSchedule(agent.qualifiedName, scheduleName);
+  }
+
+  /**
+   * Remove a single schedule from an agent at runtime.
+   *
+   * Removal is coordinated as one lifecycle operation so it is safe to call while
+   * the scheduler is actively firing (edspencer/herdctl#376):
+   * 1. Drop the schedule from the stored agent's `schedules` map and re-push via
+   *    `scheduler.setAgents(...)` — arming reads live config each tick, so this
+   *    stops any *future* fire immediately.
+   * 2. Prune the schedule's persisted state via `deleteScheduleState`, which also
+   *    **tombstones** the key: the read-modify-write is serialized per state file
+   *    (so a concurrent sibling update can't be lost), and any still-in-flight
+   *    run's trailing state write is suppressed rather than resurrecting the
+   *    just-deleted entry.
+   * 3. Clear only the scheduler's warn-once bookkeeping via
+   *    `clearScheduleTracking`. An in-flight run's entry in the running set is
+   *    deliberately retained until that run's own `finally` clears it, so a
+   *    same-name re-add is correctly skipped as "already running" rather than
+   *    starting a second concurrent execution.
+   *
+   * The removed schedule's own in-flight run (if any) is not cancelled — it
+   * finishes naturally and its trailing writes are absorbed by the tombstone. A
+   * `config:reloaded` event is emitted.
+   *
+   * **In-memory only.** Like `addAgent`/`removeAgent`, this mutates the loaded
+   * in-memory config; it does NOT rewrite the on-disk `herdctl.yaml`. So a later
+   * `reload()` (or `addAgent({replace:true})`) that re-reads the schedule from
+   * disk legitimately re-arms it — and does so cleanly: `setAgents` lifts the
+   * tombstone for any schedule present in the new agent list, so the re-armed
+   * schedule resumes normal state persistence rather than staying tombstoned
+   * (which would make `updateScheduleState` a silent no-op and cause runaway
+   * per-tick firing). Consumers that manage schedules purely in memory (e.g.
+   * paddock) simply do not call `reload()`.
+   *
+   * Tombstone lifetime is bounded: it is lifted when the schedule is re-armed via
+   * `setAgents`, when an in-flight run for it completes (scheduler `executeJob`
+   * `finally`), or immediately here when there is no in-flight run to guard.
+   *
+   * Deferred (documented in the PR): full generation-fencing of an old run's
+   * completion write after a same-name re-add. The tombstone prevents
+   * resurrection of deleted state; the residual is that a re-add during an
+   * old run's tail may see one `idle`/`next_run` write from that run — bounded,
+   * non-resurrecting, and self-correcting on the next tick.
+   *
+   * Gated behind `allowScheduleMutation` (see {@link ScheduleMutationDisabledError}).
+   *
+   * @param agentName - Qualified or local name of an existing agent
+   * @param scheduleName - The schedule key to remove
+   * @returns `true` if a schedule was removed, `false` if the agent had no such schedule
+   * @throws {ScheduleMutationDisabledError} If schedule mutation is not enabled
+   * @throws {AgentNotFoundError} If the agent doesn't exist
+   */
+  async removeAgentSchedule(agentName: string, scheduleName: string): Promise<boolean> {
+    this.assertMutationAllowed("removeAgentSchedule");
+
+    const logger = this.ctx.getLogger();
+    const stateDir = this.ctx.getStateDir();
+    const { config, agent } = this.requireAgent(agentName);
+
+    if (!agent.schedules || !(scheduleName in agent.schedules)) {
+      logger.debug(
+        `removeAgentSchedule: no schedule "${scheduleName}" on agent "${agent.qualifiedName}"`,
+      );
+      return false;
+    }
+
+    const { [scheduleName]: _removed, ...remainingSchedules } = agent.schedules;
+    const updatedAgent: ResolvedAgent = { ...agent, schedules: remainingSchedules };
+
+    // Note: commitAgent → setAgents re-pushes the agent list WITHOUT this
+    // schedule, so setAgents does not clear its tombstone (only present schedules
+    // are un-tombstoned) — exactly what we want while a run may still be writing.
+    this.commitAgent(config, agent, updatedAgent, {
+      type: "removed",
+      category: "schedule",
+      name: `${agent.qualifiedName}/${scheduleName}`,
+    });
+
+    const scheduler = this.ctx.getScheduler();
+    const wasRunning = scheduler?.isScheduleRunning(agent.qualifiedName, scheduleName) ?? false;
+
+    // If (and only if) a run is in flight, tombstone the key so that run's
+    // trailing state write can't resurrect the entry we're about to delete. Set
+    // SYNCHRONOUSLY here — before the async prune below — so a concurrent re-arm's
+    // setAgents (which clears tombstones for present schedules) can't slip in
+    // during an await and clear it first. When nothing is in flight there is no
+    // writer to guard against, so we skip the tombstone entirely and it can never
+    // leak. The tombstone is later lifted by the run's `executeJob` finally, or by
+    // setAgents when the schedule is re-armed (reload / addAgent / setAgentSchedule)
+    // — the latter is what keeps a removed-then-reloaded schedule from staying
+    // tombstoned and runaway-firing.
+    if (wasRunning) {
+      scheduler?.tombstoneSchedule(agent.qualifiedName, scheduleName);
+    }
+
+    // Prune persisted state (serialized RMW).
+    const { deleteScheduleState } = await import("../scheduler/schedule-state.js");
+    await deleteScheduleState(stateDir, agent.qualifiedName, scheduleName, {
+      logger: { warn: logger.warn },
+    });
+
+    // Clear only the warn-once bookkeeping; an in-flight run's running-set entry
+    // is retained until it completes (see clearScheduleTracking).
+    scheduler?.clearScheduleTracking(agent.qualifiedName, scheduleName);
+
+    logger.info(
+      `Removed schedule ${agent.qualifiedName}/${scheduleName} programmatically` +
+        (wasRunning ? " (a run is still in flight and will finish)" : ""),
+    );
+    return true;
+  }
+
+  // ===========================================================================
+  // Private Helpers
+  // ===========================================================================
+
+  /**
+   * Throw {@link ScheduleMutationDisabledError} unless the deployment has opted
+   * into programmatic schedule mutation.
+   */
+  private assertMutationAllowed(operation: string): void {
+    if (!this.isMutationAllowed()) {
+      throw new ScheduleMutationDisabledError(operation);
+    }
+  }
+
+  /**
+   * Resolve an agent by qualified name (preferred) or local name from the loaded
+   * config, throwing {@link AgentNotFoundError} if absent.
+   */
+  private requireAgent(agentName: string): { config: ResolvedConfig; agent: ResolvedAgent } {
+    const config = this.ctx.getConfig();
+    const agents = config?.agents ?? [];
+    const agent =
+      agents.find((a) => a.qualifiedName === agentName) ?? agents.find((a) => a.name === agentName);
+
+    if (!config || !agent) {
+      throw new AgentNotFoundError(agentName, {
+        availableAgents: agents.map((a) => a.qualifiedName),
+      });
+    }
+
+    return { config, agent };
+  }
+
+  /**
+   * Replace one agent in the stored config with an updated copy, push the new
+   * agent list to the scheduler, and emit a `config:reloaded` event. Mirrors
+   * `AgentManagement.commit`, the single seam for programmatic config mutation.
+   */
+  private commitAgent(
+    config: ResolvedConfig,
+    previous: ResolvedAgent,
+    updated: ResolvedAgent,
+    change: ConfigChange,
+  ): void {
+    const newAgents = config.agents.map((a) => (a === previous ? updated : a));
+    const newConfig: ResolvedConfig = { ...config, agents: newAgents };
+    this.setConfig(newConfig);
+
+    this.ctx.getScheduler()?.setAgents(newAgents);
+
+    this.ctx.emit("config:reloaded", {
+      agentCount: newAgents.length,
+      agentNames: newAgents.map((a) => a.qualifiedName),
+      configPath: config.configPath,
+      changes: [change],
+      timestamp: new Date().toISOString(),
+    });
   }
 }
