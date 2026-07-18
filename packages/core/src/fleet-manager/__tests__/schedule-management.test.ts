@@ -351,25 +351,38 @@ describe("FleetManager schedule seam + runtime mutation", () => {
       expect(reAdded.lastRunAt).toBeNull();
     });
 
-    it("remove+re-add while a handler run is in flight: no double-execution, no resurrected state", async () => {
+    it("remove+re-add while a run is in flight: tombstone held during the run, old-run write can't contaminate the re-add", async () => {
       const manager = createManager({ allowScheduleMutation: true });
       await manager.initialize();
 
       let inFlight = 0;
       let maxInFlight = 0;
       let calls = 0;
-      let releaseFirstRun: () => void = () => {};
-      const firstRunGate = new Promise<void>((resolve) => {
-        releaseFirstRun = resolve;
+      let releaseGen0: () => void = () => {};
+      let releaseGen1: () => void = () => {};
+      const gen0Gate = new Promise<void>((resolve) => {
+        releaseGen0 = resolve;
+      });
+      const gen1Gate = new Promise<void>((resolve) => {
+        releaseGen1 = resolve;
       });
 
       manager.setScheduleTriggerHandler(async () => {
-        calls += 1;
+        const generation = ++calls;
         inFlight += 1;
         maxInFlight = Math.max(maxInFlight, inFlight);
-        // Hold only the first run open; it stays "in flight" across the mutation.
-        if (calls === 1) await firstRunGate;
-        inFlight -= 1;
+        try {
+          if (generation === 1) {
+            await gen0Gate;
+            // The removed generation-0 run fails → executeJob writes last_error.
+            // That write must be suppressed by the tombstone (not contaminate the
+            // re-added schedule).
+            throw new Error("gen-0 boom");
+          }
+          if (generation === 2) await gen1Gate;
+        } finally {
+          inFlight -= 1;
+        }
       });
 
       await manager.addAgent({
@@ -380,28 +393,41 @@ describe("FleetManager schedule seam + runtime mutation", () => {
       });
       await manager.start();
 
-      // Wait until the first run is actually in flight (handler entered + gated).
+      // Generation-0 run is now in flight and gated.
       await waitFor(() => calls === 1);
 
-      // While that run is still executing, remove and immediately re-add the
-      // same name. Removal must not resurrect deleted state, and the retained
-      // running-set entry must prevent a second concurrent fire of the re-add.
+      // Remove (while running → tombstoned) then immediately re-add the name.
       await manager.removeAgentSchedule("sched-agent", "tick");
       await manager.setAgentSchedule("sched-agent", "tick", {
         type: "interval",
         interval: "1h",
       });
 
-      // Let the in-flight run finish, then settle.
-      releaseFirstRun();
-      await new Promise((resolve) => setTimeout(resolve, 120));
+      // The tombstone MUST remain set while gen-0's run is still in flight — the
+      // re-add must not clear it early (that would let gen-0's trailing write land
+      // on the re-added schedule).
+      expect(isScheduleTombstoned(stateDir, "sched-agent", "tick")).toBe(true);
+
+      // Release gen-0 (it throws). Its last_error write is suppressed; its
+      // executeJob finally then lifts the tombstone, arming generation 1, which we
+      // gate so we can inspect state before it overwrites anything.
+      releaseGen0();
+      await waitFor(() => calls === 2);
+
+      // gen-0's "boom" error did NOT persist onto the re-added schedule, and the
+      // tombstone has been lifted now that the removed run is done.
+      const duringGen1 = await manager.getSchedule("sched-agent", "tick");
+      expect(duringGen1.lastError).toBeNull();
+      expect(isScheduleTombstoned(stateDir, "sched-agent", "tick")).toBe(false);
+
+      releaseGen1();
+      await new Promise((resolve) => setTimeout(resolve, 60));
       await manager.stop();
 
       // No point had two concurrent executions of the schedule.
       expect(maxInFlight).toBe(1);
 
-      // The re-added schedule's persisted state is clean, not a resurrected
-      // disabled/errored entry.
+      // Final state is clean — no resurrected/contaminated error.
       const reAdded = await manager.getSchedule("sched-agent", "tick");
       expect(reAdded.status).not.toBe("disabled");
       expect(reAdded.lastError).toBeNull();

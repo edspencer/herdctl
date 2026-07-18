@@ -250,16 +250,24 @@ export class Scheduler {
 
     // Universal re-arm hook (edspencer/herdctl#376): every path that (re-)arms a
     // schedule — reload(), addAgent({replace}), setAgentSchedule — funnels through
-    // here. Lifting the resurrection tombstone for every schedule PRESENT in the
-    // new list ensures a schedule brought back from disk (or re-added) resumes
-    // normal state persistence instead of staying tombstoned, which would make
-    // updateScheduleState a silent no-op and cause runaway per-tick firing. A
-    // schedule that is NOT in the new list keeps its tombstone (it may still have
-    // an in-flight run whose trailing write must be suppressed).
+    // here. Lifting the resurrection tombstone for a schedule PRESENT in the new
+    // list lets it resume normal state persistence instead of staying tombstoned,
+    // which would make updateScheduleState a silent no-op and cause runaway
+    // per-tick firing.
+    //
+    // BUT only lift it when NO run for that key is still in flight. If the removed
+    // generation's run is still executing, its trailing `next_run_at`/`last_error`
+    // write must stay suppressed — clearing the tombstone now would let that old
+    // write land on (and contaminate) the freshly re-added schedule. The in-flight
+    // run's own `executeJob` finally lifts the tombstone once its trailing writes
+    // are done, at which point the re-armed schedule persists cleanly. A schedule
+    // absent from the new list keeps its tombstone regardless.
     for (const agent of agents) {
       if (!agent.schedules) continue;
       for (const scheduleName of Object.keys(agent.schedules)) {
-        clearScheduleTombstone(this.stateDir, agent.qualifiedName, scheduleName);
+        if (!this.isScheduleRunning(agent.qualifiedName, scheduleName)) {
+          clearScheduleTombstone(this.stateDir, agent.qualifiedName, scheduleName);
+        }
       }
     }
 

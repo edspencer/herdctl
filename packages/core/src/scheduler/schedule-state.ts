@@ -309,15 +309,20 @@ export async function deleteScheduleState(
  * at runtime (edspencer/herdctl#376).
  *
  * Called by `setAgentSchedule`. It does two things under the state-file lock:
- * 1. Lifts any tombstone for the key, so future writes for a re-added schedule
- *    persist again (reversing {@link deleteScheduleState}).
- * 2. Normalizes a lingering `disabled` status to `idle` (clearing `last_error`).
- *    Adding/replacing a schedule only mutates config, but the scheduler skips a
- *    schedule whose *persisted* status is `disabled` — so without this a
- *    set-after-disable would silently never fire, contradicting the
- *    "immediately eligible to fire" contract. Other statuses (e.g. `running`)
- *    and `last_run_at` are left untouched so an in-flight run and interval
- *    cadence are preserved.
+ * Normalizes a lingering `disabled` status to `idle` (clearing `last_error`).
+ * Adding/replacing a schedule only mutates config, but the scheduler skips a
+ * schedule whose *persisted* status is `disabled` — so without this a
+ * set-after-disable would silently never fire, contradicting the "immediately
+ * eligible to fire" contract. Other statuses (e.g. `running`) and `last_run_at`
+ * are left untouched so an in-flight run and interval cadence are preserved.
+ *
+ * Note: this does NOT lift the resurrection tombstone. That is coordinated with
+ * the active execution generation elsewhere ({@link Scheduler.setAgents} lifts it
+ * for a re-armed key only when no run is in flight; the in-flight run's
+ * `executeJob` finally lifts it on completion). Clearing it here unconditionally
+ * would let a still-in-flight removed run's trailing write contaminate the
+ * re-added schedule. Because removal prunes persisted state, a re-add after a
+ * remove finds no entry here and is a no-op — so nothing to un-suppress anyway.
  *
  * @returns `true` if a `disabled` status was normalized to `idle`, else `false`.
  */
@@ -330,8 +335,6 @@ export async function armScheduleState(
   const stateFilePath = getStateFilePath(stateDir);
 
   return withStateLock(stateFilePath, async () => {
-    tombstonedSchedules.delete(tombstoneKey(stateFilePath, agentName, scheduleName));
-
     const fleetState = await readFleetState(stateFilePath, options);
     const agentState = fleetState.agents[agentName];
     const scheduleState = agentState?.schedules?.[scheduleName];

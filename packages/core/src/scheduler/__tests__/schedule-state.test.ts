@@ -914,22 +914,18 @@ describe("armScheduleState", () => {
     expect(state.status).toBe("running");
   });
 
-  it("lifts a tombstone so a re-armed schedule can persist state again", async () => {
+  it("does NOT lift a tombstone (that is coordinated with the execution generation)", async () => {
+    // Tombstone lifting is deliberately not armScheduleState's job — clearing it
+    // here would let a still-in-flight removed run's trailing write contaminate
+    // the re-added schedule. setAgents / executeJob own the lifecycle instead.
     setScheduleTombstone(tempDir, "my-agent", "hourly");
+
+    await armScheduleState(tempDir, "my-agent", "hourly");
+
     expect(isScheduleTombstoned(tempDir, "my-agent", "hourly")).toBe(true);
 
-    // Re-arm lifts the tombstone.
-    await armScheduleState(tempDir, "my-agent", "hourly");
-    expect(isScheduleTombstoned(tempDir, "my-agent", "hourly")).toBe(false);
-
-    await updateScheduleState(tempDir, "my-agent", "hourly", {
-      status: "running",
-      last_run_at: "2024-02-01T00:00:00Z",
-    });
-
-    const state = await getScheduleState(tempDir, "my-agent", "hourly");
-    expect(state.status).toBe("running");
-    expect(state.last_run_at).toBe("2024-02-01T00:00:00Z");
+    // Cleanup for the process-global set.
+    clearScheduleTombstone(tempDir, "my-agent", "hourly");
   });
 });
 
