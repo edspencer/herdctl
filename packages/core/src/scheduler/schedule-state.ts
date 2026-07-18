@@ -251,10 +251,10 @@ export async function updateScheduleState(
  * need not check existence first. The rest of the agent's state and its other
  * schedules are left untouched.
  *
- * Records a tombstone for the key so that any still-in-flight run's trailing
- * state write is suppressed rather than resurrecting the entry (see
- * {@link updateScheduleState}). The tombstone is lifted when the schedule is
- * re-armed via {@link armScheduleState}.
+ * Does not itself tombstone the key — suppressing a still-in-flight run's
+ * trailing write is the caller's responsibility via {@link setScheduleTombstone}
+ * (see `removeAgentSchedule`), so the tombstone can be set *synchronously* before
+ * this async prune and can't be clobbered by a concurrent re-arm.
  *
  * @param stateDir - Path to the state directory (e.g., .herdctl)
  * @param agentName - Name of the agent (qualified name is the state key)
@@ -277,11 +277,6 @@ export async function deleteScheduleState(
   const stateFilePath = getStateFilePath(stateDir);
 
   return withStateLock(stateFilePath, async () => {
-    // Tombstone first — even if there is nothing on disk to prune yet, an
-    // in-flight run may still be about to write. The tombstone makes that write
-    // a no-op until the schedule is re-armed.
-    tombstonedSchedules.add(tombstoneKey(stateFilePath, agentName, scheduleName));
-
     const fleetState = await readFleetState(stateFilePath, options);
 
     const agentState = fleetState.agents[agentName];
@@ -364,6 +359,61 @@ export async function armScheduleState(
 
     return true;
   });
+}
+
+/**
+ * Lift the resurrection tombstone for a schedule, so its persisted state can be
+ * written again (edspencer/herdctl#376).
+ *
+ * A synchronous, in-memory Set delete — no state-file I/O — so it is safe to call
+ * from the scheduler's synchronous `setAgents`. This is the universal un-tombstone
+ * hook: it is called for every schedule present in an updated agent list (so
+ * `reload()` / `addAgent({replace:true})` / `setAgentSchedule` all re-arm a
+ * removed name cleanly, not just `setAgentSchedule`), when an in-flight run for a
+ * removed schedule completes, and when a removal happens with no in-flight run to
+ * suppress. Without it a stale tombstone would make every `updateScheduleState`
+ * for the re-armed name a silent no-op — `last_run_at` never persists, the
+ * schedule reads as perpetually "due", and it runaway-fires every tick.
+ *
+ * A no-op if the key is not tombstoned.
+ */
+export function clearScheduleTombstone(
+  stateDir: string,
+  agentName: string,
+  scheduleName: string,
+): void {
+  tombstonedSchedules.delete(tombstoneKey(getStateFilePath(stateDir), agentName, scheduleName));
+}
+
+/**
+ * Tombstone a schedule so subsequent {@link updateScheduleState} calls for it are
+ * suppressed (edspencer/herdctl#376) — used to stop a still-in-flight run for a
+ * just-removed schedule from resurrecting its persisted state.
+ *
+ * A synchronous, in-memory Set add — deliberately not part of the async
+ * {@link deleteScheduleState} so the caller can set it with no `await` gap in
+ * which a concurrent re-arm's {@link clearScheduleTombstone} could race ahead.
+ * The tombstone is bounded: it is lifted when the schedule is re-armed via
+ * `setAgents`, when the in-flight run completes (scheduler `executeJob` finally),
+ * or by the remover when there is no in-flight run.
+ */
+export function setScheduleTombstone(
+  stateDir: string,
+  agentName: string,
+  scheduleName: string,
+): void {
+  tombstonedSchedules.add(tombstoneKey(getStateFilePath(stateDir), agentName, scheduleName));
+}
+
+/**
+ * Whether a schedule is currently tombstoned (test/introspection helper).
+ */
+export function isScheduleTombstoned(
+  stateDir: string,
+  agentName: string,
+  scheduleName: string,
+): boolean {
+  return tombstonedSchedules.has(tombstoneKey(getStateFilePath(stateDir), agentName, scheduleName));
 }
 
 /**

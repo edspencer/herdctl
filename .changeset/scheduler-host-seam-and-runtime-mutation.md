@@ -24,12 +24,19 @@ runtime. Existing headless fleets are unchanged — every new capability is opt-
   `armScheduleState` helper) so a set-after-disable is actually eligible to fire.
   Removal prunes persisted state via the new `deleteScheduleState` helper.
 - **Concurrency-safe mutation:** schedule-state read-modify-writes are now serialized
-  per state file (no lost sibling updates), `deleteScheduleState` tombstones the key so
-  an in-flight run's trailing write can't resurrect deleted state, and an in-flight
-  run's running-set entry is retained (only warn-once bookkeeping is cleared) so a
-  same-name re-add can't start a second concurrent execution. Full generation-fencing
-  of an old run's completion write after a same-name re-add is deferred (documented);
-  the residual is bounded, non-resurrecting, and self-correcting.
+  per state file (no lost sibling updates); a removed schedule with an in-flight run is
+  tombstoned so that run's trailing write can't resurrect deleted state; and the
+  in-flight run's running-set entry is retained (only warn-once bookkeeping is cleared)
+  so a same-name re-add can't start a second concurrent execution. The tombstone is
+  bounded and self-clearing: `setAgents` lifts it for every schedule present in an
+  updated agent list — so `reload()` / `addAgent({replace})` / `setAgentSchedule` all
+  re-arm a removed name cleanly instead of leaving it tombstoned (which would no-op every
+  state write and cause runaway per-tick firing) — and it is also lifted when the
+  in-flight run completes or when removal finds no run in flight. `removeAgentSchedule`
+  is in-memory-only (like `addAgent`/`removeAgent`): it does not rewrite `herdctl.yaml`,
+  so a later `reload()` legitimately brings the schedule back. Full generation-fencing of
+  an old run's completion write after a same-name re-add is deferred (documented); the
+  residual is bounded, non-resurrecting, and self-correcting.
 - **Mutation gate:** a new `allowScheduleMutation` FleetManager option (default
   `false`) gates the two mutation methods; when disabled they throw the new
   `ScheduleMutationDisabledError`. Enable/disable of existing schedules stays ungated.

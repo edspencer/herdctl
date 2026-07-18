@@ -324,6 +324,20 @@ export class ScheduleManagement {
    * finishes naturally and its trailing writes are absorbed by the tombstone. A
    * `config:reloaded` event is emitted.
    *
+   * **In-memory only.** Like `addAgent`/`removeAgent`, this mutates the loaded
+   * in-memory config; it does NOT rewrite the on-disk `herdctl.yaml`. So a later
+   * `reload()` (or `addAgent({replace:true})`) that re-reads the schedule from
+   * disk legitimately re-arms it — and does so cleanly: `setAgents` lifts the
+   * tombstone for any schedule present in the new agent list, so the re-armed
+   * schedule resumes normal state persistence rather than staying tombstoned
+   * (which would make `updateScheduleState` a silent no-op and cause runaway
+   * per-tick firing). Consumers that manage schedules purely in memory (e.g.
+   * paddock) simply do not call `reload()`.
+   *
+   * Tombstone lifetime is bounded: it is lifted when the schedule is re-armed via
+   * `setAgents`, when an in-flight run for it completes (scheduler `executeJob`
+   * `finally`), or immediately here when there is no in-flight run to guard.
+   *
    * Deferred (documented in the PR): full generation-fencing of an old run's
    * completion write after a same-name re-add. The tombstone prevents
    * resurrection of deleted state; the residual is that a re-add during an
@@ -355,17 +369,33 @@ export class ScheduleManagement {
     const { [scheduleName]: _removed, ...remainingSchedules } = agent.schedules;
     const updatedAgent: ResolvedAgent = { ...agent, schedules: remainingSchedules };
 
+    // Note: commitAgent → setAgents re-pushes the agent list WITHOUT this
+    // schedule, so setAgents does not clear its tombstone (only present schedules
+    // are un-tombstoned) — exactly what we want while a run may still be writing.
     this.commitAgent(config, agent, updatedAgent, {
       type: "removed",
       category: "schedule",
       name: `${agent.qualifiedName}/${scheduleName}`,
     });
 
-    const wasRunning =
-      this.ctx.getScheduler()?.isScheduleRunning(agent.qualifiedName, scheduleName) ?? false;
+    const scheduler = this.ctx.getScheduler();
+    const wasRunning = scheduler?.isScheduleRunning(agent.qualifiedName, scheduleName) ?? false;
 
-    // Prune persisted state (serialized RMW) and tombstone the key so a trailing
-    // write from any in-flight run can't resurrect it (edspencer/herdctl#376).
+    // If (and only if) a run is in flight, tombstone the key so that run's
+    // trailing state write can't resurrect the entry we're about to delete. Set
+    // SYNCHRONOUSLY here — before the async prune below — so a concurrent re-arm's
+    // setAgents (which clears tombstones for present schedules) can't slip in
+    // during an await and clear it first. When nothing is in flight there is no
+    // writer to guard against, so we skip the tombstone entirely and it can never
+    // leak. The tombstone is later lifted by the run's `executeJob` finally, or by
+    // setAgents when the schedule is re-armed (reload / addAgent / setAgentSchedule)
+    // — the latter is what keeps a removed-then-reloaded schedule from staying
+    // tombstoned and runaway-firing.
+    if (wasRunning) {
+      scheduler?.tombstoneSchedule(agent.qualifiedName, scheduleName);
+    }
+
+    // Prune persisted state (serialized RMW).
     const { deleteScheduleState } = await import("../scheduler/schedule-state.js");
     await deleteScheduleState(stateDir, agent.qualifiedName, scheduleName, {
       logger: { warn: logger.warn },
@@ -373,7 +403,7 @@ export class ScheduleManagement {
 
     // Clear only the warn-once bookkeeping; an in-flight run's running-set entry
     // is retained until it completes (see clearScheduleTracking).
-    this.ctx.getScheduler()?.clearScheduleTracking(agent.qualifiedName, scheduleName);
+    scheduler?.clearScheduleTracking(agent.qualifiedName, scheduleName);
 
     logger.info(
       `Removed schedule ${agent.qualifiedName}/${scheduleName} programmatically` +

@@ -15,8 +15,10 @@ import {
 import { SchedulerShutdownError } from "./errors.js";
 import { calculateNextTrigger, isScheduleDue } from "./interval.js";
 import {
+  clearScheduleTombstone,
   getScheduleState,
   type ScheduleStateLogger,
+  setScheduleTombstone,
   updateScheduleState,
 } from "./schedule-state.js";
 import type {
@@ -245,6 +247,22 @@ export class Scheduler {
    */
   setAgents(agents: ResolvedAgent[]): void {
     this.agents = agents;
+
+    // Universal re-arm hook (edspencer/herdctl#376): every path that (re-)arms a
+    // schedule — reload(), addAgent({replace}), setAgentSchedule — funnels through
+    // here. Lifting the resurrection tombstone for every schedule PRESENT in the
+    // new list ensures a schedule brought back from disk (or re-added) resumes
+    // normal state persistence instead of staying tombstoned, which would make
+    // updateScheduleState a silent no-op and cause runaway per-tick firing. A
+    // schedule that is NOT in the new list keeps its tombstone (it may still have
+    // an in-flight run whose trailing write must be suppressed).
+    for (const agent of agents) {
+      if (!agent.schedules) continue;
+      for (const scheduleName of Object.keys(agent.schedules)) {
+        clearScheduleTombstone(this.stateDir, agent.qualifiedName, scheduleName);
+      }
+    }
+
     this.logger.debug(`Updated agents list: ${agents.length} agents`);
   }
 
@@ -275,6 +293,17 @@ export class Scheduler {
    */
   isScheduleRunning(agentName: string, scheduleName: string): boolean {
     return this.runningSchedules.get(agentName)?.has(scheduleName) ?? false;
+  }
+
+  /**
+   * Synchronously tombstone a schedule's persisted state (edspencer/herdctl#376),
+   * so a still-in-flight run for a just-removed schedule cannot resurrect it via a
+   * trailing `updateScheduleState` write. Set with no `await` gap by the remover
+   * (see `removeAgentSchedule`) so a concurrent re-arm can't clear it first. Lifted
+   * again by {@link setAgents} on re-arm or by the run's own `executeJob` finally.
+   */
+  tombstoneSchedule(agentName: string, scheduleName: string): void {
+    setScheduleTombstone(this.stateDir, agentName, scheduleName);
   }
 
   /**
@@ -687,6 +716,14 @@ export class Scheduler {
     } finally {
       // Mark schedule as no longer running
       this.runningSchedules.get(agent.qualifiedName)?.delete(scheduleName);
+
+      // Bound tombstone lifetime to the run (edspencer/herdctl#376): a schedule
+      // removed while this run was in flight was tombstoned to suppress this run's
+      // trailing state writes above. Now that the run is done there is no further
+      // writer to guard against, so lift the tombstone. Harmless no-op for a
+      // schedule that was never removed. Runs after the trailing writes, so their
+      // suppression still held while they executed.
+      clearScheduleTombstone(this.stateDir, agent.qualifiedName, scheduleName);
     }
   }
 }

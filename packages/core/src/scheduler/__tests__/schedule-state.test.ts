@@ -6,10 +6,13 @@ import { readFleetState, writeFleetState } from "../../state/fleet-state.js";
 import { createDefaultScheduleState, type FleetState } from "../../state/schemas/fleet-state.js";
 import {
   armScheduleState,
+  clearScheduleTombstone,
   deleteScheduleState,
   getAgentScheduleStates,
   getScheduleState,
+  isScheduleTombstoned,
   type ScheduleStateLogger,
+  setScheduleTombstone,
   updateScheduleState,
 } from "../schedule-state.js";
 
@@ -770,7 +773,7 @@ describe("deleteScheduleState", () => {
     expect(state.agents["my-agent"].schedules).toHaveProperty("hourly");
   });
 
-  it("tombstones the key so a later updateScheduleState cannot resurrect it", async () => {
+  it("does not itself tombstone (tombstoning is the caller's responsibility)", async () => {
     const stateFile = join(tempDir, "state.yaml");
     await writeFleetState(stateFile, {
       fleet: {},
@@ -789,16 +792,62 @@ describe("deleteScheduleState", () => {
       },
     });
 
-    // Remove it, then simulate a still-in-flight run's trailing state write.
     await deleteScheduleState(tempDir, "my-agent", "hourly");
+    expect(isScheduleTombstoned(tempDir, "my-agent", "hourly")).toBe(false);
+  });
+});
+
+describe("schedule tombstone (resurrection guard)", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await createTempDir();
+  });
+
+  afterEach(async () => {
+    // Clean up any process-global tombstone this test set.
+    clearScheduleTombstone(tempDir, "my-agent", "hourly");
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("suppresses a later updateScheduleState so it cannot resurrect deleted state", async () => {
+    const stateFile = join(tempDir, "state.yaml");
+    await writeFleetState(stateFile, {
+      fleet: {},
+      agents: {
+        "my-agent": {
+          status: "idle",
+          schedules: {
+            hourly: {
+              last_run_at: "2024-01-15T10:00:00Z",
+              next_run_at: null,
+              status: "running",
+              last_error: null,
+            },
+          },
+        },
+      },
+    });
+
+    // Simulate removeAgentSchedule: tombstone synchronously, then prune.
+    setScheduleTombstone(tempDir, "my-agent", "hourly");
+    await deleteScheduleState(tempDir, "my-agent", "hourly");
+
+    // A still-in-flight run's trailing write is suppressed (no resurrection).
     await updateScheduleState(tempDir, "my-agent", "hourly", {
       status: "idle",
       next_run_at: "2024-01-15T11:00:00Z",
     });
+    expect(await getAgentScheduleStates(tempDir, "my-agent")).not.toHaveProperty("hourly");
 
-    // The write was suppressed — the entry stays gone (no resurrection).
-    const remaining = await getAgentScheduleStates(tempDir, "my-agent");
-    expect(remaining).not.toHaveProperty("hourly");
+    // Once the tombstone is lifted (re-arm), writes persist normally again.
+    clearScheduleTombstone(tempDir, "my-agent", "hourly");
+    await updateScheduleState(tempDir, "my-agent", "hourly", {
+      status: "idle",
+      last_run_at: "2024-02-01T00:00:00Z",
+    });
+    const state = await getScheduleState(tempDir, "my-agent", "hourly");
+    expect(state.last_run_at).toBe("2024-02-01T00:00:00Z");
   });
 });
 
@@ -866,11 +915,12 @@ describe("armScheduleState", () => {
   });
 
   it("lifts a tombstone so a re-armed schedule can persist state again", async () => {
-    await updateScheduleState(tempDir, "my-agent", "hourly", { status: "idle" });
-    await deleteScheduleState(tempDir, "my-agent", "hourly"); // tombstones
+    setScheduleTombstone(tempDir, "my-agent", "hourly");
+    expect(isScheduleTombstoned(tempDir, "my-agent", "hourly")).toBe(true);
 
     // Re-arm lifts the tombstone.
     await armScheduleState(tempDir, "my-agent", "hourly");
+    expect(isScheduleTombstoned(tempDir, "my-agent", "hourly")).toBe(false);
 
     await updateScheduleState(tempDir, "my-agent", "hourly", {
       status: "running",

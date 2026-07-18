@@ -35,12 +35,15 @@ export {
 // Schedule state management
 export {
   armScheduleState,
+  clearScheduleTombstone,
   deleteScheduleState,
   getAgentScheduleStates,
   getScheduleState,
+  isScheduleTombstoned,
   type ScheduleStateLogger,
   type ScheduleStateOptions,
   type ScheduleStateUpdates,
+  setScheduleTombstone,
   updateScheduleState,
 } from "./schedule-state.js";
 

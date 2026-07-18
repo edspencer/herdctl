@@ -24,7 +24,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ResolvedAgent } from "../../config/index.js";
-import type { TriggerInfo } from "../../scheduler/index.js";
+import { isScheduleTombstoned, type TriggerInfo } from "../../scheduler/index.js";
 import { AgentNotFoundError, ScheduleMutationDisabledError } from "../errors.js";
 import { FleetManager } from "../fleet-manager.js";
 
@@ -402,6 +402,65 @@ describe("FleetManager schedule seam + runtime mutation", () => {
       const reAdded = await manager.getSchedule("sched-agent", "tick");
       expect(reAdded.status).not.toBe("disabled");
       expect(reAdded.lastError).toBeNull();
+    });
+
+    it("remove then reload() re-arms cleanly from disk — no tombstone-driven runaway firing", async () => {
+      // The schedule is DEFINED ON DISK (agent yaml referenced by the fleet
+      // config), so reload() re-reads it after an in-memory removal. If the
+      // removal's tombstone leaked, the re-armed schedule's updateScheduleState
+      // would no-op → last_run_at never persists → it reads as perpetually due →
+      // fires every single tick.
+      const yaml = await import("yaml");
+      const agentDir = join(configDir, "agents");
+      await mkdir(agentDir, { recursive: true });
+      await writeFile(
+        join(agentDir, "sched-agent.yaml"),
+        yaml.stringify({
+          name: "sched-agent",
+          working_directory: tempDir,
+          max_turns: 1,
+          schedules: { tick: { type: "interval", interval: "1h" } },
+        }),
+      );
+      await writeFile(
+        configPath,
+        yaml.stringify({ version: 1, agents: [{ path: "./agents/sched-agent.yaml" }] }),
+      );
+
+      const manager = createManager({ allowScheduleMutation: true });
+      await manager.initialize();
+
+      const handler = vi.fn(async (_info: TriggerInfo) => {});
+      manager.setScheduleTriggerHandler(handler);
+      await manager.start();
+
+      // It fires once immediately (interval, no last_run), then persists last_run
+      // and waits ~1h.
+      await waitFor(() => handler.mock.calls.length >= 1);
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      const afterFirst = handler.mock.calls.length;
+
+      // Remove at runtime (in-memory only), then reload() re-reads from disk.
+      await manager.removeAgentSchedule("sched-agent", "tick");
+      await manager.reload();
+
+      // Give the scheduler ~10 ticks (checkInterval 20ms). A leaked tombstone
+      // would fire on every tick here.
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      await manager.stop();
+
+      // The re-arm fires at most once more (fresh state, no last_run) — not a
+      // runaway burst of one-per-tick.
+      expect(handler.mock.calls.length - afterFirst).toBeLessThanOrEqual(1);
+
+      // And normal state persistence resumed: last_run_at is recorded, so the
+      // schedule is no longer perpetually "due".
+      const state = await manager.getSchedule("sched-agent", "tick");
+      expect(state.lastRunAt).not.toBeNull();
+      expect(state.status).not.toBe("disabled");
+
+      // The re-arm lifted any tombstone (setAgents un-tombstones present schedules).
+      expect(isScheduleTombstoned(stateDir, "sched-agent", "tick")).toBe(false);
     });
   });
 
