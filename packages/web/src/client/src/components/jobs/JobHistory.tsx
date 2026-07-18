@@ -6,6 +6,7 @@
  */
 
 import {
+  Bot,
   CalendarClock,
   ChevronLeft,
   ChevronRight,
@@ -146,6 +147,7 @@ function TriggerTypeIcon({ type }: { type?: TriggerType }) {
     webhook: { icon: <Webhook className={iconClass} />, label: "Webhook" },
     chat: { icon: <MessageSquare className={iconClass} />, label: "Chat" },
     fork: { icon: <GitFork className={iconClass} />, label: "Fork" },
+    spawned: { icon: <Bot className={iconClass} />, label: "Spawned" },
   };
 
   const { icon, label } = map[t] ?? map.manual;

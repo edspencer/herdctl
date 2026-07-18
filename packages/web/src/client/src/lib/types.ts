@@ -145,7 +145,8 @@ export type TriggerType =
   | "discord"
   | "slack"
   | "web"
-  | "fork";
+  | "fork"
+  | "spawned";
 
 export interface JobSummary {
   jobId: string;
