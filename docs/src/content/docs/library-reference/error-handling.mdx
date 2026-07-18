@@ -205,6 +205,35 @@ try {
 
 ---
 
+### ScheduleMutationDisabledError
+
+Thrown by `setAgentSchedule`/`removeAgentSchedule` when the deployment has not opted into programmatic schedule mutation (the `allowScheduleMutation` FleetManager option, which defaults to `false`).
+
+```typescript
+class ScheduleMutationDisabledError extends FleetManagerError {
+  operation: string; // e.g. "setAgentSchedule"
+}
+```
+
+**Example:**
+
+```typescript
+import { isScheduleMutationDisabledError } from '@herdctl/core';
+
+try {
+  await manager.setAgentSchedule('my-agent', 'hourly', { type: 'interval', interval: '1h' });
+} catch (error) {
+  if (isScheduleMutationDisabledError(error)) {
+    console.error(
+      `Cannot ${error.operation}: construct the FleetManager with ` +
+        `{ allowScheduleMutation: true } to enable runtime schedule mutation.`
+    );
+  }
+}
+```
+
+---
+
 ### InvalidStateError
 
 Thrown when an operation is attempted in an incompatible state.
@@ -938,6 +967,9 @@ const FleetManagerErrorCode = {
   AGENT_NOT_FOUND: 'AGENT_NOT_FOUND',
   JOB_NOT_FOUND: 'JOB_NOT_FOUND',
   SCHEDULE_NOT_FOUND: 'SCHEDULE_NOT_FOUND',
+
+  // Schedule mutation gate
+  SCHEDULE_MUTATION_DISABLED: 'SCHEDULE_MUTATION_DISABLED',
 
   // State
   INVALID_STATE: 'INVALID_STATE',

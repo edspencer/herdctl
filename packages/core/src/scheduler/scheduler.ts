@@ -249,6 +249,27 @@ export class Scheduler {
   }
 
   /**
+   * Forget the in-memory tracking for a schedule removed at runtime.
+   *
+   * Arming reads live `agent.schedules` each tick, so dropping a schedule from an
+   * agent's config already stops it from firing. This additionally clears the two
+   * in-memory maps keyed by schedule that {@link setAgents} does not touch:
+   * - the per-agent running set (so a re-add with the same name isn't wrongly
+   *   treated as "already running" if the removed run's `finally` hasn't cleared
+   *   it yet), and
+   * - the warn-once set (so a previously-warned misconfiguration can warn again
+   *   after the schedule is redefined).
+   *
+   * Does not cancel an in-flight job — a running removed schedule finishes
+   * naturally; this only prevents stale bookkeeping from leaking into a re-add.
+   * A no-op if nothing is tracked for the pair. See edspencer/herdctl#376.
+   */
+  clearScheduleTracking(agentName: string, scheduleName: string): void {
+    this.runningSchedules.get(agentName)?.delete(scheduleName);
+    this.warnedSchedules.delete(`${agentName}/${scheduleName}`);
+  }
+
+  /**
    * Log a warning only once per schedule key, to avoid spamming on every tick.
    */
   private warnOnce(key: string, message: string): void {

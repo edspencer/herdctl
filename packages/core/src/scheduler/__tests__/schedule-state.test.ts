@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { readFleetState, writeFleetState } from "../../state/fleet-state.js";
 import { createDefaultScheduleState, type FleetState } from "../../state/schemas/fleet-state.js";
 import {
+  deleteScheduleState,
   getAgentScheduleStates,
   getScheduleState,
   type ScheduleStateLogger,
@@ -663,5 +664,108 @@ describe("createDefaultScheduleState", () => {
     expect(state.next_run_at).toBeNull();
     expect(state.status).toBe("idle");
     expect(state.last_error).toBeNull();
+  });
+});
+
+describe("deleteScheduleState", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await createTempDir();
+  });
+
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("prunes a single schedule's persisted state, leaving siblings intact", async () => {
+    const stateFile = join(tempDir, "state.yaml");
+    const initialState: FleetState = {
+      fleet: {},
+      agents: {
+        "my-agent": {
+          status: "idle",
+          schedules: {
+            hourly: {
+              last_run_at: "2024-01-15T10:00:00Z",
+              next_run_at: "2024-01-15T11:00:00Z",
+              status: "disabled",
+              last_error: null,
+            },
+            daily: {
+              last_run_at: "2024-01-14T00:00:00Z",
+              next_run_at: "2024-01-15T00:00:00Z",
+              status: "idle",
+              last_error: null,
+            },
+          },
+        },
+      },
+    };
+    await writeFleetState(stateFile, initialState);
+
+    const pruned = await deleteScheduleState(tempDir, "my-agent", "hourly");
+    expect(pruned).toBe(true);
+
+    const remaining = await getAgentScheduleStates(tempDir, "my-agent");
+    expect(remaining).not.toHaveProperty("hourly");
+    expect(remaining).toHaveProperty("daily");
+  });
+
+  it("so a re-added schedule does not inherit stale last_run_at / disabled status", async () => {
+    const stateFile = join(tempDir, "state.yaml");
+    const initialState: FleetState = {
+      fleet: {},
+      agents: {
+        "my-agent": {
+          status: "idle",
+          schedules: {
+            hourly: {
+              last_run_at: "2024-01-15T10:00:00Z",
+              next_run_at: "2024-01-15T11:00:00Z",
+              status: "disabled",
+              last_error: "boom",
+            },
+          },
+        },
+      },
+    };
+    await writeFleetState(stateFile, initialState);
+
+    await deleteScheduleState(tempDir, "my-agent", "hourly");
+
+    // A re-add reads default state (idle, no last_run_at), not the pruned values.
+    const reAdded = await getScheduleState(tempDir, "my-agent", "hourly");
+    expect(reAdded.status).toBe("idle");
+    expect(reAdded.last_run_at).toBeNull();
+    expect(reAdded.last_error).toBeNull();
+  });
+
+  it("returns false and leaves state untouched when there is nothing to prune", async () => {
+    const stateFile = join(tempDir, "state.yaml");
+    const initialState: FleetState = {
+      fleet: {},
+      agents: {
+        "my-agent": {
+          status: "idle",
+          schedules: {
+            hourly: {
+              last_run_at: "2024-01-15T10:00:00Z",
+              next_run_at: null,
+              status: "idle",
+              last_error: null,
+            },
+          },
+        },
+      },
+    };
+    await writeFleetState(stateFile, initialState);
+
+    expect(await deleteScheduleState(tempDir, "my-agent", "missing")).toBe(false);
+    expect(await deleteScheduleState(tempDir, "missing-agent", "hourly")).toBe(false);
+
+    // Existing schedule is preserved.
+    const state = await readFleetState(stateFile);
+    expect(state.agents["my-agent"].schedules).toHaveProperty("hourly");
   });
 });

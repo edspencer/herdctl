@@ -175,6 +175,65 @@ export async function updateScheduleState(
 }
 
 /**
+ * Delete the persisted state for a single schedule.
+ *
+ * Removes the `scheduleName` entry from the agent's `schedules` map in fleet
+ * state and writes the result back. This is the prune step for runtime schedule
+ * removal (edspencer/herdctl#376): without it, a removed schedule's persisted
+ * `last_run_at` / `status` (notably a lingering `disabled`) would survive, and a
+ * later re-add of the same name would silently inherit that stale state — the
+ * scheduler reads state, not config, to decide disabled/next-run (scheduler.ts).
+ *
+ * A no-op (no write) if the agent or schedule has no persisted state, so callers
+ * need not check existence first. The rest of the agent's state and its other
+ * schedules are left untouched.
+ *
+ * @param stateDir - Path to the state directory (e.g., .herdctl)
+ * @param agentName - Name of the agent (qualified name is the state key)
+ * @param scheduleName - Name of the schedule to prune
+ * @param options - Options including logger
+ * @returns `true` if state was pruned, `false` if there was nothing to prune
+ *
+ * @example
+ * ```typescript
+ * // After removing a schedule from an agent's config:
+ * await deleteScheduleState('.herdctl', 'my-agent', 'hourly');
+ * ```
+ */
+export async function deleteScheduleState(
+  stateDir: string,
+  agentName: string,
+  scheduleName: string,
+  options: ScheduleStateOptions = {},
+): Promise<boolean> {
+  const stateFilePath = getStateFilePath(stateDir);
+  const fleetState = await readFleetState(stateFilePath, options);
+
+  const agentState = fleetState.agents[agentName];
+  if (!agentState?.schedules || !(scheduleName in agentState.schedules)) {
+    // Nothing persisted for this schedule — leave state untouched.
+    return false;
+  }
+
+  const { [scheduleName]: _removed, ...remainingSchedules } = agentState.schedules;
+
+  const updatedFleetState: FleetState = {
+    ...fleetState,
+    agents: {
+      ...fleetState.agents,
+      [agentName]: {
+        ...agentState,
+        schedules: remainingSchedules,
+      },
+    },
+  };
+
+  await writeFleetState(stateFilePath, updatedFleetState);
+
+  return true;
+}
+
+/**
  * Get all schedule states for a specific agent
  *
  * Returns an empty object if the agent doesn't exist or has no schedules.

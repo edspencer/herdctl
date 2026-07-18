@@ -5,7 +5,7 @@
  * and event definitions.
  */
 
-import type { SchedulerLogger } from "../scheduler/types.js";
+import type { SchedulerLogger, TriggerInfo } from "../scheduler/types.js";
 import type { WorkItem } from "../work-sources/types.js";
 
 // Re-export event types from dedicated event-types module
@@ -103,7 +103,33 @@ export interface FleetManagerOptions {
    * Currently supports overriding fleet-level settings like `web`.
    */
   configOverrides?: FleetConfigOverrides;
+
+  /**
+   * Per-deployment gate for programmatic schedule mutation.
+   *
+   * When `false` (the default), {@link FleetManager.setAgentSchedule} and
+   * {@link FleetManager.removeAgentSchedule} throw
+   * {@link ScheduleMutationDisabledError} — a headless fleet only ever runs the
+   * schedules declared in its config, so nothing can add or remove one at runtime.
+   * An embedding host that exposes a schedule-editing surface (e.g. paddock)
+   * opts in by setting this to `true`. This gate does not affect
+   * enable/disable of already-declared schedules, or the scheduler itself.
+   *
+   * @default false
+   */
+  allowScheduleMutation?: boolean;
 }
+
+/**
+ * Consumer hook that owns execution of a fired schedule (edspencer/herdctl#375).
+ *
+ * Registered via {@link FleetManager.setScheduleTriggerHandler}. When set, every
+ * scheduler-fired trigger is routed here instead of the built-in headless
+ * {@link ScheduleExecutor}, so an embedding host (e.g. paddock) can run the turn
+ * on its own resume/hub path and stream it into its UI. When unset, schedules run
+ * headless exactly as before. Mirrors `SessionWakeHandler`.
+ */
+export type ScheduleTriggerHandler = (info: TriggerInfo) => void | Promise<void>;
 
 /**
  * Runtime overrides for fleet configuration

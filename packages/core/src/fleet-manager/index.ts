@@ -72,11 +72,14 @@ export {
   isJobCancelError,
   isJobForkError,
   isJobNotFoundError,
+  isScheduleMutationDisabledError,
   isScheduleNotFoundError,
   // Job control error classes
   JobCancelError,
   JobForkError,
   JobNotFoundError,
+  // Schedule mutation gate error (D2)
+  ScheduleMutationDisabledError,
   ScheduleNotFoundError,
   StreamingSessionUnsupportedError,
 } from "./errors.js";
@@ -184,6 +187,8 @@ export type {
   LogStreamOptions,
   ScheduleInfo,
   ScheduleTriggeredPayload,
+  // Host-execution seam for scheduled triggers (D1)
+  ScheduleTriggerHandler,
   SlackErrorPayload,
   SlackMessageErrorPayload,
   // Slack manager event types
