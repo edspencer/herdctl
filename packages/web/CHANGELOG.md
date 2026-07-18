@@ -1,5 +1,29 @@
 # @herdctl/web
 
+## 0.10.0
+
+### Minor Changes
+
+- [#380](https://github.com/edspencer/herdctl/pull/380) [`822fdfb`](https://github.com/edspencer/herdctl/commit/822fdfbd0c049886217021b07a1e9070b9bf6b29) Thanks [@edspencer](https://github.com/edspencer)! - Add `spawned` trigger type (#377)
+
+  Extend `TriggerTypeSchema` with an explicit `spawned` value so a host (e.g. paddock)
+  can persist run provenance for agent-spawned jobs as a first-class enum rather than
+  inferring it. Additive and backward-compatible — existing headless fleets are
+  unchanged.
+
+  - **core:** `spawned` added to `TriggerTypeSchema` (and therefore the `TriggerType`
+    type). `schedule` already covers scheduled runs, so no separate `scheduled` value
+    is introduced.
+  - **web:** the job-history trigger-type icon/label map renders `spawned` with a
+    `Bot` icon labelled "Spawned".
+
+  Supports paddock#267 (provenance badges).
+
+### Patch Changes
+
+- Updated dependencies [[`247d452`](https://github.com/edspencer/herdctl/commit/247d452d3363615694bec0cc8776b64c53624c64), [`822fdfb`](https://github.com/edspencer/herdctl/commit/822fdfbd0c049886217021b07a1e9070b9bf6b29)]:
+  - @herdctl/core@5.21.0
+
 ## 0.9.31
 
 ### Patch Changes
