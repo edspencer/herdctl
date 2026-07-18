@@ -24,7 +24,10 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ResolvedAgent } from "../../config/index.js";
-import { isScheduleTombstoned, type TriggerInfo } from "../../scheduler/index.js";
+import type { TriggerInfo } from "../../scheduler/index.js";
+// Internal-only helper (not re-exported from the scheduler index / package root):
+// import directly from its source module.
+import { isScheduleTombstoned } from "../../scheduler/schedule-state.js";
 import { AgentNotFoundError, ScheduleMutationDisabledError } from "../errors.js";
 import { FleetManager } from "../fleet-manager.js";
 
