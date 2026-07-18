@@ -28,6 +28,7 @@ export const TriggerTypeSchema = z.enum([
   "slack",
   "web",
   "fork",
+  "spawned",
 ]);
 
 /**

@@ -32,6 +32,10 @@ describe("TriggerTypeSchema", () => {
     expect(TriggerTypeSchema.parse("webhook")).toBe("webhook");
     expect(TriggerTypeSchema.parse("chat")).toBe("chat");
     expect(TriggerTypeSchema.parse("fork")).toBe("fork");
+    expect(TriggerTypeSchema.parse("discord")).toBe("discord");
+    expect(TriggerTypeSchema.parse("slack")).toBe("slack");
+    expect(TriggerTypeSchema.parse("web")).toBe("web");
+    expect(TriggerTypeSchema.parse("spawned")).toBe("spawned");
   });
 
   it("rejects invalid trigger types", () => {
@@ -230,6 +234,27 @@ describe("JobMetadataSchema", () => {
       const result = JobMetadataSchema.parse(forkedJob);
       expect(result.trigger_type).toBe("fork");
       expect(result.forked_from).toBe("job-2024-01-15-abc123");
+    });
+
+    it("parses a spawned job", () => {
+      const spawnedJob: JobMetadata = {
+        id: "job-2024-01-15-spawn1",
+        agent: "test-agent",
+        schedule: null,
+        trigger_type: "spawned",
+        status: "running",
+        exit_reason: null,
+        session_id: "session-spawn",
+        forked_from: null,
+        started_at: "2024-01-15T11:00:00Z",
+        finished_at: null,
+        duration_seconds: null,
+        prompt: "Handle the spawned task",
+        summary: null,
+        output_file: null,
+      };
+      const result = JobMetadataSchema.parse(spawnedJob);
+      expect(result.trigger_type).toBe("spawned");
     });
   });
 });
