@@ -52,6 +52,58 @@ export interface SDKMessage {
      */
     model?: string;
   };
+  /**
+   * Present on `type: "stream_event"` partial-assistant messages (emitted only
+   * when the SDK runs with `includePartialMessages`). Carries a raw Anthropic
+   * message-stream event; the translator reads `content_block_delta` events whose
+   * `delta.type === "text_delta"` to stream assistant text token-by-token. A
+   * minimal structural shape is defined here to avoid depending on the full
+   * Anthropic SDK.
+   */
+  event?: StreamEvent;
+}
+
+/**
+ * A raw Anthropic message-stream event, as carried by an SDK
+ * `SDKPartialAssistantMessage` (`type: "stream_event"`). Only the
+ * `content_block_delta` → `text_delta` shape is consumed by the translator;
+ * other event types (message_start/stop, tool input deltas, thinking deltas,
+ * etc.) are ignored. Minimal by design.
+ */
+export interface StreamEvent {
+  type: string;
+  /** Present on `content_block_delta` events. */
+  delta?: {
+    type: string;
+    /** Present on a `text_delta` delta. */
+    text?: string;
+    [key: string]: unknown;
+  };
+  /** Content-block index the delta applies to. */
+  index?: number;
+  [key: string]: unknown;
+}
+
+/**
+ * Extract the incremental assistant text from a partial-message stream event.
+ *
+ * Returns the delta text for a `content_block_delta` carrying a `text_delta`,
+ * or `undefined` for any other event (message boundaries, tool input-json
+ * deltas, thinking deltas, empty text, …) so callers can ignore it.
+ *
+ * @param event - The `event` payload of a `type: "stream_event"` SDK message
+ * @returns The text delta to append, or `undefined` if this event carries none
+ */
+export function extractTextDelta(event: StreamEvent | undefined): string | undefined {
+  if (
+    event?.type === "content_block_delta" &&
+    event.delta?.type === "text_delta" &&
+    typeof event.delta.text === "string" &&
+    event.delta.text.length > 0
+  ) {
+    return event.delta.text;
+  }
+  return undefined;
 }
 
 /**

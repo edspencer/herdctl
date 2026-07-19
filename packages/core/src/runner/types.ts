@@ -250,6 +250,15 @@ export interface SDKQueryOptions {
   /** Model to use for the session */
   model?: string;
   /**
+   * Request partial (streaming) assistant messages. When `true`, the SDK
+   * `query()` emits `stream_event` messages carrying incremental
+   * `content_block_delta` / `text_delta` chunks in addition to the terminal
+   * whole `assistant` message. Default off — set only by streaming-session
+   * callers that opt in (see `ChatSessionOptions.includePartialMessages`); batch
+   * / one-shot callers are unaffected.
+   */
+  includePartialMessages?: boolean;
+  /**
    * SDK lifecycle hooks (`Stop`, `SubagentStop`, …). Not set by `toSDKOptions`;
    * injected by the SDK runtime for streaming sessions to observe turn
    * boundaries. Typed against the SDK's own `Options["hooks"]`.

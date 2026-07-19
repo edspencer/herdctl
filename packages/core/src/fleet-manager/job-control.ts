@@ -412,6 +412,7 @@ export class JobControl {
       resume: sessionId,
       injectedMcpServers: options?.injectedMcpServers,
       systemPromptAppend: options?.systemPromptAppend,
+      includePartialMessages: options?.includePartialMessages,
       onLifecycleSignal,
     });
 
