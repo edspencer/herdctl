@@ -1,0 +1,38 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommitTypeAll(chore)",
+    ":dependencyDashboard"
+  ],
+  "timezone": "Europe/London",
+  "schedule": ["before 9am on monday"],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "rangeStrategy": "bump",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true,
+    "schedule": ["before 9am on monday"]
+  },
+  "packageRules": [
+    {
+      "description": "Auto-merge non-major updates once CI is green — keeps main current with no human in the loop.",
+      "matchUpdateTypes": ["patch", "minor", "pin", "digest"],
+      "automerge": true,
+      "platformAutomerge": true
+    },
+    {
+      "description": "Hold major updates for manual review (they can carry breaking changes).",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "addLabels": ["dependencies:major"]
+    },
+    {
+      "description": "Claude Agent SDK — grouped, non-major auto-merged, majors held (0.x majors are often breaking, e.g. 0.1.x -> 0.3.x).",
+      "matchPackageNames": ["@anthropic-ai/claude-agent-sdk"],
+      "groupName": "claude-agent-sdk",
+      "addLabels": ["dependencies", "claude-agent-sdk"]
+    }
+  ]
+}
