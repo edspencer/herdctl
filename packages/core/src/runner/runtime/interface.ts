@@ -49,6 +49,18 @@ export interface RuntimeExecuteOptions {
   systemPromptAppend?: string;
 
   /**
+   * Request partial (streaming) assistant messages from the SDK.
+   *
+   * When `true`, `includePartialMessages` is set on the SDK `query()` options so
+   * the stream carries incremental `stream_event` / `text_delta` chunks in
+   * addition to the terminal whole `assistant` message. Consumers that translate
+   * the stream (e.g. `@herdctl/chat`'s `SDKMessageTranslator`) can then surface
+   * assistant text token-by-token. Default off, so batch/one-shot callers and
+   * existing session callers are unchanged; streaming-session callers opt in.
+   */
+  includePartialMessages?: boolean;
+
+  /**
    * Streaming sessions only: observe the session's background-work lifecycle.
    *
    * Called at each turn boundary (the SDK main-agent `Stop` hook) and when

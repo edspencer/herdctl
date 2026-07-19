@@ -99,6 +99,36 @@ function subagentToolUse(
   } as unknown as SDKMessage;
 }
 
+/**
+ * A partial-message text delta, as the SDK emits it when
+ * `includePartialMessages` is on: `type: "stream_event"` wrapping a
+ * `content_block_delta` whose `delta` is a `text_delta`.
+ */
+function textDelta(text: string, parentToolUseId: string | null = null): SDKMessage {
+  return {
+    type: "stream_event",
+    parent_tool_use_id: parentToolUseId,
+    event: {
+      type: "content_block_delta",
+      index: 0,
+      delta: { type: "text_delta", text },
+    },
+  } as unknown as SDKMessage;
+}
+
+/** A non-text stream event (e.g. a tool input-json delta) the translator ignores. */
+function inputJsonDelta(partialJson: string): SDKMessage {
+  return {
+    type: "stream_event",
+    parent_tool_use_id: null,
+    event: {
+      type: "content_block_delta",
+      index: 0,
+      delta: { type: "input_json_delta", partial_json: partialJson },
+    },
+  } as unknown as SDKMessage;
+}
+
 /** A subagent's `tool_result` user message (carries `parent_tool_use_id`). */
 function subagentToolResult(
   toolUseId: string,
@@ -593,6 +623,120 @@ describe("SDKMessageTranslator", () => {
       await t.handle(toolResult("t1", "late"));
       expect(calls[0].toolName).toBe("Tool");
     });
+  });
+});
+
+describe("partial-message text streaming (stream_event / text_delta)", () => {
+  it("emits ordered incremental onText for each text_delta", async () => {
+    const chunks: string[] = [];
+    const t = new SDKMessageTranslator({ onText: (text) => void chunks.push(text) });
+
+    await t.handle(textDelta("Hel"));
+    await t.handle(textDelta("lo, "));
+    await t.handle(textDelta("world"));
+
+    expect(chunks).toEqual(["Hel", "lo, ", "world"]);
+  });
+
+  it("threads agent attribution from the partial message onto each delta", async () => {
+    const onText = vi.fn();
+    const t = new SDKMessageTranslator({ onText });
+
+    await t.handle(textDelta("sub", "task-1"));
+
+    expect(onText).toHaveBeenCalledWith("sub", { parentToolUseId: "task-1" });
+  });
+
+  it("does NOT re-emit the terminal assistant text once it streamed as deltas", async () => {
+    const chunks: string[] = [];
+    const t = new SDKMessageTranslator({ onText: (text) => void chunks.push(text) });
+
+    // Deltas for one assistant message, then the terminal whole assistant message
+    // carrying the fully-assembled text (as the SDK sends it after the stream).
+    await t.handle(textDelta("Hello "));
+    await t.handle(textDelta("world"));
+    await t.handle(assistantText("Hello world"));
+
+    // Only the two deltas — the terminal whole-text emit is suppressed.
+    expect(chunks).toEqual(["Hello ", "world"]);
+  });
+
+  it("still tracks tool_use on the terminal assistant message after streaming text", async () => {
+    const chunks: string[] = [];
+    const starts: TranslatedToolStart[] = [];
+    const calls: TranslatedToolCall[] = [];
+    const t = new SDKMessageTranslator({
+      onText: (text) => void chunks.push(text),
+      onToolStart: (s) => void starts.push(s),
+      onToolCall: (c) => void calls.push(c),
+    });
+
+    // Assistant streams text, then the terminal message carries BOTH the text and
+    // a tool_use block; the tool must still be surfaced and paired.
+    await t.handle(textDelta("Let me read "));
+    await t.handle(textDelta("that file."));
+    await t.handle({
+      type: "assistant",
+      message: {
+        content: [
+          { type: "text", text: "Let me read that file." },
+          { type: "tool_use", id: "t1", name: "Read", input: { file_path: "/a" } },
+        ],
+      },
+    } as unknown as SDKMessage);
+    await t.handle(toolResult("t1", "file contents"));
+
+    expect(chunks).toEqual(["Let me read ", "that file."]);
+    expect(starts[0]).toMatchObject({ toolName: "Read", toolUseId: "t1" });
+    expect(calls[0]).toMatchObject({ toolName: "Read", output: "file contents" });
+  });
+
+  it("ignores non-text stream events (tool input-json deltas)", async () => {
+    const onText = vi.fn();
+    const t = new SDKMessageTranslator({ onText });
+
+    await t.handle(inputJsonDelta('{"command":"l'));
+    await t.handle(inputJsonDelta('s"}'));
+
+    expect(onText).not.toHaveBeenCalled();
+  });
+
+  it("emits a boundary between two streamed assistant turns, once, on the first delta", async () => {
+    const order: string[] = [];
+    const t = new SDKMessageTranslator({
+      onText: (text) => void order.push(`text:${text}`),
+      onBoundary: () => void order.push("boundary"),
+    });
+
+    // First streamed message.
+    await t.handle(textDelta("first "));
+    await t.handle(textDelta("turn"));
+    await t.handle(assistantText("first turn"));
+    // Second streamed message, no tool call in between → one boundary, on delta 1.
+    await t.handle(textDelta("second "));
+    await t.handle(textDelta("turn"));
+    await t.handle(assistantText("second turn"));
+
+    expect(order).toEqual(["text:first ", "text:turn", "boundary", "text:second ", "text:turn"]);
+  });
+
+  it("does not emit a boundary for streamed text immediately after a tool result", async () => {
+    const onBoundary = vi.fn();
+    const t = new SDKMessageTranslator({
+      onText: vi.fn(),
+      onBoundary,
+      onToolCall: vi.fn(),
+    });
+
+    await t.handle(textDelta("before "));
+    await t.handle(textDelta("tool"));
+    await t.handle(assistantText("before tool"));
+    await t.handle(assistantToolUse("t1", "Read", { file_path: "/a" }));
+    await t.handle(toolResult("t1", "contents"));
+    // Streamed text right after the tool result — a fresh bubble, no boundary.
+    await t.handle(textDelta("after tool"));
+
+    expect(onBoundary).not.toHaveBeenCalled();
   });
 });
 

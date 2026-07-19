@@ -245,6 +245,15 @@ export class SDKRuntime implements RuntimeInterface {
       fork: options.fork,
     });
 
+    // Opt in to partial (streaming) assistant messages when the caller requested
+    // it. This makes the SDK query() emit `stream_event` / `text_delta` chunks so
+    // consumers can stream assistant text token-by-token. Left unset (SDK default:
+    // off) for batch/one-shot and non-opting session callers, so their streams
+    // still carry only whole `assistant` messages.
+    if (options.includePartialMessages) {
+      sdkOptions.includePartialMessages = true;
+    }
+
     // Apply system prompt append if provided (e.g., concise mode for chat platforms)
     if (options.systemPromptAppend) {
       const current = sdkOptions.systemPrompt;

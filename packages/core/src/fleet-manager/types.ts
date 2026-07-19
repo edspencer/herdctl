@@ -722,6 +722,18 @@ export interface ChatSessionOptions {
   systemPromptAppend?: string;
 
   /**
+   * Opt in to partial (streaming) assistant messages for this session.
+   *
+   * When `true`, `includePartialMessages` is set on the underlying SDK
+   * `query()`, so the session stream carries incremental `stream_event` /
+   * `text_delta` chunks in addition to the terminal whole `assistant` message.
+   * A stream translator (e.g. `@herdctl/chat`'s `SDKMessageTranslator`) turns
+   * these into token-by-token assistant text for the UI. Defaults to off —
+   * whole-message behavior is preserved for callers that don't opt in.
+   */
+  includePartialMessages?: boolean;
+
+  /**
    * Opt in to herdctl-managed session lifecycle (edspencer/herdctl#307).
    *
    * When `true` and the fleet has a session-lifecycle manager, the session is

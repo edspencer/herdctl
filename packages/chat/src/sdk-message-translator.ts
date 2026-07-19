@@ -21,6 +21,7 @@
 import {
   type AgentAttribution,
   extractMessageContent,
+  extractTextDelta,
   getAgentAttribution,
   isSyntheticMessage,
   type SDKMessage,
@@ -237,6 +238,14 @@ export class SDKMessageTranslator {
   private readonly pendingToolUses = new Map<string, PendingToolUse>();
   /** Whether the current assistant turn has already emitted text */
   private hasAssistantText = false;
+  /**
+   * Whether the current assistant message already streamed its text via partial
+   * `stream_event` / `text_delta` chunks. Set as deltas arrive; consumed when the
+   * terminal whole `assistant` message lands so its text is NOT re-emitted (the
+   * `onText` contract stays "deltas, in order"). Only ever true when the SDK runs
+   * with `includePartialMessages`; the whole-message path is untouched otherwise.
+   */
+  private streamedTextInMessage = false;
 
   constructor(handlers: SDKMessageHandlers, options?: SDKMessageTranslatorOptions) {
     this.handlers = handlers;
@@ -253,7 +262,9 @@ export class SDKMessageTranslator {
    * @param message - One message from the trigger's `onMessage` stream
    */
   async handle(message: SDKMessage): Promise<void> {
-    if (message.type === "assistant") {
+    if (message.type === "stream_event") {
+      await this.handleStreamEvent(message);
+    } else if (message.type === "assistant") {
       await this.handleAssistant(message);
     } else if (message.type === "user") {
       await this.handleUser(message);
@@ -267,9 +278,45 @@ export class SDKMessageTranslator {
   reset(): void {
     this.pendingToolUses.clear();
     this.hasAssistantText = false;
+    this.streamedTextInMessage = false;
   }
 
   // ---------------------------------------------------------------------------
+
+  /**
+   * Handle a partial-message `stream_event` (emitted only when the SDK runs with
+   * `includePartialMessages`). Surfaces incremental assistant text: a
+   * `content_block_delta` carrying a `text_delta` is emitted as an ordered
+   * `onText(delta)` call, so consumers stream token-by-token. All other stream
+   * events (message start/stop, tool input-json deltas, thinking deltas, …) are
+   * ignored here — the terminal whole `assistant` message still drives tool
+   * tracking and boundaries.
+   *
+   * Boundary parity with the whole-message path: the FIRST text delta of a new
+   * assistant message applies the same "new turn after prior text → boundary"
+   * rule as {@link handleAssistant}; later deltas of the same message just
+   * append. The terminal `assistant` message then suppresses its (already
+   * streamed) text via {@link streamedTextInMessage}.
+   */
+  private async handleStreamEvent(message: SDKMessage): Promise<void> {
+    const text = extractTextDelta(message.event);
+    if (text === undefined) return;
+
+    const attribution = getAgentAttribution(message);
+
+    // First text delta of this assistant message: apply boundary semantics once,
+    // exactly as the whole-message path does before its single onText.
+    if (!this.streamedTextInMessage) {
+      if (this.hasAssistantText) {
+        this.hasAssistantText = false;
+        await this.handlers.onBoundary?.(attribution);
+      }
+      this.streamedTextInMessage = true;
+      this.hasAssistantText = true;
+    }
+
+    await this.handlers.onText?.(text, attribution);
+  }
 
   private async handleAssistant(message: SDKMessage): Promise<void> {
     // The Claude Code CLI emits synthetic placeholder turns (model
@@ -283,8 +330,15 @@ export class SDKMessageTranslator {
     // separate main vs. subagent lanes.
     const attribution = getAgentAttribution(message);
 
+    // If this message's text already streamed as `text_delta` chunks (partials
+    // enabled), consume that flag and suppress the whole-text re-emit — the
+    // deltas already carried it, and `hasAssistantText`/boundary state was set as
+    // they streamed. Tool tracking below still runs on the terminal message.
+    const alreadyStreamed = this.streamedTextInMessage;
+    this.streamedTextInMessage = false;
+
     const content = extractMessageContent(message);
-    if (content) {
+    if (content && !alreadyStreamed) {
       // A new assistant turn after a previous one produced text → boundary.
       if (this.hasAssistantText) {
         this.hasAssistantText = false;
