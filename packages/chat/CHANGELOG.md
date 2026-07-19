@@ -1,5 +1,29 @@
 # @herdctl/chat
 
+## 0.7.0
+
+### Minor Changes
+
+- [#383](https://github.com/edspencer/herdctl/pull/383) [`ba61918`](https://github.com/edspencer/herdctl/commit/ba619187f320464e34840c829ce58757ba8eed54) Thanks [@edspencer](https://github.com/edspencer)! - Stream partial assistant-text deltas on the SDK runtime.
+
+  - **@herdctl/core:** add an opt-in `includePartialMessages` flag on
+    `ChatSessionOptions` / `RuntimeExecuteOptions` (and `SDKQueryOptions`), threaded
+    from `openChatSession` down to the SDK `query()`. When set, the SDK emits
+    `stream_event` / `text_delta` chunks so callers can stream assistant text
+    token-by-token. Default off — batch/one-shot and non-opting session callers are
+    unchanged.
+  - **@herdctl/chat:** `SDKMessageTranslator` now handles `stream_event` messages,
+    emitting incremental `onText(delta)` calls for `content_block_delta` /
+    `text_delta` events, and suppresses the terminal whole-`assistant` text re-emit
+    when its text already streamed as deltas (the `onText` contract stays "deltas,
+    in order"). Boundary and tool-call semantics are preserved; the partials-off
+    path is byte-for-byte unchanged (one `onText` per assistant content block).
+
+### Patch Changes
+
+- Updated dependencies [[`ba61918`](https://github.com/edspencer/herdctl/commit/ba619187f320464e34840c829ce58757ba8eed54)]:
+  - @herdctl/core@5.22.0
+
 ## 0.6.0
 
 ### Minor Changes

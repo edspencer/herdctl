@@ -1,5 +1,13 @@
 # @herdctl/discord
 
+## 1.2.19
+
+### Patch Changes
+
+- Updated dependencies [[`ba61918`](https://github.com/edspencer/herdctl/commit/ba619187f320464e34840c829ce58757ba8eed54)]:
+  - @herdctl/core@5.22.0
+  - @herdctl/chat@0.7.0
+
 ## 1.2.18
 
 ### Patch Changes
