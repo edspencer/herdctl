@@ -1,5 +1,33 @@
 # @herdctl/core
 
+## 5.22.1
+
+### Patch Changes
+
+- [#391](https://github.com/edspencer/herdctl/pull/391) [`15c20be`](https://github.com/edspencer/herdctl/commit/15c20beabb185658d1e082e3f94e10428f4af17b) Thanks [@edspencer](https://github.com/edspencer)! - Re-establish injected MCP servers on session wake-fired turns (#390).
+
+  Under session drive-mode, in-process `injectedMcpServers` were dropped on every
+  wake-driven turn (`ScheduleWakeup` / `/loop` / `CronCreate` re-fires): the reaper
+  closes the idle session and the wake registry re-opens it without the in-process
+  servers, so the resumed subprocess still lists the injected `mcp__…__*` patterns
+  in `--allowedTools` but has no server behind them — the tools vanish from the
+  model's catalog for the whole autonomous stretch (durably so across restarts).
+
+  - **@herdctl/core:** add an optional `resolveInjectedMcpServers(entry)` factory to
+    `SessionLifecycleManagerOptions` (and a `setResolveInjectedMcpServers` setter on
+    both `SessionLifecycleManager` and `FleetManager`). When registered, the wake
+    `fire()` path consults it and threads the resolved servers into the resumed
+    session via a new optional `injectedMcpServers` field on
+    `SessionWakeChatOptions`. Injection _policy_ stays in the consumer; herdctl owns
+    the _wiring_. Fully backward-compatible — with no resolver registered, wakes fire
+    with no injection exactly as before, and a throwing resolver is logged and
+    degrades to no-injection rather than wedging the wake.
+
+  - **@herdctl/core (secondary):** stop `allowedTools` from accumulating duplicate
+    `mcp__…__*` wildcards across turns. `toSDKOptions` now copies the agent's
+    `allowed_tools` array instead of aliasing it, and the SDK runtime de-dupes
+    injected tool patterns before appending them.
+
 ## 5.22.0
 
 ### Minor Changes
