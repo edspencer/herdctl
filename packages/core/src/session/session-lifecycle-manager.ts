@@ -10,6 +10,7 @@
  */
 
 import type { RuntimeSession } from "../runner/runtime/interface.js";
+import type { InjectedMcpServerDef } from "../runner/types.js";
 import { calculateNextCronTrigger } from "../scheduler/cron.js";
 import { createLogger } from "../utils/logger.js";
 import { FleetStateWakePersistence } from "./fleet-state-wake-persistence.js";
@@ -25,7 +26,34 @@ export interface SessionWakeChatOptions {
   resume: string;
   prompt: string;
   manageLifecycle: true;
+  /**
+   * In-process MCP servers to re-establish on the resumed turn.
+   *
+   * These are per-call runtime values (in-memory `createSdkMcpServer` handlers)
+   * that the original human/consumer-driven turn supplied but that herdctl does
+   * not persist. Without them, the resumed `claude` subprocess still lists the
+   * injected `mcp__…__*` patterns in `--allowedTools` but has no server behind
+   * them, so the tools vanish from the model's catalog for the whole autonomous
+   * stretch (edspencer/herdctl#390). Populated by
+   * {@link SessionLifecycleManagerOptions.resolveInjectedMcpServers} when a
+   * consumer registers one; otherwise omitted (the pre-existing behavior).
+   */
+  injectedMcpServers?: Record<string, InjectedMcpServerDef>;
 }
+
+/**
+ * Reconstructs the in-process injected MCP servers for a wake-fired turn.
+ *
+ * A consumer (e.g. Paddock) registers this so that when herdctl re-fires an idle
+ * session's wake it can re-supply the same in-process `createSdkMcpServer`
+ * servers the original turn had — keyed off the wake's agent + sessionId. This
+ * keeps injection *policy* (depth/gating/builders) in the consumer while herdctl
+ * owns the *wiring*. Returning `undefined` (or leaving it unregistered) preserves
+ * the original no-injection wake behavior. See edspencer/herdctl#390.
+ */
+export type ResolveInjectedMcpServers = (
+  entry: SessionWakeEntry,
+) => Record<string, InjectedMcpServerDef> | undefined;
 
 /**
  * Drives the woken turn. If a consumer (e.g. Paddock) registers one, it receives
@@ -52,6 +80,14 @@ export interface SessionLifecycleManagerOptions {
   resolveNextRun?: NextRunResolver;
   /** Consumer hook for delivering the woken turn (attribution/hub path). */
   sessionWakeHandler?: SessionWakeHandler;
+  /**
+   * Consumer factory that re-supplies a wake's in-process injected MCP servers.
+   * Called by `fire()` before opening the resumed session so its injected
+   * `mcp__…__*` tools stay backed across autonomous wake turns
+   * (edspencer/herdctl#390). Omit to preserve the pre-existing behavior (no
+   * injection re-established on wakes).
+   */
+  resolveInjectedMcpServers?: ResolveInjectedMcpServers;
   logger?: Logger;
   onReap?: (info: { agent: string; sessionId: string }) => void;
   onKeepAlive?: (info: {
@@ -90,11 +126,13 @@ export class SessionLifecycleManager {
   ) => Promise<RuntimeSession>;
   private readonly logger: Logger;
   private sessionWakeHandler?: SessionWakeHandler;
+  private resolveInjectedMcpServers?: ResolveInjectedMcpServers;
 
   constructor(options: SessionLifecycleManagerOptions) {
     this.openChatSession = options.openChatSession;
     this.logger = options.logger ?? createLogger("session-lifecycle");
     this.sessionWakeHandler = options.sessionWakeHandler;
+    this.resolveInjectedMcpServers = options.resolveInjectedMcpServers;
 
     // The registry needs `isSessionLive` from the reaper, and the reaper needs
     // the registry — build the registry first with a late-bound reference.
@@ -130,16 +168,41 @@ export class SessionLifecycleManager {
   }
 
   /**
+   * Register (or clear) the factory that re-supplies a wake's injected MCP
+   * servers. Mirrors {@link setSessionWakeHandler}; see edspencer/herdctl#390.
+   */
+  setResolveInjectedMcpServers(resolve: ResolveInjectedMcpServers | undefined): void {
+    this.resolveInjectedMcpServers = resolve;
+  }
+
+  /**
    * Resume the wake's session and inject its prompt, then either hand the live
    * session to the registered consumer or drain it to completion. The resumed
    * session is opened with `manageLifecycle`, so its own Stop hook re-captures
    * any new wakeups and reaps it when idle.
    */
   private async fire(entry: SessionWakeEntry): Promise<void> {
+    // Re-establish the in-process injected MCP servers this session had, if a
+    // consumer registered a resolver. herdctl doesn't persist these per-call
+    // servers, so without this the resumed subprocess lists the injected
+    // `mcp__…__*` patterns in `--allowedTools` but has nothing behind them and
+    // the tools vanish for the whole autonomous stretch (edspencer/herdctl#390).
+    let injectedMcpServers: Record<string, InjectedMcpServerDef> | undefined;
+    try {
+      injectedMcpServers = this.resolveInjectedMcpServers?.(entry);
+    } catch (error) {
+      // A resolver throw must not wedge the wake — fire without injection, as a
+      // consumer that registered none would.
+      this.logger.warn(
+        `resolveInjectedMcpServers threw for ${entry.agent} (${entry.sessionId}): ${(error as Error).message}`,
+      );
+    }
+
     const session = await this.openChatSession(entry.agent, {
       resume: entry.sessionId,
       prompt: entry.prompt,
       manageLifecycle: true,
+      injectedMcpServers,
     });
 
     if (this.sessionWakeHandler) {

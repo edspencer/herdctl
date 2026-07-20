@@ -288,10 +288,18 @@ export class SDKRuntime implements RuntimeInterface {
       sdkOptions.mcpServers = { ...configServers, ...injectedServers } as any;
 
       // Auto-add injected MCP server tool patterns to allowedTools
-      // Without this, agents with an allowedTools list can't call injected tools
+      // Without this, agents with an allowedTools list can't call injected tools.
+      // De-dupe before pushing: `sdkOptions.allowedTools` can be re-derived from
+      // the same agent across turns, and blindly pushing would grow the list with
+      // duplicate `mcp__…__*` patterns each turn (edspencer/herdctl#390).
       if (sdkOptions.allowedTools?.length) {
+        const existing = new Set(sdkOptions.allowedTools);
         for (const name of Object.keys(options.injectedMcpServers)) {
-          sdkOptions.allowedTools.push(`mcp__${name}__*`);
+          const pattern = `mcp__${name}__*`;
+          if (!existing.has(pattern)) {
+            sdkOptions.allowedTools.push(pattern);
+            existing.add(pattern);
+          }
         }
       }
 

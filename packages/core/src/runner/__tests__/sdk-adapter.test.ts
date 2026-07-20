@@ -127,6 +127,21 @@ describe("toSDKOptions", () => {
       expect(result.allowedTools).toEqual(["Read", "Write", "Edit"]);
     });
 
+    // Regression: edspencer/herdctl#390 — allowedTools must be a COPY, not an
+    // alias of the long-lived agent's array. The SDK runtime pushes injected
+    // `mcp__…__*` patterns onto it per turn; aliasing accumulated duplicates on
+    // the persistent agent across turns.
+    it("returns a fresh allowedTools array, not aliased to agent.allowed_tools", () => {
+      const agent = createTestAgent({
+        allowed_tools: ["Read", "Write"],
+      });
+      const result = toSDKOptions(agent);
+      expect(result.allowedTools).not.toBe(agent.allowed_tools);
+      // Mutating the returned array must not leak back into the persistent agent.
+      result.allowedTools!.push("mcp__paddock-self__*");
+      expect(agent.allowed_tools).toEqual(["Read", "Write"]);
+    });
+
     it("passes denied_tools as disallowedTools (SDK option name)", () => {
       const agent = createTestAgent({
         denied_tools: ["Bash(rm *)", "WebFetch"],

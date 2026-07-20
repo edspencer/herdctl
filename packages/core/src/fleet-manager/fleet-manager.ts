@@ -27,7 +27,11 @@ import {
 import type { RuntimeSession, SlashCommand } from "../runner/index.js";
 import { getCliSessionFile, getDockerSessionFile } from "../runner/runtime/cli-session-path.js";
 import { Scheduler, type TriggerInfo } from "../scheduler/index.js";
-import { SessionLifecycleManager, type SessionWakeHandler } from "../session/index.js";
+import {
+  type ResolveInjectedMcpServers,
+  SessionLifecycleManager,
+  type SessionWakeHandler,
+} from "../session/index.js";
 import {
   type ChatMessage,
   type DiscoveredSession,
@@ -108,6 +112,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   private scheduler: Scheduler | null = null;
   private sessionLifecycle: SessionLifecycleManager | null = null;
   private sessionWakeHandler?: SessionWakeHandler;
+  private resolveInjectedMcpServers?: ResolveInjectedMcpServers;
   private scheduleTriggerHandler?: ScheduleTriggerHandler;
 
   // Timing info
@@ -993,6 +998,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
       stateDir: this.stateDir,
       openChatSession: (agent, opts) => this.openChatSession(agent, opts),
       sessionWakeHandler: this.sessionWakeHandler,
+      resolveInjectedMcpServers: this.resolveInjectedMcpServers,
     });
   }
 
@@ -1006,6 +1012,26 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   setSessionWakeHandler(handler: SessionWakeHandler | undefined): void {
     this.sessionWakeHandler = handler;
     this.sessionLifecycle?.setSessionWakeHandler(handler);
+  }
+
+  /**
+   * Register (or clear) the factory that re-supplies a session wake's in-process
+   * injected MCP servers.
+   *
+   * herdctl does not persist the per-call `injectedMcpServers` a consumer passes
+   * into {@link openChatSession}, so when the reaper closes an idle session and
+   * the wake registry re-fires it, the resumed `claude` subprocess loses those
+   * in-process servers — the injected `mcp__…__*` tools stay in `--allowedTools`
+   * but have no server behind them and vanish from the model's catalog for the
+   * whole autonomous stretch (edspencer/herdctl#390). A consumer (e.g. Paddock)
+   * registers this factory alongside {@link setSessionWakeHandler}, keyed off the
+   * wake's agent + sessionId, to rebuild the same servers on each fire. Without
+   * it, wakes fire with no injection (the pre-existing behavior). Safe to call
+   * before or after initialize().
+   */
+  setResolveInjectedMcpServers(resolve: ResolveInjectedMcpServers | undefined): void {
+    this.resolveInjectedMcpServers = resolve;
+    this.sessionLifecycle?.setResolveInjectedMcpServers(resolve);
   }
 
   /**
