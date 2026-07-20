@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeSession } from "../../runner/runtime/interface.js";
+import type { InjectedMcpServerDef } from "../../runner/types.js";
 import { FleetStateWakePersistence } from "../fleet-state-wake-persistence.js";
 import {
   defaultResolveNextRun,
@@ -115,6 +116,101 @@ describe("SessionLifecycleManager", () => {
     slm.setSessionWakeHandler(handler);
     await slm.dispatchDue(NOW);
     expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  // Regression: edspencer/herdctl#390 — the wake fire path dropped the
+  // in-process injectedMcpServers, so a resumed autonomous turn lost its
+  // `mcp__…__*` tools for the whole stretch. A registered resolver must re-supply
+  // them into openChatSession on every wake fire.
+  it("re-supplies injectedMcpServers into openChatSession via a registered resolver", async () => {
+    await new FleetStateWakePersistence({ stateDir }).save([dueWake({ id: "w-inj" })]);
+    const injected: Record<string, InjectedMcpServerDef> = {
+      "paddock-self": { name: "paddock-self", tools: [] },
+    };
+    const calls: Array<[string, SessionWakeChatOptions]> = [];
+    const openChatSession = vi.fn(async (agent: string, opts: SessionWakeChatOptions) => {
+      calls.push([agent, opts]);
+      return fakeSession();
+    });
+    const resolveInjectedMcpServers = vi.fn((_entry: SessionWakeEntry) => injected);
+
+    const slm = new SessionLifecycleManager({
+      stateDir,
+      openChatSession,
+      resolveNextRun,
+      resolveInjectedMcpServers,
+    });
+    await slm.dispatchDue(NOW);
+
+    // The resolver was consulted with the fired entry...
+    expect(resolveInjectedMcpServers).toHaveBeenCalledTimes(1);
+    expect(resolveInjectedMcpServers.mock.calls[0][0]).toMatchObject({ id: "w-inj" });
+    // ...and the resolved servers reached openChatSession unchanged.
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1].injectedMcpServers).toBe(injected);
+    expect(calls[0][1]).toMatchObject({
+      resume: "sess-1",
+      prompt: "WAKE-CONTINUE",
+      manageLifecycle: true,
+    });
+  });
+
+  it("fires without injection (no crash) when no resolver is registered", async () => {
+    await new FleetStateWakePersistence({ stateDir }).save([dueWake({ id: "w-noinj" })]);
+    const calls: SessionWakeChatOptions[] = [];
+    const openChatSession = vi.fn(async (_agent: string, opts: SessionWakeChatOptions) => {
+      calls.push(opts);
+      return fakeSession();
+    });
+
+    const slm = new SessionLifecycleManager({ stateDir, openChatSession, resolveNextRun });
+    const dispatched = await slm.dispatchDue(NOW);
+
+    expect(dispatched.map((e) => e.id)).toEqual(["w-noinj"]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].injectedMcpServers).toBeUndefined();
+  });
+
+  it("setResolveInjectedMcpServers swaps the resolver at runtime", async () => {
+    await new FleetStateWakePersistence({ stateDir }).save([dueWake({ id: "w-swap" })]);
+    const injected: Record<string, InjectedMcpServerDef> = {
+      later: { name: "later", tools: [] },
+    };
+    const calls: SessionWakeChatOptions[] = [];
+    const openChatSession = vi.fn(async (_agent: string, opts: SessionWakeChatOptions) => {
+      calls.push(opts);
+      return fakeSession();
+    });
+    const slm = new SessionLifecycleManager({ stateDir, openChatSession, resolveNextRun });
+
+    slm.setResolveInjectedMcpServers(() => injected);
+    await slm.dispatchDue(NOW);
+
+    expect(calls[0].injectedMcpServers).toBe(injected);
+  });
+
+  it("fires without injection when the resolver throws (does not wedge the wake)", async () => {
+    await new FleetStateWakePersistence({ stateDir }).save([dueWake({ id: "w-throw" })]);
+    const calls: SessionWakeChatOptions[] = [];
+    const openChatSession = vi.fn(async (_agent: string, opts: SessionWakeChatOptions) => {
+      calls.push(opts);
+      return fakeSession();
+    });
+    const slm = new SessionLifecycleManager({
+      stateDir,
+      openChatSession,
+      resolveNextRun,
+      resolveInjectedMcpServers: () => {
+        throw new Error("resolver boom");
+      },
+    });
+
+    const dispatched = await slm.dispatchDue(NOW);
+
+    // The wake still fired; injection was simply omitted.
+    expect(dispatched.map((e) => e.id)).toEqual(["w-throw"]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].injectedMcpServers).toBeUndefined();
   });
 
   it("does not fire wakes that are not yet due", async () => {

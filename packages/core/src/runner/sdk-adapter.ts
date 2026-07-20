@@ -157,8 +157,12 @@ export function toSDKOptions(
   result.permissionMode = agent.permission_mode ?? DEFAULT_PERMISSION_MODE;
 
   // Allowed and denied tools (direct passthrough to SDK)
+  // Copy the array rather than aliasing the long-lived ResolvedAgent's own
+  // `allowed_tools`: the SDK runtime pushes injected `mcp__…__*` patterns onto
+  // `allowedTools` per turn, and mutating the shared reference would accumulate
+  // duplicates on the persistent agent across turns (edspencer/herdctl#390).
   if (agent.allowed_tools?.length) {
-    result.allowedTools = agent.allowed_tools;
+    result.allowedTools = [...agent.allowed_tools];
   }
 
   // The SDK option is named `disallowedTools` (not `deniedTools`)
