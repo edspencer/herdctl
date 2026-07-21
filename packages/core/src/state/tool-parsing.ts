@@ -32,6 +32,33 @@ export interface ToolResult {
   isError: boolean;
   /** ID of the tool_use this result corresponds to */
   toolUseId?: string;
+  /**
+   * Non-text image content blocks returned by the tool, preserved so a
+   * consuming UI can render them inline (e.g. a Playwright
+   * `browser_take_screenshot` result). Absent when the result carried no
+   * image blocks. The text-only {@link output} is always populated for
+   * consumers that don't handle images.
+   */
+  images?: ExtractedImage[];
+}
+
+/**
+ * A non-text image content block, normalized out of an Anthropic-style
+ * `{ type: "image", source: … }` block.
+ *
+ * The two `source` shapes the SDK/CLI emit are collapsed into one structure:
+ * base64-inlined bytes (`kind: "base64"`) or a direct URL (`kind: "url"`). Use
+ * {@link imageToDataUrl} to turn one into a browser-renderable `src`.
+ */
+export interface ExtractedImage {
+  /** How the image bytes are carried. */
+  kind: "base64" | "url";
+  /** MIME type when known (e.g. "image/png"). */
+  mediaType?: string;
+  /** Base64-encoded image bytes; present when `kind === "base64"`. */
+  data?: string;
+  /** Direct image URL; present when `kind === "url"`. */
+  url?: string;
 }
 
 /**
@@ -132,10 +159,115 @@ export function getToolInputSummary(name: string, input?: unknown): string | und
 }
 
 /**
+ * Normalize an Anthropic-style `{ type: "image", source: … }` content block
+ * into an {@link ExtractedImage}, or return `undefined` if the block is not a
+ * well-formed image block.
+ *
+ * Accepts both `source` shapes emitted by the SDK/CLI:
+ * - `{ type: "base64", media_type, data }`
+ * - `{ type: "url", url }`
+ *
+ * `media_type` (Anthropic's snake_case) and a camelCase `mediaType` fallback are
+ * both read so the helper is robust across transports.
+ *
+ * @param block - A candidate content block
+ * @returns The normalized image, or `undefined` if not an image block
+ */
+export function normalizeImageBlock(block: unknown): ExtractedImage | undefined {
+  if (!block || typeof block !== "object" || !("type" in block)) return undefined;
+  if ((block as { type?: unknown }).type !== "image") return undefined;
+
+  const source = (block as { source?: unknown }).source;
+  if (!source || typeof source !== "object") return undefined;
+  const src = source as Record<string, unknown>;
+
+  const mediaType =
+    typeof src.media_type === "string"
+      ? src.media_type
+      : typeof src.mediaType === "string"
+        ? src.mediaType
+        : undefined;
+
+  if (src.type === "base64" && typeof src.data === "string" && src.data.length > 0) {
+    return { kind: "base64", mediaType, data: src.data };
+  }
+  if (src.type === "url" && typeof src.url === "string" && src.url.length > 0) {
+    return { kind: "url", mediaType, url: src.url };
+  }
+  return undefined;
+}
+
+/**
+ * Type guard: whether a content block is a well-formed image block.
+ *
+ * @param block - Content block to check
+ * @returns true if {@link normalizeImageBlock} can parse it
+ */
+export function isImageContentBlock(block: unknown): boolean {
+  return normalizeImageBlock(block) !== undefined;
+}
+
+/**
+ * Turn an {@link ExtractedImage} into a browser-renderable `src`.
+ *
+ * Returns the URL directly for `kind: "url"`, or a `data:` URI for
+ * `kind: "base64"` (defaulting the MIME type to `image/png` when unknown).
+ *
+ * @param image - The normalized image
+ * @returns A string usable as an `<img src>`, or `undefined` if empty
+ */
+export function imageToDataUrl(image: ExtractedImage): string | undefined {
+  if (image.kind === "url") return image.url;
+  if (image.kind === "base64" && image.data) {
+    return `data:${image.mediaType ?? "image/png"};base64,${image.data}`;
+  }
+  return undefined;
+}
+
+/**
+ * Split an array of content blocks into text parts and normalized image blocks.
+ *
+ * Shared by the tool-result parsers so both the nested `content[]` and the
+ * top-level `tool_use_result` shapes preserve images identically. Unknown block
+ * types are ignored (their text/image payloads, if any, don't match).
+ *
+ * @param content - Array of content blocks
+ * @returns Collected text parts and images
+ */
+function collectContentBlocks(content: unknown[]): {
+  text: string[];
+  images: ExtractedImage[];
+} {
+  const text: string[] = [];
+  const images: ExtractedImage[] = [];
+
+  for (const part of content) {
+    if (!part || typeof part !== "object" || !("type" in part)) continue;
+    const type = (part as { type?: unknown }).type;
+
+    if (
+      type === "text" &&
+      "text" in part &&
+      typeof (part as { text?: unknown }).text === "string"
+    ) {
+      text.push((part as { text: string }).text);
+      continue;
+    }
+
+    const image = normalizeImageBlock(part);
+    if (image) images.push(image);
+  }
+
+  return { text, images };
+}
+
+/**
  * Extract tool results from a user message
  *
  * Returns output, error status, and the tool_use_id for matching
- * to the pending tool_use that produced this result.
+ * to the pending tool_use that produced this result. Non-text image blocks in
+ * the result content are preserved on {@link ToolResult.images} so a consuming
+ * UI can render them; the text-only {@link ToolResult.output} is always set.
  *
  * @param message - SDK message object (user type with tool results)
  * @returns Array of parsed tool results
@@ -180,21 +312,16 @@ export function extractToolResults(message: {
       if (typeof blockContent === "string" && blockContent.length > 0) {
         results.push({ output: blockContent, isError, toolUseId });
       } else if (Array.isArray(blockContent)) {
-        const textParts: string[] = [];
-        for (const part of blockContent) {
-          if (
-            part &&
-            typeof part === "object" &&
-            "type" in part &&
-            part.type === "text" &&
-            "text" in part &&
-            typeof part.text === "string"
-          ) {
-            textParts.push(part.text);
-          }
-        }
-        if (textParts.length > 0) {
-          results.push({ output: textParts.join("\n"), isError, toolUseId });
+        const { text, images } = collectContentBlocks(blockContent);
+        // Push when there is text OR images: an image-only tool result (e.g. a
+        // screenshot) has empty text but must still surface its image blocks.
+        if (text.length > 0 || images.length > 0) {
+          results.push({
+            output: text.join("\n"),
+            isError,
+            toolUseId,
+            ...(images.length > 0 ? { images } : {}),
+          });
         }
       }
     }
@@ -233,24 +360,15 @@ export function extractToolResultContent(result: unknown): ToolResult | undefine
 
     // Check for content blocks array
     if (Array.isArray(obj.content)) {
-      const textParts: string[] = [];
-      for (const block of obj.content) {
-        if (
-          block &&
-          typeof block === "object" &&
-          "type" in block &&
-          (block as Record<string, unknown>).type === "text" &&
-          "text" in block &&
-          typeof (block as Record<string, unknown>).text === "string"
-        ) {
-          textParts.push((block as Record<string, unknown>).text as string);
-        }
-      }
-      if (textParts.length > 0) {
+      const { text, images } = collectContentBlocks(obj.content);
+      // Push when there is text OR images: an image-only result must still
+      // surface its image blocks even though its text output is empty.
+      if (text.length > 0 || images.length > 0) {
         return {
-          output: textParts.join("\n"),
+          output: text.join("\n"),
           isError: obj.is_error === true,
           toolUseId: typeof obj.tool_use_id === "string" ? obj.tool_use_id : undefined,
+          ...(images.length > 0 ? { images } : {}),
         };
       }
     }

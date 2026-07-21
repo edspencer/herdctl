@@ -5,6 +5,8 @@
  * This is 100% identical between Discord and Slack managers.
  */
 
+import { type ExtractedImage, normalizeImageBlock } from "@herdctl/core";
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -222,6 +224,42 @@ export function extractMessageContent(message: SDKMessage): string | undefined {
   }
 
   return undefined;
+}
+
+/**
+ * Extract non-text image content blocks from an SDK assistant message.
+ *
+ * The Claude Agent SDK can emit `image` content blocks alongside text in an
+ * assistant message. {@link extractMessageContent} deliberately keeps only text
+ * (a plain-string fallback for consumers that don't handle images); this
+ * companion surfaces the image blocks so a consumer can render them inline.
+ *
+ * Only the nested `message.message.content[]` array shape can carry image
+ * blocks; the flat string shapes never do, so those return `[]`.
+ *
+ * @param message - SDK message object
+ * @returns Normalized image blocks in order, or `[]` if the message has none
+ */
+export function extractImageBlocks(message: SDKMessage): ExtractedImage[] {
+  const content = message.message?.content;
+  if (!Array.isArray(content)) return [];
+
+  const images: ExtractedImage[] = [];
+  for (const block of content) {
+    const image = normalizeImageBlock(block);
+    if (image) images.push(image);
+  }
+  return images;
+}
+
+/**
+ * Whether an SDK assistant message carries any non-text image content blocks.
+ *
+ * @param message - SDK message object
+ * @returns true if the message contains at least one image block
+ */
+export function hasImageContent(message: SDKMessage): boolean {
+  return extractImageBlocks(message).length > 0;
 }
 
 /**
