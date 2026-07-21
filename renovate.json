@@ -10,6 +10,7 @@
   "prConcurrentLimit": 5,
   "prHourlyLimit": 2,
   "rangeStrategy": "bump",
+  "automerge": false,
   "lockFileMaintenance": {
     "enabled": true,
     "automerge": true,
@@ -17,19 +18,31 @@
   },
   "packageRules": [
     {
-      "description": "Auto-merge non-major updates once CI is green — keeps main current with no human in the loop.",
-      "matchUpdateTypes": ["patch", "minor", "pin", "digest"],
-      "automerge": true,
-      "platformAutomerge": true
+      "description": "Auto-merge patch/pin/digest for all deps once CI is green — routine, low-risk freshness with no human in the loop.",
+      "matchUpdateTypes": ["patch", "pin", "digest"],
+      "automerge": true
     },
     {
-      "description": "Hold major updates for manual review (they can carry breaking changes).",
+      "description": "Auto-merge minor updates only for stable (>=1.0.0) deps. Pre-1.0 packages can ship breaking changes in a minor per SemVer, so they are excluded here.",
+      "matchUpdateTypes": ["minor"],
+      "matchCurrentVersion": "!/^0/",
+      "automerge": true
+    },
+    {
+      "description": "Hold pre-1.0 (0.x) minor updates for manual review — for a 0.x dep the minor position is the breaking boundary (e.g. Agent SDK 0.3 -> 0.4, cf. the 0.1.x -> 0.3.x jump).",
+      "matchUpdateTypes": ["minor"],
+      "matchCurrentVersion": "/^0/",
+      "automerge": false,
+      "addLabels": ["dependencies:needs-review"]
+    },
+    {
+      "description": "Hold all major updates for manual review (breaking changes).",
       "matchUpdateTypes": ["major"],
       "automerge": false,
       "addLabels": ["dependencies:major"]
     },
     {
-      "description": "Claude Agent SDK — grouped, non-major auto-merged, majors held (0.x majors are often breaking, e.g. 0.1.x -> 0.3.x).",
+      "description": "Claude Agent SDK — grouped + labelled. Patch auto-merges (routine); a 0.x minor bump is held by the pre-1.0 rule above.",
       "matchPackageNames": ["@anthropic-ai/claude-agent-sdk"],
       "groupName": "claude-agent-sdk",
       "addLabels": ["dependencies", "claude-agent-sdk"]
