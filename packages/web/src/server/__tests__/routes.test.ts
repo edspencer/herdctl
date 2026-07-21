@@ -710,6 +710,17 @@ describe("File Routes", () => {
     expect(mockFM.getAgentWorkingDirectory).toHaveBeenCalledWith("coder");
   });
 
+  it("sets nosniff + a restrictive CSP so served files can't execute same-origin", async () => {
+    const response = await server.inject({
+      method: "GET",
+      url: "/files/coder/.discord-attachments/abc-123/shot.png",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["x-content-type-options"]).toBe("nosniff");
+    expect(response.headers["content-security-policy"]).toBe("default-src 'none'; sandbox");
+  });
+
   it("serves a text file from the working directory root", async () => {
     const response = await server.inject({ method: "GET", url: "/files/coder/note.txt" });
 

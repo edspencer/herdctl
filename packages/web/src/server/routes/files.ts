@@ -166,6 +166,14 @@ export function registerFileRoutes(server: FastifyInstance, fleetManager: FleetM
       reply.header("Content-Length", stats.size);
       // Files can change between runs; keep caching conservative.
       reply.header("Cache-Control", "private, max-age=60");
+      // These files live on the dashboard's origin and can be agent-produced
+      // (untrusted — an agent may be induced to write e.g. an SVG containing
+      // <script>). Neutralize script execution from a served file and MIME
+      // sniffing so navigating directly to a served URL can't run code in the
+      // dashboard origin (react-markdown's <img> already won't, but a direct
+      // link/navigation would).
+      reply.header("X-Content-Type-Options", "nosniff");
+      reply.header("Content-Security-Policy", "default-src 'none'; sandbox");
       reply.type(contentTypeForPath(realPath));
       return reply.send(createReadStream(realPath));
     },
