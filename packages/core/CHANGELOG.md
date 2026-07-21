@@ -1,5 +1,11 @@
 # @herdctl/core
 
+## 5.22.2
+
+### Patch Changes
+
+- [#389](https://github.com/edspencer/herdctl/pull/389) [`78a0540`](https://github.com/edspencer/herdctl/commit/78a0540f4f0ba11d75fcfe10755f5bd4d02802cc) Thanks [@edspencer](https://github.com/edspencer)! - Bump `@anthropic-ai/claude-agent-sdk` from 0.3.205 to 0.3.215 (latest 0.3.x). No API changes; picks up upstream native-binary fixes within the 0.3 line.
+
 ## 5.22.1
 
 ### Patch Changes
