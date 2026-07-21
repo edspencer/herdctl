@@ -37,6 +37,52 @@ export const TriggerTypeSchema = z.enum([
 export const ExitReasonSchema = z.enum(["success", "error", "timeout", "cancelled", "max_turns"]);
 
 // =============================================================================
+// Token Accounting Schemas
+// =============================================================================
+
+/**
+ * The four token classes tracked for a single model.
+ *
+ * Mirrors the Anthropic usage breakdown: fresh input, generated output, and the
+ * two prompt-cache classes. Kept as raw counts only — herdctl deliberately does
+ * NOT persist a $/token price table (it drifts, and Max/CLI plans have no real
+ * per-token spend); the consuming app applies pricing.
+ */
+export const ModelTokenUsageSchema = z.object({
+  /** Fresh (non-cached) input tokens */
+  input_tokens: z.number().nonnegative(),
+  /** Generated output tokens */
+  output_tokens: z.number().nonnegative(),
+  /** Tokens written to the prompt cache */
+  cache_creation_input_tokens: z.number().nonnegative(),
+  /** Tokens read from the prompt cache */
+  cache_read_input_tokens: z.number().nonnegative(),
+});
+
+/**
+ * Per-run token accounting, captured at run-end from the runtime's terminal
+ * result message.
+ *
+ * Token counts are broken down **per model** because a single run can span more
+ * than one model (e.g. an Opus main agent delegating to Haiku subagents).
+ */
+export const RunUsageSchema = z.object({
+  /**
+   * Per-model token accounting, keyed by model id (e.g. `claude-opus-4-8`).
+   * Each entry carries that model's four token classes.
+   */
+  per_model: z.record(z.string(), ModelTokenUsageSchema),
+  /** Total agentic turns reported by the runtime for this run */
+  num_turns: z.number().nonnegative().nullable().optional(),
+  /**
+   * SDK-authoritative run cost in USD, when the runtime reports one. Absent for
+   * CLI / Max-plan runs that have no real per-token spend. This is the SDK's own
+   * reported figure, not a herdctl-computed price.
+   */
+  total_cost_usd: z.number().nonnegative().nullable().optional(),
+});
+
+// =============================================================================
 // Job Metadata Schema
 // =============================================================================
 
@@ -93,6 +139,13 @@ export const JobMetadataSchema = z.object({
 
   /** Path to the output file containing full session output */
   output_file: z.string().nullable().optional(),
+
+  /**
+   * Per-run token accounting (per model) + turn count + SDK cost, captured at
+   * run-end. Absent (null/undefined) for jobs recorded before this field existed
+   * and for runs that produced no terminal usage — backward-compatible.
+   */
+  usage: RunUsageSchema.nullable().optional(),
 });
 
 // =============================================================================
@@ -102,6 +155,8 @@ export const JobMetadataSchema = z.object({
 export type JobStatus = z.infer<typeof JobStatusSchema>;
 export type TriggerType = z.infer<typeof TriggerTypeSchema>;
 export type ExitReason = z.infer<typeof ExitReasonSchema>;
+export type ModelTokenUsage = z.infer<typeof ModelTokenUsageSchema>;
+export type RunUsage = z.infer<typeof RunUsageSchema>;
 export type JobMetadata = z.infer<typeof JobMetadataSchema>;
 
 // =============================================================================
@@ -169,5 +224,6 @@ export function createJobMetadata(
     prompt: options.prompt ?? null,
     summary: null,
     output_file: null,
+    usage: null,
   };
 }

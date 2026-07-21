@@ -6,7 +6,7 @@
  * of malformed or unexpected SDK responses.
  */
 
-import type { JobOutputInput } from "../state/index.js";
+import type { JobOutputInput, ModelTokenUsage, RunUsage } from "../state/index.js";
 import type { ProcessedMessage, SDKMessage } from "./types.js";
 
 // =============================================================================
@@ -629,4 +629,117 @@ export function extractSummary(message: SDKMessage): string | undefined {
   }
 
   return undefined;
+}
+
+/**
+ * Coerce an unknown value to a finite, non-negative number (0 if not usable).
+ *
+ * Token counts from the runtime should always be non-negative integers, but we
+ * defend against malformed payloads so accounting never throws or records NaN.
+ */
+function toTokenCount(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
+/**
+ * Extract per-run token accounting from a terminal `result` message.
+ *
+ * The SDK result message carries authoritative per-model usage in its
+ * camelCase `modelUsage` map (`{ [modelId]: { inputTokens, outputTokens,
+ * cacheReadInputTokens, cacheCreationInputTokens, ... } }`), plus a top-level
+ * `total_cost_usd` and `num_turns`. The CLI runtime synthesizes a result
+ * message in the same shape (see `cli-runtime.ts`).
+ *
+ * Returns a {@link RunUsage} object suitable for persisting on the job record,
+ * or `undefined` when the message carries no usable accounting (e.g. a
+ * non-result message, or a result with empty usage). Token counts are stored
+ * as raw counts only — pricing is deliberately left to the consuming app.
+ *
+ * @param message - The SDK (or synthetic) message to inspect
+ * @returns Per-run token accounting, or undefined if none is present
+ */
+export function extractRunUsage(message: SDKMessage): RunUsage | undefined {
+  // Only result messages carry run-level accounting.
+  if (message === null || message === undefined || typeof message !== "object") {
+    return undefined;
+  }
+  if (message.type !== "result") {
+    return undefined;
+  }
+
+  const resultMsg = message as {
+    total_cost_usd?: unknown;
+    num_turns?: unknown;
+    modelUsage?: Record<string, unknown> | undefined;
+    usage?: Record<string, unknown> | undefined;
+    model?: unknown;
+  };
+
+  const perModel: Record<string, ModelTokenUsage> = {};
+
+  // Preferred source: the SDK's per-model breakdown (camelCase counts).
+  const modelUsage = resultMsg.modelUsage;
+  if (modelUsage && typeof modelUsage === "object") {
+    for (const [modelId, raw] of Object.entries(modelUsage)) {
+      if (!modelId || !raw || typeof raw !== "object") {
+        continue;
+      }
+      const u = raw as Record<string, unknown>;
+      perModel[modelId] = {
+        input_tokens: toTokenCount(u.inputTokens),
+        output_tokens: toTokenCount(u.outputTokens),
+        cache_creation_input_tokens: toTokenCount(u.cacheCreationInputTokens),
+        cache_read_input_tokens: toTokenCount(u.cacheReadInputTokens),
+      };
+    }
+  }
+
+  // Fallback: no per-model map, but a top-level snake_case `usage` block is
+  // present. Key it by the run's model id when known, else "unknown", so the
+  // counts are not silently dropped.
+  if (
+    Object.keys(perModel).length === 0 &&
+    resultMsg.usage &&
+    typeof resultMsg.usage === "object"
+  ) {
+    const u = resultMsg.usage as Record<string, unknown>;
+    const hasAny =
+      "input_tokens" in u ||
+      "output_tokens" in u ||
+      "cache_creation_input_tokens" in u ||
+      "cache_read_input_tokens" in u;
+    if (hasAny) {
+      const modelId =
+        typeof resultMsg.model === "string" && resultMsg.model ? resultMsg.model : "unknown";
+      perModel[modelId] = {
+        input_tokens: toTokenCount(u.input_tokens),
+        output_tokens: toTokenCount(u.output_tokens),
+        cache_creation_input_tokens: toTokenCount(u.cache_creation_input_tokens),
+        cache_read_input_tokens: toTokenCount(u.cache_read_input_tokens),
+      };
+    }
+  }
+
+  const numTurns =
+    typeof resultMsg.num_turns === "number" && Number.isFinite(resultMsg.num_turns)
+      ? resultMsg.num_turns
+      : undefined;
+  const totalCostUsd =
+    typeof resultMsg.total_cost_usd === "number" && Number.isFinite(resultMsg.total_cost_usd)
+      ? resultMsg.total_cost_usd
+      : undefined;
+
+  // Nothing worth persisting.
+  if (Object.keys(perModel).length === 0 && numTurns === undefined && totalCostUsd === undefined) {
+    return undefined;
+  }
+
+  const usage: RunUsage = { per_model: perModel };
+  if (numTurns !== undefined) {
+    usage.num_turns = numTurns;
+  }
+  if (totalCostUsd !== undefined) {
+    usage.total_cost_usd = totalCostUsd;
+  }
+  return usage;
 }

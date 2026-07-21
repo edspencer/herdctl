@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { extractSummary, isTerminalMessage, processSDKMessage } from "../message-processor.js";
+import {
+  extractRunUsage,
+  extractSummary,
+  isTerminalMessage,
+  processSDKMessage,
+} from "../message-processor.js";
 import type { SDKMessage } from "../types.js";
 
 // =============================================================================
@@ -926,5 +931,173 @@ describe("malformed response handling (US-7)", () => {
       }
       expect(result.isFinal).toBe(true);
     });
+  });
+});
+
+// =============================================================================
+// extractRunUsage tests
+// =============================================================================
+
+describe("extractRunUsage", () => {
+  it("returns undefined for non-result messages", () => {
+    expect(extractRunUsage({ type: "assistant" } as SDKMessage)).toBeUndefined();
+    expect(extractRunUsage({ type: "system" } as SDKMessage)).toBeUndefined();
+  });
+
+  it("returns undefined for null/undefined/non-object messages", () => {
+    expect(extractRunUsage(null as unknown as SDKMessage)).toBeUndefined();
+    expect(extractRunUsage(undefined as unknown as SDKMessage)).toBeUndefined();
+    expect(extractRunUsage("result" as unknown as SDKMessage)).toBeUndefined();
+  });
+
+  it("extracts per-model accounting from an SDK result message", () => {
+    const message = {
+      type: "result",
+      subtype: "success",
+      num_turns: 5,
+      total_cost_usd: 0.1234,
+      usage: { input_tokens: 10, output_tokens: 20 },
+      modelUsage: {
+        "claude-opus-4-8": {
+          inputTokens: 100,
+          outputTokens: 200,
+          cacheCreationInputTokens: 30,
+          cacheReadInputTokens: 4000,
+          webSearchRequests: 0,
+          costUSD: 0.1,
+          contextWindow: 200000,
+        },
+        "claude-haiku-4-5": {
+          inputTokens: 50,
+          outputTokens: 10,
+          cacheCreationInputTokens: 0,
+          cacheReadInputTokens: 0,
+          webSearchRequests: 0,
+          costUSD: 0.0034,
+          contextWindow: 200000,
+        },
+      },
+    } as unknown as SDKMessage;
+
+    const usage = extractRunUsage(message);
+    expect(usage).toBeDefined();
+    expect(usage?.num_turns).toBe(5);
+    expect(usage?.total_cost_usd).toBeCloseTo(0.1234);
+    // Per-model breakdown maps SDK camelCase → snake_case, dropping cost/price fields.
+    expect(usage?.per_model["claude-opus-4-8"]).toEqual({
+      input_tokens: 100,
+      output_tokens: 200,
+      cache_creation_input_tokens: 30,
+      cache_read_input_tokens: 4000,
+    });
+    expect(usage?.per_model["claude-haiku-4-5"].input_tokens).toBe(50);
+    // No $/token table is persisted — only the four token classes per model.
+    expect(usage?.per_model["claude-opus-4-8"]).not.toHaveProperty("costUSD");
+  });
+
+  it("falls back to top-level usage keyed by model when modelUsage is absent", () => {
+    const message = {
+      type: "result",
+      num_turns: 2,
+      model: "claude-sonnet-5",
+      usage: {
+        input_tokens: 40,
+        output_tokens: 15,
+        cache_creation_input_tokens: 5,
+        cache_read_input_tokens: 100,
+      },
+    } as unknown as SDKMessage;
+
+    const usage = extractRunUsage(message);
+    expect(usage?.per_model["claude-sonnet-5"]).toEqual({
+      input_tokens: 40,
+      output_tokens: 15,
+      cache_creation_input_tokens: 5,
+      cache_read_input_tokens: 100,
+    });
+    expect(usage?.num_turns).toBe(2);
+    expect(usage?.total_cost_usd).toBeUndefined();
+  });
+
+  it("keys the fallback bucket 'unknown' when no model id is present", () => {
+    const message = {
+      type: "result",
+      usage: { input_tokens: 7, output_tokens: 3 },
+    } as unknown as SDKMessage;
+
+    const usage = extractRunUsage(message);
+    expect(usage?.per_model.unknown).toEqual({
+      input_tokens: 7,
+      output_tokens: 3,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+    });
+  });
+
+  it("records num_turns/total_cost_usd even with no token usage", () => {
+    const message = {
+      type: "result",
+      num_turns: 1,
+      total_cost_usd: 0.5,
+    } as unknown as SDKMessage;
+
+    const usage = extractRunUsage(message);
+    expect(usage).toBeDefined();
+    expect(usage?.per_model).toEqual({});
+    expect(usage?.num_turns).toBe(1);
+    expect(usage?.total_cost_usd).toBe(0.5);
+  });
+
+  it("returns undefined when a result carries no usable accounting", () => {
+    expect(extractRunUsage({ type: "result", result: "done" } as SDKMessage)).toBeUndefined();
+    expect(extractRunUsage({ type: "result", modelUsage: {} } as SDKMessage)).toBeUndefined();
+  });
+
+  it("coerces malformed token counts to zero rather than NaN", () => {
+    const message = {
+      type: "result",
+      modelUsage: {
+        "claude-opus-4-8": {
+          inputTokens: "lots",
+          outputTokens: -5,
+          cacheCreationInputTokens: null,
+          cacheReadInputTokens: undefined,
+        },
+      },
+    } as unknown as SDKMessage;
+
+    const usage = extractRunUsage(message);
+    expect(usage?.per_model["claude-opus-4-8"]).toEqual({
+      input_tokens: 0,
+      output_tokens: 0,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+    });
+  });
+
+  it("consumes a CLI-synthesized result (per-model modelUsage) uniformly", () => {
+    // Shape produced by cli-runtime.ts synthetic result.
+    const message = {
+      type: "result",
+      result: "",
+      is_error: false,
+      duration_ms: 1200,
+      num_turns: 3,
+      usage: { input_tokens: 150, output_tokens: 60 },
+      modelUsage: {
+        "claude-opus-4-8": {
+          inputTokens: 150,
+          outputTokens: 60,
+          cacheCreationInputTokens: 10,
+          cacheReadInputTokens: 900,
+        },
+      },
+    } as unknown as SDKMessage;
+
+    const usage = extractRunUsage(message);
+    expect(usage?.per_model["claude-opus-4-8"].cache_read_input_tokens).toBe(900);
+    expect(usage?.num_turns).toBe(3);
+    // CLI/Max runs have no authoritative cost.
+    expect(usage?.total_cost_usd).toBeUndefined();
   });
 });
