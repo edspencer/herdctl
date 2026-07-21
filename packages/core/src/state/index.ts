@@ -116,10 +116,14 @@ export {
 } from "./session-validation.js";
 // Re-export tool parsing functions
 export {
+  type ExtractedImage,
   extractToolResultContent,
   extractToolResults,
   extractToolUseBlocks,
   getToolInputSummary,
+  imageToDataUrl,
+  isImageContentBlock,
+  normalizeImageBlock,
   TOOL_EMOJIS,
   type ToolResult,
   type ToolUseBlock,

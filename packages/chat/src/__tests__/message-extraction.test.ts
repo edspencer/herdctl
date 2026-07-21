@@ -4,13 +4,18 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  extractImageBlocks,
   extractMessageContent,
   getAgentAttribution,
+  hasImageContent,
   hasTextContent,
   isSyntheticMessage,
   isTextContentBlock,
   type SDKMessage,
 } from "../message-extraction.js";
+
+const PNG_1x1 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
 describe("message-extraction", () => {
   describe("extractMessageContent", () => {
@@ -229,6 +234,64 @@ describe("message-extraction", () => {
         message: { content: "hi" },
       };
       expect(getAgentAttribution(message)).toEqual({ parentToolUseId: "task_abc" });
+    });
+  });
+
+  describe("extractImageBlocks (issue #385)", () => {
+    it("extracts image blocks from an assistant message, preserving order", () => {
+      const message: SDKMessage = {
+        type: "assistant",
+        message: {
+          content: [
+            { type: "text", text: "Here is the chart:" },
+            { type: "image", source: { type: "base64", media_type: "image/png", data: PNG_1x1 } },
+            { type: "image", source: { type: "url", url: "https://example.com/b.png" } },
+          ],
+        },
+      };
+
+      expect(extractImageBlocks(message)).toEqual([
+        { kind: "base64", mediaType: "image/png", data: PNG_1x1 },
+        { kind: "url", mediaType: undefined, url: "https://example.com/b.png" },
+      ]);
+    });
+
+    it("returns [] for flat-string and text-only messages", () => {
+      expect(extractImageBlocks({ type: "assistant", content: "hi" })).toEqual([]);
+      expect(extractImageBlocks({ type: "assistant", message: { content: "hi" } })).toEqual([]);
+      expect(
+        extractImageBlocks({
+          type: "assistant",
+          message: { content: [{ type: "text", text: "no images" }] },
+        }),
+      ).toEqual([]);
+    });
+
+    it("keeps text extraction and image extraction independent for a mixed message", () => {
+      const message: SDKMessage = {
+        type: "assistant",
+        message: {
+          content: [
+            { type: "text", text: "look: " },
+            { type: "image", source: { type: "base64", media_type: "image/png", data: PNG_1x1 } },
+          ],
+        },
+      };
+
+      // Text-only fallback still works (backward compatible)…
+      expect(extractMessageContent(message)).toBe("look: ");
+      // …and the image survives.
+      expect(hasImageContent(message)).toBe(true);
+      expect(extractImageBlocks(message)).toHaveLength(1);
+    });
+
+    it("hasImageContent is false when there are no image blocks", () => {
+      expect(
+        hasImageContent({
+          type: "assistant",
+          message: { content: [{ type: "text", text: "just words" }] },
+        }),
+      ).toBe(false);
     });
   });
 });

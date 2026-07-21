@@ -20,6 +20,7 @@
 
 import {
   type AgentAttribution,
+  extractImageBlocks,
   extractMessageContent,
   extractTextDelta,
   getAgentAttribution,
@@ -27,6 +28,7 @@ import {
   type SDKMessage,
 } from "./message-extraction.js";
 import {
+  type ExtractedImage,
   extractToolResults,
   extractToolUseBlocks,
   getToolInputSummary,
@@ -47,6 +49,13 @@ export interface TranslatedToolCall {
   inputSummary?: string;
   /** Tool output text (may be empty) */
   output: string;
+  /**
+   * Non-text image blocks the tool returned (e.g. a Playwright
+   * `browser_take_screenshot` result), preserved so a consumer can render them
+   * inline. Absent when the result carried no image blocks; {@link output}
+   * stays populated for text-only consumers.
+   */
+  images?: ExtractedImage[];
   /** Whether the tool reported an error */
   isError: boolean;
   /** Wall-clock duration between the tool_use and its result, in milliseconds */
@@ -96,6 +105,14 @@ export interface SDKMessageHandlers {
    * lanes. Existing handlers that ignore the second argument keep working.
    */
   onText?: (text: string, attribution: AgentAttribution) => void | Promise<void>;
+  /**
+   * Called when an assistant message carries non-text `image` content blocks —
+   * an image the agent emitted inline (as opposed to one a tool returned, which
+   * arrives via {@link onToolCall}'s `images`). Fires once per assistant
+   * message that has images, after its text. Optional and backward compatible;
+   * consumers that don't render images can ignore it.
+   */
+  onImages?: (images: ExtractedImage[], attribution: AgentAttribution) => void | Promise<void>;
   /**
    * Called when a new assistant turn begins after a previous one produced text,
    * so transports can split bubbles. A tool-call interruption alone does NOT
@@ -348,6 +365,16 @@ export class SDKMessageTranslator {
       await this.handlers.onText?.(content, attribution);
     }
 
+    // Surface any inline image content blocks the agent emitted. These are
+    // independent of text (an assistant message may carry both) and of the
+    // partial-streaming path (image blocks only appear on the whole message).
+    if (this.handlers.onImages) {
+      const images = extractImageBlocks(message);
+      if (images.length > 0) {
+        await this.handlers.onImages(images, attribution);
+      }
+    }
+
     // Track tool_use blocks so we can pair them with results later. We track
     // even when toolResults is disabled so boundary handling stays correct.
     for (const block of extractToolUseBlocks(message)) {
@@ -407,6 +434,7 @@ export class SDKMessageTranslator {
         toolName: toolUse?.name ?? "Tool",
         inputSummary: toolUse ? getToolInputSummary(toolUse.name, toolUse.input) : undefined,
         output: result.output,
+        ...(result.images && result.images.length > 0 ? { images: result.images } : {}),
         isError: result.isError,
         durationMs: toolUse ? this.now() - toolUse.startTime : undefined,
         toolUseId: result.toolUseId,

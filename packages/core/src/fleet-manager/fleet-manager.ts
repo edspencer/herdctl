@@ -705,6 +705,25 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   }
 
   /**
+   * Resolve an agent's configured working directory to an absolute path.
+   *
+   * Normalizes the `working_directory` config (string or `{ root }`) the same
+   * way session access does, so consumers (e.g. the web dashboard's file-
+   * serving route) can map an agent name to its on-disk working directory
+   * without reaching into config internals.
+   *
+   * @param name - The agent qualified name or local name
+   * @returns The absolute working directory, or `undefined` if the agent has
+   *   none configured
+   * @throws {InvalidStateError} If the fleet manager is not yet initialized
+   * @throws {AgentNotFoundError} If no agent with that name exists
+   */
+  getAgentWorkingDirectory(name: string): string | undefined {
+    const { workingDirectory } = this.resolveAgentForSessions(name, "getAgentWorkingDirectory");
+    return workingDirectory;
+  }
+
+  /**
    * Get the parsed chat messages for one of an agent's sessions.
    *
    * Derives the working directory and Docker mode from the loaded config.

@@ -8,8 +8,15 @@ import {
   extractToolResults,
   extractToolUseBlocks,
   getToolInputSummary,
+  imageToDataUrl,
+  isImageContentBlock,
+  normalizeImageBlock,
   TOOL_EMOJIS,
 } from "../tool-parsing.js";
+
+// A tiny 1x1 transparent PNG, base64-encoded — enough to assert round-tripping.
+const PNG_1x1 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
 describe("tool-parsing", () => {
   // ===========================================================================
@@ -368,6 +375,171 @@ describe("tool-parsing", () => {
 
     it("has lowercase bash variant", () => {
       expect(TOOL_EMOJIS.bash).toBe(TOOL_EMOJIS.Bash);
+    });
+  });
+
+  // ===========================================================================
+  // Image content blocks (issue #385)
+  // ===========================================================================
+
+  describe("normalizeImageBlock", () => {
+    it("normalizes a base64 image block (snake_case media_type)", () => {
+      expect(
+        normalizeImageBlock({
+          type: "image",
+          source: { type: "base64", media_type: "image/png", data: PNG_1x1 },
+        }),
+      ).toEqual({ kind: "base64", mediaType: "image/png", data: PNG_1x1 });
+    });
+
+    it("normalizes a url image block", () => {
+      expect(
+        normalizeImageBlock({
+          type: "image",
+          source: { type: "url", url: "https://example.com/a.png" },
+        }),
+      ).toEqual({ kind: "url", mediaType: undefined, url: "https://example.com/a.png" });
+    });
+
+    it("reads a camelCase mediaType fallback", () => {
+      expect(
+        normalizeImageBlock({
+          type: "image",
+          source: { type: "base64", mediaType: "image/jpeg", data: PNG_1x1 },
+        }),
+      ).toMatchObject({ kind: "base64", mediaType: "image/jpeg" });
+    });
+
+    it("returns undefined for non-image or malformed blocks", () => {
+      expect(normalizeImageBlock({ type: "text", text: "hi" })).toBeUndefined();
+      expect(normalizeImageBlock({ type: "image" })).toBeUndefined();
+      expect(normalizeImageBlock({ type: "image", source: { type: "base64" } })).toBeUndefined();
+      expect(
+        normalizeImageBlock({ type: "image", source: { type: "base64", data: "" } }),
+      ).toBeUndefined();
+      expect(normalizeImageBlock(null)).toBeUndefined();
+      expect(normalizeImageBlock("nope")).toBeUndefined();
+    });
+  });
+
+  describe("isImageContentBlock", () => {
+    it("is true for a well-formed image block, false otherwise", () => {
+      expect(
+        isImageContentBlock({
+          type: "image",
+          source: { type: "base64", media_type: "image/png", data: PNG_1x1 },
+        }),
+      ).toBe(true);
+      expect(isImageContentBlock({ type: "text", text: "hi" })).toBe(false);
+    });
+  });
+
+  describe("imageToDataUrl", () => {
+    it("builds a data URI for a base64 image", () => {
+      expect(imageToDataUrl({ kind: "base64", mediaType: "image/png", data: PNG_1x1 })).toBe(
+        `data:image/png;base64,${PNG_1x1}`,
+      );
+    });
+
+    it("defaults the media type when unknown", () => {
+      expect(imageToDataUrl({ kind: "base64", data: PNG_1x1 })).toBe(
+        `data:image/png;base64,${PNG_1x1}`,
+      );
+    });
+
+    it("returns the url directly for a url image", () => {
+      expect(imageToDataUrl({ kind: "url", url: "https://example.com/a.png" })).toBe(
+        "https://example.com/a.png",
+      );
+    });
+  });
+
+  describe("extractToolResults preserves image blocks", () => {
+    it("keeps an image block alongside text in a nested tool_result", () => {
+      const results = extractToolResults({
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_img",
+              content: [
+                { type: "text", text: "Screenshot captured" },
+                {
+                  type: "image",
+                  source: { type: "base64", media_type: "image/png", data: PNG_1x1 },
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0].output).toBe("Screenshot captured");
+      expect(results[0].toolUseId).toBe("toolu_img");
+      expect(results[0].images).toEqual([
+        { kind: "base64", mediaType: "image/png", data: PNG_1x1 },
+      ]);
+    });
+
+    it("surfaces an image-only tool_result (empty text) instead of dropping it", () => {
+      const results = extractToolResults({
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_shot",
+              content: [
+                {
+                  type: "image",
+                  source: { type: "base64", media_type: "image/png", data: PNG_1x1 },
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0].output).toBe("");
+      expect(results[0].images).toHaveLength(1);
+    });
+
+    it("omits images when the result is text-only", () => {
+      const results = extractToolResults({
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_txt",
+              content: [{ type: "text", text: "just text" }],
+            },
+          ],
+        },
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0].images).toBeUndefined();
+    });
+
+    it("preserves images on the top-level tool_use_result shape", () => {
+      const result = extractToolResultContent({
+        content: [
+          { type: "text", text: "done" },
+          {
+            type: "image",
+            source: { type: "base64", media_type: "image/png", data: PNG_1x1 },
+          },
+        ],
+        tool_use_id: "toolu_top",
+      });
+
+      expect(result).toBeDefined();
+      expect(result?.output).toBe("done");
+      expect(result?.images).toEqual([{ kind: "base64", mediaType: "image/png", data: PNG_1x1 }]);
     });
   });
 });

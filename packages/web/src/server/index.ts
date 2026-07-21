@@ -24,6 +24,7 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import { WebChatManager } from "./chat/index.js";
 import { registerAgentRoutes } from "./routes/agents.js";
 import { registerChatRoutes } from "./routes/chat.js";
+import { registerFileRoutes } from "./routes/files.js";
 import { registerFleetRoutes } from "./routes/fleet.js";
 import { registerJobRoutes } from "./routes/jobs.js";
 import { registerScheduleRoutes } from "./routes/schedules.js";
@@ -177,6 +178,7 @@ export async function createWebServer(
   registerJobRoutes(server, fleetManager, listJobs);
   registerScheduleRoutes(server, fleetManager);
   registerChatRoutes(server, fleetManager, chatManager, discoveryService);
+  registerFileRoutes(server, fleetManager);
 
   // Health check endpoint
   server.get("/api/health", async (_request, reply) => {
@@ -226,8 +228,13 @@ export async function createWebServer(
   server.setNotFoundHandler(async (request: FastifyRequest, reply: FastifyReply) => {
     const url = request.url;
 
-    // Don't serve SPA for API routes, WebSocket, or static assets
-    if (url.startsWith("/api/") || url === "/ws" || url.startsWith("/assets/")) {
+    // Don't serve SPA for API routes, WebSocket, served files, or static assets
+    if (
+      url.startsWith("/api/") ||
+      url === "/ws" ||
+      url.startsWith("/files/") ||
+      url.startsWith("/assets/")
+    ) {
       return reply.status(404).send({ error: "Not found" });
     }
 

@@ -99,8 +99,10 @@ export {
 export {
   type AgentAttribution,
   type ContentBlock,
+  extractImageBlocks,
   extractMessageContent,
   getAgentAttribution,
+  hasImageContent,
   hasTextContent,
   isSyntheticMessage,
   isTextContentBlock,
@@ -114,11 +116,15 @@ export {
 // =============================================================================
 
 export {
+  type ExtractedImage,
   extractToolResultContent,
   extractToolResults,
   // Functions
   extractToolUseBlocks,
   getToolInputSummary,
+  imageToDataUrl,
+  isImageContentBlock,
+  normalizeImageBlock,
   // Constants
   TOOL_EMOJIS,
   type ToolResult,

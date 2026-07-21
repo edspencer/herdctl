@@ -740,6 +740,96 @@ describe("partial-message text streaming (stream_event / text_delta)", () => {
   });
 });
 
+describe("image content blocks (issue #385)", () => {
+  const PNG_1x1 =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
+  function imageToolResult(toolUseId: string, withText: boolean): SDKMessage {
+    const content: unknown[] = [];
+    if (withText) content.push({ type: "text", text: "Screenshot captured" });
+    content.push({
+      type: "image",
+      source: { type: "base64", media_type: "image/png", data: PNG_1x1 },
+    });
+    return {
+      type: "user",
+      message: {
+        content: [{ type: "tool_result", tool_use_id: toolUseId, content }],
+      },
+    } as unknown as SDKMessage;
+  }
+
+  function assistantWithImage(): SDKMessage {
+    return {
+      type: "assistant",
+      message: {
+        content: [
+          { type: "text", text: "Here you go:" },
+          { type: "image", source: { type: "base64", media_type: "image/png", data: PNG_1x1 } },
+        ],
+      },
+    } as unknown as SDKMessage;
+  }
+
+  it("carries a tool-returned image onto the TranslatedToolCall", async () => {
+    const calls: TranslatedToolCall[] = [];
+    const t = new SDKMessageTranslator({ onToolCall: (c) => void calls.push(c) });
+
+    await t.handle(assistantToolUse("t1", "browser_take_screenshot"));
+    await t.handle(imageToolResult("t1", true));
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].output).toBe("Screenshot captured");
+    expect(calls[0].images).toEqual([{ kind: "base64", mediaType: "image/png", data: PNG_1x1 }]);
+  });
+
+  it("still emits a tool call for an image-only result (empty output)", async () => {
+    const calls: TranslatedToolCall[] = [];
+    const t = new SDKMessageTranslator({ onToolCall: (c) => void calls.push(c) });
+
+    await t.handle(assistantToolUse("t1", "browser_take_screenshot"));
+    await t.handle(imageToolResult("t1", false));
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].output).toBe("");
+    expect(calls[0].images).toHaveLength(1);
+  });
+
+  it("omits images on a text-only tool call", async () => {
+    const calls: TranslatedToolCall[] = [];
+    const t = new SDKMessageTranslator({ onToolCall: (c) => void calls.push(c) });
+
+    await t.handle(assistantToolUse("t1", "Read", { file_path: "/f" }));
+    await t.handle(toolResult("t1", "contents"));
+
+    expect(calls[0].images).toBeUndefined();
+  });
+
+  it("fires onImages for an inline assistant image, with attribution", async () => {
+    const onText = vi.fn();
+    const onImages = vi.fn();
+    const t = new SDKMessageTranslator({ onText, onImages });
+
+    await t.handle(assistantWithImage());
+
+    expect(onText).toHaveBeenCalledWith("Here you go:", { parentToolUseId: null });
+    expect(onImages).toHaveBeenCalledTimes(1);
+    expect(onImages).toHaveBeenCalledWith(
+      [{ kind: "base64", mediaType: "image/png", data: PNG_1x1 }],
+      { parentToolUseId: null },
+    );
+  });
+
+  it("does not fire onImages for a text-only assistant message", async () => {
+    const onImages = vi.fn();
+    const t = new SDKMessageTranslator({ onImages });
+
+    await t.handle(assistantText("no pictures here"));
+
+    expect(onImages).not.toHaveBeenCalled();
+  });
+});
+
 describe("createSDKMessageHandler", () => {
   it("returns an onMessage handler driving a fresh translator", async () => {
     const onText = vi.fn();
