@@ -895,7 +895,8 @@ export class SessionDiscoveryService {
     // one adhoc directory would delete another's live entries. Only populated on
     // a full (unlimited) scan; a limited scan does NOT enumerate every session,
     // so pruning off it would wrongly delete live entries.
-    const validSessionIdsByKey = limit === undefined ? new Map<string, Set<string>>() : undefined;
+    const validSessionIdsByKey: Map<string, Set<string>> | undefined =
+      limit === undefined ? new Map<string, Set<string>>() : undefined;
 
     for (const dir of directories) {
       if (validSessionIdsByKey) {
