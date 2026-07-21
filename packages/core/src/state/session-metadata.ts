@@ -568,6 +568,55 @@ export class SessionMetadataStore {
   }
 
   /**
+   * Prune stale session entries, keeping only those whose sessionId is in the
+   * provided valid set.
+   *
+   * Session metadata (autoName / preview / sidechain / usage caches) is written
+   * for every discovered session but never removed, so files like `adhoc.json`
+   * grow unboundedly as Claude Code creates and deletes transcripts over time
+   * (issue #168). This reconciles the cache against the set of sessions that
+   * still exist on disk, deleting entries whose transcript is gone.
+   *
+   * IMPORTANT: only call this with a set derived from a **full/unlimited**
+   * enumeration of the agent's sessions. Passing a partial set (e.g. from a
+   * top-N limited scan) would wrongly delete metadata for live sessions that
+   * simply weren't enriched on this pass. When several directories share a
+   * metadata key (all unattributed dirs use `"adhoc"`), the caller must pass the
+   * UNION of valid sessionIds across every directory sharing that key.
+   *
+   * Writes only when something was actually removed, mirroring the batch-write
+   * semantics of the rest of the store.
+   *
+   * @param agentName - The agent's qualified name (use "adhoc" for unattributed sessions)
+   * @param validSessionIds - Set of sessionIds that still exist on disk for this key
+   * @returns The number of entries removed
+   */
+  async prune(agentName: string, validSessionIds: Set<string>): Promise<number> {
+    const metadata = await this.loadMetadata(agentName);
+    if (!metadata) {
+      return 0;
+    }
+
+    let pruned = 0;
+    for (const sessionId of Object.keys(metadata.sessions)) {
+      if (!validSessionIds.has(sessionId)) {
+        delete metadata.sessions[sessionId];
+        pruned++;
+      }
+    }
+
+    if (pruned > 0) {
+      await this.saveMetadata(agentName, metadata);
+      logger.debug(`Pruned ${pruned} stale session metadata entries`, {
+        agentName,
+        remaining: Object.keys(metadata.sessions).length,
+      });
+    }
+
+    return pruned;
+  }
+
+  /**
    * Get cached usage and its mtime for a session
    *
    * @param agentName - The agent's qualified name (use "adhoc" for unattributed sessions)
