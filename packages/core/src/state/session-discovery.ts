@@ -888,7 +888,30 @@ export class SessionDiscoveryService {
     // Phase 3: Enrich sessions (only selected ones when limit is set)
     const groups: DirectoryGroup[] = [];
 
+    // Accumulate the sessionIds that physically exist on disk for each metadata
+    // key, so stale metadata entries can be reconciled away afterwards (#168).
+    // Multiple directories can share a key — every unattributed directory uses
+    // "adhoc" — so we must union across directories before pruning, otherwise
+    // one adhoc directory would delete another's live entries. Only populated on
+    // a full (unlimited) scan; a limited scan does NOT enumerate every session,
+    // so pruning off it would wrongly delete live entries.
+    const validSessionIdsByKey = limit === undefined ? new Map<string, Set<string>>() : undefined;
+
     for (const dir of directories) {
+      if (validSessionIdsByKey) {
+        let validIds = validSessionIdsByKey.get(dir.metadataKey);
+        if (!validIds) {
+          validIds = new Set<string>();
+          validSessionIdsByKey.set(dir.metadataKey, validIds);
+        }
+        // Every transcript present in this directory is a live session for this
+        // key — include sidechains and non-enriched sessions, all of which carry
+        // legitimately-cached metadata keyed by sessionId.
+        for (const { sessionId } of dir.sessionFiles) {
+          validIds.add(sessionId);
+        }
+      }
+
       const sessions: DiscoveredSession[] = [];
       const autoNameUpdates: Array<{ sessionId: string; autoName?: string; mtime: string }> = [];
       const previewUpdates: Array<{ sessionId: string; preview?: string; mtime: string }> = [];
@@ -1014,6 +1037,16 @@ export class SessionDiscoveryService {
           sessionCount: visibleSessionCount,
           sessions,
         });
+      }
+    }
+
+    // Reconcile metadata against the sessions that still exist on disk (#168).
+    // Runs only on a full scan (validSessionIdsByKey is undefined when a limit
+    // was applied). Pruning writes only when it actually removes an entry, so a
+    // steady-state listing with no dead sessions performs no extra writes.
+    if (validSessionIdsByKey) {
+      for (const [metadataKey, validIds] of validSessionIdsByKey) {
+        await this.sessionMetadataStore.prune(metadataKey, validIds);
       }
     }
 

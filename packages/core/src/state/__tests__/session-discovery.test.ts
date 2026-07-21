@@ -40,6 +40,7 @@ const mockGetSidechain = vi.fn().mockResolvedValue(undefined);
 const mockBatchSetSidechains = vi.fn().mockResolvedValue(undefined);
 const mockGetUsage = vi.fn().mockResolvedValue(undefined);
 const mockSetUsage = vi.fn().mockResolvedValue(undefined);
+const mockPrune = vi.fn().mockResolvedValue(0);
 vi.mock("../session-metadata.js", () => {
   return {
     SessionMetadataStore: class MockSessionMetadataStore {
@@ -52,6 +53,7 @@ vi.mock("../session-metadata.js", () => {
       batchSetSidechains = mockBatchSetSidechains;
       getUsage = mockGetUsage;
       setUsage = mockSetUsage;
+      prune = mockPrune;
     },
   };
 });
@@ -159,6 +161,8 @@ describe("SessionDiscoveryService", () => {
     mockGetUsage.mockResolvedValue(undefined);
     mockSetUsage.mockReset();
     mockSetUsage.mockResolvedValue(undefined);
+    mockPrune.mockReset();
+    mockPrune.mockResolvedValue(0);
 
     // Reset JSONL parser mocks
     mockExtractLastSummary.mockReset();
@@ -572,6 +576,69 @@ describe("SessionDiscoveryService", () => {
   // ===========================================================================
 
   describe("getAllSessions", () => {
+    // Issue #168: stale metadata reconciliation.
+    describe("stale metadata pruning (#168)", () => {
+      it("prunes each metadata key with the union of live sessionIds on a full scan", async () => {
+        // Two unattributed directories → both share the "adhoc" metadata key.
+        const adhocDir1 = join(tempClaudeHome, "projects", "-Users-ed-Code-loose1");
+        const adhocDir2 = join(tempClaudeHome, "projects", "-Users-ed-Code-loose2");
+        await mkdir(adhocDir1, { recursive: true });
+        await mkdir(adhocDir2, { recursive: true });
+        await createSessionFile(adhocDir1, "adhoc-a");
+        await createSessionFile(adhocDir2, "adhoc-b");
+
+        // An attributed agent directory → its own metadata key.
+        const agentDir = join(tempClaudeHome, "projects", "-Users-ed-Code-myproject");
+        await mkdir(agentDir, { recursive: true });
+        await createSessionFile(agentDir, "agent-a");
+
+        const service = new SessionDiscoveryService({
+          claudeHomePath: tempClaudeHome,
+          stateDir: tempStateDir,
+        });
+
+        await service.getAllSessions([
+          {
+            name: "my-fleet/my-agent",
+            workingDirectory: "/Users/ed/Code/myproject",
+            dockerEnabled: false,
+          },
+        ]);
+
+        // Collect the (key -> validIds) pairs prune was invoked with.
+        const pruneCalls = new Map<string, Set<string>>(
+          mockPrune.mock.calls.map(([key, ids]) => [key as string, ids as Set<string>]),
+        );
+
+        // adhoc is pruned once, with the UNION of both loose dirs' live sessions.
+        expect(pruneCalls.has("adhoc")).toBe(true);
+        expect([...pruneCalls.get("adhoc")!].sort()).toEqual(["adhoc-a", "adhoc-b"]);
+
+        // The attributed agent is pruned against its own live session.
+        expect(pruneCalls.has("my-fleet/my-agent")).toBe(true);
+        expect([...pruneCalls.get("my-fleet/my-agent")!]).toEqual(["agent-a"]);
+      });
+
+      it("does NOT prune on a limited scan (partial enumeration)", async () => {
+        // A limited scan only enriches the top-N sessions, so it does not see
+        // every session — pruning off it would wrongly delete live entries.
+        const adhocDir = join(tempClaudeHome, "projects", "-Users-ed-Code-loose");
+        await mkdir(adhocDir, { recursive: true });
+        await createSessionFile(adhocDir, "adhoc-a");
+        await createSessionFile(adhocDir, "adhoc-b");
+        await createSessionFile(adhocDir, "adhoc-c");
+
+        const service = new SessionDiscoveryService({
+          claudeHomePath: tempClaudeHome,
+          stateDir: tempStateDir,
+        });
+
+        await service.getAllSessions([], { limit: 1 });
+
+        expect(mockPrune).not.toHaveBeenCalled();
+      });
+    });
+
     it("returns directory groups for all project directories", async () => {
       // Create multiple project directories
       const projectDir1 = join(tempClaudeHome, "projects", "-Users-ed-Code-project1");

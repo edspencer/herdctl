@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -718,6 +718,91 @@ describe("SessionMetadataStore", () => {
 
       expect((await store.getPreview("test-agent", "session-1"))!.preview).toBe("Hi");
       expect((await store.getUsage("test-agent", "session-1"))!.usage!.inputTokens).toBe(1);
+    });
+  });
+
+  describe("prune", () => {
+    // Helper to seed a metadata file directly on disk with the given sessionIds.
+    async function seedMetadata(agentName: string, sessionIds: string[]): Promise<void> {
+      const metadataDir = join(tempDir, "session-metadata");
+      await mkdir(metadataDir, { recursive: true });
+      const sessions: Record<string, unknown> = {};
+      for (const id of sessionIds) {
+        sessions[id] = {
+          autoName: `name-${id}`,
+          autoNameMtime: "2024-01-15T10:00:00.000Z",
+          preview: `preview-${id}`,
+          previewMtime: "2024-01-15T10:00:00.000Z",
+        };
+      }
+      await writeFile(
+        join(metadataDir, `${agentName}.json`),
+        JSON.stringify({ version: 1, agentName, sessions }),
+        "utf-8",
+      );
+    }
+
+    it("removes entries whose sessionId is absent from the valid set", async () => {
+      await seedMetadata("adhoc", ["live-1", "dead-1", "dead-2"]);
+
+      const pruned = await store.prune("adhoc", new Set(["live-1"]));
+
+      expect(pruned).toBe(2);
+      const metadata = await store.getAgentMetadata("adhoc");
+      expect(Object.keys(metadata!.sessions).sort()).toEqual(["live-1"]);
+    });
+
+    it("keeps entries that are present in the valid set", async () => {
+      await seedMetadata("adhoc", ["live-1", "live-2", "dead-1"]);
+
+      const pruned = await store.prune("adhoc", new Set(["live-1", "live-2"]));
+
+      expect(pruned).toBe(1);
+      const metadata = await store.getAgentMetadata("adhoc");
+      expect(Object.keys(metadata!.sessions).sort()).toEqual(["live-1", "live-2"]);
+      // Surviving entries keep their cached fields intact
+      expect(metadata!.sessions["live-1"].autoName).toBe("name-live-1");
+      expect(metadata!.sessions["live-2"].preview).toBe("preview-live-2");
+    });
+
+    it("returns 0 and writes nothing when no metadata file exists", async () => {
+      const pruned = await store.prune("adhoc", new Set(["anything"]));
+      expect(pruned).toBe(0);
+
+      // No file should have been created
+      const metadataDir = join(tempDir, "session-metadata");
+      await expect(readdir(metadataDir)).rejects.toMatchObject({ code: "ENOENT" });
+    });
+
+    it("does not rewrite the file when nothing changed (all entries valid)", async () => {
+      await seedMetadata("adhoc", ["s-1", "s-2"]);
+      const filePath = join(tempDir, "session-metadata", "adhoc.json");
+
+      // Capture the on-disk state, then prune with a set that covers everything
+      // (as a full scan would). A superset of the valid ids must also be a no-op.
+      const before = await readFile(filePath, "utf-8");
+      const beforeMtime = (await stat(filePath)).mtimeMs;
+
+      const pruned = await store.prune("adhoc", new Set(["s-1", "s-2", "s-3"]));
+
+      expect(pruned).toBe(0);
+      const after = await readFile(filePath, "utf-8");
+      expect(after).toBe(before);
+      // File was not rewritten (mtime unchanged) — no disk write on a no-op prune.
+      expect((await stat(filePath)).mtimeMs).toBe(beforeMtime);
+    });
+
+    it("prunes across a shared 'adhoc' key using the union of all directories", async () => {
+      // Two unattributed directories both write to adhoc.json. The valid set for
+      // a full scan is the UNION of their live sessions; anything else is dead.
+      await seedMetadata("adhoc", ["dirA-1", "dirA-2", "dirB-1", "orphan"]);
+
+      const unionOfLiveIds = new Set(["dirA-1", "dirA-2", "dirB-1"]);
+      const pruned = await store.prune("adhoc", unionOfLiveIds);
+
+      expect(pruned).toBe(1);
+      const metadata = await store.getAgentMetadata("adhoc");
+      expect(Object.keys(metadata!.sessions).sort()).toEqual(["dirA-1", "dirA-2", "dirB-1"]);
     });
   });
 });
