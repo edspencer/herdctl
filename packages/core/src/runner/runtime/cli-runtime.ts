@@ -290,12 +290,26 @@ export class CLIRuntime implements RuntimeInterface {
     let watcher: CLISessionWatcher | undefined;
     let hasError = false;
 
-    // Track usage stats across all assistant turns for synthetic result message
+    // Track usage stats across all assistant turns for synthetic result message.
+    // The Claude CLI does not emit an SDK-style `result` message, so we aggregate
+    // usage per model (a run can span an Opus main agent + Haiku subagents) to
+    // reconstruct the same per-model breakdown the SDK reports (see issue #378).
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
     let numTurns = 0;
     let lastAssistantText = "";
     const seenAssistantMessageIds = new Set<string>();
+    // Per-model aggregation in the SDK's camelCase `modelUsage` shape so the
+    // downstream `extractRunUsage` reader handles CLI and SDK results uniformly.
+    const modelUsage: Record<
+      string,
+      {
+        inputTokens: number;
+        outputTokens: number;
+        cacheCreationInputTokens: number;
+        cacheReadInputTokens: number;
+      }
+    > = {};
 
     // Helper to accumulate usage from each assistant message
     const trackAssistantUsage = (message: SDKMessage) => {
@@ -328,14 +342,37 @@ export class CLIRuntime implements RuntimeInterface {
       numTurns++;
       const msg = message as {
         message?: {
+          model?: string;
           content?: Array<{ type: string; text?: string }>;
-          usage?: { input_tokens?: number; output_tokens?: number };
+          usage?: {
+            input_tokens?: number;
+            output_tokens?: number;
+            cache_creation_input_tokens?: number;
+            cache_read_input_tokens?: number;
+          };
         };
       };
       const usage = msg.message?.usage;
       if (usage) {
-        totalInputTokens += usage.input_tokens ?? 0;
-        totalOutputTokens += usage.output_tokens ?? 0;
+        const inputTokens = usage.input_tokens ?? 0;
+        const outputTokens = usage.output_tokens ?? 0;
+        const cacheCreationInputTokens = usage.cache_creation_input_tokens ?? 0;
+        const cacheReadInputTokens = usage.cache_read_input_tokens ?? 0;
+
+        totalInputTokens += inputTokens;
+        totalOutputTokens += outputTokens;
+
+        const modelId = msg.message?.model ?? "unknown";
+        const bucket = (modelUsage[modelId] ??= {
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheCreationInputTokens: 0,
+          cacheReadInputTokens: 0,
+        });
+        bucket.inputTokens += inputTokens;
+        bucket.outputTokens += outputTokens;
+        bucket.cacheCreationInputTokens += cacheCreationInputTokens;
+        bucket.cacheReadInputTokens += cacheReadInputTokens;
       }
       // Capture last text content for result fallback
       const content = msg.message?.content;
@@ -583,6 +620,9 @@ export class CLIRuntime implements RuntimeInterface {
             input_tokens: totalInputTokens,
             output_tokens: totalOutputTokens,
           },
+          // Per-model token accounting (SDK camelCase shape) so run-end
+          // persistence records the same per-model breakdown for CLI runs.
+          modelUsage,
         };
       }
     } catch (error) {

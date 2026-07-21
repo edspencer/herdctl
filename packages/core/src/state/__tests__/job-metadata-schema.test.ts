@@ -6,6 +6,8 @@ import {
   type JobMetadata,
   JobMetadataSchema,
   JobStatusSchema,
+  ModelTokenUsageSchema,
+  RunUsageSchema,
   TriggerTypeSchema,
 } from "../schemas/job-metadata.js";
 
@@ -421,5 +423,137 @@ describe("createJobMetadata", () => {
     });
 
     expect(job.id).toMatch(/^job-\d{4}-\d{2}-\d{2}-[a-z0-9]{6}$/);
+  });
+
+  it("initializes usage to null", () => {
+    const job = createJobMetadata({
+      agent: "my-agent",
+      trigger_type: "manual",
+    });
+
+    expect(job.usage).toBeNull();
+  });
+});
+
+describe("ModelTokenUsageSchema", () => {
+  it("accepts the four token classes", () => {
+    const usage = ModelTokenUsageSchema.parse({
+      input_tokens: 100,
+      output_tokens: 50,
+      cache_creation_input_tokens: 20,
+      cache_read_input_tokens: 10,
+    });
+
+    expect(usage.input_tokens).toBe(100);
+    expect(usage.output_tokens).toBe(50);
+    expect(usage.cache_creation_input_tokens).toBe(20);
+    expect(usage.cache_read_input_tokens).toBe(10);
+  });
+
+  it("rejects negative token counts", () => {
+    expect(() =>
+      ModelTokenUsageSchema.parse({
+        input_tokens: -1,
+        output_tokens: 0,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+      }),
+    ).toThrow();
+  });
+
+  it("requires all four token classes", () => {
+    expect(() => ModelTokenUsageSchema.parse({ input_tokens: 1 })).toThrow();
+  });
+});
+
+describe("RunUsageSchema", () => {
+  it("accepts per-model accounting spanning multiple models", () => {
+    const usage = RunUsageSchema.parse({
+      per_model: {
+        "claude-opus-4-8": {
+          input_tokens: 1000,
+          output_tokens: 500,
+          cache_creation_input_tokens: 200,
+          cache_read_input_tokens: 8000,
+        },
+        "claude-haiku-4-5": {
+          input_tokens: 300,
+          output_tokens: 120,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 0,
+        },
+      },
+      num_turns: 7,
+      total_cost_usd: 0.4213,
+    });
+
+    expect(Object.keys(usage.per_model)).toHaveLength(2);
+    expect(usage.per_model["claude-opus-4-8"].cache_read_input_tokens).toBe(8000);
+    expect(usage.num_turns).toBe(7);
+    expect(usage.total_cost_usd).toBeCloseTo(0.4213);
+  });
+
+  it("allows num_turns and total_cost_usd to be omitted (CLI/Max runs)", () => {
+    const usage = RunUsageSchema.parse({
+      per_model: {
+        "claude-opus-4-8": {
+          input_tokens: 10,
+          output_tokens: 5,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 0,
+        },
+      },
+    });
+
+    expect(usage.num_turns).toBeUndefined();
+    expect(usage.total_cost_usd).toBeUndefined();
+  });
+
+  it("allows an empty per_model map", () => {
+    const usage = RunUsageSchema.parse({ per_model: {}, num_turns: 1 });
+    expect(usage.per_model).toEqual({});
+  });
+});
+
+describe("JobMetadataSchema usage field (backward compatibility)", () => {
+  const baseJob: JobMetadata = {
+    id: "job-2024-01-15-abc123",
+    agent: "my-agent",
+    trigger_type: "manual",
+    status: "completed",
+    started_at: "2024-01-15T10:00:00.000Z",
+  };
+
+  it("parses legacy job records that predate the usage field", () => {
+    // No `usage` key at all — must still parse (additive + backward-compatible).
+    const parsed = JobMetadataSchema.parse(baseJob);
+    expect(parsed.usage).toBeUndefined();
+  });
+
+  it("accepts a null usage field", () => {
+    const parsed = JobMetadataSchema.parse({ ...baseJob, usage: null });
+    expect(parsed.usage).toBeNull();
+  });
+
+  it("round-trips a populated usage field", () => {
+    const parsed = JobMetadataSchema.parse({
+      ...baseJob,
+      usage: {
+        per_model: {
+          "claude-opus-4-8": {
+            input_tokens: 1000,
+            output_tokens: 500,
+            cache_creation_input_tokens: 200,
+            cache_read_input_tokens: 8000,
+          },
+        },
+        num_turns: 3,
+        total_cost_usd: 0.12,
+      },
+    });
+
+    expect(parsed.usage?.per_model["claude-opus-4-8"].output_tokens).toBe(500);
+    expect(parsed.usage?.num_turns).toBe(3);
+    expect(parsed.usage?.total_cost_usd).toBe(0.12);
   });
 });

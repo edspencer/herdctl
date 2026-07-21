@@ -20,6 +20,7 @@ import {
   isSessionExpiredError,
   isTokenExpiredError,
   type JobMetadata,
+  type RunUsage,
   type TriggerType,
   updateJob,
   updateSessionInfo,
@@ -36,7 +37,12 @@ import {
   SDKStreamingError,
   wrapError,
 } from "./errors.js";
-import { extractSummary, isTerminalMessage, processSDKMessage } from "./message-processor.js";
+import {
+  extractRunUsage,
+  extractSummary,
+  isTerminalMessage,
+  processSDKMessage,
+} from "./message-processor.js";
 import type { RuntimeInterface } from "./runtime/index.js";
 import type {
   ProcessedMessage,
@@ -150,6 +156,7 @@ export class JobExecutor {
     let sessionId: string | undefined;
     let summary: string | undefined;
     let lastAssistantContent: string | undefined; // Track last assistant message for fallback summary
+    let runUsage: RunUsage | undefined; // Per-run per-model token accounting from the terminal result message
     let lastError: RunnerError | undefined;
     let errorDetails: RunnerErrorDetails | undefined;
     let messagesReceived = 0;
@@ -515,6 +522,15 @@ export class JobExecutor {
             }
           }
 
+          // Capture per-run per-model token accounting from the terminal result
+          // message (SDK native or CLI-synthesized). Later result messages win.
+          if (sdkMessage && sdkMessage.type === "result") {
+            const usage = extractRunUsage(sdkMessage);
+            if (usage) {
+              runUsage = usage;
+            }
+          }
+
           // Call user's onMessage callback if provided
           if (onMessage) {
             try {
@@ -748,6 +764,9 @@ export class JobExecutor {
         summary,
         exit_reason: exitReason,
         output_file: getJobOutputPath(jobsDir, job.id),
+        // Persist per-model token accounting when the run produced a terminal
+        // result. Left untouched (stays null/absent) when there was none.
+        ...(runUsage ? { usage: runUsage } : {}),
       });
     } catch (error) {
       this.logger.warn(`Failed to update job final status: ${(error as Error).message}`);

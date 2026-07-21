@@ -120,6 +120,127 @@ describe("CLIRuntime synthetic result aggregation", () => {
     expect(result?.usage?.input_tokens).toBe(110);
     expect(result?.usage?.output_tokens).toBe(30);
   });
+
+  it("aggregates per-model token usage (incl. cache classes) across models", async () => {
+    watchMessages.push(
+      {
+        type: "assistant",
+        message: {
+          id: "msg-1",
+          model: "claude-opus-4-8",
+          stop_reason: "end_turn",
+          usage: {
+            input_tokens: 100,
+            output_tokens: 25,
+            cache_creation_input_tokens: 40,
+            cache_read_input_tokens: 900,
+          },
+          content: [{ type: "text", text: "opus turn one" }],
+        },
+      } as SDKMessage,
+      {
+        type: "assistant",
+        message: {
+          id: "msg-2",
+          model: "claude-opus-4-8",
+          stop_reason: "end_turn",
+          usage: {
+            input_tokens: 50,
+            output_tokens: 15,
+            cache_creation_input_tokens: 10,
+            cache_read_input_tokens: 100,
+          },
+          content: [{ type: "text", text: "opus turn two" }],
+        },
+      } as SDKMessage,
+      {
+        type: "assistant",
+        message: {
+          id: "msg-3",
+          model: "claude-haiku-4-5",
+          stop_reason: "end_turn",
+          usage: {
+            input_tokens: 20,
+            output_tokens: 8,
+            cache_creation_input_tokens: 0,
+            cache_read_input_tokens: 0,
+          },
+          content: [{ type: "text", text: "haiku subagent" }],
+        },
+      } as SDKMessage,
+    );
+
+    const runtime = new CLIRuntime({
+      processSpawner: (() => makeSubprocess() as never) as never,
+    });
+
+    const messages: SDKMessage[] = [];
+    for await (const message of runtime.execute({
+      prompt: "Hello",
+      agent: { name: "test-agent", configPath: "/tmp/agent.yaml" } as never,
+    })) {
+      messages.push(message);
+    }
+
+    const result = messages.find((m) => m.type === "result") as
+      | (SDKMessage & {
+          type: "result";
+          modelUsage?: Record<
+            string,
+            {
+              inputTokens: number;
+              outputTokens: number;
+              cacheCreationInputTokens: number;
+              cacheReadInputTokens: number;
+            }
+          >;
+        })
+      | undefined;
+
+    expect(result?.modelUsage).toBeDefined();
+    // Opus turns are summed across both messages; Haiku is its own bucket.
+    expect(result?.modelUsage?.["claude-opus-4-8"]).toEqual({
+      inputTokens: 150,
+      outputTokens: 40,
+      cacheCreationInputTokens: 50,
+      cacheReadInputTokens: 1000,
+    });
+    expect(result?.modelUsage?.["claude-haiku-4-5"]).toEqual({
+      inputTokens: 20,
+      outputTokens: 8,
+      cacheCreationInputTokens: 0,
+      cacheReadInputTokens: 0,
+    });
+  });
+
+  it("buckets usage under 'unknown' when an assistant message has no model", async () => {
+    watchMessages.push({
+      type: "assistant",
+      message: {
+        id: "msg-1",
+        stop_reason: "end_turn",
+        usage: { input_tokens: 12, output_tokens: 4 },
+        content: [{ type: "text", text: "no model field" }],
+      },
+    } as SDKMessage);
+
+    const runtime = new CLIRuntime({
+      processSpawner: (() => makeSubprocess() as never) as never,
+    });
+
+    const messages: SDKMessage[] = [];
+    for await (const message of runtime.execute({
+      prompt: "Hello",
+      agent: { name: "test-agent", configPath: "/tmp/agent.yaml" } as never,
+    })) {
+      messages.push(message);
+    }
+
+    const result = messages.find((m) => m.type === "result") as
+      | (SDKMessage & { type: "result"; modelUsage?: Record<string, { inputTokens: number }> })
+      | undefined;
+    expect(result?.modelUsage?.unknown?.inputTokens).toBe(12);
+  });
 });
 
 describe("CLIRuntime working directory / session resolution", () => {

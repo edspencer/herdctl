@@ -176,6 +176,93 @@ describe("JobExecutor", () => {
       expect(job?.duration_seconds).toBeGreaterThanOrEqual(0);
     });
 
+    it("persists per-model token accounting from the result message", async () => {
+      const messages: SDKMessage[] = [
+        { type: "system", content: "Start" },
+        { type: "assistant", content: "Working" },
+        {
+          type: "result",
+          subtype: "success",
+          result: "Task completed!",
+          num_turns: 4,
+          total_cost_usd: 0.2571,
+          usage: { input_tokens: 10, output_tokens: 20 },
+          // SDK per-model breakdown: an Opus main agent + a Haiku subagent.
+          modelUsage: {
+            "claude-opus-4-8": {
+              inputTokens: 800,
+              outputTokens: 400,
+              cacheCreationInputTokens: 100,
+              cacheReadInputTokens: 6000,
+              webSearchRequests: 0,
+              costUSD: 0.25,
+              contextWindow: 200000,
+            },
+            "claude-haiku-4-5": {
+              inputTokens: 120,
+              outputTokens: 40,
+              cacheCreationInputTokens: 0,
+              cacheReadInputTokens: 0,
+              webSearchRequests: 0,
+              costUSD: 0.0071,
+              contextWindow: 200000,
+            },
+          },
+        } as unknown as SDKMessage,
+      ];
+
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
+        logger: createMockLogger(),
+      });
+
+      const result = await executor.execute({
+        agent: createTestAgent(),
+        prompt: "Test prompt",
+        stateDir,
+      });
+
+      expect(result.success).toBe(true);
+
+      // Assert against the persisted job record on disk (real run path).
+      const job = await getJob(join(stateDir, "jobs"), result.jobId);
+      expect(job?.usage).toBeDefined();
+      expect(job?.usage?.num_turns).toBe(4);
+      expect(job?.usage?.total_cost_usd).toBeCloseTo(0.2571);
+      expect(Object.keys(job?.usage?.per_model ?? {})).toEqual([
+        "claude-opus-4-8",
+        "claude-haiku-4-5",
+      ]);
+      expect(job?.usage?.per_model["claude-opus-4-8"]).toEqual({
+        input_tokens: 800,
+        output_tokens: 400,
+        cache_creation_input_tokens: 100,
+        cache_read_input_tokens: 6000,
+      });
+      expect(job?.usage?.per_model["claude-haiku-4-5"].input_tokens).toBe(120);
+      // No $/token price table is persisted in herdctl state.
+      expect(job?.usage?.per_model["claude-opus-4-8"]).not.toHaveProperty("costUSD");
+    });
+
+    it("leaves usage null when the run produces no result message", async () => {
+      const messages: SDKMessage[] = [
+        { type: "system", content: "Start" },
+        { type: "assistant", content: "Done, no result summary" },
+      ];
+
+      const executor = new JobExecutor(createMockRuntimeWithMessages(messages), {
+        logger: createMockLogger(),
+      });
+
+      const result = await executor.execute({
+        agent: createTestAgent(),
+        prompt: "Test prompt",
+        stateDir,
+      });
+
+      const job = await getJob(join(stateDir, "jobs"), result.jobId);
+      expect(job?.usage).toBeNull();
+    });
+
     it("updates job with failed status on error", async () => {
       const messages: SDKMessage[] = [
         { type: "system", content: "Start" },

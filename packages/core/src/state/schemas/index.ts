@@ -31,6 +31,10 @@ export {
   JobMetadataSchema,
   type JobStatus,
   JobStatusSchema,
+  type ModelTokenUsage,
+  ModelTokenUsageSchema,
+  type RunUsage,
+  RunUsageSchema,
   type TriggerType,
   TriggerTypeSchema,
 } from "./job-metadata.js";
