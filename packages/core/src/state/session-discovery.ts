@@ -1045,6 +1045,16 @@ export class SessionDiscoveryService {
     // Runs only on a full scan (validSessionIdsByKey is undefined when a limit
     // was applied). Pruning writes only when it actually removes an entry, so a
     // steady-state listing with no dead sessions performs no extra writes.
+    //
+    // Known limitation: only keys discovered in *this* scan are reconciled. A
+    // directory with zero .jsonl files is skipped in Phase 1, so a key whose
+    // transcripts are ALL gone (e.g. an agent removed from config, orphaning its
+    // <agent>.json) contributes no entry here and is never pruned. This is
+    // mitigated for the primary offender — the shared "adhoc" key is reconciled
+    // as long as any one unattributed directory still has sessions. Fully
+    // reconciling orphaned metadata files would require enumerating
+    // session-metadata/*.json rather than only the keys seen this scan; that's a
+    // larger change left as a follow-up.
     if (validSessionIdsByKey) {
       for (const [metadataKey, validIds] of validSessionIdsByKey) {
         await this.sessionMetadataStore.prune(metadataKey, validIds);
