@@ -8,6 +8,7 @@
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { AgentNotFoundError } from "@herdctl/core";
 import Fastify, { type FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { registerAgentRoutes } from "../routes/agents.js";
@@ -772,11 +773,21 @@ describe("File Routes", () => {
 
   it("returns 404 for an unknown agent", async () => {
     mockFM.getAgentWorkingDirectory.mockImplementation(() => {
-      throw new Error("Agent not found: ghost");
+      throw new AgentNotFoundError("ghost");
     });
 
     const response = await server.inject({ method: "GET", url: "/files/ghost/note.txt" });
     expect(response.statusCode).toBe(404);
+  });
+
+  it("returns 500 for an unexpected resolution error (not a 404)", async () => {
+    mockFM.getAgentWorkingDirectory.mockImplementation(() => {
+      throw new Error("disk exploded");
+    });
+
+    const response = await server.inject({ method: "GET", url: "/files/coder/note.txt" });
+    expect(response.statusCode).toBe(500);
+    expect(response.json().error).toContain("disk exploded");
   });
 
   it("returns 404 when the agent has no working directory", async () => {

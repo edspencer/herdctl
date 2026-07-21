@@ -15,10 +15,9 @@
  * layout (`<workingDir>/<download_dir>/<uuid>/…`).
  */
 
-import { createReadStream } from "node:fs";
-import { realpath, stat } from "node:fs/promises";
+import { type FileHandle, open, realpath } from "node:fs/promises";
 import { extname, isAbsolute, relative, resolve, sep } from "node:path";
-import { createLogger, type FleetManager } from "@herdctl/core";
+import { createLogger, type FleetManager, isAgentNotFoundError } from "@herdctl/core";
 import type { FastifyInstance } from "fastify";
 
 const logger = createLogger("web:files");
@@ -89,10 +88,12 @@ export function registerFileRoutes(server: FastifyInstance, fleetManager: FleetM
       try {
         workingDir = fleetManager.getAgentWorkingDirectory(agentName);
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        if (message.toLowerCase().includes("not found")) {
-          return reply.status(404).send({ error: message, statusCode: 404 });
+        // Use the exported type guard rather than string-matching the message,
+        // so only a genuine unknown-agent error maps to 404.
+        if (isAgentNotFoundError(error)) {
+          return reply.status(404).send({ error: error.message, statusCode: 404 });
         }
+        const message = error instanceof Error ? error.message : String(error);
         return reply
           .status(500)
           .send({ error: `Failed to resolve agent: ${message}`, statusCode: 500 });
@@ -152,14 +153,27 @@ export function registerFileRoutes(server: FastifyInstance, fleetManager: FleetM
         });
       }
 
-      // Only serve regular files (never directories).
-      let stats: Awaited<ReturnType<typeof stat>>;
+      // Open the verified canonical path ONCE, then fstat and stream from that
+      // same fd. Re-touching the path string with a separate stat + read would
+      // leave a TOCTOU window where a symlink under the working directory could
+      // be swapped between the containment check and the read; binding to one
+      // fd closes it and honors this route's containment guarantee.
+      let handle: FileHandle;
       try {
-        stats = await stat(realPath);
+        handle = await open(realPath, "r");
       } catch {
         return reply.status(404).send({ error: "File not found", statusCode: 404 });
       }
+
+      let stats: Awaited<ReturnType<FileHandle["stat"]>>;
+      try {
+        stats = await handle.stat();
+      } catch {
+        await handle.close();
+        return reply.status(404).send({ error: "File not found", statusCode: 404 });
+      }
       if (!stats.isFile()) {
+        await handle.close();
         return reply.status(404).send({ error: "Not a file", statusCode: 404 });
       }
 
@@ -175,7 +189,8 @@ export function registerFileRoutes(server: FastifyInstance, fleetManager: FleetM
       reply.header("X-Content-Type-Options", "nosniff");
       reply.header("Content-Security-Policy", "default-src 'none'; sandbox");
       reply.type(contentTypeForPath(realPath));
-      return reply.send(createReadStream(realPath));
+      // The stream owns the fd and closes it when the response finishes/aborts.
+      return reply.send(handle.createReadStream());
     },
   );
 }
