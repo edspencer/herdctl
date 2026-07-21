@@ -1,5 +1,13 @@
 # @herdctl/slack
 
+## 1.2.33
+
+### Patch Changes
+
+- Updated dependencies [[`28d4d74`](https://github.com/edspencer/herdctl/commit/28d4d7454b478dfffe18a047b7dda9ad2d493082), [`08c40b8`](https://github.com/edspencer/herdctl/commit/08c40b89bd842c02781ba8cbd616e17f20d91704)]:
+  - @herdctl/core@5.23.0
+  - @herdctl/chat@0.8.0
+
 ## 1.2.32
 
 ### Patch Changes
