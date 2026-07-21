@@ -1,5 +1,27 @@
 # @herdctl/core
 
+## 5.23.0
+
+### Minor Changes
+
+- [#394](https://github.com/edspencer/herdctl/pull/394) [`28d4d74`](https://github.com/edspencer/herdctl/commit/28d4d7454b478dfffe18a047b7dda9ad2d493082) Thanks [@edspencer](https://github.com/edspencer)! - Preserve non-text image content blocks and serve workspace files for inline image display
+
+  Two complementary changes that together enable inline display of agent-produced and MCP-tool-returned images in a consuming web UI:
+
+  - **`@herdctl/core` / `@herdctl/chat` (#385):** message extraction and the SDK message translator no longer silently drop non-text content blocks when flattening a result to a plain string. Image blocks an agent emits inline, or that an MCP tool returns (e.g. a Playwright `browser_take_screenshot`), are now preserved. New `ExtractedImage` type and `normalizeImageBlock` / `isImageContentBlock` / `imageToDataUrl` helpers; `ToolResult.images` and `TranslatedToolCall.images` carry tool-returned images; `extractImageBlocks` / `hasImageContent` surface agent-emitted images and a new `onImages` translator handler exposes them. The text-only fallback is unchanged for consumers that don't handle images.
+
+  - **`@herdctl/web` (#386):** new guarded `GET /files/:agentName/*` route serves files from an agent's resolved working directory, with `realpath` containment protection against `..` traversal and symlink escapes. An agent can write an image into its working directory and emit markdown `![](/files/<agent>/<path>)`, which the dashboard's `MarkdownRenderer` now renders inline. Adds `FleetManager.getAgentWorkingDirectory(name)`.
+
+- [#396](https://github.com/edspencer/herdctl/pull/396) [`08c40b8`](https://github.com/edspencer/herdctl/commit/08c40b89bd842c02781ba8cbd616e17f20d91704) Thanks [@edspencer](https://github.com/edspencer)! - Persist per-run, per-model token accounting and SDK cost on the job record
+
+  herdctl already receives the SDK's authoritative `total_cost_usd` + `usage` on the terminal result message and aggregates CLI-runtime tokens, but discarded all of it before the final `updateJob`. The job record now carries a `usage` field capturing this accounting at run-end:
+
+  - **Per model** (`usage.per_model`, keyed by model id) — each model's four token classes (`input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`). A single run can span multiple models (e.g. an Opus main agent delegating to Haiku subagents), so counts are broken down per model rather than summed.
+  - **`usage.num_turns`** — total agentic turns reported by the runtime.
+  - **`usage.total_cost_usd`** — the SDK's own authoritative run cost, when reported. Absent for CLI / Max-plan runs that have no real per-token spend.
+
+  New `extractRunUsage` reader maps the SDK result's camelCase `modelUsage` to the persisted snake-case shape; the CLI runtime now aggregates per-model usage (incl. cache classes) into its synthesized result so both runtimes persist a uniform breakdown. Pricing stays out of herdctl — only raw token counts and the SDK's own cost figure are stored; the consuming app applies a price table. Additive and backward-compatible: existing job records without the field still parse, and headless fleets see no behaviour change.
+
 ## 5.22.2
 
 ### Patch Changes
