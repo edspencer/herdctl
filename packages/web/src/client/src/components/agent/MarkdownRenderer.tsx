@@ -126,6 +126,20 @@ export function MarkdownRenderer({ content, useSerif = false }: MarkdownRenderer
       );
     },
 
+    // Images (e.g. agent-produced images served at /files/…). Constrain so a
+    // large image can't blow out the chat column, and lazy-load.
+    img({ src, alt }: ComponentPropsWithoutRef<"img">) {
+      if (typeof src !== "string" || src.length === 0) return null;
+      return (
+        <img
+          src={src}
+          alt={alt ?? ""}
+          loading="lazy"
+          className="max-w-full h-auto rounded-lg border border-herd-border my-2"
+        />
+      );
+    },
+
     // Headers (capped at text-lg per design system)
     h1({ children }: ComponentPropsWithoutRef<"h1">) {
       return <h1 className="text-lg font-semibold text-herd-fg mt-4 mb-2">{children}</h1>;

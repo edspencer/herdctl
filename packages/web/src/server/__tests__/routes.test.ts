@@ -5,9 +5,13 @@
  * without needing a real server or network connections.
  */
 
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
-import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { registerAgentRoutes } from "../routes/agents.js";
+import { registerFileRoutes } from "../routes/files.js";
 import { registerFleetRoutes } from "../routes/fleet.js";
 import { registerJobRoutes } from "../routes/jobs.js";
 import { registerScheduleRoutes } from "../routes/schedules.js";
@@ -29,6 +33,7 @@ function createMockFleetManager() {
     forkJob: vi.fn(),
     getAgents: vi.fn().mockReturnValue([]),
     getStateDir: vi.fn().mockReturnValue("/tmp/test-state"),
+    getAgentWorkingDirectory: vi.fn(),
     on: vi.fn(),
     off: vi.fn(),
   };
@@ -648,5 +653,125 @@ describe("Schedule Routes", () => {
       expect(response.statusCode).toBe(500);
       expect(response.json().error).toContain("State save failed");
     });
+  });
+});
+
+// =============================================================================
+// File Routes (issue #386)
+// =============================================================================
+
+describe("File Routes", () => {
+  let server: FastifyInstance;
+  let mockFM: ReturnType<typeof createMockFleetManager>;
+  let workingDir: string;
+  // A 1x1 transparent PNG.
+  const PNG_BYTES = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "base64",
+  );
+
+  beforeEach(async () => {
+    workingDir = mkdtempSync(join(tmpdir(), "herdctl-files-test-"));
+    // Lay down the Discord-style attachment layout: <workingDir>/<download_dir>/<uuid>/<file>
+    const attachDir = join(workingDir, ".discord-attachments", "abc-123");
+    mkdirSync(attachDir, { recursive: true });
+    writeFileSync(join(attachDir, "shot.png"), PNG_BYTES);
+    writeFileSync(join(workingDir, "note.txt"), "hello");
+    // A secret file outside the working directory + a symlink to it inside.
+    const secret = join(tmpdir(), `herdctl-secret-${process.pid}.txt`);
+    writeFileSync(secret, "top secret");
+    try {
+      symlinkSync(secret, join(workingDir, "escape-link"));
+    } catch {
+      // Symlink creation may be unsupported in some CI sandboxes; the test that
+      // relies on it is resilient to a 404 as well as a 403.
+    }
+
+    server = Fastify();
+    mockFM = createMockFleetManager();
+    mockFM.getAgentWorkingDirectory.mockReturnValue(workingDir);
+    registerFileRoutes(server, mockFM as any);
+    await server.ready();
+  });
+
+  afterEach(() => {
+    rmSync(workingDir, { recursive: true, force: true });
+  });
+
+  it("serves a file with an inferred content-type", async () => {
+    const response = await server.inject({
+      method: "GET",
+      url: "/files/coder/.discord-attachments/abc-123/shot.png",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toBe("image/png");
+    expect(response.rawPayload.equals(PNG_BYTES)).toBe(true);
+    expect(mockFM.getAgentWorkingDirectory).toHaveBeenCalledWith("coder");
+  });
+
+  it("serves a text file from the working directory root", async () => {
+    const response = await server.inject({ method: "GET", url: "/files/coder/note.txt" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toContain("text/plain");
+    expect(response.body).toBe("hello");
+  });
+
+  it("rejects a path that escapes the working directory with 403", async () => {
+    const response = await server.inject({
+      method: "GET",
+      url: "/files/coder/..%2f..%2fetc%2fpasswd",
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json().error).toMatch(/escapes working directory/i);
+  });
+
+  it("rejects an absolute path with 403", async () => {
+    const response = await server.inject({
+      method: "GET",
+      url: "/files/coder/%2fetc%2fpasswd",
+    });
+
+    expect(response.statusCode).toBe(403);
+  });
+
+  it("does not follow a symlink out of the working directory", async () => {
+    const response = await server.inject({ method: "GET", url: "/files/coder/escape-link" });
+
+    // Either the symlink was created and containment blocked it (403), or the
+    // sandbox couldn't create the symlink so the target is simply missing (404).
+    expect([403, 404]).toContain(response.statusCode);
+    expect(response.body).not.toContain("top secret");
+  });
+
+  it("returns 404 for a missing file", async () => {
+    const response = await server.inject({ method: "GET", url: "/files/coder/nope.png" });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("returns 404 when the path is a directory", async () => {
+    const response = await server.inject({
+      method: "GET",
+      url: "/files/coder/.discord-attachments",
+    });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("returns 404 for an unknown agent", async () => {
+    mockFM.getAgentWorkingDirectory.mockImplementation(() => {
+      throw new Error("Agent not found: ghost");
+    });
+
+    const response = await server.inject({ method: "GET", url: "/files/ghost/note.txt" });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("returns 404 when the agent has no working directory", async () => {
+    mockFM.getAgentWorkingDirectory.mockReturnValue(undefined);
+
+    const response = await server.inject({ method: "GET", url: "/files/coder/note.txt" });
+    expect(response.statusCode).toBe(404);
   });
 });
