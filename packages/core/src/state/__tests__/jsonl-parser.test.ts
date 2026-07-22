@@ -333,6 +333,98 @@ describe("parseSessionMessages", () => {
 });
 
 // =============================================================================
+// parseSessionMessages - in-flight (pending) tool calls (#399)
+// =============================================================================
+
+describe("parseSessionMessages - pending tool calls", () => {
+  it("emits an unpaired tool_use as a single pending tool message", async () => {
+    // Transcript tail is `assistant text -> assistant tool_use` with NO
+    // tool_result yet (the turn is mid-flight). The running tool must still be
+    // surfaced instead of vanishing on rehydration.
+    const messages = await parseSessionMessages(fixture("pending-tool-session.jsonl"));
+
+    // user + assistant (text) + tool (pending) = 3
+    expect(messages.map((m) => m.role)).toEqual(["user", "assistant", "tool"]);
+
+    const toolMsg = messages[2];
+    expect(toolMsg.toolCall).toBeDefined();
+    expect(toolMsg.toolCall!.pending).toBe(true);
+    expect(toolMsg.toolCall!.toolName).toBe("Bash");
+    expect(toolMsg.toolCall!.inputSummary).toBe("pnpm test");
+    // A pending tool carries empty output, no error, and no duration.
+    expect(toolMsg.toolCall!.output).toBe("");
+    expect(toolMsg.toolCall!.isError).toBe(false);
+    expect(toolMsg.toolCall!.durationMs).toBeUndefined();
+    // Top-level content stays empty for tool messages, pending or not.
+    expect(toolMsg.content).toBe("");
+    // Anchored to the originating tool_use entry's uuid.
+    expect(toolMsg.uuid).toBe("uuid-pending-asst-tooluse");
+  });
+
+  it("upgrades the SAME message in place when the tool_result arrives (no duplicate)", async () => {
+    // Same transcript as pending-tool-session, plus the matching tool_result.
+    const messages = await parseSessionMessages(fixture("pending-tool-resolved-session.jsonl"));
+
+    // Still exactly one tool message — the pending entry is upgraded, not
+    // duplicated.
+    expect(messages.map((m) => m.role)).toEqual(["user", "assistant", "tool"]);
+    const toolMessages = messages.filter((m) => m.role === "tool");
+    expect(toolMessages).toHaveLength(1);
+
+    const toolMsg = messages[2];
+    // Now completed: pending flag dropped (falsy), output + duration populated.
+    expect(toolMsg.toolCall!.pending).toBeFalsy();
+    expect(toolMsg.toolCall!.toolName).toBe("Bash");
+    expect(toolMsg.toolCall!.output).toBe("All tests passed");
+    expect(toolMsg.toolCall!.isError).toBe(false);
+    // 12:00:03 -> 12:00:06 = 3000ms
+    expect(toolMsg.toolCall!.durationMs).toBe(3000);
+    // uuid is preserved across the pending -> complete transition, so per-message
+    // UI state (and the pending-parse's uuid) stays stable.
+    expect(toolMsg.uuid).toBe("uuid-pending-asst-tooluse");
+  });
+
+  it("keeps the same uuid across the pending and resolved parses", async () => {
+    const pendingParse = await parseSessionMessages(fixture("pending-tool-session.jsonl"));
+    const resolvedParse = await parseSessionMessages(
+      fixture("pending-tool-resolved-session.jsonl"),
+    );
+
+    const pendingTool = pendingParse.find((m) => m.role === "tool");
+    const resolvedTool = resolvedParse.find((m) => m.role === "tool");
+    expect(pendingTool!.uuid).toBe(resolvedTool!.uuid);
+    expect(pendingTool!.toolCall!.pending).toBe(true);
+    expect(resolvedTool!.toolCall!.pending).toBeFalsy();
+  });
+
+  it("preserves chronological order when a pending tool_use precedes later assistant text", async () => {
+    const messages = await parseSessionMessages(fixture("pending-then-text-session.jsonl"));
+
+    // The pending tool sits in its correct position: BEFORE the later assistant
+    // text, not appended at the end.
+    expect(messages.map((m) => m.role)).toEqual(["user", "assistant", "tool", "assistant"]);
+    expect(messages[1].content).toBe("Starting the build.");
+    expect(messages[2].toolCall!.pending).toBe(true);
+    expect(messages[2].toolCall!.toolName).toBe("Bash");
+    expect(messages[3].content).toBe("Kicked it off — I'll report back when it finishes.");
+  });
+
+  it("respects the limit option with pending tool messages", async () => {
+    // Full parse yields 4 messages (user, assistant, pending tool, assistant).
+    const full = await parseSessionMessages(fixture("pending-then-text-session.jsonl"));
+    expect(full).toHaveLength(4);
+
+    // A limit of 3 stops right after the pending tool message is emitted.
+    const limited = await parseSessionMessages(fixture("pending-then-text-session.jsonl"), {
+      limit: 3,
+    });
+    expect(limited).toHaveLength(3);
+    expect(limited.map((m) => m.role)).toEqual(["user", "assistant", "tool"]);
+    expect(limited[2].toolCall!.pending).toBe(true);
+  });
+});
+
+// =============================================================================
 // parseSessionMessages - stable per-message uuid
 // =============================================================================
 
