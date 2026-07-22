@@ -40,7 +40,6 @@ const mockGetSidechain = vi.fn().mockResolvedValue(undefined);
 const mockBatchSetSidechains = vi.fn().mockResolvedValue(undefined);
 const mockGetUsage = vi.fn().mockResolvedValue(undefined);
 const mockSetUsage = vi.fn().mockResolvedValue(undefined);
-const mockPrune = vi.fn().mockResolvedValue(0);
 vi.mock("../session-metadata.js", () => {
   return {
     SessionMetadataStore: class MockSessionMetadataStore {
@@ -53,7 +52,6 @@ vi.mock("../session-metadata.js", () => {
       batchSetSidechains = mockBatchSetSidechains;
       getUsage = mockGetUsage;
       setUsage = mockSetUsage;
-      prune = mockPrune;
     },
   };
 });
@@ -161,8 +159,6 @@ describe("SessionDiscoveryService", () => {
     mockGetUsage.mockResolvedValue(undefined);
     mockSetUsage.mockReset();
     mockSetUsage.mockResolvedValue(undefined);
-    mockPrune.mockReset();
-    mockPrune.mockResolvedValue(0);
 
     // Reset JSONL parser mocks
     mockExtractLastSummary.mockReset();
@@ -569,6 +565,168 @@ describe("SessionDiscoveryService", () => {
       // ...but stayed bounded by the concurrency cap.
       expect(maxInFlight).toBeLessThanOrEqual(16);
     });
+
+    // =========================================================================
+    // Worktree-aware discovery (issue #401)
+    //
+    // Claude Code's native git-worktree support relocates a session's transcript
+    // to the worktree's cwd bucket (`<workingDir>/.claude/worktrees/<name>`) when
+    // the agent enters a worktree. That bucket encodes to a DIFFERENT
+    // ~/.claude/projects/* directory than the agent's registered working dir, so
+    // getAgentSessions must union descendant buckets to keep those sessions
+    // discoverable.
+    // =========================================================================
+    describe("worktree-aware discovery", () => {
+      const workingDir = "/Users/ed/Code/myproject";
+      const primaryEncoded = "-Users-ed-Code-myproject";
+      // <workingDir>/.claude/worktrees/feature-x → every non-alphanumeric char
+      // becomes a hyphen, so `/.claude` collapses to `--claude`.
+      const worktreeEncoded = "-Users-ed-Code-myproject--claude-worktrees-feature-x";
+
+      it("lists a session that relocated into a native git worktree bucket", async () => {
+        const primaryDir = join(tempClaudeHome, "projects", primaryEncoded);
+        const worktreeDir = join(tempClaudeHome, "projects", worktreeEncoded);
+        await mkdir(primaryDir, { recursive: true });
+        await mkdir(worktreeDir, { recursive: true });
+        await createSessionFile(primaryDir, "session-checkout");
+        await createSessionFile(worktreeDir, "session-worktree");
+
+        const service = new SessionDiscoveryService({
+          claudeHomePath: tempClaudeHome,
+          stateDir: tempStateDir,
+        });
+
+        const sessions = await service.getAgentSessions("my-agent", workingDir, false);
+
+        // Both the checkout-bucket session AND the worktree-bucket session appear.
+        expect(sessions.map((s) => s.sessionId).sort()).toEqual([
+          "session-checkout",
+          "session-worktree",
+        ]);
+      });
+
+      it("lists a worktree-only session exactly once (no duplicate)", async () => {
+        // The transcript RELOCATED — it exists only in the worktree bucket, and
+        // the agent's own bucket may not even exist on disk.
+        const worktreeDir = join(tempClaudeHome, "projects", worktreeEncoded);
+        await mkdir(worktreeDir, { recursive: true });
+        await createSessionFile(worktreeDir, "session-worktree");
+
+        const service = new SessionDiscoveryService({
+          claudeHomePath: tempClaudeHome,
+          stateDir: tempStateDir,
+        });
+
+        const sessions = await service.getAgentSessions("my-agent", workingDir, false);
+
+        expect(sessions.map((s) => s.sessionId)).toEqual(["session-worktree"]);
+        // Reported workingDirectory is the worktree's own path, so downstream
+        // transcript reads (getSessionMessages) resolve to the right bucket.
+        expect(sessions[0].workingDirectory).toContain("worktrees");
+        expect(sessions[0].resumable).toBe(true);
+      });
+
+      it("sorts across the unioned buckets and honours the top-N limit", async () => {
+        const primaryDir = join(tempClaudeHome, "projects", primaryEncoded);
+        const worktreeDir = join(tempClaudeHome, "projects", worktreeEncoded);
+        await mkdir(primaryDir, { recursive: true });
+        await mkdir(worktreeDir, { recursive: true });
+
+        // session-b (worktree) is chronologically BETWEEN the two checkout
+        // sessions, so a correct merge must interleave across buckets.
+        await createSessionFile(primaryDir, "session-a");
+        await createSessionFile(worktreeDir, "session-b");
+        await createSessionFile(primaryDir, "session-c");
+
+        const now = Date.now();
+        const oldest = new Date(now - 30000);
+        const middle = new Date(now - 20000);
+        const newest = new Date(now - 10000);
+        await utimes(join(primaryDir, "session-a.jsonl"), oldest, oldest);
+        await utimes(join(worktreeDir, "session-b.jsonl"), middle, middle);
+        await utimes(join(primaryDir, "session-c.jsonl"), newest, newest);
+
+        const service = new SessionDiscoveryService({
+          claudeHomePath: tempClaudeHome,
+          stateDir: tempStateDir,
+        });
+
+        const sessions = await service.getAgentSessions("my-agent", workingDir, false);
+        expect(sessions.map((s) => s.sessionId)).toEqual(["session-c", "session-b", "session-a"]);
+
+        // Top-N limit is applied across the merged, mtime-desc set.
+        const limited = await service.getAgentSessions("my-agent", workingDir, false, {
+          limit: 2,
+        });
+        expect(limited.map((s) => s.sessionId)).toEqual(["session-c", "session-b"]);
+      });
+
+      it("does not union an unrelated project's bucket", async () => {
+        const primaryDir = join(tempClaudeHome, "projects", primaryEncoded);
+        // A sibling PROJECT (not a descendant): /Users/ed/Code/otherproject.
+        const otherDir = join(tempClaudeHome, "projects", "-Users-ed-Code-otherproject");
+        await mkdir(primaryDir, { recursive: true });
+        await mkdir(otherDir, { recursive: true });
+        await createSessionFile(primaryDir, "session-mine");
+        await createSessionFile(otherDir, "session-other");
+
+        const service = new SessionDiscoveryService({
+          claudeHomePath: tempClaudeHome,
+          stateDir: tempStateDir,
+        });
+
+        // Even though the default attribution maps every session to "my-agent",
+        // the unrelated bucket is not a descendant so it's never scanned.
+        const sessions = await service.getAgentSessions("my-agent", workingDir, false);
+        expect(sessions.map((s) => s.sessionId)).toEqual(["session-mine"]);
+      });
+
+      it("still gates worktree-bucket sessions through attribution", async () => {
+        const worktreeDir = join(tempClaudeHome, "projects", worktreeEncoded);
+        await mkdir(worktreeDir, { recursive: true });
+        await createSessionFile(worktreeDir, "session-worktree");
+
+        // The worktree session is attributed to a DIFFERENT agent.
+        mockBuildAttributionIndex.mockResolvedValue(
+          createMockAttributionIndex({
+            getAttribute: () => ({
+              origin: "native",
+              agentName: "other-agent",
+              triggerType: undefined,
+            }),
+          }),
+        );
+
+        const service = new SessionDiscoveryService({
+          claudeHomePath: tempClaudeHome,
+          stateDir: tempStateDir,
+        });
+
+        // Unioning the bucket must not cross-attribute it to my-agent.
+        const sessions = await service.getAgentSessions("my-agent", workingDir, false);
+        expect(sessions).toHaveLength(0);
+      });
+
+      it("does not scan worktree buckets for Docker agents", async () => {
+        // Docker agents use the flat host docker-sessions dir; a stray descendant
+        // bucket under ~/.claude/projects must not leak into their listing.
+        const worktreeDir = join(tempClaudeHome, "projects", worktreeEncoded);
+        await mkdir(worktreeDir, { recursive: true });
+        await createSessionFile(worktreeDir, "session-worktree");
+
+        const dockerSessionDir = join(tempStateDir, "docker-sessions");
+        await mkdir(dockerSessionDir, { recursive: true });
+        await createSessionFile(dockerSessionDir, "session-docker");
+
+        const service = new SessionDiscoveryService({
+          claudeHomePath: tempClaudeHome,
+          stateDir: tempStateDir,
+        });
+
+        const sessions = await service.getAgentSessions("my-agent", workingDir, true);
+        expect(sessions.map((s) => s.sessionId)).toEqual(["session-docker"]);
+      });
+    });
   });
 
   // ===========================================================================
@@ -576,69 +734,6 @@ describe("SessionDiscoveryService", () => {
   // ===========================================================================
 
   describe("getAllSessions", () => {
-    // Issue #168: stale metadata reconciliation.
-    describe("stale metadata pruning (#168)", () => {
-      it("prunes each metadata key with the union of live sessionIds on a full scan", async () => {
-        // Two unattributed directories → both share the "adhoc" metadata key.
-        const adhocDir1 = join(tempClaudeHome, "projects", "-Users-ed-Code-loose1");
-        const adhocDir2 = join(tempClaudeHome, "projects", "-Users-ed-Code-loose2");
-        await mkdir(adhocDir1, { recursive: true });
-        await mkdir(adhocDir2, { recursive: true });
-        await createSessionFile(adhocDir1, "adhoc-a");
-        await createSessionFile(adhocDir2, "adhoc-b");
-
-        // An attributed agent directory → its own metadata key.
-        const agentDir = join(tempClaudeHome, "projects", "-Users-ed-Code-myproject");
-        await mkdir(agentDir, { recursive: true });
-        await createSessionFile(agentDir, "agent-a");
-
-        const service = new SessionDiscoveryService({
-          claudeHomePath: tempClaudeHome,
-          stateDir: tempStateDir,
-        });
-
-        await service.getAllSessions([
-          {
-            name: "my-fleet/my-agent",
-            workingDirectory: "/Users/ed/Code/myproject",
-            dockerEnabled: false,
-          },
-        ]);
-
-        // Collect the (key -> validIds) pairs prune was invoked with.
-        const pruneCalls = new Map<string, Set<string>>(
-          mockPrune.mock.calls.map(([key, ids]) => [key as string, ids as Set<string>]),
-        );
-
-        // adhoc is pruned once, with the UNION of both loose dirs' live sessions.
-        expect(pruneCalls.has("adhoc")).toBe(true);
-        expect([...pruneCalls.get("adhoc")!].sort()).toEqual(["adhoc-a", "adhoc-b"]);
-
-        // The attributed agent is pruned against its own live session.
-        expect(pruneCalls.has("my-fleet/my-agent")).toBe(true);
-        expect([...pruneCalls.get("my-fleet/my-agent")!]).toEqual(["agent-a"]);
-      });
-
-      it("does NOT prune on a limited scan (partial enumeration)", async () => {
-        // A limited scan only enriches the top-N sessions, so it does not see
-        // every session — pruning off it would wrongly delete live entries.
-        const adhocDir = join(tempClaudeHome, "projects", "-Users-ed-Code-loose");
-        await mkdir(adhocDir, { recursive: true });
-        await createSessionFile(adhocDir, "adhoc-a");
-        await createSessionFile(adhocDir, "adhoc-b");
-        await createSessionFile(adhocDir, "adhoc-c");
-
-        const service = new SessionDiscoveryService({
-          claudeHomePath: tempClaudeHome,
-          stateDir: tempStateDir,
-        });
-
-        await service.getAllSessions([], { limit: 1 });
-
-        expect(mockPrune).not.toHaveBeenCalled();
-      });
-    });
-
     it("returns directory groups for all project directories", async () => {
       // Create multiple project directories
       const projectDir1 = join(tempClaudeHome, "projects", "-Users-ed-Code-project1");
