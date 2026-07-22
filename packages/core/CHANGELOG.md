@@ -1,5 +1,48 @@
 # @herdctl/core
 
+## 5.24.0
+
+### Minor Changes
+
+- [#400](https://github.com/edspencer/herdctl/pull/400) [`c7af475`](https://github.com/edspencer/herdctl/commit/c7af47532c4d9318b175e24e71de2e0a331da17f) Thanks [@edspencer](https://github.com/edspencer)! - Surface in-flight (unpaired) tool calls when rehydrating a transcript. `parseSessionMessages` now emits a `tool_use` block that has no matching `tool_result` yet as a `role:"tool"` message in a pending state (`ChatToolCall.pending: true`, empty output, no duration), and upgrades that same message in place — preserving its `uuid` and chronological position — when the `tool_result` later arrives. Previously an in-flight tool call was stashed and never emitted, so a running tool (e.g. a foreground `Agent`/Task sub-agent) vanished from the reconstructed history on page refresh (#399). Adds the optional `pending?: boolean` discriminator to the `ChatToolCall` interface so consumers can render a running spinner.
+
+- [#402](https://github.com/edspencer/herdctl/pull/402) [`0199ea7`](https://github.com/edspencer/herdctl/commit/0199ea7ef83c57ac8804b21da7ee722ba197f81f) Thanks [@edspencer](https://github.com/edspencer)! - Make `getAgentSessions` worktree-aware so sessions that enter a native git worktree stay discoverable (#401)
+
+  `SessionDiscoveryService.getAgentSessions` discovered sessions from a single
+  `~/.claude/projects/{encoded-workingDir}` bucket. But Claude Code's native
+  git-worktree support (≥ 2.1.198) deliberately relocates a session's transcript to
+  the worktree's cwd bucket when the agent enters a worktree (worktrees live at
+  `<workingDir>/.claude/worktrees/<name>`). That bucket encodes to a _different_
+  directory, so a session that entered a worktree silently dropped out of
+  discovery/attribution even though its transcript was intact — making the chat
+  render empty downstream (e.g. in Paddock).
+
+  Discovery now unions the agent's own bucket with every `~/.claude/projects/*`
+  bucket whose decoded path is a strict descendant of the working directory (covers
+  `.claude/worktrees/*` and any subdir the agent `cd`s into). The union is deduped
+  by session id, re-sorted mtime-descending, and the top-N `limit` enrichment is
+  applied across the whole set. Attribution (keyed on session id) still gates which
+  sessions map to the agent, so over-included buckets contribute nothing spurious;
+  per-bucket listings reuse the mtime-cache to bound the extra `readdir` cost. The
+  Docker path (flat host `docker-sessions/` dir) is unchanged.
+
+  This follows Claude Code's model rather than fighting it — the resumed session is
+  intentionally left in its worktree bucket, not pinned back to the checkout.
+
+### Patch Changes
+
+- [#397](https://github.com/edspencer/herdctl/pull/397) [`65cd839`](https://github.com/edspencer/herdctl/commit/65cd8396bd9c54e1665785277615546131acad5a) Thanks [@edspencer](https://github.com/edspencer)! - Prune stale session metadata entries during full session scans (#168)
+
+  `SessionMetadataStore` accumulated autoName/preview/sidechain/usage cache entries
+  for every discovered session but never removed them, so files like `adhoc.json`
+  grew unboundedly — entries persisted long after the underlying JSONL transcript
+  was deleted. Added `SessionMetadataStore.prune(agentName, validSessionIds)` and
+  wired it into `getAllSessions()`, which reconciles each metadata key against the
+  sessions still present on disk. Pruning runs only on a full (unlimited)
+  enumeration and unions valid sessionIds across every directory sharing a key
+  (all unattributed dirs share `"adhoc"`), so a limited/top-N scan never deletes
+  live entries, and it writes only when something was actually removed.
+
 ## 5.23.0
 
 ### Minor Changes
