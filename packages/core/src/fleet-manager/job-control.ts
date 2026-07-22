@@ -18,7 +18,7 @@ import {
   SDKRuntime,
   type SlashCommand,
 } from "../runner/index.js";
-import type { ManagedSession, SessionLifecycleSignal } from "../session/index.js";
+import type { ManagedSession, SessionLifecycleSignal, SessionReaper } from "../session/index.js";
 import { createJob, getJob, getSessionInfo, readJobOutputAll, updateJob } from "../state/index.js";
 import type { JobMetadata } from "../state/schemas/job-metadata.js";
 import type { FleetManagerContext } from "./context.js";
@@ -37,11 +37,22 @@ import { buildJobOutputPayload } from "./job-output-mapper.js";
 import type {
   CancelJobResult,
   ChatSessionOptions,
+  FleetManagerLogger,
   ForkJobResult,
   JobModifications,
   TriggerOptions,
   TriggerResult,
 } from "./types.js";
+
+/**
+ * Default ceiling for {@link JobControl.deferResumeUntilReaped}: how long a
+ * resume waits for a still-live session to be reaped before spawning anyway.
+ * Overridable per call via {@link ChatSessionOptions.resumeDeferTimeoutMs}.
+ * Generous enough to outlast normal background work (the reaper's re-invocation
+ * grace is ~15s, background tasks can run longer) yet bounded so a leaked /
+ * never-reaped session can't hang the caller indefinitely (edspencer/herdctl#403).
+ */
+const DEFAULT_RESUME_DEFER_TIMEOUT_MS = 5 * 60_000;
 
 // =============================================================================
 // JobControl Class
@@ -392,6 +403,30 @@ export class JobControl {
       throw new StreamingSessionUnsupportedError(agentName, { runtime: "docker" });
     }
 
+    // #403 guard: never spawn a second `claude` for a session id that already
+    // has a live subprocess. The SessionReaper deliberately keeps a subprocess
+    // alive across the turn boundary while background work runs (keepAlive) or
+    // during the ~15s re-invocation grace (session-reaper.ts); resuming that same
+    // id in that window launches a competing `claude`, and the SDK resolves the
+    // collision by interrupting the in-flight turn ([Request interrupted by
+    // user]). The wake registry already skips live sessions before firing
+    // (wake-registry.ts) — openChatSession was the one resume path missing the
+    // equivalent guard. So when a real resume targets a still-live session, defer
+    // it until the reaper reaps that session (idle), then spawn exactly as a
+    // normal fresh resume would. A fresh session (no `sessionId`) can't collide
+    // and is unaffected; the wake path never reaches here with a live id (it
+    // pre-filters), so there is no double-guard deadlock.
+    const lifecycleManager = this.ctx.getSessionLifecycle?.() ?? undefined;
+    if (sessionId && lifecycleManager?.reaper.isSessionLive(sessionId)) {
+      await this.deferResumeUntilReaped(
+        lifecycleManager.reaper,
+        sessionId,
+        agentName,
+        options?.resumeDeferTimeoutMs,
+        logger,
+      );
+    }
+
     const runtime = new SDKRuntime();
     logger.info(`Opening streaming chat session for ${agentName} (sdk runtime)`);
 
@@ -400,7 +435,7 @@ export class JobControl {
     // created after the session (it needs the session to close it), so signals
     // are forwarded through a late-bound reference — safe because the first
     // signal only arrives at the first turn's end, well after `manage()` runs.
-    const lifecycle = options?.manageLifecycle ? this.ctx.getSessionLifecycle?.() : undefined;
+    const lifecycle = options?.manageLifecycle ? lifecycleManager : undefined;
     let managed: ManagedSession | undefined;
     const onLifecycleSignal = lifecycle
       ? (signal: SessionLifecycleSignal) => managed?.handleSignal(signal)
@@ -421,6 +456,46 @@ export class JobControl {
     }
 
     return session;
+  }
+
+  /**
+   * Block a resume until the reaper reports its target session no longer live.
+   *
+   * The reaper holds a subprocess open across the turn boundary while it has
+   * background work or during the re-invocation grace; resuming in that window
+   * would spawn a second `claude` on the same session id and the SDK would
+   * interrupt the in-flight turn (edspencer/herdctl#403). Waiting event-driven on
+   * {@link SessionReaper.whenSessionReaped} lets the resume proceed the instant
+   * the session is reaped (re-checking `isSessionLive` each pass guards the rare
+   * case where a new session re-registers the same id). A ceiling bounds the wait
+   * so a leaked / never-reaped session can't hang the caller forever — on ceiling
+   * we log and spawn anyway, which is no worse than the pre-#403 behavior of
+   * always spawning immediately.
+   */
+  private async deferResumeUntilReaped(
+    reaper: SessionReaper,
+    sessionId: string,
+    agentName: string,
+    timeoutMs: number | undefined,
+    logger: FleetManagerLogger,
+  ): Promise<void> {
+    const ceilingMs = timeoutMs ?? DEFAULT_RESUME_DEFER_TIMEOUT_MS;
+    logger.info(
+      `Session ${sessionId} (${agentName}) still live; deferring resume until reaped (#403)`,
+    );
+    const start = Date.now();
+    while (reaper.isSessionLive(sessionId)) {
+      const remaining = ceilingMs - (Date.now() - start);
+      if (remaining <= 0) {
+        logger.warn(
+          `Session ${sessionId} (${agentName}) still live after ${ceilingMs}ms; ` +
+            `resuming anyway (#403)`,
+        );
+        return;
+      }
+      await raceWithTimeout(reaper.whenSessionReaped(sessionId), remaining);
+    }
+    logger.debug(`Session ${sessionId} (${agentName}) reaped; resuming (#403)`);
   }
 
   /**
@@ -930,6 +1005,29 @@ export class JobControl {
     // If working directory is an object with root property
     return agent.working_directory.root;
   }
+}
+
+/**
+ * Resolve when `promise` settles or after `ms` elapses, whichever comes first.
+ *
+ * The timer is `unref`'d so a pending defer wait never single-handedly holds the
+ * process open, and cleared once either side wins so no stray timer lingers.
+ * Used by {@link JobControl.deferResumeUntilReaped} to bound a resume's wait for
+ * a still-live session (edspencer/herdctl#403).
+ */
+function raceWithTimeout(promise: Promise<void>, ms: number): Promise<void> {
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    timer.unref?.();
+    void promise.then(done, done);
+  });
 }
 
 /**

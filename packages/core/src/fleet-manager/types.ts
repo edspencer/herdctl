@@ -744,6 +744,21 @@ export interface ChatSessionOptions {
    * legacy behavior (no lifecycle management — the caller owns `close()`).
    */
   manageLifecycle?: boolean;
+
+  /**
+   * Max time (ms) to defer a resume while its target session is still live.
+   *
+   * When resuming a session id that the {@link SessionReaper} is still holding
+   * alive across the turn boundary (background work or the re-invocation grace),
+   * `openChatSession` waits for that subprocess to be reaped before spawning,
+   * rather than launching a second competing `claude` that the SDK would resolve
+   * by interrupting the in-flight turn (edspencer/herdctl#403). This bounds that
+   * wait: if the session has not been reaped within the window, the resume spawns
+   * anyway (no worse than the pre-#403 immediate spawn). Defaults to a few minutes
+   * — long enough to outlast normal background work, short enough that a leaked /
+   * never-reaped session can't hang the caller forever.
+   */
+  resumeDeferTimeoutMs?: number;
 }
 
 /**

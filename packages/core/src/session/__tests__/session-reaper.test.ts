@@ -254,6 +254,50 @@ describe("SessionReaper", () => {
     expect(reaper.isSessionLive("sess-1")).toBe(false);
   });
 
+  // #403: `openChatSession` awaits whenSessionReaped to defer a resume off a
+  // still-live session, so it never spawns a second `claude` on the same id.
+  it("whenSessionReaped resolves immediately for a session that is not live", async () => {
+    const reaper = new SessionReaper({ registry: fakeRegistry() });
+    // No session with this id has ever registered → resolves right away.
+    await expect(
+      Promise.race([reaper.whenSessionReaped("sess-1"), tick().then(() => "pending")]),
+    ).resolves.toBeUndefined();
+  });
+
+  it("whenSessionReaped resolves when a live session is later reaped", async () => {
+    const reaper = new SessionReaper({ registry: fakeRegistry() });
+    const managed = reaper.manage(fakeSession(), "team/agent");
+
+    // Turn ends with background work → kept alive → live per the reaper.
+    await managed.handleSignal(signal({ backgroundTasks: [TASK] }));
+    expect(reaper.isSessionLive("sess-1")).toBe(true);
+
+    let resolved = false;
+    const waited = reaper.whenSessionReaped("sess-1").then(() => {
+      resolved = true;
+    });
+    // Still live → the waiter must not have resolved yet.
+    await tick();
+    expect(resolved).toBe(false);
+
+    // Background work drains at a real turn_end → reap → waiter resolves.
+    await managed.handleSignal(signal({ backgroundTasks: [] }));
+    await waited;
+    expect(resolved).toBe(true);
+    expect(reaper.isSessionLive("sess-1")).toBe(false);
+  });
+
+  it("whenSessionReaped resolves when a live session is detached", async () => {
+    const reaper = new SessionReaper({ registry: fakeRegistry() });
+    const managed = reaper.manage(fakeSession(), "team/agent");
+    await managed.handleSignal(signal({ kind: "activity" }));
+    expect(reaper.isSessionLive("sess-1")).toBe(true);
+
+    const waited = reaper.whenSessionReaped("sess-1");
+    managed.detach();
+    await expect(waited).resolves.toBeUndefined();
+  });
+
   it("ignores signals after the session has been reaped", async () => {
     const registry = fakeRegistry();
     const reaper = new SessionReaper({ registry });
