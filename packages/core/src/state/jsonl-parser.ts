@@ -61,6 +61,17 @@ export interface ChatToolCall {
   output: string;
   isError: boolean;
   durationMs?: number;
+  /**
+   * `true` while the tool call is still in flight — a `tool_use` block whose
+   * matching `tool_result` has not been seen yet (the turn was mid-flight when
+   * the transcript was read). A pending tool call carries `output: ""`,
+   * `isError: false`, and no `durationMs`; consumers render it as a running
+   * spinner instead of a completed block. When the `tool_result` arrives the
+   * same tool message is upgraded in place (its `uuid` is preserved) and this
+   * flag is dropped, so a completed call has `pending` absent/falsy (issue
+   * #399). Omitted entirely for tools that were already complete at parse time.
+   */
+  pending?: boolean;
 }
 
 /**
@@ -102,6 +113,14 @@ interface PendingToolUse {
   timestamp: string;
   /** `uuid` of the assistant entry that originated this tool_use, if any. */
   uuid?: string;
+  /**
+   * Index in the emitted `messages` array of the in-flight (`pending: true`)
+   * tool message created when this tool_use was seen. Set once the pending
+   * message is emitted so the matching `tool_result` can upgrade that same
+   * entry in place rather than pushing a duplicate. Undefined if the pending
+   * message was not emitted (e.g. the `limit` cap was already reached).
+   */
+  messageIndex?: number;
 }
 
 // =============================================================================
@@ -197,8 +216,12 @@ function createLineReader(filePath: string): Promise<ReturnType<typeof createInt
  * Streams the file line by line for memory efficiency. Handles:
  * - Plain user text messages
  * - Assistant text messages (deduplicated by message.id)
- * - Tool use blocks from assistant messages (stored as pending)
- * - Tool result blocks from user messages (paired with pending tool uses)
+ * - Tool use blocks from assistant messages (emitted immediately as a
+ *   `pending: true` tool message so an in-flight tool call is visible on a
+ *   transcript rehydration — issue #399)
+ * - Tool result blocks from user messages (upgrade the matching pending tool
+ *   message in place — preserving its uuid and position — rather than pushing a
+ *   duplicate)
  *
  * @param sessionFilePath - Absolute path to the .jsonl file
  * @param options - Optional settings (limit caps total messages returned)
@@ -259,8 +282,6 @@ export async function parseSessionMessages(
         );
 
         for (const result of toolResults) {
-          if (limit !== undefined && messages.length >= limit) break;
-
           const pending = result.toolUseId ? pendingToolUses.get(result.toolUseId) : undefined;
 
           const toolName = pending?.name ?? "unknown";
@@ -278,27 +299,48 @@ export async function parseSessionMessages(
             }
           }
 
-          messages.push({
-            role: "tool",
-            // Tool output lives on `toolCall.output` (below); consumers render
-            // tool messages from there, never from top-level `content`. Keeping a
-            // second copy here doubled the (often large) tool-output bytes in the
-            // serialized payload, so leave `content` empty for tool messages.
-            content: "",
-            timestamp,
-            // Anchor to the originating tool_use entry so the id is stable and
-            // distinct even when several tool_results share one user line. Fall
-            // back to this tool_result line's own uuid for an orphan result that
-            // never matched a pending tool_use.
-            uuid: pending?.uuid ?? uuid,
-            toolCall: {
-              toolName,
-              inputSummary,
-              output: result.output,
-              isError: result.isError,
-              durationMs,
-            },
-          });
+          // Completed form — `pending` is dropped entirely so a finished call is
+          // `pending`-absent (falsy).
+          const completedToolCall: ChatToolCall = {
+            toolName,
+            inputSummary,
+            output: result.output,
+            isError: result.isError,
+            durationMs,
+          };
+
+          if (pending?.messageIndex !== undefined) {
+            // Upgrade the already-emitted in-flight tool message in place: same
+            // array position, same uuid — only the toolCall payload changes from
+            // pending to completed. No new message, so no `limit` check here (we
+            // are not growing `messages`). The result-line timestamp replaces the
+            // tool_use timestamp so a completed tool carries its completion time,
+            // matching the pre-#399 behaviour.
+            const existing = messages[pending.messageIndex];
+            existing.timestamp = timestamp;
+            existing.toolCall = completedToolCall;
+          } else {
+            // Orphan result (no matching tool_use was seen/emitted, or its pending
+            // message was suppressed by `limit`): push a fresh completed message,
+            // still honouring the limit cap.
+            if (limit !== undefined && messages.length >= limit) break;
+
+            messages.push({
+              role: "tool",
+              // Tool output lives on `toolCall.output`; consumers render tool
+              // messages from there, never from top-level `content`. Keeping a
+              // second copy here doubled the (often large) tool-output bytes in
+              // the serialized payload, so leave `content` empty.
+              content: "",
+              timestamp,
+              // Anchor to the originating tool_use entry so the id is stable and
+              // distinct even when several tool_results share one user line. Fall
+              // back to this tool_result line's own uuid for an orphan result that
+              // never matched a pending tool_use.
+              uuid: pending?.uuid ?? uuid,
+              toolCall: completedToolCall,
+            });
+          }
 
           // Clean up matched pending tool use
           if (result.toolUseId) {
@@ -356,8 +398,9 @@ export async function parseSessionMessages(
       // Claude Code writes one JSONL line per content block within a single
       // API response, so multiple lines share the same message.id. We must
       // capture tool_use IDs from every line so tool results can be paired.
+      let toolUseBlocks: ToolUseBlock[] = [];
       if (Array.isArray(content)) {
-        const toolUseBlocks: ToolUseBlock[] = extractToolUseBlocks(
+        toolUseBlocks = extractToolUseBlocks(
           parsed as { type: string; message?: { content?: unknown } },
         );
 
@@ -393,6 +436,38 @@ export async function parseSessionMessages(
           if (messageId) {
             seenAssistantTextIds.add(messageId);
           }
+        }
+      }
+
+      // Emit each tool_use as an in-flight (`pending: true`) tool message right
+      // away, so a tool call that is still running when the transcript is read is
+      // visible on rehydration instead of vanishing (issue #399). The matching
+      // `tool_result`, if/when it arrives, upgrades this same entry in place via
+      // the recorded `messageIndex`. Emitted AFTER the assistant text above so a
+      // response that carries both text and a tool_use keeps text-before-tool
+      // order. Only id'd blocks are emitted — an unidentified block could never be
+      // paired to a result nor upgraded.
+      for (const block of toolUseBlocks) {
+        if (!block.id) continue;
+        if (limit !== undefined && messages.length >= limit) break;
+
+        messages.push({
+          role: "tool",
+          content: "",
+          timestamp,
+          uuid,
+          toolCall: {
+            toolName: block.name,
+            inputSummary: getToolInputSummary(block.name, block.input),
+            output: "",
+            isError: false,
+            pending: true,
+          },
+        });
+
+        const entry = pendingToolUses.get(block.id);
+        if (entry) {
+          entry.messageIndex = messages.length - 1;
         }
       }
     }
