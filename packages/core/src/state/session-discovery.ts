@@ -503,9 +503,90 @@ export class SessionDiscoveryService {
   }
 
   /**
+   * Collect the transcript buckets to scan for a non-Docker agent.
+   *
+   * Always includes the agent's own `~/.claude/projects/{encoded-workingDir}`
+   * bucket, then unions in every other `~/.claude/projects/*` bucket whose
+   * **decoded** path is a strict descendant of `workingDirectory`.
+   *
+   * This is what makes discovery worktree-aware: Claude Code's native
+   * git-worktree support relocates a session's transcript to the worktree's cwd
+   * bucket when the agent enters a worktree (worktrees live at
+   * `<workingDir>/.claude/worktrees/<name>`, and any subdir the agent `cd`s into
+   * is likewise a descendant). Those buckets encode to different directory names,
+   * so a single-bucket scan silently drops the session. Unioning descendant
+   * buckets keeps it discoverable.
+   *
+   * Safety: the caller still gates every session through the attribution index
+   * (keyed on session id), so an over-included bucket — e.g. a lossy-encoding
+   * false positive from {@link encodePathForCli} (issue #148) — contributes no
+   * spuriously-attributed sessions. The per-bucket listing goes through the
+   * mtime-cache-backed {@link listSessionFiles}, bounding the extra readdir cost.
+   *
+   * Each returned bucket carries the working directory to use for that bucket's
+   * transcript reads and to report as the session's `workingDirectory`. For a
+   * descendant bucket this is the bucket's decoded path, which re-encodes back to
+   * the same directory name (the encode/decode round-trips for any name composed
+   * only of `[A-Za-z0-9-]`, as bucket names are).
+   *
+   * @param workingDirectory - The agent's registered working directory
+   * @returns The primary bucket plus any descendant (worktree/subdir) buckets
+   */
+  private async collectWorktreeAwareBuckets(
+    workingDirectory: string,
+  ): Promise<Array<{ sessionDir: string; workingDirectory: string }>> {
+    const projectsDir = path.join(this.claudeHomePath, "projects");
+    const primaryEncoded = encodePathForCli(workingDirectory);
+
+    // The primary bucket is always scanned, even if it doesn't exist yet
+    // (listSessionFiles handles ENOENT).
+    const buckets: Array<{ sessionDir: string; workingDirectory: string }> = [
+      { sessionDir: path.join(projectsDir, primaryEncoded), workingDirectory },
+    ];
+
+    let encodedPaths: string[];
+    try {
+      encodedPaths = await readdir(projectsDir);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        logger.warn(
+          `Failed to read projects directory for worktree discovery: ${projectsDir}: ${(error as Error).message}`,
+        );
+      }
+      return buckets;
+    }
+
+    const resolvedWorkingDir = path.resolve(workingDirectory);
+    const descendantPrefix = resolvedWorkingDir + path.sep;
+
+    for (const encodedPath of encodedPaths) {
+      // The primary bucket is already included.
+      if (encodedPath === primaryEncoded) {
+        continue;
+      }
+
+      // Decode the bucket name back to a path and keep it only if it's a strict
+      // descendant of the working directory. `path.resolve` normalises the
+      // decoded path (collapsing e.g. the `//` that `.claude` decodes to).
+      const resolvedDecoded = path.resolve(decodePathForDisplay(encodedPath));
+      if (!resolvedDecoded.startsWith(descendantPrefix)) {
+        continue;
+      }
+
+      buckets.push({
+        sessionDir: path.join(projectsDir, encodedPath),
+        workingDirectory: decodePathForDisplay(encodedPath),
+      });
+    }
+
+    return buckets;
+  }
+
+  /**
    * Get sessions for a specific agent.
    *
-   * Returns sessions from the agent's working directory, attributed and
+   * Returns sessions from the agent's working directory (plus any native
+   * git-worktree / subdirectory buckets nested under it), attributed and
    * enriched with custom names from the metadata store.
    *
    * @param agentName - The agent's qualified name
@@ -522,20 +603,60 @@ export class SessionDiscoveryService {
   ): Promise<DiscoveredSession[]> {
     const limit = options?.limit;
 
+    // Resolve the transcript bucket(s) to scan.
+    //
     // Docker agents store session files in .herdctl/docker-sessions/ on the host
-    // (the container's ~/.claude/projects/ is ephemeral and gone after exit).
-    // Non-Docker agents store sessions in ~/.claude/projects/{encoded-path}/.
-    const sessionDir = dockerEnabled
-      ? getDockerSessionDir(this.stateDir)
-      : path.join(this.claudeHomePath, "projects", encodePathForCli(workingDirectory));
+    // (the container's ~/.claude/projects/ is ephemeral and gone after exit), so
+    // there is a single flat bucket.
+    //
+    // Non-Docker agents store sessions in ~/.claude/projects/{encoded-path}/. A
+    // single bucket is NOT enough: Claude Code's native git-worktree support
+    // relocates a session's transcript to the worktree's cwd bucket when the
+    // agent enters a worktree (worktrees live at
+    // `<workingDir>/.claude/worktrees/<name>`), which encodes to a *different*
+    // bucket. So union the agent's own bucket with every descendant bucket — see
+    // {@link collectWorktreeAwareBuckets}. Each bucket carries the working
+    // directory the transcripts in it recorded, used both to read the right file
+    // during enrichment and to report the session's `workingDirectory`.
+    const buckets = dockerEnabled
+      ? [{ sessionDir: getDockerSessionDir(this.stateDir), workingDirectory }]
+      : await this.collectWorktreeAwareBuckets(workingDirectory);
 
-    logger.debug(`Getting sessions for agent ${agentName}`, { sessionDir, dockerEnabled });
+    logger.debug(`Getting sessions for agent ${agentName}`, {
+      buckets: buckets.map((b) => b.sessionDir),
+      dockerEnabled,
+    });
 
-    // Get session files (already sorted by mtime descending)
-    const sessionFiles = await this.listSessionFiles(sessionDir);
-    if (sessionFiles.length === 0) {
+    // Gather session files across all buckets, tagging each with the working
+    // directory of the bucket it came from. Each bucket's listing is already
+    // mtime-descending (and mtime-cache-backed), but the union must be re-sorted.
+    const merged: Array<{ sessionId: string; mtime: Date; workingDirectory: string }> = [];
+    for (const bucket of buckets) {
+      const files = await this.listSessionFiles(bucket.sessionDir);
+      for (const file of files) {
+        merged.push({ ...file, workingDirectory: bucket.workingDirectory });
+      }
+    }
+    if (merged.length === 0) {
       return [];
     }
+
+    // Dedupe by session id. A relocated transcript should live in exactly one
+    // bucket, but guard against a lingering copy (e.g. an enter/exit round-trip)
+    // so a session is never double-listed. Keep the entry with the newest mtime.
+    const byId = new Map<string, { sessionId: string; mtime: Date; workingDirectory: string }>();
+    for (const entry of merged) {
+      const existing = byId.get(entry.sessionId);
+      if (!existing || entry.mtime.getTime() > existing.mtime.getTime()) {
+        byId.set(entry.sessionId, entry);
+      }
+    }
+
+    // Sort by mtime descending (newest first) across the unioned set so the
+    // top-N `limit` enrichment picks the globally-newest sessions.
+    const sessionFiles = Array.from(byId.values()).sort(
+      (a, b) => b.mtime.getTime() - a.mtime.getTime(),
+    );
 
     // Only enrich the top N sessions when limit is set
     const filesToEnrich = limit !== undefined ? sessionFiles.slice(0, limit) : sessionFiles;
@@ -551,7 +672,7 @@ export class SessionDiscoveryService {
     const enriched = await mapWithConcurrency(
       filesToEnrich,
       SESSION_ENRICHMENT_CONCURRENCY,
-      async ({ sessionId, mtime }) => {
+      async ({ sessionId, mtime, workingDirectory: sessionWorkingDir }) => {
         const mtimeStr = mtime.toISOString();
 
         // Filter out sidechain (sub-agent) sessions. Claude Code marks sessions
@@ -565,7 +686,7 @@ export class SessionDiscoveryService {
           agentName,
           sessionId,
           mtimeStr,
-          workingDirectory,
+          sessionWorkingDir,
           dockerEnabled,
         );
         const sidechainUpdate = sidechainNeedsUpdate
@@ -592,7 +713,7 @@ export class SessionDiscoveryService {
           agentName,
           sessionId,
           mtimeStr,
-          workingDirectory,
+          sessionWorkingDir,
           dockerEnabled,
         );
 
@@ -601,13 +722,13 @@ export class SessionDiscoveryService {
           agentName,
           sessionId,
           mtimeStr,
-          workingDirectory,
+          sessionWorkingDir,
           dockerEnabled,
         );
 
         const session: DiscoveredSession = {
           sessionId,
-          workingDirectory,
+          workingDirectory: sessionWorkingDir,
           mtime: mtimeStr,
           origin: attribution.origin,
           agentName: attribution.agentName ?? agentName,
@@ -888,31 +1009,7 @@ export class SessionDiscoveryService {
     // Phase 3: Enrich sessions (only selected ones when limit is set)
     const groups: DirectoryGroup[] = [];
 
-    // Accumulate the sessionIds that physically exist on disk for each metadata
-    // key, so stale metadata entries can be reconciled away afterwards (#168).
-    // Multiple directories can share a key — every unattributed directory uses
-    // "adhoc" — so we must union across directories before pruning, otherwise
-    // one adhoc directory would delete another's live entries. Only populated on
-    // a full (unlimited) scan; a limited scan does NOT enumerate every session,
-    // so pruning off it would wrongly delete live entries.
-    const validSessionIdsByKey: Map<string, Set<string>> | undefined =
-      limit === undefined ? new Map<string, Set<string>>() : undefined;
-
     for (const dir of directories) {
-      if (validSessionIdsByKey) {
-        let validIds = validSessionIdsByKey.get(dir.metadataKey);
-        if (!validIds) {
-          validIds = new Set<string>();
-          validSessionIdsByKey.set(dir.metadataKey, validIds);
-        }
-        // Every transcript present in this directory is a live session for this
-        // key — include sidechains and non-enriched sessions, all of which carry
-        // legitimately-cached metadata keyed by sessionId.
-        for (const { sessionId } of dir.sessionFiles) {
-          validIds.add(sessionId);
-        }
-      }
-
       const sessions: DiscoveredSession[] = [];
       const autoNameUpdates: Array<{ sessionId: string; autoName?: string; mtime: string }> = [];
       const previewUpdates: Array<{ sessionId: string; preview?: string; mtime: string }> = [];
@@ -1038,26 +1135,6 @@ export class SessionDiscoveryService {
           sessionCount: visibleSessionCount,
           sessions,
         });
-      }
-    }
-
-    // Reconcile metadata against the sessions that still exist on disk (#168).
-    // Runs only on a full scan (validSessionIdsByKey is undefined when a limit
-    // was applied). Pruning writes only when it actually removes an entry, so a
-    // steady-state listing with no dead sessions performs no extra writes.
-    //
-    // Known limitation: only keys discovered in *this* scan are reconciled. A
-    // directory with zero .jsonl files is skipped in Phase 1, so a key whose
-    // transcripts are ALL gone (e.g. an agent removed from config, orphaning its
-    // <agent>.json) contributes no entry here and is never pruned. This is
-    // mitigated for the primary offender — the shared "adhoc" key is reconciled
-    // as long as any one unattributed directory still has sessions. Fully
-    // reconciling orphaned metadata files would require enumerating
-    // session-metadata/*.json rather than only the keys seen this scan; that's a
-    // larger change left as a follow-up.
-    if (validSessionIdsByKey) {
-      for (const [metadataKey, validIds] of validSessionIdsByKey) {
-        await this.sessionMetadataStore.prune(metadataKey, validIds);
       }
     }
 
