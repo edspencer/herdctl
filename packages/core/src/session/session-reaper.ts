@@ -91,6 +91,15 @@ export class SessionReaper {
   /** Live managed sessions by resolved session id. */
   private readonly liveById = new Map<string, ManagedSessionImpl>();
 
+  /**
+   * Resolvers waiting for a session id to stop being live, keyed by id. Fed by
+   * {@link whenSessionReaped}, drained by {@link unregisterLive}. Lets a resume
+   * (`openChatSession`) wait for a reaper-kept-alive subprocess to be reaped
+   * before spawning, instead of launching a second competing `claude`
+   * (edspencer/herdctl#403).
+   */
+  private readonly reapWaiters = new Map<string, Array<() => void>>();
+
   constructor(options: SessionReaperOptions) {
     this.registry = options.registry;
     this.logger = options.logger ?? createLogger("session-reaper");
@@ -110,6 +119,26 @@ export class SessionReaper {
     return this.liveById.has(sessionId);
   }
 
+  /**
+   * Resolve once no managed session with this id is live — immediately if it is
+   * already not live, otherwise when the current one is reaped or detached.
+   *
+   * `openChatSession` awaits this to defer a resume off a still-live session so it
+   * never spawns a second `claude` on the same id: two processes resuming one
+   * session collide and the SDK resolves it by interrupting the in-flight turn
+   * (`[Request interrupted by user]`, edspencer/herdctl#403). This mirrors the
+   * `isSessionLive` guard the wake registry already applies before firing — the
+   * one resume path that lacked it.
+   */
+  whenSessionReaped(sessionId: string): Promise<void> {
+    if (!this.liveById.has(sessionId)) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      const waiters = this.reapWaiters.get(sessionId) ?? [];
+      waiters.push(resolve);
+      this.reapWaiters.set(sessionId, waiters);
+    });
+  }
+
   // --- internal, called by ManagedSessionImpl ---
 
   registerLive(sessionId: string, managed: ManagedSessionImpl): void {
@@ -118,6 +147,13 @@ export class SessionReaper {
 
   unregisterLive(sessionId: string): void {
     this.liveById.delete(sessionId);
+    // Release any resume deferred on this id (#403). Drain-and-resolve so a
+    // deferred resume proceeds the instant the session is reaped/detached.
+    const waiters = this.reapWaiters.get(sessionId);
+    if (waiters) {
+      this.reapWaiters.delete(sessionId);
+      for (const resolve of waiters) resolve();
+    }
   }
 
   async processSignal(managed: ManagedSessionImpl, signal: SessionLifecycleSignal): Promise<void> {
