@@ -31,4 +31,5 @@ export type {
   SlashCommand,
 } from "./interface.js";
 export { MessageQueue } from "./message-queue.js";
+export { countPendingAsyncQueueEntries, hasPendingAsyncQueue } from "./pending-async-queue.js";
 export { SDKRuntime } from "./sdk-runtime.js";

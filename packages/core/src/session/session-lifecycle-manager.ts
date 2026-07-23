@@ -14,7 +14,7 @@ import type { InjectedMcpServerDef } from "../runner/types.js";
 import { calculateNextCronTrigger } from "../scheduler/cron.js";
 import { createLogger } from "../utils/logger.js";
 import { FleetStateWakePersistence } from "./fleet-state-wake-persistence.js";
-import { type ManagedSession, SessionReaper } from "./session-reaper.js";
+import { type ManagedSession, type ManageSessionOptions, SessionReaper } from "./session-reaper.js";
 import type { BackgroundTaskSummary, SessionWakeEntry } from "./types.js";
 import { WakeRegistry } from "./wake-registry.js";
 import type { NextRunResolver } from "./wake-store.js";
@@ -153,8 +153,8 @@ export class SessionLifecycleManager {
   }
 
   /** Begin managing a freshly-opened streaming session's lifecycle. */
-  manage(session: RuntimeSession, agent: string): ManagedSession {
-    return this.reaper.manage(session, agent);
+  manage(session: RuntimeSession, agent: string, options?: ManageSessionOptions): ManagedSession {
+    return this.reaper.manage(session, agent, options);
   }
 
   /** Fire every wake now due. Wire as the scheduler's `onTick`. */

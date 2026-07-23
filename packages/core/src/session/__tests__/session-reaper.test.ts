@@ -387,4 +387,78 @@ describe("SessionReaper", () => {
     expect(managed.isLive()).toBe(false);
     expect(session.close).toHaveBeenCalledTimes(1);
   });
+
+  // A resume that may replay a stale async-input backlog runs the replayed backlog
+  // as its OWN turn ahead of the caller's queued prompt turn. Reaping on the
+  // backlog turn's turn_end would close the session out from under the queued turn
+  // and interrupt it ([Request interrupted by user], losing the message). A
+  // `turnEndReapGraceMs` defers the turn_end reap so the queued turn's `activity`
+  // can cancel it; a genuinely final turn's grace still elapses and reaps. This
+  // mirrors the real-binary before/after proven for #406.
+  describe("turnEndReapGraceMs (resume-backlog reap grace, #406)", () => {
+    it("reaps a turn_end synchronously when the grace is 0 (default, unchanged)", async () => {
+      const onReap = vi.fn();
+      const reaper = new SessionReaper({ registry: fakeRegistry(), onReap });
+      const session = fakeSession();
+      const managed = reaper.manage(session, "team/agent"); // no grace
+
+      await managed.handleSignal(signal());
+      expect(onReap).toHaveBeenCalledTimes(1);
+      expect(managed.isLive()).toBe(false);
+    });
+
+    it("defers the turn_end reap so a following turn's activity cancels it (protects the queued prompt turn)", async () => {
+      vi.useFakeTimers();
+      const onReap = vi.fn();
+      const reaper = new SessionReaper({ registry: fakeRegistry(), onReap });
+      const session = fakeSession();
+      const managed = reaper.manage(session, "team/agent", { turnEndReapGraceMs: 15_000 });
+
+      // Turn A (the replayed backlog turn) ends with no background work — the reap
+      // is DEFERRED, not synchronous, so the queued prompt turn can still start.
+      await managed.handleSignal(signal());
+      expect(onReap).not.toHaveBeenCalled();
+      expect(managed.isLive()).toBe(true);
+
+      // Turn B (the queued human prompt) starts producing output → `activity`
+      // cancels the pending reap so it is NOT reaped out from under that turn.
+      await managed.handleSignal(signal({ kind: "activity" }));
+      await vi.runAllTimersAsync();
+      expect(onReap).not.toHaveBeenCalled();
+      expect(managed.isLive()).toBe(true);
+      expect(session.close).not.toHaveBeenCalled();
+    });
+
+    it("still reaps a genuinely final turn once its grace elapses with no follow-up", async () => {
+      vi.useFakeTimers();
+      const onReap = vi.fn();
+      const reaper = new SessionReaper({ registry: fakeRegistry(), onReap });
+      const session = fakeSession();
+      const managed = reaper.manage(session, "team/agent", { turnEndReapGraceMs: 15_000 });
+
+      // The last turn ends and nothing follows → the grace elapses → reap.
+      await managed.handleSignal(signal());
+      expect(onReap).not.toHaveBeenCalled();
+      await vi.runAllTimersAsync();
+      expect(onReap).toHaveBeenCalledWith({ agent: "team/agent", sessionId: "sess-1" });
+      expect(managed.isLive()).toBe(false);
+      expect(session.close).toHaveBeenCalledTimes(1);
+    });
+
+    it("reaps the human turn once IT ends (activity cancels the backlog grace, the next turn_end re-arms)", async () => {
+      vi.useFakeTimers();
+      const onReap = vi.fn();
+      const reaper = new SessionReaper({ registry: fakeRegistry(), onReap });
+      const session = fakeSession();
+      const managed = reaper.manage(session, "team/agent", { turnEndReapGraceMs: 15_000 });
+
+      await managed.handleSignal(signal()); // turn A (backlog) end → grace armed
+      await managed.handleSignal(signal({ kind: "activity" })); // turn B starts → cancel
+      await managed.handleSignal(signal()); // turn B (human) end → grace re-armed
+      expect(onReap).not.toHaveBeenCalled();
+      await vi.runAllTimersAsync(); // no further turn → grace elapses → reap
+      expect(onReap).toHaveBeenCalledTimes(1);
+      expect(managed.isLive()).toBe(false);
+    });
+  });
 });
