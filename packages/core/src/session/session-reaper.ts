@@ -6,7 +6,10 @@
  * On each signal the reaper (1) reconciles the session's pending crons into the
  * {@link WakeRegistry} so they survive the reap, then (2) applies the one-rule
  * {@link decideReap} policy: keep the process alive while continuous-class
- * background work runs, otherwise close it immediately.
+ * background work runs, otherwise close it immediately. A `cron_deleted` signal
+ * (the agent ran `CronDelete`) instead routes to {@link WakeRegistry.remove} so a
+ * herdctl-owned recurring wake is retired rather than firing until its 7-day
+ * prune (#409).
  *
  * The reaper also answers "is this session live?" for the registry, so a due
  * wake never spawns a second process for a session that is still open (gap 6).
@@ -130,6 +133,25 @@ export class SessionReaper {
     if (signal.kind === "activity") {
       managed.cancelPendingReap();
       managed.setAwaitingTasks(false);
+      return;
+    }
+
+    // The agent ran a `CronDelete` this turn: explicitly retire the herdctl-owned
+    // wake(s) it named, so a recurring wake stops firing. This is the only signal
+    // that can express a delete — `reconcile` can't infer it on a resumed turn
+    // (the session-only cron isn't re-armed, so its absence looks identical to a
+    // delete) and so deliberately keeps recurring wakes (#409). Firing continues
+    // regardless of the surrounding reap decision, so handle it and return.
+    if (signal.kind === "cron_deleted") {
+      for (const id of signal.deletedCronIds ?? []) {
+        try {
+          await this.registry.remove(id);
+        } catch (error) {
+          this.logger.warn(
+            `Failed to retire wake ${id} after CronDelete in session ${signal.sessionId} (${managed.agent}): ${(error as Error).message}`,
+          );
+        }
+      }
       return;
     }
 

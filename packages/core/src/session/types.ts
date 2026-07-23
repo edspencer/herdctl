@@ -35,14 +35,25 @@ export interface SessionLifecycleSignal {
    *   (empty) and must not be reconciled.
    * - `activity` — the session started producing output again (a new turn is
    *   underway); carries no snapshot, only clears the idle-waiting state.
+   * - `cron_deleted` — the agent ran a `CronDelete` tool call mid-turn;
+   *   `deletedCronIds` carries the ids it retired. The Stop hook's
+   *   `session_crons` snapshot can't convey this on a herdctl-resumed turn (the
+   *   session-only cron was never re-armed, so its absence is indistinguishable
+   *   from a delete), so the delete must be reported explicitly. See #409.
    */
-  kind: "turn_end" | "background_tasks_changed" | "activity";
+  kind: "turn_end" | "background_tasks_changed" | "activity" | "cron_deleted";
   /** The resolved session id the wakeups/tasks belong to. */
   sessionId: string;
   /** Pending timer-class wakeups. Empty when none are scheduled. */
   sessionCrons: SessionCronSummary[];
   /** In-flight continuous-class background work. Empty when the session is idle. */
   backgroundTasks: BackgroundTaskSummary[];
+  /**
+   * Cron ids the agent explicitly retired via `CronDelete` this turn. Only
+   * populated on a `cron_deleted` signal; the reaper routes each to
+   * {@link WakeRegistry.remove} so a herdctl-owned recurring wake stops firing.
+   */
+  deletedCronIds?: string[];
 }
 
 /**
