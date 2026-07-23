@@ -302,6 +302,74 @@ describe("tool-parsing", () => {
 
       expect(extractToolResults(message)).toEqual([]);
     });
+
+    // Regression: #410 — ToolSearch's tool_result carries only
+    // `{ type: "tool_reference", tool_name }` blocks (deferred-tool schemas).
+    // Such a result has no text and no images, but must NOT be dropped: if it
+    // is, it never pairs with its pending tool_use and the card is stuck
+    // RUNNING forever.
+    it("keeps a tool_reference-only tool_result and summarizes it", () => {
+      const message = {
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_ref",
+              content: [
+                { type: "tool_reference", tool_name: "mcp__github_pr__submit_review" },
+                { type: "tool_reference", tool_name: "WebSearch" },
+              ],
+            },
+          ],
+        },
+      };
+
+      const results = extractToolResults(message);
+      expect(results).toHaveLength(1);
+      expect(results[0].toolUseId).toBe("toolu_ref");
+      expect(results[0].isError).toBe(false);
+      expect(results[0].output).toBe(
+        "Loaded 2 tool schemas: mcp__github_pr__submit_review, WebSearch",
+      );
+    });
+
+    it("merges text with a tool_reference summary in mixed content", () => {
+      const message = {
+        type: "user",
+        message: {
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_mixed",
+              content: [
+                { type: "text", text: "found matches" },
+                { type: "tool_reference", tool_name: "Read" },
+              ],
+            },
+          ],
+        },
+      };
+
+      const results = extractToolResults(message);
+      expect(results).toHaveLength(1);
+      expect(results[0].toolUseId).toBe("toolu_mixed");
+      expect(results[0].output).toBe("found matches\nLoaded 1 tool schema: Read");
+    });
+
+    it("keeps a result with a tool_use_id even when its array content is empty", () => {
+      const message = {
+        type: "user",
+        message: {
+          content: [{ type: "tool_result", tool_use_id: "toolu_empty", content: [] }],
+        },
+      };
+
+      const results = extractToolResults(message);
+      expect(results).toHaveLength(1);
+      expect(results[0].toolUseId).toBe("toolu_empty");
+      expect(results[0].output).toBe("");
+    });
   });
 
   // ===========================================================================
@@ -347,6 +415,15 @@ describe("tool-parsing", () => {
         ],
       });
       expect(result?.output).toBe("part 1\npart 2");
+    });
+
+    it("keeps a tool_reference-only content array (#410)", () => {
+      const result = extractToolResultContent({
+        tool_use_id: "toolu_ref",
+        content: [{ type: "tool_reference", tool_name: "Grep" }],
+      });
+      expect(result?.toolUseId).toBe("toolu_ref");
+      expect(result?.output).toBe("Loaded 1 tool schema: Grep");
     });
 
     it("returns undefined for null", () => {
