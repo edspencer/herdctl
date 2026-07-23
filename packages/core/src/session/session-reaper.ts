@@ -56,6 +56,26 @@ export interface SessionReaperOptions {
   reinvocationGraceMs?: number;
 }
 
+/** Per-session options for {@link SessionReaper.manage}. */
+export interface ManageSessionOptions {
+  /**
+   * Grace (ms) to defer a `turn_end` reap so an immediately-following turn's
+   * `activity` can cancel it — `0`/undefined reaps a `turn_end` synchronously
+   * (the default, unchanged behavior).
+   *
+   * Set on a resume that carries a human prompt: if the prior process died
+   * mid-turn leaving pending background-task state, the CLI replays that leftover
+   * as its OWN turn (turn A) BEFORE the caller's queued prompt turn (turn B).
+   * Turn A ends with no background work, so an immediate reap on its `turn_end`
+   * closes the session out from under turn B — interrupting it (`[Request
+   * interrupted by user]` / `interruptedByShutdown`) and losing the human's
+   * message. Deferring the reap lets turn B's `activity` cancel it so B runs to
+   * completion; a genuinely final turn's grace still elapses and reaps. Mirrors
+   * the background-task-drain grace (#368). See edspencer/herdctl#406.
+   */
+  turnEndReapGraceMs?: number;
+}
+
 /** A handle to a session the reaper is managing. */
 export interface ManagedSession {
   /**
@@ -109,8 +129,8 @@ export class SessionReaper {
   }
 
   /** Begin managing a session's lifecycle. */
-  manage(session: RuntimeSession, agent: string): ManagedSession {
-    const managed = new ManagedSessionImpl(session, agent, this);
+  manage(session: RuntimeSession, agent: string, options?: ManageSessionOptions): ManagedSession {
+    const managed = new ManagedSessionImpl(session, agent, this, options?.turnEndReapGraceMs ?? 0);
     return managed;
   }
 
@@ -224,6 +244,25 @@ export class SessionReaper {
       return;
     }
 
+    // A resume flagged with a turn-end reap grace may replay a stale pending
+    // background-task backlog as its own turn (turn A) ahead of the caller's
+    // queued prompt turn (turn B); reaping on turn A's `turn_end` closes the
+    // session out from under turn B and interrupts it (`[Request interrupted by
+    // user]`, losing the human message). Defer via a grace that turn B's
+    // `activity` cancels — so B runs to completion — while a genuinely final turn's
+    // grace still elapses and reaps. Mirrors the background-task-drain grace
+    // (#368). See edspencer/herdctl#406.
+    if (managed.turnEndReapGraceMs > 0) {
+      this.logger.debug(
+        `Deferring turn_end reap of session ${signal.sessionId} (${managed.agent}) by ` +
+          `${managed.turnEndReapGraceMs}ms; an incoming turn's activity cancels it`,
+      );
+      managed.armPendingReap(managed.turnEndReapGraceMs, () =>
+        this.reap(managed, signal.sessionId),
+      );
+      return;
+    }
+
     this.reap(managed, signal.sessionId);
   }
 
@@ -253,6 +292,11 @@ export class SessionReaper {
  */
 class ManagedSessionImpl implements ManagedSession {
   readonly agent: string;
+  /**
+   * Grace (ms) to defer a `turn_end` reap so a following turn's `activity` can
+   * cancel it; `0` reaps synchronously. See {@link ManageSessionOptions}.
+   */
+  readonly turnEndReapGraceMs: number;
   private readonly session: RuntimeSession;
   private readonly reaper: SessionReaper;
   private resolvedSessionId: string | undefined;
@@ -263,10 +307,16 @@ class ManagedSessionImpl implements ManagedSession {
   /** A deferred reap armed when the background-task set drained to empty (#368). */
   private pendingReapTimer: ReturnType<typeof setTimeout> | undefined;
 
-  constructor(session: RuntimeSession, agent: string, reaper: SessionReaper) {
+  constructor(
+    session: RuntimeSession,
+    agent: string,
+    reaper: SessionReaper,
+    turnEndReapGraceMs = 0,
+  ) {
     this.session = session;
     this.agent = agent;
     this.reaper = reaper;
+    this.turnEndReapGraceMs = turnEndReapGraceMs;
   }
 
   handleSignal(signal: SessionLifecycleSignal): Promise<void> {

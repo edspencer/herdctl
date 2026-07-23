@@ -46,11 +46,13 @@ export type {
   SlashCommand,
 } from "./runtime/index.js";
 export {
+  countPendingAsyncQueueEntries,
   encodePathForCli,
   getCliSessionDir,
   getCliSessionFile,
   getDockerSessionDir,
   getDockerSessionFile,
+  hasPendingAsyncQueue,
   MessageQueue,
   RuntimeFactory,
   type RuntimeType,

@@ -12,6 +12,8 @@ import { isAbsolute, join, resolve } from "node:path";
 import type { HookEvent, ResolvedAgent } from "../config/index.js";
 import { type HookContext, HookExecutor } from "../hooks/index.js";
 import {
+  countPendingAsyncQueueEntries,
+  getCliSessionFile,
   JobExecutor,
   RuntimeFactory,
   type RuntimeSession,
@@ -19,6 +21,7 @@ import {
   type SlashCommand,
 } from "../runner/index.js";
 import type { ManagedSession, SessionLifecycleSignal, SessionReaper } from "../session/index.js";
+import { DEFAULT_REINVOCATION_GRACE_MS } from "../session/index.js";
 import { createJob, getJob, getSessionInfo, readJobOutputAll, updateJob } from "../state/index.js";
 import type { JobMetadata } from "../state/schemas/job-metadata.js";
 import type { FleetManagerContext } from "./context.js";
@@ -427,6 +430,50 @@ export class JobControl {
       );
     }
 
+    // #406: a real resume that carries a human prompt can self-interrupt and lose
+    // the human's message. If the prior process died mid-turn leaving pending
+    // background-task state, the CLI replays that leftover as its OWN turn (turn A)
+    // ahead of the caller's queued prompt turn (turn B). Turn A ends with no
+    // background work, so the reaper reaps immediately on its `turn_end` and closes
+    // the session out from under turn B — interrupting it (`[Request interrupted by
+    // user]` / `interruptedByShutdown`) and losing the message. This is NOT the
+    // #403/#404 double-resume class: the session is not reaper-live at resume, so
+    // that guard is correctly skipped; the trigger is the reaper reaping the
+    // *backlog* turn.
+    //
+    // Fix: hand the managed session a `turnEndReapGraceMs` so a `turn_end` reap is
+    // deferred long enough for turn B's `activity` to cancel it (a genuinely final
+    // turn's grace still elapses and reaps). Arm it UNCONDITIONALLY on any real
+    // (non-fork) resume that carries a prompt — `openChatSession` never forks, so
+    // every resume here qualifies. We deliberately do NOT gate on disk detection:
+    // the replay is background-task-state-driven and the queue residue below is
+    // only a correlated side-effect (correlation, not causation), and this failure
+    // has slipped narrow guards repeatedly — so belt-and-suspenders. Cost is ~one
+    // reinvocation-grace window (~15s) of extra RSS per resumed session before it
+    // reaps at true idle. Fresh sessions (no `sessionId`) are unaffected. See #406.
+    let turnEndReapGraceMs = 0;
+    if (sessionId && options?.prompt) {
+      turnEndReapGraceMs = DEFAULT_REINVOCATION_GRACE_MS;
+      // Best-effort telemetry only (NOT a gate): log whether the resumed session
+      // carries the correlated stale async-input residue, so production logs can
+      // confirm the #406 signature. A detection failure never changes behavior.
+      let residue: number | undefined;
+      try {
+        const workspacePath = resolveAgentWorkspacePath(effectiveAgent);
+        residue = await countPendingAsyncQueueEntries(getCliSessionFile(workspacePath, sessionId));
+      } catch (error) {
+        logger.debug(
+          `Pending-async-queue telemetry skipped for ${sessionId}: ${(error as Error).message}`,
+        );
+      }
+      logger.info(
+        `Resuming session ${sessionId} (${agentName}) with a prompt; deferring turn-end ` +
+          `reaps by ${turnEndReapGraceMs}ms so a replayed backlog turn cannot reap the ` +
+          `resumed prompt turn (#406)` +
+          (residue !== undefined ? ` [pending-async-queue residue: ${residue}]` : ""),
+      );
+    }
+
     const runtime = new SDKRuntime();
     logger.info(`Opening streaming chat session for ${agentName} (sdk runtime)`);
 
@@ -452,7 +499,11 @@ export class JobControl {
     });
 
     if (lifecycle) {
-      managed = lifecycle.manage(session, agentName);
+      managed = lifecycle.manage(
+        session,
+        agentName,
+        turnEndReapGraceMs > 0 ? { turnEndReapGraceMs } : undefined,
+      );
     }
 
     return session;
@@ -1047,6 +1098,22 @@ function raceWithTimeout(promise: Promise<void>, ms: number): Promise<void> {
  * @throws {InvalidWorkingDirectoryOverrideError} If the override is provided but
  *   not a non-empty string
  */
+/**
+ * Resolve the absolute workspace path a resumed session's transcript is keyed by.
+ *
+ * Mirrors the cwd the SDK adapter passes to `claude` (`agent.working_directory`,
+ * which may be a string or `{ root }`), falling back to the process cwd when the
+ * agent has none — the same basis Claude Code uses to encode
+ * `~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl`. Used only for #406's
+ * best-effort residue telemetry, so a wrong guess degrades to "no residue logged".
+ */
+function resolveAgentWorkspacePath(agent: ResolvedAgent): string {
+  const wd = agent.working_directory;
+  if (typeof wd === "string" && wd.trim() !== "") return wd;
+  if (wd && typeof wd === "object" && typeof wd.root === "string") return wd.root;
+  return process.cwd();
+}
+
 function applyWorkingDirectoryOverride(
   agent: ResolvedAgent,
   override: string | undefined,
