@@ -21,10 +21,27 @@ async function* stream(messages: SDKMessage[]): AsyncGenerator<SDKMessage> {
   for (const m of messages) yield m;
 }
 
+function postToolUseInput(overrides: Partial<HookInput> = {}): HookInput {
+  return {
+    hook_event_name: "PostToolUse",
+    session_id: "sess-1",
+    transcript_path: "/tmp/t.jsonl",
+    cwd: "/tmp",
+    tool_name: "CronDelete",
+    tool_input: { id: "c1" },
+    tool_response: { id: "c1" },
+    tool_use_id: "tu-1",
+    ...overrides,
+  } as HookInput;
+}
+
 describe("buildLifecycleHooks", () => {
-  it("registers a Stop matcher only (never SubagentStop)", () => {
+  it("registers a Stop matcher and a PostToolUse matcher (never SubagentStop)", () => {
     const hooks = buildLifecycleHooks(vi.fn());
     expect(hooks?.Stop?.[0].hooks).toHaveLength(1);
+    // The PostToolUse hook watches for CronDelete so a herdctl-owned recurring
+    // wake can be retired (#409).
+    expect(hooks?.PostToolUse?.[0].hooks).toHaveLength(1);
     // SubagentStop must NOT be wired: it fires mid-parent-turn when a synchronous
     // subagent finishes, and treating it as a turn_end reaps the live parent
     // session out from under the keeper. See isMainAgentStop.
@@ -94,6 +111,56 @@ describe("buildLifecycleHooks", () => {
     ).resolves.toEqual({ continue: true });
     // Let the swallowed rejection settle so it can't surface as unhandled.
     await new Promise((r) => setTimeout(r, 5));
+  });
+
+  it("emits a cron_deleted signal carrying the id of a CronDelete tool call", async () => {
+    const sink = vi.fn();
+    const hooks = buildLifecycleHooks(sink);
+    const cb = hooks!.PostToolUse![0].hooks[0];
+    const result = await cb(postToolUseInput(), undefined, {
+      signal: new AbortController().signal,
+    });
+
+    expect(result).toEqual({ continue: true });
+    expect(sink).toHaveBeenCalledTimes(1);
+    const signal = sink.mock.calls[0][0] as SessionLifecycleSignal;
+    expect(signal).toMatchObject({
+      kind: "cron_deleted",
+      sessionId: "sess-1",
+      deletedCronIds: ["c1"],
+    });
+  });
+
+  it("ignores PostToolUse for tools other than CronDelete", async () => {
+    const sink = vi.fn();
+    const hooks = buildLifecycleHooks(sink);
+    const cb = hooks!.PostToolUse![0].hooks[0];
+    await cb(postToolUseInput({ tool_name: "Bash", tool_input: { command: "ls" } }), undefined, {
+      signal: new AbortController().signal,
+    });
+    expect(sink).not.toHaveBeenCalled();
+  });
+
+  it("ignores a CronDelete with a missing or non-string id", async () => {
+    const sink = vi.fn();
+    const hooks = buildLifecycleHooks(sink);
+    const cb = hooks!.PostToolUse![0].hooks[0];
+    for (const badInput of [{}, { id: 42 }, { id: "" }, null]) {
+      await cb(postToolUseInput({ tool_input: badInput }), undefined, {
+        signal: new AbortController().signal,
+      });
+    }
+    expect(sink).not.toHaveBeenCalled();
+  });
+
+  it("the Stop callback ignores PostToolUse and the PostToolUse callback ignores Stop", async () => {
+    const sink = vi.fn();
+    const hooks = buildLifecycleHooks(sink);
+    const stopCb = hooks!.Stop![0].hooks[0];
+    const postCb = hooks!.PostToolUse![0].hooks[0];
+    await stopCb(postToolUseInput(), undefined, { signal: new AbortController().signal });
+    await postCb(stopInput(), undefined, { signal: new AbortController().signal });
+    expect(sink).not.toHaveBeenCalled();
   });
 });
 

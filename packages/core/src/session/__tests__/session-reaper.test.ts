@@ -4,8 +4,8 @@ import type { RuntimeSession } from "../../runner/runtime/interface.js";
 import type { SDKMessage } from "../../runner/types.js";
 import { buildLifecycleHooks, tapLifecycleStream } from "../session-hooks.js";
 import { SessionReaper } from "../session-reaper.js";
-import type { SessionLifecycleSignal } from "../types.js";
-import type { WakeRegistry } from "../wake-registry.js";
+import type { SessionLifecycleSignal, SessionWakeEntry } from "../types.js";
+import { type WakePersistence, WakeRegistry } from "../wake-registry.js";
 
 const tick = () => new Promise((r) => setTimeout(r, 5));
 
@@ -32,8 +32,12 @@ function fakeSession(): RuntimeSession & { close: ReturnType<typeof vi.fn> } {
 }
 
 function fakeRegistry() {
-  return { reconcile: vi.fn().mockResolvedValue(undefined) } as unknown as WakeRegistry & {
+  return {
+    reconcile: vi.fn().mockResolvedValue(undefined),
+    remove: vi.fn().mockResolvedValue(undefined),
+  } as unknown as WakeRegistry & {
     reconcile: ReturnType<typeof vi.fn>;
+    remove: ReturnType<typeof vi.fn>;
   };
 }
 
@@ -324,6 +328,46 @@ describe("SessionReaper", () => {
     expect(session.close).not.toHaveBeenCalled();
   });
 
+  it("retires a wake via the registry on a cron_deleted signal, without reaping", async () => {
+    const registry = fakeRegistry();
+    const onReap = vi.fn();
+    const reaper = new SessionReaper({ registry, onReap });
+    const session = fakeSession();
+    const managed = reaper.manage(session, "team/agent");
+
+    await managed.handleSignal(signal({ kind: "cron_deleted", deletedCronIds: ["c1", "c2"] }));
+
+    expect(registry.remove).toHaveBeenCalledWith("c1");
+    expect(registry.remove).toHaveBeenCalledWith("c2");
+    // A CronDelete is mid-turn work, not a turn boundary — it must not reconcile
+    // or reap the still-live session.
+    expect(registry.reconcile).not.toHaveBeenCalled();
+    expect(onReap).not.toHaveBeenCalled();
+    expect(managed.isLive()).toBe(true);
+    await tick();
+    expect(session.close).not.toHaveBeenCalled();
+  });
+
+  it("keeps processing signals when a cron_deleted removal fails", async () => {
+    const registry = {
+      reconcile: vi.fn().mockResolvedValue(undefined),
+      remove: vi.fn().mockRejectedValue(new Error("state io error")),
+    } as unknown as WakeRegistry & { remove: ReturnType<typeof vi.fn> };
+    const reaper = new SessionReaper({ registry });
+    const session = fakeSession();
+    const managed = reaper.manage(session, "team/agent");
+
+    // The failed removal is swallowed (logged) and must not poison the queue.
+    await managed.handleSignal(signal({ kind: "cron_deleted", deletedCronIds: ["c1"] }));
+    expect(managed.isLive()).toBe(true);
+
+    // A subsequent turn_end is still processed and reaps as usual.
+    await managed.handleSignal(signal());
+    expect(managed.isLive()).toBe(false);
+    await tick();
+    expect(session.close).toHaveBeenCalledTimes(1);
+  });
+
   it("exposes the resolved session id once learned", async () => {
     const reaper = new SessionReaper({ registry: fakeRegistry() });
     const managed = reaper.manage(fakeSession(), "team/agent");
@@ -460,5 +504,105 @@ describe("SessionReaper", () => {
       expect(onReap).toHaveBeenCalledTimes(1);
       expect(managed.isLive()).toBe(false);
     });
+  });
+});
+
+/** In-memory persistence returning independent copies (like a real read). */
+function memoryPersistence(initial: SessionWakeEntry[] = []): WakePersistence & {
+  entries: SessionWakeEntry[];
+} {
+  let store = [...initial];
+  return {
+    get entries() {
+      return store;
+    },
+    load: async () => store.map((e) => ({ ...e })),
+    save: async (entries) => {
+      store = entries.map((e) => ({ ...e }));
+    },
+  };
+}
+
+describe("CronDelete retires a recurring wake end-to-end (#409)", () => {
+  it("recurring wake captured → resumed CronDelete → entry removed → no further fire", async () => {
+    // A real WakeRegistry over in-memory persistence, driven through the real
+    // Stop + PostToolUse hooks and the reaper — the full production path.
+    const NOW = new Date("2026-07-23T12:00:00.000Z");
+    // nextRunAt is in the past so the wake is immediately due once persisted.
+    const resolveNextRun = () => new Date(NOW.getTime() - 1000);
+    const persistence = memoryPersistence();
+    const fire = vi.fn().mockResolvedValue(undefined);
+    const registry = new WakeRegistry({ persistence, resolveNextRun, fire });
+    const reaper = new SessionReaper({ registry });
+
+    // Turn 1 (original): the agent creates a recurring cron; herdctl captures it
+    // at the turn boundary. A fresh managed handle models each turn's process.
+    const managed1 = reaper.manage(fakeSession(), "team/agent");
+    const sink1 = (s: SessionLifecycleSignal) => managed1.handleSignal(s);
+    const stop1 = buildLifecycleHooks(sink1)!.Stop![0].hooks[0];
+    await stop1(
+      {
+        hook_event_name: "Stop",
+        session_id: "sess-1",
+        transcript_path: "/tmp/t.jsonl",
+        cwd: "/tmp",
+        stop_hook_active: false,
+        session_crons: [{ id: "c1", schedule: "*/17 * * * *", recurring: true, prompt: "poll" }],
+        background_tasks: [],
+      } as unknown as HookInput,
+      undefined,
+      { signal: new AbortController().signal },
+    );
+    await tick();
+    expect(persistence.entries.map((e) => e.id)).toEqual(["c1"]);
+
+    // Turn 2 (herdctl-resumed): the session-only cron is NOT re-armed, so its
+    // Stop reports empty crons. The agent calls CronDelete(c1) mid-turn. Without
+    // the PostToolUse wiring the recurring wake would survive (reconcile keeps it
+    // on empty), and keep firing until the 7-day prune — the #409 bug.
+    const managed2 = reaper.manage(fakeSession(), "team/agent");
+    const sink2 = (s: SessionLifecycleSignal) => managed2.handleSignal(s);
+    const built2 = buildLifecycleHooks(sink2)!;
+    const postToolUse2 = built2.PostToolUse![0].hooks[0];
+    const stop2 = built2.Stop![0].hooks[0];
+    await postToolUse2(
+      {
+        hook_event_name: "PostToolUse",
+        session_id: "sess-1",
+        transcript_path: "/tmp/t.jsonl",
+        cwd: "/tmp",
+        tool_name: "CronDelete",
+        tool_input: { id: "c1" },
+        tool_response: { id: "c1" },
+        tool_use_id: "tu-1",
+      } as unknown as HookInput,
+      undefined,
+      { signal: new AbortController().signal },
+    );
+    await tick();
+    // The wake is gone.
+    expect(persistence.entries).toEqual([]);
+
+    // The turn ends with empty crons (resumed turn) — reconcile must not resurrect it.
+    await stop2(
+      {
+        hook_event_name: "Stop",
+        session_id: "sess-1",
+        transcript_path: "/tmp/t.jsonl",
+        cwd: "/tmp",
+        stop_hook_active: false,
+        session_crons: [],
+        background_tasks: [],
+      } as unknown as HookInput,
+      undefined,
+      { signal: new AbortController().signal },
+    );
+    await tick();
+    expect(persistence.entries).toEqual([]);
+
+    // No further fire: a scheduler tick past the old nextRunAt dispatches nothing.
+    const dispatched = await registry.dispatchDue(new Date(NOW.getTime() + 20 * 60_000));
+    expect(dispatched).toEqual([]);
+    expect(fire).not.toHaveBeenCalled();
   });
 });

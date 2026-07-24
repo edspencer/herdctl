@@ -16,6 +16,7 @@ import type {
   BackgroundTaskSummary,
   HookInput,
   Options,
+  PostToolUseHookInput,
   SessionCronSummary,
   StopHookInput,
 } from "@anthropic-ai/claude-agent-sdk";
@@ -61,13 +62,38 @@ function isMainAgentStop(input: HookInput): input is StopHookInput {
   return input.hook_event_name === "Stop";
 }
 
+/** The SDK tool name that retires a session cron by id. */
+const CRON_DELETE_TOOL = "CronDelete";
+
 /**
- * Build the main-agent `Stop` hook that forwards each turn-boundary snapshot to
- * `sink`. The hook awaits the sink so cron capture completes before the turn
- * unwinds, then returns `{ continue: true }` to leave turn flow untouched.
+ * Pull the retired cron id out of a `CronDelete` PostToolUse input, or `null` if
+ * this isn't a well-formed `CronDelete`. `tool_input` is typed `unknown`, so we
+ * narrow structurally: `{ id: string }` (see the SDK's `CronDeleteInput`).
+ */
+function deletedCronId(input: PostToolUseHookInput): string | null {
+  if (input.tool_name !== CRON_DELETE_TOOL) return null;
+  const toolInput = input.tool_input;
+  if (typeof toolInput !== "object" || toolInput === null) return null;
+  const id = (toolInput as { id?: unknown }).id;
+  return typeof id === "string" && id.length > 0 ? id : null;
+}
+
+/**
+ * Build the SDK hooks that feed the session-reaper:
+ * - `Stop` — the main-agent turn boundary carrying the authoritative
+ *   `session_crons`/`background_tasks` snapshot (a `turn_end` signal).
+ * - `PostToolUse` — watches for `CronDelete` and emits a `cron_deleted` signal
+ *   so a herdctl-owned recurring wake can be retired. This is the only reliable
+ *   delete signal: on a herdctl-resumed turn the session-only cron is never
+ *   re-armed, so `reconcile` can't tell a delete from a naturally-empty report
+ *   and deliberately keeps recurring wakes — leaving them un-cancellable until
+ *   the 7-day prune (#409). The delete must therefore be reported explicitly.
+ *
+ * Both hooks return `{ continue: true }` and forward via `emit`, so a sink
+ * failure never rejects the hook (which would disrupt turn flow).
  */
 export function buildLifecycleHooks(sink: LifecycleSignalSink): Options["hooks"] {
-  const callback = async (input: HookInput) => {
+  const stopCallback = async (input: HookInput) => {
     if (isMainAgentStop(input)) {
       const sessionCrons: SessionCronSummary[] = input.session_crons ?? [];
       const backgroundTasks: BackgroundTaskSummary[] = input.background_tasks ?? [];
@@ -78,10 +104,27 @@ export function buildLifecycleHooks(sink: LifecycleSignalSink): Options["hooks"]
     return { continue: true };
   };
 
-  // Only `Stop` is registered — see {@link isMainAgentStop} for why a
-  // `SubagentStop` must not reach the reaper as a turn boundary.
+  const postToolUseCallback = async (input: HookInput) => {
+    if (input.hook_event_name === "PostToolUse") {
+      const id = deletedCronId(input as PostToolUseHookInput);
+      if (id !== null) {
+        emit(sink, {
+          kind: "cron_deleted",
+          sessionId: input.session_id,
+          sessionCrons: [],
+          backgroundTasks: [],
+          deletedCronIds: [id],
+        });
+      }
+    }
+    return { continue: true };
+  };
+
+  // Only `Stop` is registered for the turn boundary — see {@link isMainAgentStop}
+  // for why a `SubagentStop` must not reach the reaper as one.
   return {
-    Stop: [{ hooks: [callback] }],
+    Stop: [{ hooks: [stopCallback] }],
+    PostToolUse: [{ hooks: [postToolUseCallback] }],
   };
 }
 
