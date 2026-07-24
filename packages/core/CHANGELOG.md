@@ -1,5 +1,33 @@
 # @herdctl/core
 
+## 5.26.1
+
+### Patch Changes
+
+- [#411](https://github.com/edspencer/herdctl/pull/411) [`319e9db`](https://github.com/edspencer/herdctl/commit/319e9db8f2761c4e4eb8a61dde205b061732a52b) Thanks [@edspencer](https://github.com/edspencer)! - Retire durable session wakes when the agent runs `CronDelete` (#409).
+
+  A recurring session wake (`CronCreate` / `/loop` / `ScheduleWakeup`) captured
+  into herdctl's durable wake set could not be cancelled from within the session:
+  `CronDelete` deleted the harness's in-memory cron (so `CronList` reported no
+  jobs) but herdctl kept firing the persisted wake on schedule until the 7-day
+  prune. `reconcile` deliberately keeps recurring wakes that are absent from a
+  turn's `session_crons` report — on a herdctl-resumed turn the session-only cron
+  is never re-armed, so its absence is indistinguishable from a delete — which
+  left `WakeRegistry.remove` (the intended "gap 4b" retirement path) with no
+  callers.
+
+  The session lifecycle now watches for `CronDelete` via a `PostToolUse` hook and
+  emits a `cron_deleted` signal carrying the deleted id, which the session-reaper
+  routes to `WakeRegistry.remove`. This works on both live and resumed turns
+  because it captures the delete explicitly rather than inferring it from the cron
+  snapshot.
+
+- [#412](https://github.com/edspencer/herdctl/pull/412) [`0425a10`](https://github.com/edspencer/herdctl/commit/0425a109d3ee593dff5acfee354aa52f1b8b3471) Thanks [@edspencer](https://github.com/edspencer)! - Fix `ToolSearch` tool calls rendering as perpetually RUNNING when a transcript is rehydrated (#410)
+
+  `ToolSearch`'s `tool_result.content` is an array of `{ type: "tool_reference", tool_name }` blocks (the deferred-tool schemas it loads) — it carries no text and no image blocks. `extractToolResults`/`extractToolResultContent` only harvested `text` and `image` blocks, so such a result collected empty `text`/`images` and was silently dropped by the `if (text.length > 0 || images.length > 0)` guard. A dropped result never pairs with its pending `tool_use`, so the in-flight (#399) row it should upgrade stayed pending forever — the `ToolSearch` card showed RUNNING indefinitely, arbitrarily deep in old transcripts.
+
+  `collectContentBlocks` now recognizes `tool_reference` blocks and returns the referenced tool names; the array-content call sites render them into a one-line summary (`Loaded N tool schemas: …`) so the completed card shows what was loaded. The guard is also hardened: **a result carrying a valid `tool_use_id` is never discarded**, even when it has no text or images — that id is what the pairing depends on. Purely internal to transcript parsing; no API surface changes.
+
 ## 5.26.0
 
 ### Minor Changes
