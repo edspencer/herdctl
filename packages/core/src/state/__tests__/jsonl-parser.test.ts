@@ -81,6 +81,30 @@ describe("parseSessionMessages", () => {
     expect(messages[3].content).toContain("entry point for an Express.js web server");
   });
 
+  it("pairs a ToolSearch tool_reference-content result (regression #410)", async () => {
+    // ToolSearch's tool_result content is an array of `tool_reference` blocks,
+    // with no text or images. The parser must still emit the paired tool
+    // message; if the result is dropped, the tool_use never upgrades and the
+    // card is stuck RUNNING forever.
+    const messages = await parseSessionMessages(fixture("toolsearch-session.jsonl"));
+
+    // 1 user + 1 assistant (text) + 1 tool (ToolSearch result) + 1 assistant = 4
+    expect(messages).toHaveLength(4);
+
+    const toolMsg = messages[2];
+    expect(toolMsg.role).toBe("tool");
+    expect(toolMsg.toolCall).toBeDefined();
+    // Paired against the pending tool_use, so the name is resolved (not
+    // "unknown", which is what an orphaned/unpaired result would show).
+    expect(toolMsg.toolCall!.toolName).toBe("ToolSearch");
+    expect(toolMsg.toolCall!.isError).toBe(false);
+    // Duration is present only because the result matched its pending tool_use.
+    expect(toolMsg.toolCall!.durationMs).toBeGreaterThanOrEqual(0);
+    expect(toolMsg.toolCall!.output).toBe(
+      "Loaded 2 tool schemas: mcp__github_pr__submit_review, mcp__github_pr__get_diff",
+    );
+  });
+
   it("parses multi-tool-session.jsonl with multiple tool messages from one assistant response", async () => {
     const messages = await parseSessionMessages(fixture("multi-tool-session.jsonl"));
 

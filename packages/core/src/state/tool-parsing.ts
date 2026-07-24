@@ -225,21 +225,32 @@ export function imageToDataUrl(image: ExtractedImage): string | undefined {
 }
 
 /**
- * Split an array of content blocks into text parts and normalized image blocks.
+ * Split an array of content blocks into text parts, normalized image blocks, and
+ * the tool names referenced by any `tool_reference` blocks.
  *
  * Shared by the tool-result parsers so both the nested `content[]` and the
  * top-level `tool_use_result` shapes preserve images identically. Unknown block
  * types are ignored (their text/image payloads, if any, don't match).
  *
+ * `tool_reference` blocks are the deferred-tool-schema result shape emitted by
+ * `ToolSearch` — a `tool_result` whose `content` is an array of
+ * `{ type: "tool_reference", tool_name }` blocks with no text or images. Their
+ * names are collected separately so callers can render a summary and, crucially,
+ * so a result that carries only such blocks is not treated as empty and dropped
+ * (see #410: a dropped result never pairs with its pending tool_use, leaving the
+ * `ToolSearch` card stuck RUNNING forever).
+ *
  * @param content - Array of content blocks
- * @returns Collected text parts and images
+ * @returns Collected text parts, images, and referenced tool names
  */
 function collectContentBlocks(content: unknown[]): {
   text: string[];
   images: ExtractedImage[];
+  toolReferences: string[];
 } {
   const text: string[] = [];
   const images: ExtractedImage[] = [];
+  const toolReferences: string[] = [];
 
   for (const part of content) {
     if (!part || typeof part !== "object" || !("type" in part)) continue;
@@ -254,11 +265,34 @@ function collectContentBlocks(content: unknown[]): {
       continue;
     }
 
+    if (
+      type === "tool_reference" &&
+      "tool_name" in part &&
+      typeof (part as { tool_name?: unknown }).tool_name === "string"
+    ) {
+      toolReferences.push((part as { tool_name: string }).tool_name);
+      continue;
+    }
+
     const image = normalizeImageBlock(part);
     if (image) images.push(image);
   }
 
-  return { text, images };
+  return { text, images, toolReferences };
+}
+
+/**
+ * Render a human-readable one-line summary of the tool schemas loaded by a
+ * `tool_reference`-content result (see {@link collectContentBlocks}), or an
+ * empty string when there are none.
+ *
+ * @param names - Referenced tool names
+ * @returns Summary line, e.g. `Loaded 2 tool schemas: Foo, Bar`
+ */
+function summarizeToolReferences(names: string[]): string {
+  if (names.length === 0) return "";
+  const noun = names.length === 1 ? "tool schema" : "tool schemas";
+  return `Loaded ${names.length} ${noun}: ${names.join(", ")}`;
 }
 
 /**
@@ -312,12 +346,17 @@ export function extractToolResults(message: {
       if (typeof blockContent === "string" && blockContent.length > 0) {
         results.push({ output: blockContent, isError, toolUseId });
       } else if (Array.isArray(blockContent)) {
-        const { text, images } = collectContentBlocks(blockContent);
-        // Push when there is text OR images: an image-only tool result (e.g. a
-        // screenshot) has empty text but must still surface its image blocks.
-        if (text.length > 0 || images.length > 0) {
+        const { text, images, toolReferences } = collectContentBlocks(blockContent);
+        const refSummary = summarizeToolReferences(toolReferences);
+        const outputParts = refSummary ? [...text, refSummary] : text;
+        // Push when there is any output OR images OR — crucially — a valid
+        // tool_use_id. An image-only result (e.g. a screenshot) has empty text
+        // but must surface its images; a `tool_reference`-only result (ToolSearch)
+        // has neither text nor images but MUST still be emitted so it pairs with
+        // its pending tool_use, otherwise the card is stuck RUNNING forever (#410).
+        if (outputParts.length > 0 || images.length > 0 || toolUseId) {
           results.push({
-            output: text.join("\n"),
+            output: outputParts.join("\n"),
             isError,
             toolUseId,
             ...(images.length > 0 ? { images } : {}),
@@ -360,14 +399,19 @@ export function extractToolResultContent(result: unknown): ToolResult | undefine
 
     // Check for content blocks array
     if (Array.isArray(obj.content)) {
-      const { text, images } = collectContentBlocks(obj.content);
-      // Push when there is text OR images: an image-only result must still
-      // surface its image blocks even though its text output is empty.
-      if (text.length > 0 || images.length > 0) {
+      const { text, images, toolReferences } = collectContentBlocks(obj.content);
+      const toolUseId = typeof obj.tool_use_id === "string" ? obj.tool_use_id : undefined;
+      const refSummary = summarizeToolReferences(toolReferences);
+      const outputParts = refSummary ? [...text, refSummary] : text;
+      // Push when there is any output OR images OR a valid tool_use_id: an
+      // image-only result must surface its images, and a `tool_reference`-only
+      // result (ToolSearch) must still be emitted so it pairs with its pending
+      // tool_use rather than leaving the card stuck RUNNING forever (#410).
+      if (outputParts.length > 0 || images.length > 0 || toolUseId) {
         return {
-          output: text.join("\n"),
+          output: outputParts.join("\n"),
           isError: obj.is_error === true,
-          toolUseId: typeof obj.tool_use_id === "string" ? obj.tool_use_id : undefined,
+          toolUseId,
           ...(images.length > 0 ? { images } : {}),
         };
       }
