@@ -5,9 +5,9 @@
  * .herdctl/jobs/job-<id>.yaml
  */
 
-import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { StateFileError } from "./errors.js";
+import { type JobIndexRecord, mapWithConcurrency, refreshJobIndex } from "./job-index.js";
 import {
   type CreateJobOptions,
   createJobMetadata,
@@ -58,6 +58,15 @@ export interface ListJobsFilter {
   startedAfter?: string | Date;
   /** Filter jobs started on or before this date (ISO string or Date) */
   startedBefore?: string | Date;
+  /**
+   * Maximum number of jobs to return, applied after filtering and sorting.
+   *
+   * Prefer this over slicing the result: only the jobs actually returned are
+   * read and parsed in full, so a small page costs a small amount of work.
+   */
+  limit?: number;
+  /** Number of matching jobs to skip before applying `limit` */
+  offset?: number;
 }
 
 /**
@@ -68,11 +77,21 @@ export interface ListJobsResult {
   jobs: JobMetadata[];
   /** Number of jobs that failed to parse */
   errors: number;
+  /**
+   * Number of jobs matching the filter before `limit`/`offset` were applied.
+   *
+   * Always populated by {@link listJobs}; optional so that hand-constructed
+   * results (test doubles, adapters) remain valid.
+   */
+  total?: number;
 }
 
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+/** Maximum number of job records read concurrently when hydrating a page. */
+const HYDRATE_CONCURRENCY = 32;
 
 /**
  * Get the file path for a job
@@ -285,10 +304,15 @@ export async function getJob(
  * Supports filtering by agent, status, and date range. Returns jobs
  * sorted by started_at in descending order (most recent first).
  *
+ * Filtering, sorting and pagination run against a cached, mtime-keyed index of
+ * each job file's `agent`/`status`/`started_at` (see `job-index.ts`), so only the
+ * records actually returned are read and parsed in full. Passing `limit` is
+ * therefore much cheaper than slicing the result.
+ *
  * @param jobsDir - Path to the jobs directory
  * @param filter - Optional filter criteria
  * @param options - Optional operation options
- * @returns List of matching jobs and count of parse errors
+ * @returns Matching jobs, the pre-pagination match count, and the count of parse errors
  *
  * @example
  * ```typescript
@@ -297,11 +321,12 @@ export async function getJob(
  *   agent: 'my-agent'
  * });
  *
- * // List failed jobs from the last 24 hours
+ * // Most recent 20 failed jobs from the last 24 hours
  * const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
- * const { jobs } = await listJobs('/path/to/.herdctl/jobs', {
+ * const { jobs, total } = await listJobs('/path/to/.herdctl/jobs', {
  *   status: 'failed',
- *   startedAfter: yesterday
+ *   startedAfter: yesterday,
+ *   limit: 20
  * });
  * ```
  */
@@ -312,14 +337,31 @@ export async function listJobs(
 ): Promise<ListJobsResult> {
   const { logger = console } = options;
 
-  // Read directory
-  let files: string[];
+  // Parse date filters once
+  const startedAfter = filter.startedAfter ? toDate(filter.startedAfter).getTime() : undefined;
+  const startedBefore = filter.startedBefore ? toDate(filter.startedBefore).getTime() : undefined;
+
+  const matches = (record: JobIndexRecord): boolean => {
+    if (filter.agent && record.agent !== filter.agent) return false;
+    if (filter.status && record.status !== filter.status) return false;
+    if (startedAfter !== undefined && record.startedAtMs < startedAfter) return false;
+    if (startedBefore !== undefined && record.startedAtMs > startedBefore) return false;
+    return true;
+  };
+
+  // On a cold pass the index refresh parses records anyway, so hold on to the
+  // ones that could be returned instead of reading them twice. When a page was
+  // requested we can't yet tell which records make the page, and holding every
+  // match to keep a handful would defeat the point — re-read the page instead.
+  const retain = filter.limit === undefined ? matches : () => false;
+
+  let index: Awaited<ReturnType<typeof refreshJobIndex>>;
   try {
-    files = await readdir(jobsDir);
+    index = await refreshJobIndex(jobsDir, { retain });
   } catch (error) {
     // Directory doesn't exist - return empty list
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return { jobs: [], errors: 0 };
+      return { jobs: [], errors: 0, total: 0 };
     }
     throw new StateFileError(
       `Failed to read jobs directory: ${(error as Error).message}`,
@@ -329,70 +371,82 @@ export async function listJobs(
     );
   }
 
-  // Filter to job YAML files
-  const jobFiles = files.filter((f) => f.startsWith("job-") && f.endsWith(".yaml"));
-
-  const jobs: JobMetadata[] = [];
   let errors = 0;
 
-  // Parse date filters once
-  const startedAfter = filter.startedAfter ? toDate(filter.startedAfter) : undefined;
-  const startedBefore = filter.startedBefore ? toDate(filter.startedBefore) : undefined;
-
-  // Read and filter each job
-  for (const file of jobFiles) {
-    const filePath = join(jobsDir, file);
-    const result = await safeReadYaml<unknown>(filePath);
-
-    if (!result.success) {
-      logger.warn(`Failed to read job file ${filePath}: ${result.error.message}`);
+  // Filter on the index — no large-record parsing needed to decide what to keep.
+  const candidates: { file: string; record: JobIndexRecord }[] = [];
+  for (const entry of index.entries) {
+    if (!entry.record) {
+      logger.warn(entry.warning ?? `Failed to read job file ${join(jobsDir, entry.file)}`);
       errors++;
       continue;
     }
-
-    const parseResult = JobMetadataSchema.safeParse(result.data);
-    if (!parseResult.success) {
-      logger.warn(`Corrupted job file ${filePath}: ${parseResult.error.message}`);
-      errors++;
-      continue;
+    if (matches(entry.record)) {
+      candidates.push({ file: entry.file, record: entry.record });
     }
-
-    const job = parseResult.data;
-
-    // Apply filters
-    if (filter.agent && job.agent !== filter.agent) {
-      continue;
-    }
-
-    if (filter.status && job.status !== filter.status) {
-      continue;
-    }
-
-    if (startedAfter) {
-      const jobDate = new Date(job.started_at);
-      if (jobDate < startedAfter) {
-        continue;
-      }
-    }
-
-    if (startedBefore) {
-      const jobDate = new Date(job.started_at);
-      if (jobDate > startedBefore) {
-        continue;
-      }
-    }
-
-    jobs.push(job);
   }
 
-  // Sort by started_at descending (most recent first)
+  const total = candidates.length;
+
+  // Sort by started_at descending (most recent first). Array.sort is stable, so
+  // equal timestamps keep directory order, as they did when sorting records.
+  candidates.sort((a, b) => b.record.startedAtMs - a.record.startedAtMs);
+
+  const offset = filter.offset !== undefined && filter.offset > 0 ? filter.offset : 0;
+  const end =
+    filter.limit !== undefined && filter.limit > 0 ? offset + filter.limit : candidates.length;
+  const page = candidates.slice(offset, end);
+
+  // Read the full records for this page only, reusing any parse the index refresh
+  // already paid for.
+  const hydrated = await mapWithConcurrency(
+    page,
+    HYDRATE_CONCURRENCY,
+    async ({ file }): Promise<JobMetadata | string> => {
+      const alreadyParsed = index.fresh.get(file);
+      if (alreadyParsed) return alreadyParsed;
+
+      const filePath = join(jobsDir, file);
+      const result = await safeReadYaml<unknown>(filePath);
+      if (!result.success) {
+        return `Failed to read job file ${filePath}: ${result.error.message}`;
+      }
+
+      const parseResult = JobMetadataSchema.safeParse(result.data);
+      if (!parseResult.success) {
+        return `Corrupted job file ${filePath}: ${parseResult.error.message}`;
+      }
+
+      return parseResult.data;
+    },
+  );
+
+  const jobs: JobMetadata[] = [];
+  for (const outcome of hydrated) {
+    // A job file can change between being indexed and being read. Re-checking the
+    // filter against the record we actually return keeps the guarantee that every
+    // returned job satisfies the filter.
+    if (typeof outcome === "string") {
+      logger.warn(outcome);
+      errors++;
+    } else if (
+      matches({
+        agent: outcome.agent,
+        status: outcome.status,
+        startedAtMs: new Date(outcome.started_at).getTime(),
+      })
+    ) {
+      jobs.push(outcome);
+    }
+  }
+
   jobs.sort((a, b) => {
     const dateA = new Date(a.started_at).getTime();
     const dateB = new Date(b.started_at).getTime();
     return dateB - dateA;
   });
 
-  return { jobs, errors };
+  return { jobs, errors, total };
 }
 
 /**

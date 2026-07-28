@@ -31,6 +31,7 @@ export {
   type WriteFleetStateOptions,
   writeFleetState,
 } from "./fleet-state.js";
+export { clearJobIndexCache } from "./job-index.js";
 // Re-export job metadata functions
 export {
   createJob,

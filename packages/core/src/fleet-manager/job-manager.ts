@@ -230,32 +230,23 @@ export class JobManager {
    */
   async getJobs(filter: JobFilter = {}): Promise<JobListResult> {
     // Map our filter to the state module's filter
+    // Pagination is pushed down so only the returned page is read and parsed.
     const stateFilter: ListJobsFilter = {
       agent: filter.agent,
       status: filter.status,
       startedAfter: filter.startedAfter,
       startedBefore: filter.startedBefore,
+      limit: filter.limit,
+      offset: filter.offset,
     };
 
     const result = await listJobsFromState(this.jobsDir, stateFilter, {
       logger: this.logger,
     });
 
-    // Apply pagination
-    const total = result.jobs.length;
-    let jobs = result.jobs;
-
-    if (filter.offset !== undefined && filter.offset > 0) {
-      jobs = jobs.slice(filter.offset);
-    }
-
-    if (filter.limit !== undefined && filter.limit > 0) {
-      jobs = jobs.slice(0, filter.limit);
-    }
-
     return {
-      jobs,
-      total,
+      jobs: result.jobs,
+      total: result.total ?? result.jobs.length,
       errors: result.errors,
     };
   }
