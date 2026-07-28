@@ -355,8 +355,25 @@ Available filters:
 | `status` | `JobStatus` | Filter by job status |
 | `startedAfter` | `string` or `Date` | Jobs started on or after this date |
 | `startedBefore` | `string` or `Date` | Jobs started on or before this date |
+| `limit` | `number` | Maximum number of jobs to return |
+| `offset` | `number` | Number of matching jobs to skip before applying `limit` |
 
-Results are sorted by `started_at` in descending order (most recent first). The `errors` count indicates how many job files failed to parse (corrupted or incompatible format).
+Results are sorted by `started_at` in descending order (most recent first). The `errors` count indicates how many job files failed to parse (corrupted or incompatible format). `total` reports how many jobs matched the filter before `limit` and `offset` were applied.
+
+### The Job Index
+
+Job records are dominated by two large free-text fields — on a real instance `prompt` and `summary` account for around 99% of the bytes — so YAML-parsing every record just to decide which ones to return is by far the most expensive part of a listing.
+
+`listJobs()` therefore filters, sorts and paginates against an index of each job file's `agent`, `status` and `started_at` (`packages/core/src/state/job-index.ts`), and reads the full record only for the jobs it is about to return. The index is cached per jobs directory and keyed on each file's mtime and size, so repeated listings only re-parse files that are new or have changed.
+
+Two consequences worth knowing:
+
+- **Pass `limit`/`offset` rather than slicing the result.** Only the returned page is read and parsed, so `listJobs(jobsDir, { limit: 50 })` is dramatically cheaper than `listJobs(jobsDir)` followed by `.slice(0, 50)`. `JobManager.getJobs()` already passes them down.
+- **Full records are never cached.** Every job handed back is freshly parsed, so callers never share mutable objects with the cache. Caching parsed records instead would cost roughly 70× the memory of the index.
+
+The cache needs no explicit invalidation — it revalidates against the filesystem on every call. `clearJobIndexCache(jobsDir?)` exists for tests and for releasing the memory.
+
+This mirrors the incremental `AttributionIndexBuilder` used by session discovery, with one difference: the attribution index is TTL-based, while the job index is validated against file mtime and size.
 
 ## Job Events
 
@@ -441,6 +458,7 @@ packages/core/src/
 │   │   ├── job-metadata.ts    # JobMetadataSchema, generateJobId(), createJobMetadata()
 │   │   └── job-output.ts      # JobOutputMessageSchema, JobOutputInput types
 │   ├── job-metadata.ts        # createJob(), updateJob(), getJob(), listJobs(), deleteJob()
+│   ├── job-index.ts           # refreshJobIndex(), clearJobIndexCache() — mtime-keyed listing index
 │   └── job-output.ts          # appendJobOutput(), readJobOutput(), readJobOutputAll()
 └── fleet-manager/
     ├── job-control.ts         # JobControl class: trigger(), cancelJob(), forkJob()

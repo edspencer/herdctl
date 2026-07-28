@@ -668,6 +668,7 @@ packages/core/src/state/
 ├── directory.ts          # initStateDirectory(), getStateDirectory(), validateStateDirectory()
 ├── fleet-state.ts        # readFleetState(), writeFleetState(), updateAgentState()
 ├── job-metadata.ts       # createJob(), updateJob(), getJob(), listJobs()
+├── job-index.ts          # refreshJobIndex(), clearJobIndexCache() — mtime-keyed index backing listJobs()
 ├── job-output.ts         # appendJobOutput(), readJobOutput()
 ├── session.ts            # getSessionInfo(), updateSessionInfo(), clearSession()
 ├── session-validation.ts # Working directory and runtime type validation
