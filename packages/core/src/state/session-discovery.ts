@@ -1067,6 +1067,11 @@ export class SessionDiscoveryService {
 
       for (const { sessionId, mtime } of dir.sessionFiles) {
         const mtimeStr = mtime.toISOString();
+        // Tracks whether this entry was already counted as visible, so a later
+        // enrichment failure (which lands in the catch below and skips the entry)
+        // can back the count out — keeping `sessionCount` in sync with the
+        // sessions actually returned.
+        let countedAsVisible = false;
 
         try {
           // Filter out sidechain (sub-agent) sessions — see comment in getAgentSessions().
@@ -1112,6 +1117,7 @@ export class SessionDiscoveryService {
           // Count visible sessions BEFORE pagination filtering — sessionCount should reflect
           // total visible sessions for this agent, not just the paginated subset
           visibleSessionCount++;
+          countedAsVisible = true;
 
           // Skip sessions not in the selected set when limit is active (pagination)
           if (selectedSessionIds && !selectedSessionIds.has(sessionId)) {
@@ -1172,6 +1178,14 @@ export class SessionDiscoveryService {
           // the loop over directories, every *other* directory's enrichment too).
           // Logged at warn so a corrupt transcript folder is diagnosable instead
           // of just quietly smaller.
+          //
+          // If the entry was already counted as visible (the sidechain check
+          // reads only the first line, so a transcript can pass it yet fail a
+          // later whole-file read for auto-name/preview), back that count out so
+          // `sessionCount` still matches the sessions actually returned.
+          if (countedAsVisible) {
+            visibleSessionCount--;
+          }
           logger.warn(
             `Skipping unreadable session entry ${sessionId} in ${dir.decodedPath}: ${(error as Error).message}`,
           );
