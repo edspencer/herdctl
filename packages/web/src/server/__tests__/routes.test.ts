@@ -265,7 +265,7 @@ describe("Job Routes", () => {
         },
       ];
 
-      mockListJobs.mockResolvedValue({ jobs: mockJobs, errors: [] });
+      mockListJobs.mockResolvedValue({ jobs: mockJobs, errors: [], total: 2 });
 
       const response = await server.inject({
         method: "GET",
@@ -280,6 +280,15 @@ describe("Job Routes", () => {
       expect(body.offset).toBe(0);
     });
 
+    /**
+     * Pagination lives INSIDE listJobs, not in this route.
+     *
+     * These used to slice `result.jobs` after the fact, which meant the route
+     * asked for the whole jobs directory — every record read, parsed and
+     * validated — to return at most 100. The mock therefore now behaves like the
+     * real `listJobs`: it applies offset/limit itself and reports the
+     * pre-pagination match count as `total`.
+     */
     it("respects limit and offset query params", async () => {
       const manyJobs = Array.from({ length: 10 }, (_, i) => ({
         id: `job-${i}`,
@@ -289,7 +298,11 @@ describe("Job Routes", () => {
         started_at: "2025-01-01T00:00:00Z",
       }));
 
-      mockListJobs.mockResolvedValue({ jobs: manyJobs, errors: [] });
+      mockListJobs.mockImplementation(async (_dir: string, filter: any) => {
+        const offset = filter?.offset ?? 0;
+        const limit = filter?.limit ?? manyJobs.length;
+        return { jobs: manyJobs.slice(offset, offset + limit), errors: [], total: manyJobs.length };
+      });
 
       const response = await server.inject({
         method: "GET",
@@ -305,8 +318,38 @@ describe("Job Routes", () => {
       expect(body.offset).toBe(2);
     });
 
+    it("pushes pagination DOWN into listJobs rather than slicing its result", async () => {
+      // The regression this guards: with `limit` undefined, listJobs retains and
+      // hydrates every match, so a paginated endpoint that slices afterwards
+      // reads the entire jobs directory on every request (2,400 ms vs 160 ms on
+      // a 2,016-record dir).
+      mockListJobs.mockResolvedValue({ jobs: [], errors: [], total: 0 });
+
+      await server.inject({ method: "GET", url: "/api/jobs?limit=10&offset=30" });
+
+      expect(mockListJobs).toHaveBeenCalledWith("/tmp/test-state/jobs", {
+        limit: 10,
+        offset: 30,
+      });
+    });
+
+    it("reports the pre-pagination match count as `total`, not the page size", async () => {
+      mockListJobs.mockResolvedValue({
+        jobs: [
+          { id: "job-1", agent: "coder", status: "completed", started_at: "2025-01-01T00:00:00Z" },
+        ],
+        errors: [],
+        total: 137,
+      });
+
+      const response = await server.inject({ method: "GET", url: "/api/jobs?limit=1" });
+
+      expect(response.json().jobs).toHaveLength(1);
+      expect(response.json().total).toBe(137);
+    });
+
     it("clamps limit to max 100", async () => {
-      mockListJobs.mockResolvedValue({ jobs: [], errors: [] });
+      mockListJobs.mockResolvedValue({ jobs: [], errors: [], total: 0 });
 
       const response = await server.inject({
         method: "GET",
@@ -315,6 +358,12 @@ describe("Job Routes", () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.json().limit).toBe(100);
+      // The clamped value is what reaches listJobs, so the cap actually bounds
+      // the work rather than just the reported number.
+      expect(mockListJobs).toHaveBeenCalledWith("/tmp/test-state/jobs", {
+        limit: 100,
+        offset: 0,
+      });
     });
 
     it("passes filter params to listJobs", async () => {
@@ -325,9 +374,12 @@ describe("Job Routes", () => {
         url: "/api/jobs?agentName=coder&status=running",
       });
 
+      // The default page is passed down too, not applied afterwards.
       expect(mockListJobs).toHaveBeenCalledWith("/tmp/test-state/jobs", {
         agent: "coder",
         status: "running",
+        limit: 50,
+        offset: 0,
       });
     });
 

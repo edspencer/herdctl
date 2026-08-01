@@ -417,6 +417,125 @@ describe("listJobs", () => {
     });
   });
 
+  describe("filtering by agents (set)", () => {
+    it("returns jobs for every listed agent and nothing else", async () => {
+      await createJob(tempDir, { agent: "agent-a", trigger_type: "manual" });
+      await createJob(tempDir, { agent: "agent-b", trigger_type: "manual" });
+      await createJob(tempDir, { agent: "agent-c", trigger_type: "manual" });
+
+      const result = await listJobs(tempDir, { agents: ["agent-a", "agent-c"] });
+
+      expect(result.jobs).toHaveLength(2);
+      expect(result.jobs.map((j) => j.agent).sort()).toEqual(["agent-a", "agent-c"]);
+    });
+
+    it("treats an EMPTY array as matching nothing, not as no filter", async () => {
+      // The alternative reading — empty means unfiltered — would silently turn a
+      // caller's "I have no agents to look up" into "hydrate the whole directory",
+      // which is the exact pathology this filter exists to remove.
+      await createJob(tempDir, { agent: "agent-a", trigger_type: "manual" });
+
+      const result = await listJobs(tempDir, { agents: [] });
+
+      expect(result.jobs).toEqual([]);
+      expect(result.total).toBe(0);
+    });
+
+    it("ignores listed agents that have no jobs", async () => {
+      await createJob(tempDir, { agent: "agent-a", trigger_type: "manual" });
+
+      const result = await listJobs(tempDir, { agents: ["agent-a", "never-ran"] });
+
+      expect(result.jobs).toHaveLength(1);
+      expect(result.jobs[0].agent).toBe("agent-a");
+    });
+
+    it("combines with `agent` as an AND, narrowing to the intersection", async () => {
+      await createJob(tempDir, { agent: "agent-a", trigger_type: "manual" });
+      await createJob(tempDir, { agent: "agent-b", trigger_type: "manual" });
+
+      const both = await listJobs(tempDir, {
+        agent: "agent-a",
+        agents: ["agent-a", "agent-b"],
+      });
+      expect(both.jobs).toHaveLength(1);
+      expect(both.jobs[0].agent).toBe("agent-a");
+
+      const disjoint = await listJobs(tempDir, { agent: "agent-a", agents: ["agent-b"] });
+      expect(disjoint.jobs).toEqual([]);
+    });
+
+    it("combines with status", async () => {
+      const job = await createJob(tempDir, { agent: "agent-a", trigger_type: "manual" });
+      await updateJob(tempDir, job.id, { status: "completed" });
+      await createJob(tempDir, { agent: "agent-b", trigger_type: "manual" });
+
+      const result = await listJobs(tempDir, {
+        agents: ["agent-a", "agent-b"],
+        status: "completed",
+      });
+
+      expect(result.jobs).toHaveLength(1);
+      expect(result.jobs[0].agent).toBe("agent-a");
+    });
+
+    it("reports the pre-pagination match count in `total`", async () => {
+      for (let i = 0; i < 5; i++) {
+        await createJob(tempDir, { agent: "agent-a", trigger_type: "manual" });
+      }
+      await createJob(tempDir, { agent: "agent-z", trigger_type: "manual" });
+
+      const result = await listJobs(tempDir, { agents: ["agent-a"], limit: 2 });
+
+      expect(result.jobs).toHaveLength(2);
+      expect(result.total).toBe(5);
+    });
+
+    /**
+     * The migration guard for downstream callers (paddock#535).
+     *
+     * The shape this filter replaces is "list the directory unfiltered, filter to
+     * a set of agents in JS, then slice" — which hydrates every record to return a
+     * handful. Swapping it for `{ agents, limit }` is only safe if it yields the
+     * SAME records in the SAME order, so assert that equivalence against the old
+     * shape directly rather than trusting that both paths happen to sort.
+     */
+    it("returns the identical set AND order as filtering in JS", async () => {
+      const agents = ["keeper-x", "trigger-x-nightly", "sweeper-x", "keeper-other"];
+      // Interleaved across time, so any per-agent grouping would reorder the result.
+      for (let i = 0; i < 24; i++) {
+        await writeJobFile(tempDir, {
+          id: `job-2024-01-15-i${String(i).padStart(5, "0")}`,
+          agent: agents[i % agents.length],
+          trigger_type: "manual",
+          status: "completed",
+          started_at: new Date(Date.UTC(2024, 0, 15, 0, i)).toISOString(),
+          schedule: null,
+          exit_reason: null,
+          session_id: null,
+          forked_from: null,
+          finished_at: null,
+          duration_seconds: null,
+          prompt: null,
+          summary: null,
+          output_file: null,
+        });
+      }
+      const wanted = ["keeper-x", "trigger-x-nightly"];
+      const limit = 7;
+
+      // The old shape: unfiltered, filtered in JS, then sliced.
+      const unfiltered = await listJobs(tempDir);
+      const oldWay = unfiltered.jobs.filter((j) => wanted.includes(j.agent)).slice(0, limit);
+
+      // The new shape: pushed down into the index.
+      const newWay = (await listJobs(tempDir, { agents: wanted, limit })).jobs;
+
+      expect(newWay.map((j) => j.id)).toEqual(oldWay.map((j) => j.id));
+      expect(newWay).toHaveLength(limit);
+    });
+  });
+
   describe("filtering by status", () => {
     it("returns only jobs with specified status", async () => {
       const job1 = await createJob(tempDir, {

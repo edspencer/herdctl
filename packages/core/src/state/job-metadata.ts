@@ -52,6 +52,23 @@ export type JobMetadataUpdates = Partial<
 export interface ListJobsFilter {
   /** Filter by agent name */
   agent?: string;
+  /**
+   * Filter by a SET of agent names — the multi-agent form of {@link agent}.
+   *
+   * A caller that wants several agents' jobs (a dashboard grouping runs by
+   * agent, Paddock's Triggers tab pulling one project's agent plus each of its
+   * scoped trigger agents) otherwise has to list the directory unfiltered and
+   * filter in JS, which defeats the index entirely: every record is read,
+   * parsed and validated only to be discarded.
+   *
+   * Combines with {@link agent} as an AND, so passing both narrows to their
+   * intersection. An EMPTY array matches nothing, which is the useful reading —
+   * "jobs for these zero agents" is empty, not unfiltered.
+   *
+   * Pass {@link limit} alongside this. On its own it still leaves `limit`
+   * undefined, and the retention rule below then holds every match in memory.
+   */
+  agents?: string[];
   /** Filter by job status */
   status?: JobStatus;
   /** Filter jobs started on or after this date (ISO string or Date) */
@@ -301,13 +318,20 @@ export async function getJob(
 /**
  * List all jobs, optionally filtered
  *
- * Supports filtering by agent, status, and date range. Returns jobs
- * sorted by started_at in descending order (most recent first).
+ * Supports filtering by one agent, a SET of agents, status, and date range.
+ * Returns jobs sorted by started_at in descending order (most recent first).
  *
  * Filtering, sorting and pagination run against a cached, mtime-keyed index of
  * each job file's `agent`/`status`/`started_at` (see `job-index.ts`), so only the
  * records actually returned are read and parsed in full. Passing `limit` is
  * therefore much cheaper than slicing the result.
+ *
+ * **Push your filter and your limit down here rather than slicing the result.**
+ * With `limit` undefined the index retains every match, so `listJobs(dir)`
+ * followed by a JS `.filter().slice()` reads, parses and validates the entire
+ * directory to return a handful of records. Measured on a 2,016-record dir:
+ * `listJobs(dir)` 2,400 ms versus `listJobs(dir, { agents, limit: 200 })`
+ * 160 ms. `agents` without `limit` still retains everything — pass both.
  *
  * @param jobsDir - Path to the jobs directory
  * @param filter - Optional filter criteria
@@ -328,6 +352,12 @@ export async function getJob(
  *   startedAfter: yesterday,
  *   limit: 20
  * });
+ *
+ * // The most recent 200 jobs across a SET of agents, in one indexed pass
+ * const { jobs } = await listJobs('/path/to/.herdctl/jobs', {
+ *   agents: ['keeper-paddock', 'trigger-paddock-night-watch'],
+ *   limit: 200
+ * });
  * ```
  */
 export async function listJobs(
@@ -340,9 +370,14 @@ export async function listJobs(
   // Parse date filters once
   const startedAfter = filter.startedAfter ? toDate(filter.startedAfter).getTime() : undefined;
   const startedBefore = filter.startedBefore ? toDate(filter.startedBefore).getTime() : undefined;
+  // Built once, not per record: `matches` runs for every file in the directory.
+  // Deliberately `undefined` vs `Set` rather than checking `.length`, so an
+  // EMPTY `agents` array is a filter that matches nothing rather than no filter.
+  const agentSet = filter.agents ? new Set(filter.agents) : undefined;
 
   const matches = (record: JobIndexRecord): boolean => {
     if (filter.agent && record.agent !== filter.agent) return false;
+    if (agentSet && !agentSet.has(record.agent)) return false;
     if (filter.status && record.status !== filter.status) return false;
     if (startedAfter !== undefined && record.startedAtMs < startedAfter) return false;
     if (startedBefore !== undefined && record.startedAtMs > startedBefore) return false;
