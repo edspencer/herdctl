@@ -8,7 +8,7 @@
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AgentNotFoundError } from "@herdctl/core";
+import { AgentNotFoundError, type ListJobsFilter } from "@herdctl/core";
 import Fastify, { type FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { registerAgentRoutes } from "../routes/agents.js";
@@ -265,7 +265,7 @@ describe("Job Routes", () => {
         },
       ];
 
-      mockListJobs.mockResolvedValue({ jobs: mockJobs, errors: [], total: 2 });
+      mockListJobs.mockResolvedValue({ jobs: mockJobs, errors: 0, total: 2 });
 
       const response = await server.inject({
         method: "GET",
@@ -298,10 +298,10 @@ describe("Job Routes", () => {
         started_at: "2025-01-01T00:00:00Z",
       }));
 
-      mockListJobs.mockImplementation(async (_dir: string, filter: any) => {
+      mockListJobs.mockImplementation(async (_dir: string, filter: ListJobsFilter) => {
         const offset = filter?.offset ?? 0;
         const limit = filter?.limit ?? manyJobs.length;
-        return { jobs: manyJobs.slice(offset, offset + limit), errors: [], total: manyJobs.length };
+        return { jobs: manyJobs.slice(offset, offset + limit), errors: 0, total: manyJobs.length };
       });
 
       const response = await server.inject({
@@ -323,7 +323,7 @@ describe("Job Routes", () => {
       // hydrates every match, so a paginated endpoint that slices afterwards
       // reads the entire jobs directory on every request (2,400 ms vs 160 ms on
       // a 2,016-record dir).
-      mockListJobs.mockResolvedValue({ jobs: [], errors: [], total: 0 });
+      mockListJobs.mockResolvedValue({ jobs: [], errors: 0, total: 0 });
 
       await server.inject({ method: "GET", url: "/api/jobs?limit=10&offset=30" });
 
@@ -338,7 +338,7 @@ describe("Job Routes", () => {
         jobs: [
           { id: "job-1", agent: "coder", status: "completed", started_at: "2025-01-01T00:00:00Z" },
         ],
-        errors: [],
+        errors: 0,
         total: 137,
       });
 
@@ -349,7 +349,7 @@ describe("Job Routes", () => {
     });
 
     it("clamps limit to max 100", async () => {
-      mockListJobs.mockResolvedValue({ jobs: [], errors: [], total: 0 });
+      mockListJobs.mockResolvedValue({ jobs: [], errors: 0, total: 0 });
 
       const response = await server.inject({
         method: "GET",
@@ -367,7 +367,7 @@ describe("Job Routes", () => {
     });
 
     it("passes filter params to listJobs", async () => {
-      mockListJobs.mockResolvedValue({ jobs: [], errors: [] });
+      mockListJobs.mockResolvedValue({ jobs: [], errors: 0 });
 
       await server.inject({
         method: "GET",

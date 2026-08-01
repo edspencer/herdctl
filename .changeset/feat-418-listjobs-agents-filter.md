@@ -4,8 +4,8 @@
 
 feat(state): filter `listJobs` by a SET of agents, and page the dashboard's `/api/jobs` inside it
 
-#415 made `listJobs` index-backed, but only for callers that can express what
-they want as a filter. A caller that needs several agents' jobs had no way to
+Issue `#415` made `listJobs` index-backed, but only for callers that can express
+what they want as a filter. A caller that needs several agents' jobs had no way to
 say so — `ListJobsFilter` had `agent` (exactly one) and nothing else — so it had
 to list the directory unfiltered and filter in JS, which reads, parses and
 Zod-validates every record in the directory to return a handful.
