@@ -98,11 +98,13 @@ export {
 } from "./session-discovery.js";
 // Re-export session metadata functions
 export {
+  isSessionMetadataUnreadableError,
   type SessionMetadataEntry,
   SessionMetadataEntrySchema,
   type SessionMetadataFile,
   SessionMetadataFileSchema,
   SessionMetadataStore,
+  SessionMetadataUnreadableError,
 } from "./session-metadata.js";
 // Re-export session validation functions
 export {

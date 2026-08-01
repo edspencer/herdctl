@@ -78,6 +78,56 @@ export const SessionMetadataFileSchema = z.object({
 export type SessionMetadataEntry = z.infer<typeof SessionMetadataEntrySchema>;
 export type SessionMetadataFile = z.infer<typeof SessionMetadataFileSchema>;
 
+/**
+ * Thrown by write operations when an agent's existing metadata file exists but
+ * could not be read or parsed.
+ *
+ * Rather than silently replacing an unreadable file with a fresh empty one —
+ * which would destroy every `customName`/`preview`/`autoName`/`isSidechain`/
+ * `usage` entry it held (issue #419) — the store refuses to write and surfaces
+ * this error. The damaged file is left untouched on disk so its bytes remain
+ * recoverable.
+ */
+export class SessionMetadataUnreadableError extends Error {
+  public readonly agentName: string;
+  /** Why the file was rejected: a read failure, or a schema/JSON parse failure. */
+  public readonly reason: "read-error" | "corrupt";
+
+  constructor(agentName: string, reason: "read-error" | "corrupt", cause?: Error) {
+    super(
+      `Refusing to overwrite session metadata for "${agentName}": the existing file is ` +
+        `${reason === "corrupt" ? "corrupt" : "unreadable"} (${cause?.message ?? "unknown error"}). ` +
+        `Left it untouched to avoid destroying its contents.`,
+    );
+    this.name = "SessionMetadataUnreadableError";
+    this.agentName = agentName;
+    this.reason = reason;
+    this.cause = cause;
+  }
+}
+
+/**
+ * Type guard for {@link SessionMetadataUnreadableError}.
+ */
+export function isSessionMetadataUnreadableError(
+  error: unknown,
+): error is SessionMetadataUnreadableError {
+  return error instanceof SessionMetadataUnreadableError;
+}
+
+/**
+ * Internal result of attempting to read an agent's metadata file.
+ *
+ * Distinguishes the three outcomes that a plain `SessionMetadataFile | null`
+ * used to collapse together: the file is legitimately absent (sparse storage is
+ * by design), or it exists but is unreadable/corrupt. Only the last must block
+ * writes — treating it as "empty" is the #419 data-loss bug.
+ */
+type MetadataReadResult =
+  | { status: "loaded"; metadata: SessionMetadataFile }
+  | { status: "absent" }
+  | { status: "unreadable"; reason: "read-error" | "corrupt"; error: Error };
+
 // =============================================================================
 // SessionMetadataStore
 // =============================================================================
@@ -125,40 +175,87 @@ export class SessionMetadataStore {
   }
 
   /**
-   * Load metadata for an agent from disk (or cache)
+   * Read an agent's metadata file (or cache), distinguishing absent from
+   * unreadable.
+   *
+   * The cache only ever holds successfully-parsed files, so a transient read
+   * failure is never cached — it does not become sticky and a later read
+   * retries the file.
    */
-  private async loadMetadata(agentName: string): Promise<SessionMetadataFile | null> {
+  private async readMetadata(agentName: string): Promise<MetadataReadResult> {
     // Check cache first
     const cached = this.cache.get(agentName);
     if (cached !== undefined) {
-      return cached;
+      return { status: "loaded", metadata: cached };
     }
 
     const filePath = this.getFilePath(agentName);
     const result = await safeReadJson<unknown>(filePath);
 
     if (!result.success) {
-      // File not found is expected for sparse storage
+      // File not found is expected for sparse storage.
       if (result.error.code === "ENOENT") {
-        return null;
+        return { status: "absent" };
       }
 
+      // Any other failure means the file exists but we can't turn it into
+      // trustworthy metadata — an I/O error (EACCES, EIO, EISDIR, ...) or a
+      // JSON.parse failure on truncated/garbled bytes. Crucially this is NOT
+      // "absent": a write here would clobber real data. Distinguish the two only
+      // for diagnostics — an errno `code` marks an I/O failure; its absence marks
+      // a content/parse failure surfaced as a SyntaxError.
+      const reason = result.error.code ? "read-error" : "corrupt";
       logger.warn(`Failed to read metadata file for ${agentName}: ${result.error.message}`);
-      return null;
+      return { status: "unreadable", reason, error: result.error };
     }
 
     // Validate the file structure
     const parseResult = SessionMetadataFileSchema.safeParse(result.data);
     if (!parseResult.success) {
-      logger.warn(
-        `Corrupted metadata file for ${agentName}: ${parseResult.error.message}. Returning null.`,
-      );
-      return null;
+      logger.warn(`Corrupted metadata file for ${agentName}: ${parseResult.error.message}.`);
+      return { status: "unreadable", reason: "corrupt", error: parseResult.error };
     }
 
     // Cache and return
     this.cache.set(agentName, parseResult.data);
-    return parseResult.data;
+    return { status: "loaded", metadata: parseResult.data };
+  }
+
+  /**
+   * Load metadata for reading.
+   *
+   * Returns `null` when the file is absent OR unreadable — read-side callers
+   * (getters) degrade gracefully rather than throwing; a temporarily unreadable
+   * file just means "no cached metadata to show right now". Write-side callers
+   * must use {@link loadForWrite} instead, which refuses to proceed on an
+   * unreadable file so it can never clobber real data (issue #419).
+   */
+  private async loadMetadata(agentName: string): Promise<SessionMetadataFile | null> {
+    const result = await this.readMetadata(agentName);
+    return result.status === "loaded" ? result.metadata : null;
+  }
+
+  /**
+   * Load metadata for a read-modify-write update.
+   *
+   * - Absent file → a fresh empty structure (sparse storage; correct to create).
+   * - Loaded file → the parsed contents, ready to mutate.
+   * - Unreadable/corrupt file → throws {@link SessionMetadataUnreadableError}
+   *   WITHOUT writing, leaving the damaged file untouched. Silently substituting
+   *   an empty structure here is exactly the #419 data-loss bug: the subsequent
+   *   {@link saveMetadata} (atomicWriteJson) would replace the whole file,
+   *   destroying every entry it held.
+   */
+  private async loadForWrite(agentName: string): Promise<SessionMetadataFile> {
+    const result = await this.readMetadata(agentName);
+    switch (result.status) {
+      case "loaded":
+        return result.metadata;
+      case "absent":
+        return this.createEmptyMetadata(agentName);
+      case "unreadable":
+        throw new SessionMetadataUnreadableError(agentName, result.reason, result.error);
+    }
   }
 
   /**
@@ -216,11 +313,7 @@ export class SessionMetadataStore {
    * @param name - The custom name to set
    */
   async setCustomName(agentName: string, sessionId: string, name: string): Promise<void> {
-    let metadata = await this.loadMetadata(agentName);
-
-    if (!metadata) {
-      metadata = this.createEmptyMetadata(agentName);
-    }
+    const metadata = await this.loadForWrite(agentName);
 
     // Get or create the session entry
     const sessionEntry = metadata.sessions[sessionId] ?? {};
@@ -331,11 +424,7 @@ export class SessionMetadataStore {
     autoName: string,
     mtime: string,
   ): Promise<void> {
-    let metadata = await this.loadMetadata(agentName);
-
-    if (!metadata) {
-      metadata = this.createEmptyMetadata(agentName);
-    }
+    const metadata = await this.loadForWrite(agentName);
 
     // Get or create the session entry
     const sessionEntry = metadata.sessions[sessionId] ?? {};
@@ -372,11 +461,7 @@ export class SessionMetadataStore {
       return;
     }
 
-    let metadata = await this.loadMetadata(agentName);
-
-    if (!metadata) {
-      metadata = this.createEmptyMetadata(agentName);
-    }
+    const metadata = await this.loadForWrite(agentName);
 
     // Apply all updates. `autoName` may be undefined — that records a validated
     // *negative* result (this transcript has no summary at this mtime) so the
@@ -438,11 +523,7 @@ export class SessionMetadataStore {
     preview: string,
     mtime: string,
   ): Promise<void> {
-    let metadata = await this.loadMetadata(agentName);
-
-    if (!metadata) {
-      metadata = this.createEmptyMetadata(agentName);
-    }
+    const metadata = await this.loadForWrite(agentName);
 
     const sessionEntry = metadata.sessions[sessionId] ?? {};
 
@@ -477,11 +558,7 @@ export class SessionMetadataStore {
       return;
     }
 
-    let metadata = await this.loadMetadata(agentName);
-
-    if (!metadata) {
-      metadata = this.createEmptyMetadata(agentName);
-    }
+    const metadata = await this.loadForWrite(agentName);
 
     // `preview` may be undefined — records a validated negative result (no
     // plain-text user line at this mtime) so the next listing trusts the cache.
@@ -545,11 +622,7 @@ export class SessionMetadataStore {
       return;
     }
 
-    let metadata = await this.loadMetadata(agentName);
-
-    if (!metadata) {
-      metadata = this.createEmptyMetadata(agentName);
-    }
+    const metadata = await this.loadForWrite(agentName);
 
     for (const { sessionId, isSidechain, mtime } of entries) {
       const sessionEntry = metadata.sessions[sessionId] ?? {};
@@ -657,11 +730,7 @@ export class SessionMetadataStore {
     usage: NonNullable<SessionMetadataEntry["usage"]>,
     mtime: string,
   ): Promise<void> {
-    let metadata = await this.loadMetadata(agentName);
-
-    if (!metadata) {
-      metadata = this.createEmptyMetadata(agentName);
-    }
+    const metadata = await this.loadForWrite(agentName);
 
     const sessionEntry = metadata.sessions[sessionId] ?? {};
 

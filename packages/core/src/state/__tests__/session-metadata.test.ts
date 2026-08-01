@@ -2,7 +2,11 @@ import { mkdir, readdir, readFile, realpath, rm, stat, writeFile } from "node:fs
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { SessionMetadataStore } from "../session-metadata.js";
+import {
+  isSessionMetadataUnreadableError,
+  SessionMetadataStore,
+  SessionMetadataUnreadableError,
+} from "../session-metadata.js";
 
 // Helper to create a temp directory
 async function createTempDir(): Promise<string> {
@@ -803,6 +807,211 @@ describe("SessionMetadataStore", () => {
       expect(pruned).toBe(1);
       const metadata = await store.getAgentMetadata("adhoc");
       expect(Object.keys(metadata!.sessions).sort()).toEqual(["dirA-1", "dirA-2", "dirB-1"]);
+    });
+  });
+
+  // ===========================================================================
+  // #419 — writes must never replace an unreadable file with an empty one.
+  //
+  // Before the fix, loadMetadata() collapsed "absent", "read error", and
+  // "corrupt/invalid schema" into the same `null`. Every setter then treated
+  // `null` as "start fresh", so the very next atomicWriteJson replaced the WHOLE
+  // agent file with an empty structure — silently destroying every customName,
+  // preview, autoName, isSidechain and usage entry for that agent.
+  //
+  // The invariant these tests pin down: an ABSENT file may be created; an
+  // UNREADABLE file must be refused (throw), and its bytes left untouched.
+  // ===========================================================================
+  describe("#419 — never clobber an unreadable metadata file", () => {
+    const metadataDirName = "session-metadata";
+
+    /** Write raw bytes straight to an agent's metadata file (bypassing the store). */
+    async function writeRawFile(agentName: string, contents: string): Promise<string> {
+      const metadataDir = join(tempDir, metadataDirName);
+      await mkdir(metadataDir, { recursive: true });
+      const filePath = join(metadataDir, `${agentName}.json`);
+      await writeFile(filePath, contents, "utf-8");
+      return filePath;
+    }
+
+    // A file that WAS a healthy metadata file with two user-set custom names, but
+    // has since been truncated mid-write (disk-full, crash, partial rsync). The
+    // custom-name bytes are still on disk and recoverable — unless we overwrite.
+    const TRUNCATED_BUT_RECOVERABLE =
+      '{"version":1,"agentName":"keeper-paddock","sessions":{' +
+      '"s-1":{"customName":"Ship the release"},' +
+      '"s-2":{"customName":"Investigate #419"';
+
+    describe("absent file (legitimate sparse storage) is still created", () => {
+      it("setCustomName creates an empty structure when no file exists", async () => {
+        await store.setCustomName("fresh-agent", "s-1", "Brand New");
+        expect(await store.getCustomName("fresh-agent", "s-1")).toBe("Brand New");
+      });
+
+      it("setAutoName creates an empty structure when no file exists", async () => {
+        await store.setAutoName("fresh-agent", "s-1", "Auto", "2026-08-01T00:00:00.000Z");
+        expect((await store.getAutoName("fresh-agent", "s-1"))!.autoName).toBe("Auto");
+      });
+    });
+
+    describe("malformed JSON", () => {
+      it("setCustomName throws SessionMetadataUnreadableError and does NOT replace the file", async () => {
+        const filePath = await writeRawFile("keeper-paddock", TRUNCATED_BUT_RECOVERABLE);
+
+        await expect(
+          store.setCustomName("keeper-paddock", "s-3", "New Name"),
+        ).rejects.toBeInstanceOf(SessionMetadataUnreadableError);
+
+        // The damaged bytes are untouched — the recoverable custom names survive.
+        const after = await readFile(filePath, "utf-8");
+        expect(after).toBe(TRUNCATED_BUT_RECOVERABLE);
+        expect(after).toContain("Ship the release");
+        expect(after).toContain("Investigate #419");
+      });
+
+      it("batchSetAutoNames (the discovery cache path) also refuses to overwrite", async () => {
+        const filePath = await writeRawFile("keeper-paddock", TRUNCATED_BUT_RECOVERABLE);
+
+        await expect(
+          store.batchSetAutoNames("keeper-paddock", [
+            { sessionId: "s-9", autoName: "Cache Warm", mtime: "2026-08-01T00:00:00.000Z" },
+          ]),
+        ).rejects.toBeInstanceOf(SessionMetadataUnreadableError);
+
+        expect(await readFile(filePath, "utf-8")).toBe(TRUNCATED_BUT_RECOVERABLE);
+      });
+
+      it("tags the error with the agent name and a 'corrupt' reason", async () => {
+        await writeRawFile("keeper-paddock", "{ not json");
+        const error = await store
+          .setUsage(
+            "keeper-paddock",
+            "s-1",
+            { inputTokens: 1, turnCount: 1, hasData: true },
+            "2026-08-01T00:00:00.000Z",
+          )
+          .catch((e) => e);
+
+        expect(isSessionMetadataUnreadableError(error)).toBe(true);
+        expect(error.agentName).toBe("keeper-paddock");
+        expect(error.reason).toBe("corrupt");
+      });
+    });
+
+    describe("valid JSON that fails schema validation", () => {
+      it("refuses to overwrite a file with an unknown version", async () => {
+        const raw = JSON.stringify({
+          version: 2,
+          agentName: "keeper-paddock",
+          sessions: { "s-1": { customName: "Keep me" } },
+        });
+        const filePath = await writeRawFile("keeper-paddock", raw);
+
+        await expect(
+          store.setPreview("keeper-paddock", "s-2", "hello", "2026-08-01T00:00:00.000Z"),
+        ).rejects.toBeInstanceOf(SessionMetadataUnreadableError);
+
+        expect(await readFile(filePath, "utf-8")).toBe(raw);
+      });
+
+      it("refuses to overwrite a file with a malformed session entry", async () => {
+        // Valid JSON, valid top-level shape, but one entry has a wrong-typed field.
+        const raw = JSON.stringify({
+          version: 1,
+          agentName: "keeper-paddock",
+          sessions: { "s-1": { customName: "Keep me", isSidechain: "not-a-boolean" } },
+        });
+        const filePath = await writeRawFile("keeper-paddock", raw);
+
+        await expect(store.setCustomName("keeper-paddock", "s-2", "New")).rejects.toBeInstanceOf(
+          SessionMetadataUnreadableError,
+        );
+
+        expect(await readFile(filePath, "utf-8")).toBe(raw);
+      });
+    });
+
+    describe("read error that is not ENOENT", () => {
+      // A directory sitting where the metadata file should be makes readFile throw
+      // EISDIR — a deterministic, portable stand-in for the class of non-ENOENT
+      // read failures (EACCES, EIO, a truncated read that never settles). The file
+      // "exists" as far as stat is concerned but cannot be read.
+      it("throws (read-error) rather than treating an unreadable path as absent", async () => {
+        const metadataDir = join(tempDir, metadataDirName);
+        await mkdir(join(metadataDir, "keeper-paddock.json"), { recursive: true });
+
+        const error = await store.setCustomName("keeper-paddock", "s-1", "New").catch((e) => e);
+
+        expect(isSessionMetadataUnreadableError(error)).toBe(true);
+        expect(error.reason).toBe("read-error");
+        // The directory is still there — nothing was written over it.
+        expect((await stat(join(metadataDir, "keeper-paddock.json"))).isDirectory()).toBe(true);
+      });
+    });
+
+    describe("round-trip: existing custom names survive a failed read + write attempt", () => {
+      it("a fresh store (cold cache) preserves recoverable data when a write is attempted", async () => {
+        const filePath = await writeRawFile("keeper-paddock", TRUNCATED_BUT_RECOVERABLE);
+
+        // A brand-new store guarantees the failure isn't masked by a warm cache.
+        const coldStore = new SessionMetadataStore(tempDir);
+
+        await expect(
+          coldStore.setAutoName("keeper-paddock", "s-1", "Auto", "2026-08-01T00:00:00.000Z"),
+        ).rejects.toBeInstanceOf(SessionMetadataUnreadableError);
+
+        // The bytes are byte-for-byte identical: no data destroyed.
+        expect(await readFile(filePath, "utf-8")).toBe(TRUNCATED_BUT_RECOVERABLE);
+      });
+
+      it("does not create a fresh empty file for the agent", async () => {
+        await writeRawFile("keeper-paddock", "{ corrupt");
+
+        await store.setCustomName("keeper-paddock", "s-1", "New").catch(() => {
+          /* expected */
+        });
+
+        // Exactly one file exists (the corrupt one); no sibling temp file lingers
+        // and the corrupt file was not swapped out for an empty structure.
+        const files = await readdir(join(tempDir, metadataDirName));
+        expect(files).toEqual(["keeper-paddock.json"]);
+        expect(await readFile(join(tempDir, metadataDirName, "keeper-paddock.json"), "utf-8")).toBe(
+          "{ corrupt",
+        );
+      });
+    });
+
+    describe("getters degrade gracefully (unchanged read behavior)", () => {
+      it("getCustomName returns undefined (does not throw) for an unreadable file", async () => {
+        await writeRawFile("keeper-paddock", "{ corrupt");
+        await expect(store.getCustomName("keeper-paddock", "s-1")).resolves.toBeUndefined();
+      });
+
+      it("getAgentMetadata returns null (does not throw) for an unreadable file", async () => {
+        await writeRawFile("keeper-paddock", "{ corrupt");
+        await expect(store.getAgentMetadata("keeper-paddock")).resolves.toBeNull();
+      });
+    });
+
+    describe("a transient read failure is not sticky", () => {
+      it("recovers on the next call once the file becomes readable again", async () => {
+        // First: file is a directory (unreadable). A write is refused.
+        const metadataDir = join(tempDir, metadataDirName);
+        const dirPath = join(metadataDir, "keeper-paddock.json");
+        await mkdir(dirPath, { recursive: true });
+
+        await expect(store.setCustomName("keeper-paddock", "s-1", "New")).rejects.toBeInstanceOf(
+          SessionMetadataUnreadableError,
+        );
+
+        // Now the obstruction clears (e.g. the bogus directory is removed). Because
+        // the failure was never cached, the very next call succeeds against a fresh
+        // (absent) file rather than staying wedged.
+        await rm(dirPath, { recursive: true, force: true });
+
+        await store.setCustomName("keeper-paddock", "s-1", "Recovered");
+        expect(await store.getCustomName("keeper-paddock", "s-1")).toBe("Recovered");
+      });
     });
   });
 });
