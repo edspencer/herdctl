@@ -25,6 +25,9 @@ vi.mock("../jsonl-parser.js", () => ({
   extractFirstMessagePreview: vi.fn().mockResolvedValue(undefined),
   extractLastSummary: vi.fn(),
   extractSessionMetadata: vi.fn(),
+  // Auto-naming reads titles (custom-title → ai-title → summary) rather than
+  // summaries alone since herdctl#423.
+  extractSessionTitle: vi.fn(),
   extractSessionUsage: vi.fn(),
   isSidechainSession: vi.fn().mockResolvedValue(false),
   parseSessionMessages: vi.fn(),
@@ -44,6 +47,13 @@ const mockSetUsage = vi.fn().mockResolvedValue(undefined);
 // `isSessionMetadataUnreadableError` survive the mock — `persistCacheUpdates`
 // (in session-discovery) calls the guard, and mislabelling it would silently
 // break the #419 refusal path here. Only the store class is replaced.
+//
+// The spread also supplies the real `AUTO_NAME_EXTRACTOR_VERSION`, which
+// `resolveAutoName` compares cached entries against (herdctl#423). That is
+// strictly better than re-declaring it as a literal here: a vi.mock factory is
+// hoisted above module imports, so a literal was the only way to reference it
+// before the spread existed — and it silently rotted the moment the real
+// constant was bumped.
 vi.mock("../session-metadata.js", async (importActual) => {
   const actual = await importActual<typeof import("../session-metadata.js")>();
   return {
@@ -66,6 +76,7 @@ import {
   extractFirstMessagePreview,
   extractLastSummary,
   extractSessionMetadata,
+  extractSessionTitle,
   extractSessionUsage,
   isSidechainSession,
   parseSessionMessages,
@@ -73,13 +84,17 @@ import {
 // Import after mocks
 import { buildAttributionIndex } from "../session-attribution.js";
 import { SessionDiscoveryService } from "../session-discovery.js";
-// Resolves to the REAL class via the `...actual` spread in the mock above.
-import { SessionMetadataUnreadableError } from "../session-metadata.js";
+// Both resolve to the REAL values via the `...actual` spread in the mock above.
+import {
+  AUTO_NAME_EXTRACTOR_VERSION,
+  SessionMetadataUnreadableError,
+} from "../session-metadata.js";
 
 const mockBuildAttributionIndex = vi.mocked(buildAttributionIndex);
 const mockExtractFirstMessagePreview = vi.mocked(extractFirstMessagePreview);
 const mockExtractLastSummary = vi.mocked(extractLastSummary);
 const mockExtractSessionMetadata = vi.mocked(extractSessionMetadata);
+const mockExtractSessionTitle = vi.mocked(extractSessionTitle);
 const mockExtractSessionUsage = vi.mocked(extractSessionUsage);
 const mockIsSidechainSession = vi.mocked(isSidechainSession);
 const mockParseSessionMessages = vi.mocked(parseSessionMessages);
@@ -110,7 +125,10 @@ async function createSessionFile(dir: string, sessionId: string): Promise<void> 
  */
 function createMockAttributionIndex(overrides?: {
   getAttribute?: (sessionId: string) => {
-    origin: "native" | "web" | "discord" | "slack" | "schedule";
+    // Must stay in sync with SessionOrigin — "adopted" (herdctl#423) is
+    // assignable-narrower without it, so its absence silently prevents any
+    // discovery test from exercising an adopted session.
+    origin: "native" | "web" | "discord" | "slack" | "schedule" | "adopted";
     agentName: string | undefined;
     triggerType: string | undefined;
   };
@@ -171,6 +189,8 @@ describe("SessionDiscoveryService", () => {
     // Reset JSONL parser mocks
     mockExtractLastSummary.mockReset();
     mockExtractLastSummary.mockResolvedValue(undefined);
+    mockExtractSessionTitle.mockReset();
+    mockExtractSessionTitle.mockResolvedValue(undefined);
     mockExtractFirstMessagePreview.mockReset();
     mockExtractFirstMessagePreview.mockResolvedValue(undefined);
     mockIsSidechainSession.mockReset();
@@ -853,7 +873,13 @@ describe("SessionDiscoveryService", () => {
       mockIsSidechainSession.mockResolvedValue(false);
       // resolveAutoName streams the whole transcript; make it reject only for the
       // bad session (matched by the sessionId embedded in the resolved file path).
-      mockExtractLastSummary.mockImplementation((filePath: string) =>
+      //
+      // Injected via `extractSessionTitle` because that is the whole-file read
+      // `resolveAutoName` now performs first: herdctl#423 replaced
+      // `extractLastSummary` (summary entries only, which CLI transcripts never
+      // emit) with title extraction plus a first-user-message fallback. The
+      // test's intent is unchanged — only the name of the call it fails at.
+      mockExtractSessionTitle.mockImplementation((filePath: string) =>
         filePath.includes("session-bad")
           ? Promise.reject(new Error("EISDIR: illegal operation on a directory, read"))
           : Promise.resolve(undefined),
@@ -1899,7 +1925,7 @@ describe("SessionDiscoveryService", () => {
 
       // Mock cache miss then extraction returns a summary
       mockGetAutoName.mockResolvedValue(undefined);
-      mockExtractLastSummary.mockResolvedValue("Auto-generated session name");
+      mockExtractSessionTitle.mockResolvedValue("Auto-generated session name");
 
       const service = new SessionDiscoveryService({
         claudeHomePath: tempClaudeHome,
@@ -1922,6 +1948,7 @@ describe("SessionDiscoveryService", () => {
       mockGetAutoName.mockResolvedValue({
         autoName: "Cached Auto Name",
         autoNameMtime: "2099-01-01T00:00:00.000Z",
+        autoNameVersion: AUTO_NAME_EXTRACTOR_VERSION,
       });
 
       const service = new SessionDiscoveryService({
@@ -1932,8 +1959,8 @@ describe("SessionDiscoveryService", () => {
       const sessions = await service.getAgentSessions("my-agent", workingDir, false);
 
       expect(sessions[0].autoName).toBe("Cached Auto Name");
-      // Should not have called extractLastSummary since cache was valid
-      expect(mockExtractLastSummary).not.toHaveBeenCalled();
+      // Should not have re-extracted since the cache was valid AND current
+      expect(mockExtractSessionTitle).not.toHaveBeenCalled();
     });
 
     it("re-extracts autoName when cache is stale", async () => {
@@ -1947,8 +1974,9 @@ describe("SessionDiscoveryService", () => {
       mockGetAutoName.mockResolvedValue({
         autoName: "Old Cached Name",
         autoNameMtime: "1990-01-01T00:00:00.000Z",
+        autoNameVersion: AUTO_NAME_EXTRACTOR_VERSION,
       });
-      mockExtractLastSummary.mockResolvedValue("Fresh Extracted Name");
+      mockExtractSessionTitle.mockResolvedValue("Fresh Extracted Name");
 
       const service = new SessionDiscoveryService({
         claudeHomePath: tempClaudeHome,
@@ -1958,7 +1986,7 @@ describe("SessionDiscoveryService", () => {
       const sessions = await service.getAgentSessions("my-agent", workingDir, false);
 
       expect(sessions[0].autoName).toBe("Fresh Extracted Name");
-      expect(mockExtractLastSummary).toHaveBeenCalled();
+      expect(mockExtractSessionTitle).toHaveBeenCalled();
     });
 
     it("batch writes autoName updates for getAgentSessions", async () => {
@@ -1971,7 +1999,7 @@ describe("SessionDiscoveryService", () => {
 
       // Mock cache miss for both — use implementation that returns based on path
       mockGetAutoName.mockResolvedValue(undefined);
-      mockExtractLastSummary.mockImplementation(async (filePath: string) => {
+      mockExtractSessionTitle.mockImplementation(async (filePath: string) => {
         if (filePath.includes("session-1")) return "Session 1 Name";
         if (filePath.includes("session-2")) return "Session 2 Name";
         return undefined;
@@ -2006,6 +2034,7 @@ describe("SessionDiscoveryService", () => {
       mockGetAutoName.mockResolvedValue({
         autoName: "Cached Name",
         autoNameMtime: "2099-01-01T00:00:00.000Z",
+        autoNameVersion: AUTO_NAME_EXTRACTOR_VERSION,
       });
 
       const service = new SessionDiscoveryService({
@@ -2026,7 +2055,7 @@ describe("SessionDiscoveryService", () => {
 
       // Mock cache miss
       mockGetAutoName.mockResolvedValue(undefined);
-      mockExtractLastSummary.mockResolvedValue("Unattributed Session Name");
+      mockExtractSessionTitle.mockResolvedValue("Unattributed Session Name");
 
       const service = new SessionDiscoveryService({
         claudeHomePath: tempClaudeHome,
@@ -2056,9 +2085,9 @@ describe("SessionDiscoveryService", () => {
       await mkdir(projectDir, { recursive: true });
       await createSessionFile(projectDir, "session-abc");
 
-      // Mock cache miss and no summary
+      // Mock cache miss and no title (and no first-message fallback either)
       mockGetAutoName.mockResolvedValue(undefined);
-      mockExtractLastSummary.mockResolvedValue(undefined);
+      mockExtractSessionTitle.mockResolvedValue(undefined);
 
       const service = new SessionDiscoveryService({
         claudeHomePath: tempClaudeHome,
@@ -2070,7 +2099,7 @@ describe("SessionDiscoveryService", () => {
       expect(sessions[0].autoName).toBeUndefined();
       // The empty result must still be persisted (autoName undefined but a fresh
       // autoNameMtime) so the next listing trusts the cache instead of
-      // re-streaming the whole transcript via extractLastSummary (issue #350).
+      // re-streaming the whole transcript via extractSessionTitle (issue #350).
       expect(mockBatchSetAutoNames).toHaveBeenCalledTimes(1);
       expect(mockBatchSetAutoNames).toHaveBeenCalledWith(
         "my-agent",
@@ -2080,7 +2109,7 @@ describe("SessionDiscoveryService", () => {
       );
     });
 
-    it("skips extractLastSummary on a valid negative cache (autoNameMtime set, no autoName)", async () => {
+    it("skips extraction on a valid negative cache (autoNameMtime set, no autoName)", async () => {
       const workingDir = "/Users/ed/Code/myproject";
       const encodedPath = "-Users-ed-Code-myproject";
       const projectDir = join(tempClaudeHome, "projects", encodedPath);
@@ -2091,6 +2120,7 @@ describe("SessionDiscoveryService", () => {
       mockGetAutoName.mockResolvedValue({
         autoName: undefined,
         autoNameMtime: "2099-01-01T00:00:00.000Z",
+        autoNameVersion: AUTO_NAME_EXTRACTOR_VERSION,
       });
 
       const service = new SessionDiscoveryService({
@@ -2102,8 +2132,67 @@ describe("SessionDiscoveryService", () => {
 
       expect(sessions[0].autoName).toBeUndefined();
       // Negative cache is authoritative — no transcript re-scan, no re-write.
-      expect(mockExtractLastSummary).not.toHaveBeenCalled();
+      expect(mockExtractSessionTitle).not.toHaveBeenCalled();
       expect(mockBatchSetAutoNames).not.toHaveBeenCalled();
+    });
+
+    it("re-extracts a legacy entry (fresh mtime, no autoNameVersion) exactly once", async () => {
+      const workingDir = "/Users/ed/Code/myproject";
+      const projectDir = join(tempClaudeHome, "projects", "-Users-ed-Code-myproject");
+      await mkdir(projectDir, { recursive: true });
+      await createSessionFile(projectDir, "session-abc");
+
+      // A cache entry written by the OLD summary-only extractor: its mtime is
+      // still current (the transcript hasn't changed), and it negative-cached an
+      // empty result. Without the version check this entry wins forever and the
+      // new title extraction appears to do nothing (herdctl#423, gotcha 5).
+      mockGetAutoName.mockResolvedValue({
+        autoName: undefined,
+        autoNameMtime: "2099-01-01T00:00:00.000Z",
+      });
+      mockExtractSessionTitle.mockResolvedValue("Title From The New Extractor");
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      const sessions = await service.getAgentSessions("my-agent", workingDir, false);
+
+      expect(mockExtractSessionTitle).toHaveBeenCalled();
+      expect(sessions[0].autoName).toBe("Title From The New Extractor");
+      // ...and it is rewritten, so the next listing hits the cache (the miss
+      // costs one re-extraction per session, not one per listing).
+      expect(mockBatchSetAutoNames).toHaveBeenCalledWith(
+        "my-agent",
+        expect.arrayContaining([
+          expect.objectContaining({
+            sessionId: "session-abc",
+            autoName: "Title From The New Extractor",
+          }),
+        ]),
+      );
+    });
+
+    it("falls back to the first user message when the transcript has no title", async () => {
+      const workingDir = "/Users/ed/Code/myproject";
+      const projectDir = join(tempClaudeHome, "projects", "-Users-ed-Code-myproject");
+      await mkdir(projectDir, { recursive: true });
+      await createSessionFile(projectDir, "session-abc");
+
+      mockGetAutoName.mockResolvedValue(undefined);
+      mockExtractSessionTitle.mockResolvedValue(undefined);
+      mockExtractFirstMessagePreview.mockResolvedValue("do the thing please");
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      const sessions = await service.getAgentSessions("my-agent", workingDir, false);
+
+      // A titleless terminal transcript used to render as its raw session id.
+      expect(sessions[0].autoName).toBe("do the thing please");
     });
   });
 

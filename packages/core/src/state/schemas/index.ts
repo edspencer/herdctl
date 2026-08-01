@@ -5,6 +5,13 @@
  */
 
 export {
+  ADOPTED_SESSION_VERSION,
+  type AdoptedSession,
+  AdoptedSessionSchema,
+  AdoptedSessionVersionSchema,
+} from "./adopted-session.js";
+
+export {
   type AgentState,
   AgentStateSchema,
   type AgentStatus,

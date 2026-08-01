@@ -16,6 +16,38 @@ import { safeReadJson } from "./utils/reads.js";
 const logger = createLogger("SessionMetadataStore");
 
 // =============================================================================
+// Constants
+// =============================================================================
+
+/**
+ * Version of the auto-name *extractor*, stamped alongside every cached
+ * `autoName` as {@link SessionMetadataEntry.autoNameVersion}.
+ *
+ * The auto-name cache is authoritative on the presence of `autoNameMtime` — a
+ * transcript that yielded no name is negative-cached, so an unchanged transcript
+ * is never re-read. That makes an *extraction-logic* change invisible on
+ * existing data: every already-listed session holds an entry whose mtime is
+ * still current, so the old (often empty) result keeps winning forever.
+ *
+ * Bumping this constant invalidates exactly the auto-name field: an entry whose
+ * `autoNameVersion` doesn't match is treated as a miss, re-extracted with the
+ * current logic and rewritten stamped. Everything else in the entry —
+ * `customName`, `preview`, `isSidechain`, `usage` — is untouched.
+ *
+ * Do NOT reach for {@link SessionMetadataFileSchema}'s `version` for this:
+ * `loadMetadata` discards the ENTIRE file when it fails to parse, so bumping the
+ * file version would silently destroy user-set custom names rather than
+ * invalidate a cache.
+ *
+ * History:
+ * - 1 (implicit — absent on legacy entries): `extractLastSummary`, i.e. only
+ *   `type:"summary"` entries, which CLI/terminal transcripts never emit.
+ * - 2: `extractSessionTitle` (`custom-title` → `ai-title` → `summary`) with a
+ *   first-user-message fallback (herdctl#423).
+ */
+export const AUTO_NAME_EXTRACTOR_VERSION = 2;
+
+// =============================================================================
 // Schemas
 // =============================================================================
 
@@ -34,6 +66,16 @@ export const SessionMetadataEntrySchema = z.object({
   autoName: z.string().optional(),
   /** ISO 8601 timestamp of when autoName was extracted (for cache invalidation) */
   autoNameMtime: z.string().optional(),
+  /**
+   * Which {@link AUTO_NAME_EXTRACTOR_VERSION} produced the cached
+   * {@link autoName}. Optional so entries written before the field existed still
+   * parse — an absent value reads as "legacy extractor", which misses the cache
+   * once, is re-extracted with the current logic and rewritten stamped. This is
+   * a *per-field* invalidation on purpose: bumping the file-level `version`
+   * would make the whole file fail validation and be discarded, taking
+   * user-set `customName` values with it.
+   */
+  autoNameVersion: z.number().optional(),
   /**
    * First user message preview (truncated to 100 chars). Like {@link autoName},
    * may be absent while {@link previewMtime} is set (negative-cached).
@@ -388,12 +430,13 @@ export class SessionMetadataStore {
    *
    * @param agentName - The agent's qualified name (use "adhoc" for unattributed sessions)
    * @param sessionId - The session ID
-   * @returns Object with autoName and autoNameMtime, or undefined if not cached
+   * @returns Object with autoName, autoNameMtime and the extractor version that
+   *   produced it (undefined on legacy entries), or undefined if not cached
    */
   async getAutoName(
     agentName: string,
     sessionId: string,
-  ): Promise<{ autoName?: string; autoNameMtime?: string } | undefined> {
+  ): Promise<{ autoName?: string; autoNameMtime?: string; autoNameVersion?: number } | undefined> {
     const metadata = await this.loadMetadata(agentName);
     if (!metadata) {
       return undefined;
@@ -407,6 +450,7 @@ export class SessionMetadataStore {
     return {
       autoName: entry.autoName,
       autoNameMtime: entry.autoNameMtime,
+      autoNameVersion: entry.autoNameVersion,
     };
   }
 
@@ -429,11 +473,13 @@ export class SessionMetadataStore {
     // Get or create the session entry
     const sessionEntry = metadata.sessions[sessionId] ?? {};
 
-    // Update the auto name fields
+    // Update the auto name fields. The extractor version is stamped with the
+    // value so a later logic change can invalidate just this field.
     metadata.sessions[sessionId] = {
       ...sessionEntry,
       autoName,
       autoNameMtime: mtime,
+      autoNameVersion: AUTO_NAME_EXTRACTOR_VERSION,
     };
 
     await this.saveMetadata(agentName, metadata);
@@ -464,14 +510,17 @@ export class SessionMetadataStore {
     const metadata = await this.loadForWrite(agentName);
 
     // Apply all updates. `autoName` may be undefined — that records a validated
-    // *negative* result (this transcript has no summary at this mtime) so the
+    // *negative* result (this transcript has no title at this mtime) so the
     // next listing trusts the cache instead of re-streaming the whole file.
+    // Each write is stamped with the extractor version that produced it, so a
+    // future extractor change invalidates this field alone.
     for (const { sessionId, autoName, mtime } of entries) {
       const sessionEntry = metadata.sessions[sessionId] ?? {};
       metadata.sessions[sessionId] = {
         ...sessionEntry,
         autoName,
         autoNameMtime: mtime,
+        autoNameVersion: AUTO_NAME_EXTRACTOR_VERSION,
       };
     }
 

@@ -37,8 +37,13 @@ import {
   type SessionWakeHandler,
 } from "../session/index.js";
 import {
+  type AdoptableSession,
+  type AdoptedSession,
+  type AdoptionPlacementMode,
+  type AdoptSessionsResult,
   type ChatMessage,
   type DiscoveredSession,
+  getAdoption,
   initStateDirectory,
   SessionDiscoveryService,
   SessionMetadataStore,
@@ -898,6 +903,164 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
         dockerEnabled: agent.docker?.enabled === true,
       });
     }
+  }
+
+  /**
+   * Adopt a pre-existing Claude Code session into an agent.
+   *
+   * Records an adoption claim in `<stateDir>/adopted-sessions/` — a real,
+   * dedicated attribution source, deliberately not a forged job record — so the
+   * session is discoverable under the agent with `origin: "adopted"` and
+   * resumable like any other. No file is moved: use this when the transcript is
+   * already in the agent's own transcript folder (the "point an agent at a
+   * directory I've already used" case); use {@link adoptSessionsFrom} when it
+   * lives under a different working directory.
+   *
+   * Idempotent — re-adopting the same session rewrites the record cleanly.
+   *
+   * @param name - The agent qualified or local name
+   * @param sessionId - The Claude Code session ID to adopt
+   * @param opts.sourceCwd - Working directory the transcript was recorded under.
+   *   Defaults to the agent's own working directory.
+   * @returns The persisted adoption record
+   * @throws {InvalidStateError} If the fleet manager is not yet initialized
+   * @throws {AgentNotFoundError} If no agent with that name exists
+   * @throws {PathTraversalError} If `sessionId` is not a safe identifier
+   */
+  async adoptSession(
+    name: string,
+    sessionId: string,
+    opts?: { sourceCwd?: string },
+  ): Promise<AdoptedSession> {
+    const { agent, workingDirectory } = this.resolveAgentForSessions(name, "adoptSession");
+
+    const record = await this.getSessionDiscovery().adoptSession(agent.qualifiedName, sessionId, {
+      sourceCwd: opts?.sourceCwd ?? workingDirectory,
+      workingDirectory,
+    });
+
+    this.logger.debug(
+      `adoptSession: session "${sessionId}" adopted by agent "${agent.qualifiedName}"`,
+    );
+    return record;
+  }
+
+  /**
+   * List the sessions an agent could adopt from a working directory: native,
+   * non-sidechain transcripts that aren't already adopted and aren't attributed
+   * to a real run.
+   *
+   * Intended to back an "import my existing chats" picker — each entry carries a
+   * title, a preview, an mtime and its source directory. Resolved against this
+   * fleet's configured Claude home.
+   *
+   * Native CLI transcripts only. A Docker-wrapped agent's sessions live in
+   * `<stateDir>/docker-sessions/` (the container's `~/.claude` is ephemeral), so
+   * this returns nothing for one unless a CLI-side directory is named
+   * explicitly; use {@link adoptSession} to claim a docker session by id.
+   *
+   * @param name - The agent qualified or local name
+   * @param fromWorkingDir - Directory whose transcript folder to scan. Defaults
+   *   to the agent's own working directory.
+   * @returns Adoptable sessions, newest first (empty if the agent has no
+   *   working directory and no explicit directory was given)
+   * @throws {InvalidStateError} If the fleet manager is not yet initialized
+   * @throws {AgentNotFoundError} If no agent with that name exists
+   */
+  async listAdoptableSessions(name: string, fromWorkingDir?: string): Promise<AdoptableSession[]> {
+    const { agent, workingDirectory } = this.resolveAgentForSessions(name, "listAdoptableSessions");
+    const agentWorkingDirectory = workingDirectory ?? fromWorkingDir;
+    if (!agentWorkingDirectory) {
+      return [];
+    }
+    return this.getSessionDiscovery().listAdoptableSessions(
+      agent.qualifiedName,
+      agentWorkingDirectory,
+      fromWorkingDir,
+    );
+  }
+
+  /**
+   * Adopt every adoptable session found in a working directory.
+   *
+   * For each candidate: place the transcript where discovery will look for it
+   * (`<claudeHome>/projects/<encoded agent cwd>/`), then record attribution with
+   * the originating directory as `sourceCwd`. When the source directory resolves
+   * to the agent's *own* transcript folder, nothing is moved — only attribution
+   * is recorded.
+   *
+   * `mode` defaults to `"copy"`, so the user's original `~/.claude` transcripts
+   * are never mutated unless they explicitly ask for `"move"` or `"link"`.
+   * Copies preserve the source mtime (it drives both list ordering and the
+   * metadata caches). Existing destination files are never overwritten.
+   *
+   * Every candidate that is not adopted appears in `skipped` with a reason
+   * (`"sidechain"`, `"already-adopted"`, `"destination-exists"`,
+   * `"attributed-to-run"`, `"unreadable"`, `"placement-failed"`,
+   * `"record-failed"`), and one bad transcript never aborts the batch.
+   *
+   * With `dryRun: true` nothing at all is written — no transcripts placed, no
+   * adoption records — and the result describes what would have happened.
+   *
+   * Placement targets the CLI transcript folder, so this is for non-Docker
+   * agents; a Docker-wrapped agent reads its sessions from
+   * `<stateDir>/docker-sessions/` and should claim them with
+   * {@link adoptSession}, which records attribution without moving files.
+   *
+   * @param name - The agent qualified or local name
+   * @param opts - Source directory, placement mode, dry-run
+   * @throws {InvalidStateError} If the fleet manager is not yet initialized
+   * @throws {AgentNotFoundError} If no agent with that name exists
+   */
+  async adoptSessionsFrom(
+    name: string,
+    opts?: {
+      fromWorkingDir?: string;
+      mode?: AdoptionPlacementMode;
+      dryRun?: boolean;
+    },
+  ): Promise<AdoptSessionsResult> {
+    const { agent, workingDirectory } = this.resolveAgentForSessions(name, "adoptSessionsFrom");
+    if (!workingDirectory) {
+      return { adopted: [], skipped: [] };
+    }
+    return this.getSessionDiscovery().adoptSessionsFrom(
+      agent.qualifiedName,
+      workingDirectory,
+      opts,
+    );
+  }
+
+  /**
+   * Release a session this agent had adopted.
+   *
+   * Removes the adoption record only — the transcript stays on disk. The session
+   * reverts to an ordinary unattributed native session: still visible in
+   * all-sessions views, invisible under the agent.
+   *
+   * Returns `false` (rather than removing anything) when the session is not
+   * adopted, or when it is adopted by a *different* agent — one agent must not
+   * be able to drop another's claim.
+   *
+   * @param name - The agent qualified or local name
+   * @param sessionId - The session ID to release
+   * @returns `true` if this agent's adoption record was removed
+   * @throws {InvalidStateError} If the fleet manager is not yet initialized
+   * @throws {AgentNotFoundError} If no agent with that name exists
+   * @throws {PathTraversalError} If `sessionId` is not a safe identifier
+   */
+  async unadoptSession(name: string, sessionId: string): Promise<boolean> {
+    const { agent, workingDirectory } = this.resolveAgentForSessions(name, "unadoptSession");
+
+    const existing = await getAdoption(this.stateDir, sessionId);
+    if (!existing || existing.agentName !== agent.qualifiedName) {
+      this.logger.debug(
+        `unadoptSession: no adoption record for session "${sessionId}" owned by agent "${agent.qualifiedName}"`,
+      );
+      return false;
+    }
+
+    return this.getSessionDiscovery().unadoptSession(sessionId, { workingDirectory });
   }
 
   /**

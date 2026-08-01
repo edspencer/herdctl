@@ -9,6 +9,7 @@ import {
   extractFirstMessagePreview,
   extractLastSummary,
   extractSessionMetadata,
+  extractSessionTitle,
   extractSessionUsage,
   isSidechainSession,
   parseSessionMessages,
@@ -700,6 +701,109 @@ describe("extractLastSummary", () => {
 
     // No summary entries in this fixture
     expect(summary).toBeUndefined();
+  });
+});
+
+// =============================================================================
+// extractSessionTitle
+// =============================================================================
+
+describe("extractSessionTitle", () => {
+  it("prefers custom-title over an ai-title that appears LATER in the file", async () => {
+    // title-session.jsonl deliberately writes both custom-title entries first
+    // and both ai-title entries last, so a position-based extractor would
+    // return the ai-title. Precedence is by type, not by file position.
+    const title = await extractSessionTitle(fixture("title-session.jsonl"));
+
+    expect(title).toBe("Token-bucket rate limiter with burst");
+    expect(title).not.toBe("Per-API-key rate limiting");
+  });
+
+  it("prefers custom-title over an ai-title that appears EARLIER in the file", async () => {
+    // Reverse file order from the fixture above: ai-title first, custom-title last.
+    const title = await extractSessionTitle(fixture("title-custom-last-session.jsonl"));
+
+    expect(title).toBe("Reversible migrations");
+    expect(title).not.toBe("Database migration questions");
+  });
+
+  it("prefers ai-title over summary when there is no custom-title", async () => {
+    const title = await extractSessionTitle(fixture("title-ai-only-session.jsonl"));
+
+    expect(title).toBe("Shared temp dir causes parallel test flake");
+    expect(title).not.toBe(
+      "The user debugged a flaky integration test that failed only under parallel execution.",
+    );
+  });
+
+  it("falls back to the last summary when no title entries are present", async () => {
+    // Preserves today's behaviour for herdctl-driven sessions.
+    const title = await extractSessionTitle(fixture("summary-session.jsonl"));
+
+    expect(title).toBe(
+      "The assistant helped configure CORS and body-parser middleware. The user then asked about database integration.",
+    );
+  });
+
+  it("takes the LAST custom-title when the title was rewritten", async () => {
+    // title-session.jsonl has two custom-title entries; the first is a draft.
+    const title = await extractSessionTitle(fixture("title-session.jsonl"));
+
+    expect(title).not.toBe("Rate limiter (draft)");
+    expect(title).toBe("Token-bucket rate limiter with burst");
+  });
+
+  it("takes the LAST ai-title when the title was rewritten", async () => {
+    const title = await extractSessionTitle(fixture("title-ai-only-session.jsonl"));
+
+    expect(title).not.toBe("Flaky test investigation");
+    expect(title).toBe("Shared temp dir causes parallel test flake");
+  });
+
+  it("ignores title entries that use a generic `title` field (issue #423 gotcha 4)", async () => {
+    // custom-title carries its value in `customTitle` and ai-title in `aiTitle`.
+    // An entry with a plain `title` field must not produce a title at all — here
+    // that means falling through to the summary rather than picking either one.
+    const title = await extractSessionTitle(fixture("title-wrong-field-session.jsonl"));
+
+    expect(title).not.toBe("WRONG FIELD custom title");
+    expect(title).not.toBe("WRONG FIELD ai title");
+    expect(title).toBe("The user reviewed a caching layer and asked about eviction policy.");
+  });
+
+  it("returns undefined when there are no titles and no summaries", async () => {
+    const title = await extractSessionTitle(fixture("simple-session.jsonl"));
+
+    expect(title).toBeUndefined();
+  });
+
+  it("returns undefined for nonexistent file", async () => {
+    const title = await extractSessionTitle(fixture("does-not-exist.jsonl"));
+
+    expect(title).toBeUndefined();
+  });
+
+  it("skips malformed lines without throwing", async () => {
+    const title = await extractSessionTitle(fixture("malformed-session.jsonl"));
+
+    expect(title).toBeUndefined();
+  });
+
+  it("skips a truncated title line and still finds the surrounding titles", async () => {
+    // title-session.jsonl contains a truncated `{"type":"custom-title","customTitl`
+    // line between the two valid custom-title entries.
+    await expect(extractSessionTitle(fixture("title-session.jsonl"))).resolves.toBe(
+      "Token-bucket rate limiter with burst",
+    );
+  });
+
+  it("does not change extractLastSummary's contract", async () => {
+    // extractLastSummary still reads ONLY `type:"summary"` entries, so a
+    // CLI transcript that has titles but no summary must still be undefined.
+    expect(await extractLastSummary(fixture("title-custom-last-session.jsonl"))).toBeUndefined();
+    expect(await extractLastSummary(fixture("title-session.jsonl"))).toBe(
+      "The user asked for help wiring up a rate limiter and the assistant sketched a token-bucket implementation.",
+    );
   });
 });
 

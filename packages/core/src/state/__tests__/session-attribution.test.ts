@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import yaml from "yaml";
+import { recordAdoption } from "../adopted-sessions.js";
 import type { JobMetadata, JobStatus, TriggerType } from "../schemas/job-metadata.js";
 import { AttributionIndexBuilder, buildAttributionIndex } from "../session-attribution.js";
 
@@ -324,6 +325,140 @@ describe("buildAttributionIndex", () => {
         origin: "web",
         agentName: "fleet/job-agent",
         triggerType: "web",
+      });
+    });
+  });
+
+  describe("adoption-attributed sessions", () => {
+    it("attributes an adopted session that has no job or platform record", async () => {
+      mockListJobs.mockResolvedValue({ jobs: [], errors: 0 });
+
+      await recordAdoption(tempDir, "sess-adopted-1", {
+        agentName: "fleet/keeper",
+        sourceCwd: "/home/user/project",
+      });
+
+      const index = await buildAttributionIndex(tempDir);
+
+      expect(index.getAttribute("sess-adopted-1")).toEqual({
+        origin: "adopted",
+        agentName: "fleet/keeper",
+        triggerType: undefined,
+      });
+    });
+
+    it("leaves an un-adopted native session unattributed", async () => {
+      mockListJobs.mockResolvedValue({ jobs: [], errors: 0 });
+
+      await recordAdoption(tempDir, "sess-adopted-1", { agentName: "fleet/keeper" });
+
+      const index = await buildAttributionIndex(tempDir);
+
+      expect(index.getAttribute("sess-never-adopted")).toEqual({
+        origin: "native",
+        agentName: undefined,
+        triggerType: undefined,
+      });
+    });
+
+    it("counts adopted sessions in the index size", async () => {
+      mockListJobs.mockResolvedValue({
+        jobs: [
+          createMockJob({
+            id: "job-2024-01-15-job001",
+            session_id: "sess-job-only",
+            trigger_type: "web",
+            agent: "fleet/web-agent",
+          }),
+        ],
+        errors: 0,
+      });
+
+      await recordAdoption(tempDir, "sess-adopted-only", { agentName: "fleet/keeper" });
+      // Overlaps the job session — must not add to the unique count.
+      await recordAdoption(tempDir, "sess-job-only", { agentName: "fleet/keeper" });
+
+      const index = await buildAttributionIndex(tempDir);
+
+      expect(index.size).toBe(2);
+    });
+
+    it("includes adopted sessions in batch attribution", async () => {
+      mockListJobs.mockResolvedValue({ jobs: [], errors: 0 });
+
+      await recordAdoption(tempDir, "sess-batch-adopted", { agentName: "fleet/keeper" });
+
+      const index = await buildAttributionIndex(tempDir);
+      const results = index.getAttributes(["sess-batch-adopted", "sess-batch-unknown"]);
+
+      expect(results.get("sess-batch-adopted")).toEqual({
+        origin: "adopted",
+        agentName: "fleet/keeper",
+        triggerType: undefined,
+      });
+      expect(results.get("sess-batch-unknown")).toEqual({
+        origin: "native",
+        agentName: undefined,
+        triggerType: undefined,
+      });
+    });
+
+    it("handles a missing adoption store gracefully", async () => {
+      mockListJobs.mockResolvedValue({ jobs: [], errors: 0 });
+
+      // No adopted-sessions directory exists at all — should not throw.
+      const index = await buildAttributionIndex(tempDir);
+
+      expect(index.getAttribute("sess-anything").origin).toBe("native");
+    });
+  });
+
+  describe("priority: job and platform outrank adoption", () => {
+    it("uses job attribution when a session is both run and adopted", async () => {
+      const sharedSessionId = "sess-job-and-adopted";
+
+      mockListJobs.mockResolvedValue({
+        jobs: [
+          createMockJob({
+            session_id: sharedSessionId,
+            trigger_type: "web",
+            agent: "fleet/job-agent",
+          }),
+        ],
+        errors: 0,
+      });
+
+      await recordAdoption(tempDir, sharedSessionId, { agentName: "fleet/adopting-agent" });
+
+      const index = await buildAttributionIndex(tempDir);
+
+      // A real run record outranks an after-the-fact adoption claim.
+      expect(index.getAttribute(sharedSessionId)).toEqual({
+        origin: "web",
+        agentName: "fleet/job-agent",
+        triggerType: "web",
+      });
+    });
+
+    it("uses platform attribution when a session is both platform-bound and adopted", async () => {
+      const sharedSessionId = "sess-platform-and-adopted";
+
+      mockListJobs.mockResolvedValue({ jobs: [], errors: 0 });
+
+      await createPlatformSession(tempDir, "slack", "slack-bot", {
+        "channel-xyz": {
+          sessionId: sharedSessionId,
+          lastMessageAt: "2024-01-15T10:00:00Z",
+        },
+      });
+      await recordAdoption(tempDir, sharedSessionId, { agentName: "fleet/adopting-agent" });
+
+      const index = await buildAttributionIndex(tempDir);
+
+      expect(index.getAttribute(sharedSessionId)).toEqual({
+        origin: "slack",
+        agentName: "slack-bot",
+        triggerType: undefined,
       });
     });
   });
@@ -822,6 +957,72 @@ describe("AttributionIndexBuilder (incremental)", () => {
 
     const index = await builder.build(tempDir);
     expect(index.getAttribute("sess-1").agentName).toBe("keeper");
+  });
+
+  // These matter more than the standalone-function equivalents above:
+  // SessionDiscoveryService uses the builder, so an adoption that only works in
+  // buildAttributionIndex would silently fail in production.
+  it("attributes an adopted session (no job record at all)", async () => {
+    await recordAdoption(tempDir, "sess-adopted-builder", {
+      agentName: "fleet/keeper",
+      sourceCwd: "/home/user/project",
+    });
+
+    const index = await new AttributionIndexBuilder().build(tempDir);
+
+    expect(index.getAttribute("sess-adopted-builder")).toEqual({
+      origin: "adopted",
+      agentName: "fleet/keeper",
+      triggerType: undefined,
+    });
+    expect(index.size).toBe(1);
+  });
+
+  it("prefers the job record over an adoption record for the same session", async () => {
+    await writeJobFile(tempDir, {
+      id: "job-2024-01-15-aaa111",
+      session_id: "sess-both",
+      agent: "fleet/job-agent",
+      trigger_type: "web",
+    });
+    await recordAdoption(tempDir, "sess-both", { agentName: "fleet/adopting-agent" });
+
+    const index = await new AttributionIndexBuilder().build(tempDir);
+
+    expect(index.getAttribute("sess-both")).toEqual({
+      origin: "web",
+      agentName: "fleet/job-agent",
+      triggerType: "web",
+    });
+    expect(index.size).toBe(1);
+  });
+
+  it("still reports native for an un-adopted session", async () => {
+    await recordAdoption(tempDir, "sess-adopted-builder", { agentName: "fleet/keeper" });
+
+    const index = await new AttributionIndexBuilder().build(tempDir);
+
+    expect(index.getAttribute("sess-not-adopted")).toEqual({
+      origin: "native",
+      agentName: undefined,
+      triggerType: undefined,
+    });
+  });
+
+  it("picks up an adoption recorded after an earlier build (adoptions are re-read each build)", async () => {
+    const builder = new AttributionIndexBuilder();
+
+    let index = await builder.build(tempDir);
+    expect(index.getAttribute("sess-late").origin).toBe("native");
+
+    await recordAdoption(tempDir, "sess-late", { agentName: "fleet/keeper" });
+
+    index = await builder.build(tempDir);
+    expect(index.getAttribute("sess-late")).toEqual({
+      origin: "adopted",
+      agentName: "fleet/keeper",
+      triggerType: undefined,
+    });
   });
 
   it("drops attribution for a deleted job file", async () => {

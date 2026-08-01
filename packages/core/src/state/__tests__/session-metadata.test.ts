@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  AUTO_NAME_EXTRACTOR_VERSION,
   isSessionMetadataUnreadableError,
   SessionMetadataStore,
   SessionMetadataUnreadableError,
@@ -549,6 +550,55 @@ describe("SessionMetadataStore", () => {
       // Session 3 should have new auto name
       const result3 = await store.getAutoName("test-agent", "session-3");
       expect(result3!.autoName).toBe("New Auto Three");
+    });
+  });
+
+  describe("autoNameVersion (per-field extractor invalidation)", () => {
+    it("stamps the current extractor version on setAutoName and batchSetAutoNames", async () => {
+      await store.setAutoName("test-agent", "session-1", "One", "2024-01-15T10:00:00.000Z");
+      await store.batchSetAutoNames("test-agent", [
+        { sessionId: "session-2", autoName: "Two", mtime: "2024-01-15T10:00:00.000Z" },
+        // A negative result is stamped too, or it would be re-extracted forever.
+        { sessionId: "session-3", autoName: undefined, mtime: "2024-01-15T10:00:00.000Z" },
+      ]);
+
+      for (const sessionId of ["session-1", "session-2", "session-3"]) {
+        const entry = await store.getAutoName("test-agent", sessionId);
+        expect(entry!.autoNameVersion).toBe(AUTO_NAME_EXTRACTOR_VERSION);
+      }
+    });
+
+    it("reads a legacy entry (no autoNameVersion) without discarding the file", async () => {
+      // The field is optional precisely so a file written by an older release
+      // still validates. If it didn't, `loadMetadata` would log "Corrupted
+      // metadata file" and return null — silently dropping the user's
+      // customName instead of invalidating one cached field.
+      const metadataDir = join(tempDir, "session-metadata");
+      await mkdir(metadataDir, { recursive: true });
+      await writeFile(
+        join(metadataDir, "test-agent.json"),
+        JSON.stringify({
+          version: 1,
+          agentName: "test-agent",
+          sessions: {
+            "session-legacy": {
+              customName: "User's own name",
+              autoName: "Legacy Auto Name",
+              autoNameMtime: "2024-01-15T10:00:00.000Z",
+            },
+          },
+        }),
+      );
+
+      expect(await store.getCustomName("test-agent", "session-legacy")).toBe("User's own name");
+      const entry = await store.getAutoName("test-agent", "session-legacy");
+      expect(entry).toMatchObject({
+        autoName: "Legacy Auto Name",
+        autoNameMtime: "2024-01-15T10:00:00.000Z",
+      });
+      // An absent version is the signal that this entry predates the extractor
+      // change and must be re-extracted once.
+      expect(entry!.autoNameVersion).toBeUndefined();
     });
   });
 

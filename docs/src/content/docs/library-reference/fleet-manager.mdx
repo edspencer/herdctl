@@ -822,11 +822,11 @@ interface DiscoveredSession {
   sessionId: string;
   workingDirectory: string;         // Directory the session belongs to
   mtime: string;                    // Last-modified time (ISO 8601)
-  origin: SessionOrigin;            // 'web' | 'discord' | 'slack' | 'schedule' | 'native'
+  origin: SessionOrigin;            // 'web' | 'discord' | 'slack' | 'schedule' | 'native' | 'adopted'
   agentName: string | undefined;    // Attributed agent, if known
   resumable: boolean;               // Whether the session can be resumed
   customName: string | undefined;   // Custom display name if set
-  autoName: string | undefined;     // Auto-generated name (from JSONL summary)
+  autoName: string | undefined;     // Auto-generated name (session title, else first-message preview)
   preview: string | undefined;      // First-message preview (only if metadata was loaded)
 }
 ```
@@ -836,6 +836,8 @@ interface DiscoveredSession {
 Derives the agent's working directory and Docker mode from the loaded config. Sessions are returned sorted by modification time (newest first).
 
 **Note**: Sessions are keyed by working directory. This method uses the agent's *configured* `working_directory`. If you triggered the agent with a per-trigger `workingDirectory` override, the resulting sessions live under that override directory and will NOT appear here.
+
+Sessions with `origin: 'adopted'` are pre-existing transcripts claimed via [`adoptSession`](#adoptsessionname-sessionid-opts) or [`adoptSessionsFrom`](#adoptsessionsfromname-opts). They behave like any other session here.
 
 #### Throws
 
@@ -1054,6 +1056,243 @@ await manager.setSessionName('my-agent', 'session-abc123', 'Bug Fix Discussion')
 // Clear custom name
 await manager.setSessionName('my-agent', 'session-abc123', null);
 ```
+
+---
+
+### `listAdoptableSessions(name, fromWorkingDir?)`
+
+Lists the pre-existing Claude Code sessions an agent could adopt.
+
+```typescript
+manager.listAdoptableSessions(
+  name: string,
+  fromWorkingDir?: string
+): Promise<AdoptableSession[]>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | `string` | **Yes** | Agent qualified name or local name |
+| `fromWorkingDir` | `string` | No | Directory whose transcript folder to scan. Defaults to the agent's own working directory |
+
+#### Returns
+
+```typescript
+interface AdoptableSession {
+  sessionId: string;
+  sourceCwd: string;      // Directory the transcript was found under
+  mtime: string;          // ISO 8601, drives sort order
+  autoName: string | undefined;
+  preview: string | undefined;
+  sizeBytes: number;
+}
+```
+
+Newest first. Empty when the agent has no working directory and no explicit directory was given.
+
+#### Description
+
+Returns native, non-sidechain transcripts that are not already adopted and are not attributed to a real run — i.e. exactly the sessions that are invisible under the agent today. Intended to back an "import my existing chats" picker.
+
+Resolved against the fleet's configured Claude home (see [`getClaudeHomePath()`](#getclaudehomepath)). Native CLI transcripts only: a Docker-wrapped agent's sessions live in `<stateDir>/docker-sessions/`, so this returns nothing for one unless a CLI-side directory is named explicitly. Use [`adoptSession`](#adoptsessionname-sessionid-opts) to claim a docker session by ID.
+
+There is no message count, deliberately — obtaining one means streaming the whole transcript, which is the per-session cost the listing caches exist to avoid.
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+| `AgentNotFoundError` | Agent doesn't exist |
+
+---
+
+### `adoptSession(name, sessionId, opts?)`
+
+Adopts a single pre-existing Claude Code session into an agent.
+
+```typescript
+manager.adoptSession(
+  name: string,
+  sessionId: string,
+  opts?: { sourceCwd?: string }
+): Promise<AdoptedSession>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | `string` | **Yes** | Agent qualified name or local name |
+| `sessionId` | `string` | **Yes** | The Claude Code session ID to adopt |
+| `opts.sourceCwd` | `string` | No | Working directory the transcript was recorded under. Defaults to the agent's own working directory |
+
+#### Returns
+
+```typescript
+interface AdoptedSession {
+  version: number;
+  sessionId: string;
+  agentName: string;
+  adoptedAt: string;      // ISO 8601
+  sourceCwd?: string;
+}
+```
+
+#### Description
+
+Records an adoption claim in `<stateDir>/adopted-sessions/` — a real, dedicated attribution source, deliberately not a forged job record — so the session becomes discoverable under the agent with `origin: "adopted"` and resumable like any other.
+
+**No file is moved.** Use this when the transcript is already in the agent's own transcript folder (the "point an agent at a directory I've already used" case); use [`adoptSessionsFrom`](#adoptsessionsfromname-opts) when it lives under a different working directory.
+
+Idempotent — re-adopting the same session rewrites the record cleanly.
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+| `AgentNotFoundError` | Agent doesn't exist |
+| `PathTraversalError` | `sessionId` is not a safe identifier |
+
+#### Example
+
+```typescript
+const record = await manager.adoptSession('my-agent', '0f3c8b2a-...');
+console.log(`Adopted at ${record.adoptedAt}`);
+
+const sessions = await manager.getAgentSessions('my-agent');
+sessions.find((s) => s.sessionId === record.sessionId)?.origin; // 'adopted'
+```
+
+---
+
+### `adoptSessionsFrom(name, opts?)`
+
+Adopts every adoptable session found in a working directory.
+
+```typescript
+manager.adoptSessionsFrom(
+  name: string,
+  opts?: {
+    fromWorkingDir?: string;
+    mode?: 'copy' | 'move' | 'link';
+    dryRun?: boolean;
+  }
+): Promise<AdoptSessionsResult>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `name` | `string` | **Yes** | — | Agent qualified name or local name |
+| `opts.fromWorkingDir` | `string` | No | Agent's working directory | Source directory to adopt from |
+| `opts.mode` | `AdoptionPlacementMode` | No | `'copy'` | How to place the transcript into the agent's folder |
+| `opts.dryRun` | `boolean` | No | `false` | Perform no writes at all; report what would have happened |
+
+#### Returns
+
+```typescript
+interface AdoptSessionsResult {
+  adopted: string[];                    // Session IDs adopted
+  skipped: AdoptSkippedSession[];       // Everything else, with a reason
+}
+
+interface AdoptSkippedSession {
+  sessionId: string;
+  reason:
+    | 'sidechain'
+    | 'already-adopted'
+    | 'destination-exists'
+    | 'attributed-to-run'
+    | 'unreadable'
+    | 'placement-failed'
+    | 'record-failed';
+  detail?: string;
+}
+```
+
+#### Description
+
+Discovery looks for an agent's transcripts under `<claudeHome>/projects/<encoded agent cwd>/`, so a transcript recorded under a different directory is not where discovery will look. For each candidate this places the transcript into the agent's own folder, then records attribution with the originating directory as `sourceCwd`. When the source directory already resolves to the agent's own folder, nothing is moved and only attribution is recorded.
+
+Placement modes:
+
+| Mode | Effect |
+|------|--------|
+| `copy` (default) | Duplicate the file, preserving the source mtime. The user's original `~/.claude` transcript is untouched |
+| `move` | Relocate the file. It disappears from the user's terminal history |
+| `link` | Hard-link (symlink across devices). One inode, so a resume appends to the user's original too |
+
+`copy` is the default so originals are never mutated unless explicitly requested. Copies preserve the source mtime because mtime drives both list ordering and every metadata cache key. Existing destination files are never overwritten.
+
+One bad transcript never aborts the batch — it lands in `skipped` with a reason a UI can show verbatim.
+
+Placement targets the CLI transcript folder, so this is for non-Docker agents. A Docker-wrapped agent reads its sessions from `<stateDir>/docker-sessions/` and should claim them with [`adoptSession`](#adoptsessionname-sessionid-opts).
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+| `AgentNotFoundError` | Agent doesn't exist |
+
+#### Example
+
+```typescript
+// See what would happen first
+const plan = await manager.adoptSessionsFrom('my-agent', {
+  fromWorkingDir: '/Users/ed/Code/myproject',
+  dryRun: true,
+});
+console.log(`Would adopt ${plan.adopted.length}, skip ${plan.skipped.length}`);
+
+// Then do it
+const result = await manager.adoptSessionsFrom('my-agent', {
+  fromWorkingDir: '/Users/ed/Code/myproject',
+});
+for (const { sessionId, reason } of result.skipped) {
+  console.warn(`skipped ${sessionId}: ${reason}`);
+}
+```
+
+---
+
+### `unadoptSession(name, sessionId)`
+
+Releases a session this agent had adopted.
+
+```typescript
+manager.unadoptSession(name: string, sessionId: string): Promise<boolean>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | `string` | **Yes** | Agent qualified name or local name |
+| `sessionId` | `string` | **Yes** | The session ID to release |
+
+#### Returns
+
+`true` if this agent's adoption record was removed.
+
+#### Description
+
+Removes the adoption record only — **the transcript stays on disk**. The session reverts to an ordinary unattributed native session: still visible in all-sessions views, invisible under the agent.
+
+Returns `false` (rather than removing anything) when the session is not adopted, or when it is adopted by a *different* agent — one agent must not be able to drop another's claim.
+
+#### Throws
+
+| Error | Condition |
+|-------|-----------|
+| `InvalidStateError` | Fleet manager not initialized |
+| `AgentNotFoundError` | Agent doesn't exist |
+| `PathTraversalError` | `sessionId` is not a safe identifier |
 
 ---
 

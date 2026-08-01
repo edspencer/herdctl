@@ -6,34 +6,52 @@
  * discovery of Claude Code sessions from the filesystem.
  */
 
-import { readdir, stat } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
+import {
+  copyFile,
+  link,
+  mkdir,
+  readdir,
+  rename,
+  stat,
+  symlink,
+  unlink,
+  utimes,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
   encodePathForCli,
+  getCliSessionDir,
   getCliSessionFile,
   getDockerSessionDir,
   getDockerSessionFile,
   sessionBelongsToWorkingDirectory,
 } from "../runner/runtime/cli-session-path.js";
 import { createLogger } from "../utils/logger.js";
+import { listAdoptions, recordAdoption, removeAdoption } from "./adopted-sessions.js";
 import {
   type ChatMessage,
   extractFirstMessagePreview,
-  extractLastSummary,
   extractSessionMetadata,
+  extractSessionTitle,
   extractSessionUsage,
   isSidechainSession,
   parseSessionMessages,
   type SessionMetadata,
   type SessionUsage,
 } from "./jsonl-parser.js";
+import type { AdoptedSession } from "./schemas/adopted-session.js";
 import {
   type AttributionIndex,
   AttributionIndexBuilder,
   type SessionOrigin,
 } from "./session-attribution.js";
-import { isSessionMetadataUnreadableError, SessionMetadataStore } from "./session-metadata.js";
+import {
+  AUTO_NAME_EXTRACTOR_VERSION,
+  isSessionMetadataUnreadableError,
+  SessionMetadataStore,
+} from "./session-metadata.js";
 import { mapWithConcurrency } from "./utils/concurrency.js";
 
 // =============================================================================
@@ -85,6 +103,97 @@ export interface DirectoryGroup {
 }
 
 /**
+ * A native CLI session that could be adopted by an agent.
+ *
+ * Deliberately NOT a {@link DiscoveredSession}: half of that shape is meaningless
+ * for a session that hasn't been adopted yet. Its `origin` is by definition
+ * `"native"`, its `agentName` is by definition undefined (that's *why* it is
+ * invisible), `resumable` is a property of the adopting agent rather than of the
+ * candidate, and `customName` is keyed per agent so an unattributed session
+ * never has one. What a picker actually needs is: which session, what does it
+ * look like, when was it last touched, and where did it come from.
+ *
+ * There is no message count: obtaining one means streaming the whole transcript
+ * (`extractSessionMetadata`), which is exactly the per-session cost the listing
+ * caches exist to avoid. `mtime` + `preview` + `sizeBytes` are all available
+ * without a full parse.
+ */
+export interface AdoptableSession {
+  sessionId: string;
+  /**
+   * The working directory whose transcript folder this session was found in —
+   * i.e. the `sourceCwd` that adoption will record for provenance.
+   */
+  sourceCwd: string;
+  /** ISO 8601 last-modified time of the transcript (drives sort order). */
+  mtime: string;
+  /** Best available title (`custom-title` → `ai-title` → `summary` → preview). */
+  autoName: string | undefined;
+  /** First user message, truncated — shown under the title in a picker. */
+  preview: string | undefined;
+  /** Transcript size in bytes; a cheap proxy for "how much is in here". */
+  sizeBytes: number;
+}
+
+/**
+ * How {@link SessionDiscoveryService.adoptSessionsFrom} places a transcript into
+ * the agent's own folder when it is adopting from a *different* working
+ * directory.
+ *
+ * - `copy` (**default**) — duplicate the file, preserving its mtime. The user's
+ *   original `~/.claude` transcript is left untouched; the agent appends to its
+ *   own copy on resume.
+ * - `move` — relocate the file. The original disappears from the user's
+ *   terminal history.
+ * - `link` — hard-link (symlink across devices). One inode, so a resume appends
+ *   to the user's original transcript too.
+ */
+export type AdoptionPlacementMode = "copy" | "move" | "link";
+
+/** Why a candidate session was not adopted. */
+export type AdoptSkipReason =
+  /** Transcript is a Task sub-agent / warmup sidechain, never user-facing. */
+  | "sidechain"
+  /** An adoption record already exists (possibly for a different agent). */
+  | "already-adopted"
+  /** A transcript with this id is already in the destination folder. */
+  | "destination-exists"
+  /** A job or platform record already attributes it to a real run. */
+  | "attributed-to-run"
+  /** The transcript could not be inspected (corrupt, vanished, not a file). */
+  | "unreadable"
+  /** The transcript could not be copied/moved/linked. */
+  | "placement-failed"
+  /** The transcript was placed but the adoption record could not be written. */
+  | "record-failed";
+
+/** One skipped session, with a reason a UI can show verbatim. */
+export interface AdoptSkippedSession {
+  sessionId: string;
+  reason: AdoptSkipReason;
+  /** Extra context (e.g. the underlying errno message, the owning agent). */
+  detail?: string;
+}
+
+/** Result of a batch adoption. */
+export interface AdoptSessionsResult {
+  /** Session ids adopted (or, under `dryRun`, that would have been adopted). */
+  adopted: string[];
+  /** Every candidate that was NOT adopted, with why. */
+  skipped: AdoptSkippedSession[];
+}
+
+/** Options for {@link SessionDiscoveryService.adoptSessionsFrom}. */
+export interface AdoptSessionsFromOptions {
+  /** Source working directory. Defaults to the agent's own working directory. */
+  fromWorkingDir?: string;
+  /** Placement mode. Defaults to `"copy"` — never mutate the user's originals. */
+  mode?: AdoptionPlacementMode;
+  /** When true, perform NO writes and report what would have happened. */
+  dryRun?: boolean;
+}
+
+/**
  * Options for creating a SessionDiscoveryService
  */
 export interface SessionDiscoveryOptions {
@@ -110,7 +219,7 @@ export interface SessionDiscoveryOptions {
 // =============================================================================
 
 interface DirectoryCacheEntry {
-  sessions: Array<{ sessionId: string; mtime: Date }>;
+  sessions: Array<{ sessionId: string; mtime: Date; size: number }>;
   fetchedAt: number;
   /**
    * The transcript directory's own mtime (epoch ms) captured when this entry
@@ -325,7 +434,7 @@ export class SessionDiscoveryService {
    */
   private async listSessionFiles(
     sessionDir: string,
-  ): Promise<Array<{ sessionId: string; mtime: Date }>> {
+  ): Promise<Array<{ sessionId: string; mtime: Date; size: number }>> {
     // Check cache first. A cached entry is served only when it's both within the
     // TTL window AND the directory hasn't changed since the entry was built: a
     // new (or removed) session file bumps the directory's mtime, so an mtime
@@ -367,7 +476,7 @@ export class SessionDiscoveryService {
     // Filter to .jsonl files and get stats
     const jsonlFiles = fileNames.filter((name) => name.endsWith(".jsonl"));
 
-    const sessions: Array<{ sessionId: string; mtime: Date }> = [];
+    const sessions: Array<{ sessionId: string; mtime: Date; size: number }> = [];
     for (const fileName of jsonlFiles) {
       const filePath = path.join(sessionDir, fileName);
       try {
@@ -375,6 +484,9 @@ export class SessionDiscoveryService {
         sessions.push({
           sessionId: fileName.replace(/\.jsonl$/, ""),
           mtime: stats.mtime,
+          // Free here (we already stat'd) and the only cheap size signal an
+          // adoption picker can show without parsing the transcript.
+          size: stats.size,
         });
       } catch (error) {
         // File may have been deleted between readdir and stat
@@ -399,8 +511,24 @@ export class SessionDiscoveryService {
   /**
    * Resolve the auto-generated name for a session.
    *
-   * Checks if the cached autoName is still valid (based on file mtime).
-   * If not, extracts a new name from the JSONL summary field.
+   * Checks if the cached autoName is still valid (based on file mtime **and**
+   * the extractor version that produced it). If not, extracts a fresh name from
+   * the transcript: the best available title (`custom-title` → `ai-title` →
+   * `summary`, see {@link extractSessionTitle}) and, when the transcript carries
+   * no title at all, the first user message as a preview so a session shows
+   * something more useful than its raw id.
+   *
+   * ## Why the version check matters
+   *
+   * The cache is authoritative on the presence of `autoNameMtime`, not of
+   * `autoName` — a transcript with no name is negative-cached so it is never
+   * re-streamed. That means changing the extraction logic alone would appear to
+   * do NOTHING on existing data: every already-listed session still holds a
+   * current-mtime entry produced by the old extractor. Requiring
+   * {@link AUTO_NAME_EXTRACTOR_VERSION} to match makes each legacy entry miss
+   * exactly once; it is then re-extracted and rewritten stamped, while the
+   * entry's `customName` / `preview` / `usage` / `isSidechain` caches survive
+   * (herdctl#423, gotcha 5).
    *
    * @param agentName - The agent's qualified name (use "adhoc" for unattributed sessions)
    * @param sessionId - The session ID
@@ -418,8 +546,12 @@ export class SessionDiscoveryService {
     // Check cache
     const cached = await this.sessionMetadataStore.getAutoName(agentName, sessionId);
 
-    if (cached?.autoNameMtime && cached.autoNameMtime >= fileMtime) {
-      // Cache is valid
+    if (
+      cached?.autoNameMtime &&
+      cached.autoNameMtime >= fileMtime &&
+      cached.autoNameVersion === AUTO_NAME_EXTRACTOR_VERSION
+    ) {
+      // Cache is valid AND was produced by the current extractor
       return { autoName: cached.autoName, needsUpdate: false };
     }
 
@@ -427,15 +559,17 @@ export class SessionDiscoveryService {
     const filePath = dockerEnabled
       ? getDockerSessionFile(this.stateDir, sessionId)
       : getCliSessionFile(workingDirectory, sessionId, this.claudeHomePath);
-    const summary = await extractLastSummary(filePath);
+    // Titles first (a CLI transcript essentially never emits a `type:"summary"`
+    // entry, but Claude Code does write `custom-title`/`ai-title` entries), then
+    // fall back to the first user message.
+    const title = await extractSessionTitle(filePath);
+    const autoName = title || (await extractFirstMessagePreview(filePath));
 
     // Always signal an update so the (possibly empty) result is negative-cached:
-    // record `autoNameMtime` even when no summary was found. CLI keeper sessions
-    // essentially never produce a `type:"summary"` entry, so without this the
-    // cache would be 0%-effective and `extractLastSummary` would re-stream the
-    // whole transcript on every listing. Mirrors `resolveSidechain`, which
-    // already records the mtime for negative results.
-    return { autoName: summary || undefined, needsUpdate: true };
+    // record `autoNameMtime` even when nothing was found, so a nameless
+    // transcript isn't re-streamed on every listing. Mirrors `resolveSidechain`,
+    // which already records the mtime for negative results.
+    return { autoName: autoName || undefined, needsUpdate: true };
   }
 
   /**
@@ -1272,6 +1406,457 @@ export class SessionDiscoveryService {
     });
 
     return groups;
+  }
+
+  // ===========================================================================
+  // Session adoption (herdctl#423)
+  // ===========================================================================
+
+  /**
+   * The transcript folder discovery scans for a working directory, resolved
+   * against **this service's** Claude home.
+   *
+   * Adoption placement MUST go through this rather than `os.homedir()/.claude`:
+   * discovery lists `<claudeHome>/projects/<encodePathForCli(cwd)>/`, so a
+   * transcript placed anywhere else is adopted-but-invisible — the same
+   * list/read divergence that motivated threading the home in the first place.
+   */
+  private transcriptDirFor(workingDirectory: string): string {
+    return getCliSessionDir(workingDirectory, this.claudeHomePath);
+  }
+
+  /**
+   * Scan a working directory's transcript folder and split its sessions into
+   * adoption candidates and pre-classified skips.
+   *
+   * Shared by {@link listAdoptableSessions} (which only wants the candidates)
+   * and {@link adoptSessionsFrom} (which reports the skips), so the two can
+   * never disagree about what "adoptable" means.
+   */
+  private async scanAdoptionCandidates(
+    agentName: string,
+    fromWorkingDir: string,
+  ): Promise<{
+    sourceDir: string;
+    candidates: Array<{ sessionId: string; mtime: string; size: number }>;
+    skipped: AdoptSkippedSession[];
+  }> {
+    const sourceDir = this.transcriptDirFor(fromWorkingDir);
+    const files = await this.listSessionFiles(sourceDir);
+
+    // ONE read of the adoption store for the whole scan — a per-session
+    // getAdoption() would be a file open per candidate. Keyed by session id;
+    // the record (not just the id) is kept so a skip can name the owning agent.
+    const adoptions = new Map<string, AdoptedSession>();
+    for (const record of await listAdoptions(this.stateDir)) {
+      adoptions.set(record.sessionId, record);
+    }
+
+    const attributionIndex = await this.getAttributionIndex();
+
+    const candidates: Array<{ sessionId: string; mtime: string; size: number }> = [];
+    const skipped: AdoptSkippedSession[] = [];
+    const sidechainUpdates: Array<{ sessionId: string; isSidechain: boolean; mtime: string }> = [];
+
+    for (const { sessionId, mtime, size } of files) {
+      // Per-entry guard, matching the mechanism the two listing paths use
+      // (issue #424): classification of ONE candidate must never take down the
+      // whole scan. Notably an entry that stat()s as a valid `.jsonl` but is
+      // actually a directory makes read(2) throw EISDIR. This is the adoption
+      // path's single skip site — the `unreadable` reason is produced here
+      // rather than by a narrower try/catch of its own, so adoption and the
+      // listings agree on what "unreadable" means.
+      try {
+        const existing = adoptions.get(sessionId);
+        if (existing) {
+          skipped.push({
+            sessionId,
+            reason: "already-adopted",
+            detail: `adopted by ${existing.agentName} at ${existing.adoptedAt}`,
+          });
+          continue;
+        }
+
+        // Anything the attribution index already resolves is not a *native*
+        // session: a job record or a live platform binding means a real run owns
+        // it, and adoption must not compete with that.
+        const attribution = attributionIndex.getAttribute(sessionId);
+        if (attribution.origin !== "native") {
+          skipped.push({
+            sessionId,
+            reason: "attributed-to-run",
+            detail: attribution.agentName
+              ? `origin "${attribution.origin}" (agent ${attribution.agentName})`
+              : `origin "${attribution.origin}"`,
+          });
+          continue;
+        }
+
+        const mtimeStr = mtime.toISOString();
+
+        // Reuse the mtime-keyed sidechain cache rather than re-reading transcript
+        // heads: a listing has almost certainly already classified these files.
+        // This is the first thing that actually OPENS the transcript, so it is
+        // where an unreadable entry usually surfaces.
+        const { isSidechain, needsUpdate } = await this.resolveSidechain(
+          agentName,
+          sessionId,
+          mtimeStr,
+          fromWorkingDir,
+        );
+        if (needsUpdate) {
+          sidechainUpdates.push({ sessionId, isSidechain, mtime: mtimeStr });
+        }
+        if (isSidechain) {
+          skipped.push({ sessionId, reason: "sidechain" });
+          continue;
+        }
+
+        candidates.push({ sessionId, mtime: mtimeStr, size });
+      } catch (error) {
+        // Surfaced to callers as a skip (they render the reason verbatim) AND
+        // logged at warn, so a corrupt transcript folder is diagnosable the same
+        // way it is from `getAgentSessions` / `getAllSessions`.
+        logger.warn(
+          `Skipping unreadable session entry ${sessionId} in ${fromWorkingDir}: ${(error as Error).message}`,
+        );
+        skipped.push({ sessionId, reason: "unreadable", detail: (error as Error).message });
+      }
+    }
+
+    // Persist any freshly-computed sidechain flags (this is a cache write, not
+    // an adoption write — it happens under dryRun too, and is harmless: it only
+    // memoizes a fact already true of the transcript on disk).
+    //
+    // Wrapped in persistCacheUpdates so a metadata file that the store refuses
+    // to overwrite (issue #419) degrades to a cold cache rather than aborting
+    // the scan — and with it both `listAdoptableSessions` and
+    // `adoptSessionsFrom`, which would otherwise fail to adopt anything because
+    // one unrelated cache file is corrupt.
+    if (sidechainUpdates.length > 0) {
+      await this.persistCacheUpdates(() =>
+        this.sessionMetadataStore.batchSetSidechains(agentName, sidechainUpdates),
+      );
+    }
+
+    return { sourceDir, candidates, skipped };
+  }
+
+  /**
+   * List the native, non-sidechain, not-yet-adopted sessions in a working
+   * directory's transcript folder — i.e. what an agent could adopt.
+   *
+   * Everything is resolved against this service's injected Claude home, never
+   * `os.homedir()`.
+   *
+   * @param agentName - The adopting agent's qualified name. Used as the metadata
+   *   cache key, so titles/previews computed here are already warm under the
+   *   right key once the session is adopted.
+   * @param agentWorkingDirectory - The agent's own working directory (the
+   *   default source, and the eventual adoption destination)
+   * @param fromWorkingDir - Working directory to scan. Defaults to
+   *   `agentWorkingDirectory`.
+   * @returns Adoptable sessions, newest first
+   */
+  async listAdoptableSessions(
+    agentName: string,
+    agentWorkingDirectory: string,
+    fromWorkingDir?: string,
+  ): Promise<AdoptableSession[]> {
+    const sourceCwd = fromWorkingDir ?? agentWorkingDirectory;
+    const { candidates } = await this.scanAdoptionCandidates(agentName, sourceCwd);
+
+    const autoNameUpdates: Array<{ sessionId: string; autoName?: string; mtime: string }> = [];
+    const previewUpdates: Array<{ sessionId: string; preview?: string; mtime: string }> = [];
+
+    const enriched = await mapWithConcurrency(
+      candidates,
+      SESSION_ENRICHMENT_CONCURRENCY,
+      async ({ sessionId, mtime, size }): Promise<AdoptableSession | null> => {
+        // Same per-entry guard as `getAgentSessions` (issue #424). The scan
+        // above only reads each transcript's FIRST line (the sidechain check),
+        // so a file can pass it and still fail the whole-file reads here —
+        // without this, one bad entry rejects `mapWithConcurrency` (which
+        // rejects like Promise.all) and blanks the entire picker.
+        try {
+          const { autoName, needsUpdate } = await this.resolveAutoName(
+            agentName,
+            sessionId,
+            mtime,
+            sourceCwd,
+          );
+          const { preview, needsUpdate: previewNeedsUpdate } = await this.resolvePreview(
+            agentName,
+            sessionId,
+            mtime,
+            sourceCwd,
+          );
+          if (needsUpdate) {
+            autoNameUpdates.push({ sessionId, autoName, mtime });
+          }
+          if (previewNeedsUpdate) {
+            previewUpdates.push({ sessionId, preview, mtime });
+          }
+          return { sessionId, sourceCwd, mtime, autoName, preview, sizeBytes: size };
+        } catch (error) {
+          logger.warn(
+            `Skipping unreadable session entry ${sessionId} in ${sourceCwd}: ${(error as Error).message}`,
+          );
+          return null;
+        }
+      },
+    );
+
+    // Cache warming only — never adoption state. A refusal to overwrite an
+    // unreadable metadata file (issue #419) must leave the picker populated
+    // rather than throwing; the cache just stays cold and is re-extracted next
+    // time.
+    await this.persistCacheUpdates(async () => {
+      if (autoNameUpdates.length > 0) {
+        await this.sessionMetadataStore.batchSetAutoNames(agentName, autoNameUpdates);
+      }
+      if (previewUpdates.length > 0) {
+        await this.sessionMetadataStore.batchSetPreviews(agentName, previewUpdates);
+      }
+    });
+
+    // listSessionFiles already sorts newest-first and mapWithConcurrency
+    // preserves input order, so the result is already sorted.
+    return enriched.filter((session): session is AdoptableSession => session !== null);
+  }
+
+  /**
+   * Record that an agent has adopted an existing session, without moving any
+   * files.
+   *
+   * Use this when the transcript is already in the agent's own transcript folder
+   * (the "point an agent at a directory I've already used" case). When the
+   * transcript lives elsewhere, use {@link adoptSessionsFrom}, which places it
+   * where discovery looks first.
+   *
+   * Idempotent — re-adopting overwrites the record cleanly.
+   *
+   * @param agentName - The adopting agent's qualified name
+   * @param sessionId - The session ID to adopt
+   * @param options.sourceCwd - Working directory the transcript came from
+   * @param options.workingDirectory - The agent's working directory, used only
+   *   to invalidate the right listing cache
+   */
+  async adoptSession(
+    agentName: string,
+    sessionId: string,
+    options?: { sourceCwd?: string; workingDirectory?: string },
+  ): Promise<AdoptedSession> {
+    const record = await recordAdoption(this.stateDir, sessionId, {
+      agentName,
+      sourceCwd: options?.sourceCwd,
+    });
+
+    // The adoption store is a source of the attribution index, so the index must
+    // be rebuilt or the session stays invisible for up to the cache TTL.
+    this.invalidateAttributionCache(options?.workingDirectory);
+
+    return record;
+  }
+
+  /**
+   * Release a previously adopted session.
+   *
+   * The transcript is left on disk; only the attribution claim is dropped, so
+   * the session becomes an ordinary unattributed native session again (visible
+   * in all-sessions views, invisible under the agent).
+   *
+   * @param sessionId - The session ID to release
+   * @param options.workingDirectory - Working directory whose listing cache
+   *   should also be dropped
+   * @returns `true` if a record was removed, `false` if there was none
+   */
+  async unadoptSession(
+    sessionId: string,
+    options?: { workingDirectory?: string },
+  ): Promise<boolean> {
+    const removed = await removeAdoption(this.stateDir, sessionId);
+    if (removed) {
+      this.invalidateAttributionCache(options?.workingDirectory);
+    }
+    return removed;
+  }
+
+  /**
+   * Place one transcript into the agent's transcript folder.
+   *
+   * `copy` (the default mode) preserves the source's mtime deliberately: mtime
+   * is both the listing sort key AND the cache key for auto-name / preview /
+   * sidechain, so a copy stamped "now" would shove a months-old chat to the top
+   * of the user's list and needlessly invalidate three caches.
+   *
+   * `copyFile` runs with `COPYFILE_EXCL` so the never-clobber guarantee holds
+   * even against a racing writer, not just against the caller's pre-check.
+   */
+  private async placeTranscript(
+    sourceFile: string,
+    destFile: string,
+    mode: AdoptionPlacementMode,
+  ): Promise<void> {
+    if (mode === "link") {
+      try {
+        await link(sourceFile, destFile);
+      } catch (error) {
+        // Hard links can't span filesystems (EXDEV) and some filesystems refuse
+        // them outright (EPERM) — a symlink gives the same shared-inode
+        // semantics the caller asked for.
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== "EXDEV" && code !== "EPERM") throw error;
+        await symlink(sourceFile, destFile);
+      }
+      return;
+    }
+
+    if (mode === "move") {
+      try {
+        await rename(sourceFile, destFile);
+        return;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EXDEV") throw error;
+        // Cross-device move: fall through to copy-then-unlink.
+      }
+    }
+
+    const stats = await stat(sourceFile);
+    await copyFile(sourceFile, destFile, fsConstants.COPYFILE_EXCL);
+    await utimes(destFile, stats.atime, stats.mtime);
+
+    if (mode === "move") {
+      await unlink(sourceFile);
+    }
+  }
+
+  /**
+   * Adopt every adoptable session found in a working directory: place the
+   * transcript where discovery will look for it, then record attribution.
+   *
+   * Discovery finds an agent's sessions in
+   * `<claudeHome>/projects/<encodePathForCli(agentWorkingDirectory)>/`. So:
+   *
+   * - If `fromWorkingDir` encodes to the **same folder** as the agent's own
+   *   working directory, the transcript is already exactly where discovery
+   *   looks: **no file movement happens at all**, in any mode — only the
+   *   attribution record is written. (Note this is compared on the resolved
+   *   folder, not the path string, because `encodePathForCli` is lossy: two
+   *   different directories can legitimately share one folder.)
+   * - Otherwise the transcript is copied/moved/linked into the agent's folder.
+   *
+   * `mode` defaults to `"copy"`: the user's original `~/.claude` transcripts are
+   * never mutated unless they opt in.
+   *
+   * Failures are per-session, never fatal: an unreadable or vanished transcript
+   * is reported in `skipped` and the batch continues.
+   *
+   * @param agentName - The adopting agent's qualified name
+   * @param agentWorkingDirectory - The agent's own working directory (the
+   *   destination, and the default source)
+   * @param options - Source directory, placement mode, dry-run
+   */
+  async adoptSessionsFrom(
+    agentName: string,
+    agentWorkingDirectory: string,
+    options?: AdoptSessionsFromOptions,
+  ): Promise<AdoptSessionsResult> {
+    const mode = options?.mode ?? "copy";
+    const dryRun = options?.dryRun ?? false;
+    const fromWorkingDir = options?.fromWorkingDir ?? agentWorkingDirectory;
+
+    const { sourceDir, candidates, skipped } = await this.scanAdoptionCandidates(
+      agentName,
+      fromWorkingDir,
+    );
+
+    const destDir = this.transcriptDirFor(agentWorkingDirectory);
+    // Compare the resolved *folders*, not the working-directory strings: the
+    // encoding is lossy, so distinct cwds can share one transcript folder — and
+    // when they do, copying a file onto itself is both pointless and unsafe.
+    const inPlace = path.resolve(sourceDir) === path.resolve(destDir);
+
+    const adopted: string[] = [];
+
+    if (!inPlace && !dryRun && candidates.length > 0) {
+      await mkdir(destDir, { recursive: true });
+    }
+
+    for (const { sessionId } of candidates) {
+      const sourceFile = path.join(sourceDir, `${sessionId}.jsonl`);
+      const destFile = path.join(destDir, `${sessionId}.jsonl`);
+
+      if (!inPlace) {
+        // Never clobber: an existing transcript with this id in the destination
+        // belongs to the agent already and may have turns the source doesn't.
+        let destExists = true;
+        try {
+          await stat(destFile);
+        } catch {
+          destExists = false;
+        }
+        if (destExists) {
+          skipped.push({ sessionId, reason: "destination-exists", detail: destFile });
+          continue;
+        }
+
+        if (!dryRun) {
+          try {
+            await this.placeTranscript(sourceFile, destFile, mode);
+          } catch (error) {
+            const code = (error as NodeJS.ErrnoException).code;
+            skipped.push({
+              sessionId,
+              // A racing writer that won the COPYFILE_EXCL is still a
+              // "don't clobber" outcome, not a mystery failure.
+              reason: code === "EEXIST" ? "destination-exists" : "placement-failed",
+              detail: `${mode}: ${(error as Error).message}`,
+            });
+            continue;
+          }
+        }
+      }
+
+      if (!dryRun) {
+        try {
+          await recordAdoption(this.stateDir, sessionId, {
+            agentName,
+            // Provenance: where this transcript actually came from, which the
+            // destination folder can no longer tell you after a copy.
+            sourceCwd: fromWorkingDir,
+          });
+        } catch (error) {
+          skipped.push({
+            sessionId,
+            reason: "record-failed",
+            detail: (error as Error).message,
+          });
+          continue;
+        }
+      }
+
+      adopted.push(sessionId);
+    }
+
+    // Newly adopted sessions are invisible until BOTH the attribution index
+    // (which reads the adoption store) and the destination directory listing are
+    // rebuilt — otherwise they only appear once the 30s TTL lapses.
+    if (!dryRun && adopted.length > 0) {
+      this.invalidateWorkingDirectory(agentWorkingDirectory);
+      if (!inPlace) {
+        // A move emptied part of the source folder; a copy didn't, but its
+        // listing is now stale w.r.t. adoption state either way.
+        this.invalidateWorkingDirectory(fromWorkingDir);
+      }
+    }
+
+    logger.debug(
+      `adoptSessionsFrom(${agentName}): ${dryRun ? "would adopt" : "adopted"} ${adopted.length}, skipped ${skipped.length}`,
+      { fromWorkingDir, mode, inPlace },
+    );
+
+    return { adopted, skipped };
   }
 
   /**

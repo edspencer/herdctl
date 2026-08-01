@@ -10,6 +10,7 @@ import path from "node:path";
 import yaml from "yaml";
 import { z } from "zod";
 import { createLogger } from "../utils/logger.js";
+import { listAdoptions } from "./adopted-sessions.js";
 import { listJobs } from "./job-metadata.js";
 import { JobMetadataSchema, type TriggerType } from "./schemas/job-metadata.js";
 import { safeReadYaml } from "./utils/reads.js";
@@ -18,7 +19,7 @@ import { safeReadYaml } from "./utils/reads.js";
 // Types
 // =============================================================================
 
-export type SessionOrigin = "web" | "discord" | "slack" | "schedule" | "native";
+export type SessionOrigin = "web" | "discord" | "slack" | "schedule" | "native" | "adopted";
 
 export interface SessionAttribution {
   origin: SessionOrigin;
@@ -46,6 +47,10 @@ interface JobIndexEntry {
 
 interface PlatformIndexEntry {
   platform: "discord" | "slack" | "web";
+  agentName: string;
+}
+
+interface AdoptedIndexEntry {
   agentName: string;
 }
 
@@ -171,6 +176,24 @@ async function buildPlatformIndex(stateDir: string): Promise<Map<string, Platfor
   return index;
 }
 
+/**
+ * Build the adoption index from the adopted-sessions store
+ *
+ * Adoption records are few and mutable (a session can be adopted, re-adopted by
+ * another agent, or released), so — unlike job records — there is no incremental
+ * mtime cache here: every build re-reads the store in full. A missing store
+ * directory means "no adoptions", the same way a missing platform directory does.
+ */
+async function buildAdoptedIndex(stateDir: string): Promise<Map<string, AdoptedIndexEntry>> {
+  const index = new Map<string, AdoptedIndexEntry>();
+
+  for (const record of await listAdoptions(stateDir)) {
+    index.set(record.sessionId, { agentName: record.agentName });
+  }
+
+  return index;
+}
+
 // =============================================================================
 // Public API
 // =============================================================================
@@ -191,22 +214,24 @@ async function buildPlatformIndex(stateDir: string): Promise<Map<string, Platfor
 export async function buildAttributionIndex(stateDir: string): Promise<AttributionIndex> {
   const jobsDir = path.join(stateDir, "jobs");
 
-  const [jobIndex, platformIndex] = await Promise.all([
+  const [jobIndex, platformIndex, adoptedIndex] = await Promise.all([
     buildJobIndex(jobsDir),
     buildPlatformIndex(stateDir),
+    buildAdoptedIndex(stateDir),
   ]);
 
-  return createAttributionIndex(jobIndex, platformIndex);
+  return createAttributionIndex(jobIndex, platformIndex, adoptedIndex);
 }
 
 /**
- * Assemble the {@link AttributionIndex} lookup object from a job index and a
- * platform index. Shared by the full {@link buildAttributionIndex} and the
- * incremental {@link AttributionIndexBuilder}.
+ * Assemble the {@link AttributionIndex} lookup object from a job index, a
+ * platform index and an adoption index. Shared by the full
+ * {@link buildAttributionIndex} and the incremental {@link AttributionIndexBuilder}.
  */
 function createAttributionIndex(
   jobIndex: Map<string, JobIndexEntry>,
   platformIndex: Map<string, PlatformIndexEntry>,
+  adoptedIndex: Map<string, AdoptedIndexEntry>,
 ): AttributionIndex {
   const getAttribute = (sessionId: string): SessionAttribution => {
     // Check job index first
@@ -229,6 +254,19 @@ function createAttributionIndex(
       };
     }
 
+    // Check the adoption store last, before falling back to native: a real run
+    // record (job) or a live platform binding is stronger evidence of a session's
+    // origin than an after-the-fact adoption claim, so adoption never overrides
+    // them — it only rescues sessions that would otherwise be unattributed.
+    const adoptedEntry = adoptedIndex.get(sessionId);
+    if (adoptedEntry) {
+      return {
+        origin: "adopted",
+        agentName: adoptedEntry.agentName,
+        triggerType: undefined,
+      };
+    }
+
     // Default to native
     return {
       origin: "native",
@@ -245,8 +283,12 @@ function createAttributionIndex(
     return result;
   };
 
-  // Calculate unique session IDs across both indexes
-  const allSessionIds = new Set([...jobIndex.keys(), ...platformIndex.keys()]);
+  // Calculate unique session IDs across all three indexes
+  const allSessionIds = new Set([
+    ...jobIndex.keys(),
+    ...platformIndex.keys(),
+    ...adoptedIndex.keys(),
+  ]);
 
   return {
     getAttribute,
@@ -281,8 +323,8 @@ interface CachedJobFile {
  * whose mtime changed — turning each rebuild from O(jobs) reads into O(jobs)
  * cheap stats + O(changed) parses.
  *
- * Platform session files are few and mutable, so they're still read in full each
- * build.
+ * Platform session files and adoption records are few and mutable, so they're
+ * still read in full each build.
  *
  * A single builder instance must be reused across builds to get the benefit.
  */
@@ -292,11 +334,12 @@ export class AttributionIndexBuilder {
   /** Build (or incrementally refresh) the attribution index for a state dir. */
   async build(stateDir: string): Promise<AttributionIndex> {
     const jobsDir = path.join(stateDir, "jobs");
-    const [jobIndex, platformIndex] = await Promise.all([
+    const [jobIndex, platformIndex, adoptedIndex] = await Promise.all([
       this.buildJobIndexIncremental(jobsDir),
       buildPlatformIndex(stateDir),
+      buildAdoptedIndex(stateDir),
     ]);
-    return createAttributionIndex(jobIndex, platformIndex);
+    return createAttributionIndex(jobIndex, platformIndex, adoptedIndex);
   }
 
   private async buildJobIndexIncremental(jobsDir: string): Promise<Map<string, JobIndexEntry>> {

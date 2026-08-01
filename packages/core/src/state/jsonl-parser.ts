@@ -760,6 +760,88 @@ export async function extractLastSummary(sessionFilePath: string): Promise<strin
 }
 
 // =============================================================================
+// extractSessionTitle
+// =============================================================================
+
+/**
+ * The transcript entry types that can carry a session title, in precedence
+ * order (highest first), paired with the field each one stores its value in.
+ *
+ * The field names are deliberately NOT a generic `title` — Claude Code writes
+ * `custom-title` entries with a **`customTitle`** field and `ai-title` entries
+ * with an **`aiTitle`** field. An entry that carries a plain `title` is not a
+ * title we understand and is ignored (issue #423, gotcha 4).
+ */
+const TITLE_ENTRY_TYPES = [
+  { type: "custom-title", field: "customTitle" },
+  { type: "ai-title", field: "aiTitle" },
+  { type: "summary", field: "summary" },
+] as const;
+
+/**
+ * Extract the best available title for a JSONL session file.
+ *
+ * Streams the file and returns the highest-precedence title present:
+ *
+ * 1. `custom-title` → `customTitle` — a title the user explicitly set, so it
+ *    always wins.
+ * 2. `ai-title` → `aiTitle` — Claude Code's own generated title.
+ * 3. `summary` → `summary` — what herdctl-driven runs emit.
+ *
+ * Precedence is by **entry type, not by file position**: a later `ai-title`
+ * never clobbers an earlier `custom-title`. Within a single type the LAST
+ * occurrence wins, because titles get rewritten as a session evolves — which is
+ * why this streams to EOF with no early exit, matching
+ * {@link extractLastSummary}.
+ *
+ * This exists because CLI/terminal transcripts essentially never emit a
+ * `type:"summary"` entry (those are written by herdctl-driven runs), so
+ * summary-only extraction leaves such sessions displaying their raw session id.
+ * Kept separate from {@link extractLastSummary} so that function's contract —
+ * and that of {@link extractSessionMetadata}, which also reads summaries —
+ * is unchanged (issue #423, gotcha 3).
+ *
+ * @param sessionFilePath - Absolute path to the .jsonl file
+ * @returns The highest-precedence title string, or undefined if none found
+ */
+export async function extractSessionTitle(sessionFilePath: string): Promise<string | undefined> {
+  const rl = await createLineReader(sessionFilePath);
+  if (!rl) return undefined;
+
+  // One slot per title type, each holding the last value seen for that type.
+  const lastByType = new Map<string, string>();
+
+  for await (const line of rl) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(trimmed) as Record<string, unknown>;
+    } catch {
+      continue; // Skip malformed lines
+    }
+
+    const entry = TITLE_ENTRY_TYPES.find((candidate) => candidate.type === parsed.type);
+    if (!entry) continue;
+
+    const value = parsed[entry.field];
+    if (typeof value !== "string" || value.length === 0) continue;
+
+    // Last occurrence within a type wins; other types are untouched.
+    lastByType.set(entry.type, value);
+  }
+
+  // Resolve by type precedence, independent of where each entry sat in the file.
+  for (const { type } of TITLE_ENTRY_TYPES) {
+    const value = lastByType.get(type);
+    if (value !== undefined) return value;
+  }
+
+  return undefined;
+}
+
+// =============================================================================
 // extractFirstMessagePreview
 // =============================================================================
 

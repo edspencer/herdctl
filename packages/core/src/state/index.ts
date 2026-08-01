@@ -10,6 +10,17 @@
  * - Job metadata (job-<id>.yaml) management
  */
 
+// Re-export adopted session (adoption store) functions
+export {
+  ADOPTED_SESSIONS_DIR_NAME,
+  getAdoptedSessionsDir,
+  getAdoption,
+  listAdoptions,
+  type RecordAdoptionOptions,
+  recordAdoption,
+  removeAdoption,
+} from "./adopted-sessions.js";
+
 // Re-export directory functions
 export {
   getStateDirectory,
@@ -63,6 +74,7 @@ export {
   extractFirstMessagePreview,
   extractLastSummary,
   extractSessionMetadata,
+  extractSessionTitle,
   extractSessionUsage,
   isSidechainSession,
   parseSessionMessages,
@@ -91,6 +103,12 @@ export {
 } from "./session-attribution.js";
 // Re-export session discovery functions
 export {
+  type AdoptableSession,
+  type AdoptionPlacementMode,
+  type AdoptSessionsFromOptions,
+  type AdoptSessionsResult,
+  type AdoptSkippedSession,
+  type AdoptSkipReason,
   type DirectoryGroup,
   type DiscoveredSession,
   type SessionDiscoveryOptions,
@@ -98,6 +116,7 @@ export {
 } from "./session-discovery.js";
 // Re-export session metadata functions
 export {
+  AUTO_NAME_EXTRACTOR_VERSION,
   isSessionMetadataUnreadableError,
   type SessionMetadataEntry,
   SessionMetadataEntrySchema,

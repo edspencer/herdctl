@@ -16,6 +16,7 @@ The subsystem is composed of five modules, each handling a distinct concern. The
 | Module | File | Purpose |
 |--------|------|---------|
 | **JSONL Parser** | `packages/core/src/state/jsonl-parser.ts` | Streaming parser for Claude Code `.jsonl` session files |
+| **Adoption Store** | `packages/core/src/state/adopted-sessions.ts`, `packages/core/src/state/schemas/adopted-session.ts` | Persists adoption records in `.herdctl/adopted-sessions/`, read as a third attribution source |
 | **Claude Home Resolution** | `packages/core/src/runner/runtime/cli-session-path.ts`, `packages/core/src/runner/runtime/claude-config-dir.ts` | Resolves the configurable Claude home into transcript paths, and exports it to Claude Code as `CLAUDE_CONFIG_DIR` |
 | **Tool Parsing** | `packages/core/src/state/tool-parsing.ts` | Extracts tool_use and tool_result blocks, provides human-readable summaries |
 | **Session Attribution** | `packages/core/src/state/session-attribution.ts` | Maps session IDs to their origin (herdctl agent, native CLI, web, Discord, Slack) |
@@ -53,7 +54,8 @@ If the file does not exist or cannot be opened, the reader returns `null` and th
 | `extractSessionMetadata(filePath)` | Extract summary metadata (timestamps, message count, git branch, preview, sidechain status) |
 | `extractSessionUsage(filePath)` | Extract token usage data (input tokens, turn count) |
 | `isSidechainSession(filePath)` | O(1) check -- reads only the first JSONL line to detect sub-agent sessions |
-| `extractLastSummary(filePath)` | Extract the last `type: "summary"` entry for auto-naming |
+| `extractLastSummary(filePath)` | Extract the last `type: "summary"` entry |
+| `extractSessionTitle(filePath)` | Extract the best available title for auto-naming: `custom-title` > `ai-title` > `summary` |
 
 ### Message Deduplication
 
@@ -137,18 +139,23 @@ Session attribution answers the question: "Where did this session come from?" A 
 
 ### Data Sources
 
-The `buildAttributionIndex()` function scans two data sources in parallel:
+The `buildAttributionIndex()` function scans three data sources in parallel:
 
 1. **Job metadata files** in `.herdctl/jobs/` -- Each job YAML file contains a `session_id` field, an `agent` field, and a `trigger_type` field. This maps sessions to the agent and trigger that created them.
 
 2. **Platform session YAML files** in `.herdctl/<platform>-sessions/` (where platform is `discord`, `slack`, or `web`) -- These files map channel IDs to session IDs and agent names. They are written by the chat session managers.
 
+3. **Adoption records** in `.herdctl/adopted-sessions/` -- One YAML file per adopted session, claiming a pre-existing transcript for an agent. See [Session Adoption](#session-adoption).
+
 ```typescript
-const [jobIndex, platformIndex] = await Promise.all([
+const [jobIndex, platformIndex, adoptedIndex] = await Promise.all([
   buildJobIndex(jobsDir),
   buildPlatformIndex(stateDir),
+  buildAdoptedIndex(stateDir),
 ]);
 ```
+
+Job records get an incremental, mtime-keyed cache (`AttributionIndexBuilder`) because they are numerous and immutable once written. Platform session files and adoption records are few and mutable -- a session can be adopted, re-adopted by another agent, or released -- so both are re-read in full on every build.
 
 ### Attribution Result
 
@@ -156,7 +163,7 @@ Each session ID resolves to a `SessionAttribution`:
 
 ```typescript
 interface SessionAttribution {
-  origin: SessionOrigin;      // "web" | "discord" | "slack" | "schedule" | "native"
+  origin: SessionOrigin;      // "web" | "discord" | "slack" | "schedule" | "native" | "adopted"
   agentName: string | undefined;
   triggerType: string | undefined;
 }
@@ -165,7 +172,10 @@ interface SessionAttribution {
 The lookup order is:
 1. Check the job index first (covers schedule, manual, webhook, chat, fork, web, discord, slack triggers)
 2. Check the platform index (covers sessions created through chat connectors that may not have job records yet)
-3. Default to `"native"` with no agent name (the session was created by the user running `claude` directly)
+3. Check the adoption index (covers pre-existing transcripts an agent has claimed; `origin: "adopted"`, no trigger type)
+4. Default to `"native"` with no agent name (the session was created by the user running `claude` directly)
+
+Adoption is checked **last**, immediately before the native fallback. A real run record or a live platform binding is stronger evidence of where a session came from than an after-the-fact adoption claim, so adoption never overrides them -- it only rescues sessions that would otherwise be unattributed.
 
 ### AttributionIndex Interface
 
@@ -192,6 +202,8 @@ Job trigger types map to session origins as follows:
 | `slack` | `slack` |
 | `schedule` | `schedule` |
 | `manual`, `webhook`, `chat`, `fork` | `native` |
+
+`adopted` has no trigger type -- it comes from the adoption store rather than from a job record, so nothing mapped to it.
 
 ## Session Metadata Store
 
@@ -235,25 +247,48 @@ Files are only created when the first piece of metadata is set for an agent. If 
 | `getCustomName(agentName, sessionId)` | Get user-assigned name for a session |
 | `setCustomName(agentName, sessionId, name)` | Set user-assigned name (creates file if needed) |
 | `removeCustomName(agentName, sessionId)` | Remove user-assigned name (cleans up empty entries) |
-| `getAutoName(agentName, sessionId)` | Get cached auto-generated name and its mtime |
+| `getAutoName(agentName, sessionId)` | Get cached auto-generated name, its mtime, and the `autoNameVersion` that produced it |
 | `setAutoName(agentName, sessionId, autoName, mtime)` | Cache an auto-generated name with its extraction timestamp |
 | `batchSetAutoNames(agentName, entries)` | Set auto-names for multiple sessions in a single file write |
 
+### Auto-Name Extraction
+
+Auto-naming resolves the best available title for a session. `extractSessionTitle()` streams the transcript and returns the highest-precedence title present:
+
+1. `custom-title` entries, whose value lives in a **`customTitle`** field -- a title the user explicitly set, so it always wins
+2. `ai-title` entries, whose value lives in an **`aiTitle`** field -- Claude Code's own generated title
+3. `summary` entries, whose value lives in a `summary` field -- what herdctl-driven runs emit
+
+Precedence is by **entry type, not by file position**: a later `ai-title` never clobbers an earlier `custom-title`. Within one type the last occurrence wins, since titles are rewritten as a session evolves -- which is why the function streams to EOF with no early exit, matching `extractLastSummary()`. An entry carrying a plain `title` field is not a title herdctl understands and is ignored.
+
+When a transcript carries no title at all, `resolveAutoName` falls back to `extractFirstMessagePreview()`, so a session shows something more useful than its raw ID. This matters most for terminal sessions: CLI transcripts essentially never emit a `type: "summary"` entry, so summary-only extraction left every natively-run session displaying its session ID.
+
+`extractSessionTitle()` is kept separate from `extractLastSummary()` rather than replacing it, so the contract of that function -- and of `extractSessionMetadata()`, which also reads summaries -- is unchanged.
+
 ### Auto-Name Cache Invalidation
 
-The auto-name cache uses the session file's modification time (`mtime`) as a cache key. When the `SessionDiscoveryService` resolves an auto-name, it compares the file's current mtime against the stored `autoNameMtime`. If the file has been modified since the name was extracted, the name is re-extracted from the JSONL summary and the cache is updated:
+The auto-name cache is keyed on the session file's modification time (`mtime`) **and** on `AUTO_NAME_EXTRACTOR_VERSION`, the version of the extraction logic that produced the cached value:
 
 ```typescript
 const cached = await this.sessionMetadataStore.getAutoName(agentName, sessionId);
 
-if (cached?.autoNameMtime && cached.autoNameMtime >= fileMtime) {
-  // Cache is valid
+if (
+  cached?.autoNameMtime &&
+  cached.autoNameMtime >= fileMtime &&
+  cached.autoNameVersion === AUTO_NAME_EXTRACTOR_VERSION
+) {
+  // Cache is valid AND was produced by the current extractor
   return { autoName: cached.autoName, needsUpdate: false };
 }
 
 // Need to re-extract from JSONL
-const summary = await extractLastSummary(filePath);
+const title = await extractSessionTitle(filePath);
+const autoName = title || (await extractFirstMessagePreview(filePath));
 ```
+
+The version check is load-bearing. The cache is authoritative on the presence of `autoNameMtime`, not of `autoName` -- a transcript that yielded no name is negative-cached so it is never re-streamed. Without a version stamp, changing the extraction logic would therefore appear to do nothing on existing data: every already-listed session still holds a current-mtime entry produced by the old extractor, and the old (usually empty) result would keep winning forever. Requiring the version to match makes each legacy entry miss exactly once; it is then re-extracted and rewritten stamped, while the entry's `customName`, `preview`, `usage` and `isSidechain` caches survive untouched.
+
+`autoNameVersion` is an **optional** field on `SessionMetadataEntrySchema`, deliberately not a bump of the file-level `version` in `SessionMetadataFileSchema`. `loadMetadata()` discards the *entire* file when it fails to parse, so a file-version bump would silently destroy every user-set `customName` rather than invalidate one cached field.
 
 ### Batch Writes
 
@@ -325,6 +360,10 @@ const discovery = new SessionDiscoveryService({
 | `getSessionMetadata(workDir, sessionId)` | Get metadata for a session (cached) |
 | `getSessionUsage(workDir, sessionId)` | Get token usage data for a session |
 | `invalidateCache(workDir?)` | Clear cached data for a specific directory or all caches |
+| `listAdoptableSessions(agentName, workDir, fromWorkingDir?)` | List native transcripts an agent could adopt (see [Session Adoption](#session-adoption)) |
+| `adoptSession(agentName, sessionId, opts)` | Record an adoption claim for a single session, moving nothing |
+| `adoptSessionsFrom(agentName, workDir, opts?)` | Place and claim every adoptable session found in a directory |
+| `unadoptSession(sessionId, opts?)` | Remove an adoption record, leaving the transcript on disk |
 
 ### DiscoveredSession Type
 
@@ -335,7 +374,7 @@ interface DiscoveredSession {
   sessionId: string;
   workingDirectory: string;
   mtime: string;                    // ISO 8601
-  origin: SessionOrigin;            // "web" | "discord" | "slack" | "schedule" | "native"
+  origin: SessionOrigin;            // "web" | "discord" | "slack" | "schedule" | "native" | "adopted"
   agentName: string | undefined;
   resumable: boolean;
   customName: string | undefined;
@@ -372,6 +411,59 @@ The service maintains three caches:
 
 The attribution index and directory listing caches use the same configurable TTL. The metadata cache is in-memory only and cleared when `invalidateCache()` is called.
 
+## Session Adoption
+
+Adoption answers a question discovery cannot: "I already have a pile of Claude Code sessions I ran myself -- can this agent own them?" A native transcript is visible in all-sessions views but invisible under any agent, because nothing attributes it. Adoption records that attribution.
+
+### The Store
+
+An adoption record is a YAML file at `<stateDir>/adopted-sessions/<session-id>.yaml`, validated by `AdoptedSessionSchema`:
+
+```yaml
+version: 1
+sessionId: 0f3c...
+agentName: my-fleet/my-agent
+adoptedAt: 2026-08-01T12:00:00.000Z
+sourceCwd: /Users/ed/Code/myproject
+```
+
+The directory is created lazily on first write, like the sparse `<platform>-sessions` stores; a missing directory simply means "no adoptions". Session IDs arrive from user input (CLI arguments, HTTP bodies), so file paths are built through `buildSafeFilePath()` -- a hostile ID such as `../../etc/passwd` throws rather than escaping the store.
+
+This is a **dedicated store rather than a forged job record**. A job record means "a run happened"; manufacturing one to buy attribution would make job listings, history and metrics lie about work that never ran. The attribution index reads this store as a genuine third source instead.
+
+### FleetManager API
+
+| Method | Purpose |
+|--------|---------|
+| `listAdoptableSessions(name, fromWorkingDir?)` | Candidates for adoption, newest first -- backs an "import my existing chats" picker |
+| `adoptSession(name, sessionId, opts?)` | Claim one session by ID. Records attribution only; moves nothing. Idempotent |
+| `adoptSessionsFrom(name, opts?)` | Place and claim every adoptable session in a directory |
+| `unadoptSession(name, sessionId)` | Release this agent's claim. The transcript stays on disk |
+
+An `AdoptableSession` is deliberately **not** a `DiscoveredSession`: half of that shape is meaningless before adoption. Its `origin` is by definition `native`, its `agentName` by definition undefined (that is *why* it is invisible), `resumable` is a property of the adopting agent rather than of the candidate, and `customName` is keyed per agent. What a picker needs is which session, what it looks like, when it was last touched, and where it came from -- so the shape is `sessionId`, `sourceCwd`, `mtime`, `autoName`, `preview` and `sizeBytes`. There is no message count: obtaining one means streaming the whole transcript, which is exactly the per-session cost the listing caches exist to avoid. `sizeBytes` comes free from the `stat()` the directory listing already performs.
+
+`unadoptSession()` returns `false` -- rather than removing anything -- when the session is not adopted, or when it is adopted by a *different* agent. One agent must not be able to drop another's claim.
+
+### Placement
+
+`adoptSessionsFrom()` has to solve a second problem: discovery looks for an agent's transcripts under `<claudeHome>/projects/<encoded agent cwd>/`, so a transcript recorded under a *different* working directory is not where discovery will look. Each candidate is therefore placed into the agent's own transcript folder, then attributed with the originating directory as `sourceCwd`. When the source directory already resolves to the agent's own folder, nothing is moved and only attribution is recorded.
+
+`mode` defaults to `"copy"`, so the user's original `~/.claude` transcripts are never mutated unless they explicitly ask:
+
+| Mode | Effect |
+|------|--------|
+| `copy` (default) | Duplicate the file, preserving the source mtime. The agent appends to its own copy on resume |
+| `move` | Relocate the file. It disappears from the user's terminal history |
+| `link` | Hard-link (symlink across devices). One inode, so a resume appends to the user's original too |
+
+Copies preserve the source mtime deliberately: mtime drives both list ordering and every metadata cache key, so a fresh mtime would reorder the user's history and invalidate their caches. Existing destination files are never overwritten.
+
+Every candidate that is not adopted appears in `skipped` with a reason a UI can show verbatim -- `sidechain`, `already-adopted`, `destination-exists`, `attributed-to-run`, `unreadable`, `placement-failed`, `record-failed` -- and one bad transcript never aborts the batch. With `dryRun: true` nothing at all is written, and the result describes what would have happened.
+
+Placement targets the CLI transcript folder, so `adoptSessionsFrom()` is for non-Docker agents. A Docker-wrapped agent reads its sessions from `<stateDir>/docker-sessions/` (the container's `~/.claude` is ephemeral) and should claim them with `adoptSession()`, which records attribution without moving files.
+
+Adoption resolves every path against the fleet's configured Claude home -- see [Claude Home Resolution](#claude-home-resolution) -- so a transcript is placed exactly where discovery, and the runtime that later resumes it, will look.
+
 ## Data Flow
 
 A request for sessions flows through the system as follows:
@@ -390,7 +482,7 @@ A request for sessions flows through the system as follows:
 
 7. **Per-agent filtering** -- For `getAgentSessions()`, only sessions attributed to the requested agent are returned. For `getAllSessions()`, all sessions are included (attributed and unattributed).
 
-8. **Metadata enrichment** -- The metadata store provides cached custom names and auto-generated names. Auto-names that are stale (file mtime newer than cached mtime) are re-extracted from the JSONL summary.
+8. **Metadata enrichment** -- The metadata store provides cached custom names and auto-generated names. Auto-names that are stale (file mtime newer than cached mtime, or stamped with an older `autoNameVersion`) are re-extracted with `extractSessionTitle()`, falling back to the first user message. See [Auto-Name Extraction](#auto-name-extraction).
 
 9. **Batch metadata writes** -- Any auto-name updates discovered during enrichment are collected and written in a single batch per agent.
 
@@ -417,6 +509,10 @@ Building the attribution index requires scanning all job metadata files in `.her
 ### Batch Metadata Writes
 
 When the All Chats page loads and many sessions need auto-name resolution, the naive approach would write the metadata file once per session. The batch write approach collects all updates for a given agent and performs a single atomic write, reducing filesystem operations from N to 1 per agent.
+
+### Adoption as a Dedicated Store
+
+Adoption records live in their own `adopted-sessions/` store and are read as a third attribution source, rather than being expressed as synthetic job records. A job record asserts that a run happened; forging one to buy attribution would corrupt job listings, history and metrics. Attribution precedence puts adoption last -- job, then platform, then adopted, then native -- because a real run record or a live platform binding is stronger evidence of origin than an after-the-fact claim.
 
 ### Separation from Web
 
