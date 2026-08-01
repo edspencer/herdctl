@@ -1,5 +1,47 @@
 # @herdctl/core
 
+## 5.27.1
+
+### Patch Changes
+
+- [#428](https://github.com/edspencer/herdctl/pull/428) [`f52b774`](https://github.com/edspencer/herdctl/commit/f52b774645cb398ef08ede7e7b6500fd802879df) Thanks [@edspencer](https://github.com/edspencer)! - Harden session discovery against a single unreadable transcript entry. An entry that
+  `stat()`s as a valid `.jsonl` file but is actually a directory (so `open(2)` succeeds
+  and `read(2)` throws `EISDIR`) previously threw out of the per-session enrichment and
+  took down the whole listing — `getAgentSessions` lost the agent's entire list, and
+  `getAllSessions` lost every agent's list because the throw escaped a loop nested in the
+  loop over directories. Both paths now isolate per-entry enrichment (sidechain / auto-name
+  / preview) in a try/catch, skip the bad entry, and log a warning so a corrupt transcript
+  folder is diagnosable, while good transcripts next to it still come back.
+
+- [#429](https://github.com/edspencer/herdctl/pull/429) [`d907d46`](https://github.com/edspencer/herdctl/commit/d907d46efa0bdace031188cd646d43ec7a75eca6) Thanks [@edspencer](https://github.com/edspencer)! - fix(core): stop SessionMetadataStore from replacing an unreadable metadata file with an empty one (#419)
+
+  `loadMetadata()` collapsed three outcomes into the same `null`: the file was
+  absent (legitimate — storage is sparse), the file could not be read (EACCES /
+  EIO / EISDIR / a truncated read), or the file parsed but failed schema
+  validation. Every setter treated `null` as "start fresh", so the next
+  `atomicWriteJson` replaced the **whole** agent file with an empty structure —
+  silently destroying every `customName`, `preview`, `autoName`, `isSidechain`
+  and `usage` entry for that agent. One failed read followed by one write (a
+  listing warming its caches is enough) wiped the file, and because the atomic
+  write succeeded it looked clean.
+
+  Reads and writes now distinguish absent from unreadable:
+
+  - **Absent** → an empty structure is created, exactly as before.
+  - **Unreadable / corrupt** → writes refuse and throw the new
+    `SessionMetadataUnreadableError`, leaving the damaged file untouched so its
+    bytes stay recoverable. Getters keep returning `null`/`undefined` (graceful
+    read degradation is unchanged).
+
+  Session-discovery's background cache-warming (`batchSet*` / `setUsage`) tolerates
+  that refusal and continues — a poisoned metadata file for one agent no longer
+  aborts a whole listing; the cache just stays cold until the file is repaired.
+  The transient failure is never cached, so a temporary read error does not become
+  sticky.
+
+  `SessionMetadataUnreadableError` and `isSessionMetadataUnreadableError` are
+  exported from `@herdctl/core`.
+
 ## 5.27.0
 
 ### Minor Changes
