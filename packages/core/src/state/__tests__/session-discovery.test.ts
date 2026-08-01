@@ -757,6 +757,41 @@ describe("SessionDiscoveryService", () => {
       ]);
     });
 
+    it("skips an entry whose enrichment fails after the visible count and keeps sessionCount in sync (issue #424)", async () => {
+      // Two sessions in one directory. Both pass the sidechain check (which only
+      // reads the first line), so both are counted as visible — but the "bad"
+      // one then fails a deeper whole-file read (auto-name resolution). The entry
+      // must be skipped AND backed out of visibleSessionCount, so sessionCount
+      // still matches the sessions actually returned.
+      const projectDir = join(tempClaudeHome, "projects", "-Users-ed-Code-myproject");
+      await mkdir(projectDir, { recursive: true });
+      await createSessionFile(projectDir, "session-good");
+      await createSessionFile(projectDir, "session-bad");
+
+      mockIsSidechainSession.mockResolvedValue(false);
+      // resolveAutoName streams the whole transcript; make it reject only for the
+      // bad session (matched by the sessionId embedded in the resolved file path).
+      mockExtractLastSummary.mockImplementation((filePath: string) =>
+        filePath.includes("session-bad")
+          ? Promise.reject(new Error("EISDIR: illegal operation on a directory, read"))
+          : Promise.resolve(undefined),
+      );
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      const groups = await service.getAllSessions([]);
+
+      expect(groups).toHaveLength(1);
+      const ids = groups[0].sessions.map((s) => s.sessionId);
+      expect(ids).toEqual(["session-good"]);
+      // The key assertion: the count of the skipped entry was backed out.
+      expect(groups[0].sessionCount).toBe(groups[0].sessions.length);
+      expect(groups[0].sessionCount).toBe(1);
+    });
+
     it("matches agent directories to fleet agents by encoded path", async () => {
       const projectDir = join(tempClaudeHome, "projects", "-Users-ed-Code-myproject");
       await mkdir(projectDir, { recursive: true });

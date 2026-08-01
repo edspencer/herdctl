@@ -673,79 +673,29 @@ export class SessionDiscoveryService {
       filesToEnrich,
       SESSION_ENRICHMENT_CONCURRENCY,
       async ({ sessionId, mtime, workingDirectory: sessionWorkingDir }) => {
-        const mtimeStr = mtime.toISOString();
-
-        // Filter out sidechain (sub-agent) sessions. Claude Code marks sessions
-        // as sidechain when they're Task tool sub-agents or when --resume is used.
-        // These are mostly prompt-cache warmup sessions ("Warmup" + single response)
-        // that clutter the UI with no useful content. The flag comes from the first
-        // JSONL line and is cached (keyed on mtime) so we don't re-open every
-        // transcript on each listing. Record the (possibly refreshed) flag even for
-        // excluded sessions so the next listing can skip re-reading them.
-        const { isSidechain, needsUpdate: sidechainNeedsUpdate } = await this.resolveSidechain(
-          agentName,
-          sessionId,
-          mtimeStr,
-          sessionWorkingDir,
-          dockerEnabled,
-        );
-        const sidechainUpdate = sidechainNeedsUpdate
-          ? { sessionId, isSidechain, mtime: mtimeStr }
-          : undefined;
-        if (isSidechain) {
-          return { session: null, sidechainUpdate };
+        try {
+          return await this.enrichAgentSession(
+            agentName,
+            sessionId,
+            mtime,
+            sessionWorkingDir,
+            dockerEnabled,
+            attributionIndex,
+          );
+        } catch (error) {
+          // Enrichment of ONE session must never take down the whole listing.
+          // A per-entry read failure — most notably an entry that stat()s as a
+          // valid `.jsonl` but is actually a directory, so open(2) succeeds and
+          // read(2) throws EISDIR (issue #424) — is treated as "skip this entry"
+          // rather than allowed to reject `mapWithConcurrency` (which rejects
+          // like Promise.all). Logged at warn so a corrupt transcript folder is
+          // diagnosable instead of just quietly smaller. Returning a null session
+          // with no cache updates drops the entry from the listing.
+          logger.warn(
+            `Skipping unreadable session entry ${sessionId} for agent ${agentName}: ${(error as Error).message}`,
+          );
+          return { session: null };
         }
-
-        const attribution = attributionIndex.getAttribute(sessionId);
-
-        // Only show sessions that are attributed to this specific agent.
-        // When multiple agents share a working directory, this prevents the same
-        // native CLI sessions from appearing under every agent. Unattributed sessions
-        // are still visible in the global recent sessions list and All Chats view.
-        if (attribution.agentName !== agentName) {
-          return { session: null, sidechainUpdate };
-        }
-
-        const customName = await this.sessionMetadataStore.getCustomName(agentName, sessionId);
-
-        // Resolve autoName with caching — pass docker flag so it reads the right file
-        const { autoName, needsUpdate } = await this.resolveAutoName(
-          agentName,
-          sessionId,
-          mtimeStr,
-          sessionWorkingDir,
-          dockerEnabled,
-        );
-
-        // Resolve preview with caching — pass docker flag so it reads the right file
-        const { preview, needsUpdate: previewNeedsUpdate } = await this.resolvePreview(
-          agentName,
-          sessionId,
-          mtimeStr,
-          sessionWorkingDir,
-          dockerEnabled,
-        );
-
-        const session: DiscoveredSession = {
-          sessionId,
-          workingDirectory: sessionWorkingDir,
-          mtime: mtimeStr,
-          origin: attribution.origin,
-          agentName: attribution.agentName ?? agentName,
-          resumable: !dockerEnabled,
-          customName,
-          autoName,
-          preview,
-        };
-        return {
-          session,
-          sidechainUpdate,
-          // Record the update even when the value is empty so the negative result
-          // (no summary / no preview) is cached against this mtime — see
-          // resolveAutoName/resolvePreview.
-          autoNameUpdate: needsUpdate ? { sessionId, autoName, mtime: mtimeStr } : undefined,
-          previewUpdate: previewNeedsUpdate ? { sessionId, preview, mtime: mtimeStr } : undefined,
-        };
       },
     );
 
@@ -797,6 +747,13 @@ export class SessionDiscoveryService {
    * and swallowed: the cache simply stays cold and the next listing re-extracts.
    * The store leaves the damaged file untouched, so nothing is lost. Any other
    * error (e.g. a genuine write failure) still propagates unchanged.
+   *
+   * Composition with #424's per-entry guard: this wraps the batch writes that
+   * run AFTER the per-entry enrichment loop, so it sits downstream of the
+   * `try/catch` around {@link enrichAgentSession} (and the equivalent per-entry
+   * catch in `getAllSessions`). Those guards only wrap *reads*; the writes that
+   * throw `SessionMetadataUnreadableError` live out here, so the refusal reaches
+   * this handler instead of being mislabelled as a skipped read entry.
    */
   private async persistCacheUpdates(writes: () => Promise<void>): Promise<void> {
     try {
@@ -810,6 +767,104 @@ export class SessionDiscoveryService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Enrich a single agent session: resolve its sidechain flag, attribution,
+   * custom/auto name, and preview into a {@link DiscoveredSession} (or a null
+   * session when the entry is a sidechain / attributed to a different agent).
+   *
+   * Extracted from {@link getAgentSessions} so its call site can wrap it in a
+   * per-entry try/catch: any read failure here (e.g. EISDIR from an entry that
+   * is actually a directory, issue #424) skips just this entry instead of
+   * rejecting the whole concurrent enrichment.
+   */
+  private async enrichAgentSession(
+    agentName: string,
+    sessionId: string,
+    mtime: Date,
+    sessionWorkingDir: string,
+    dockerEnabled: boolean,
+    attributionIndex: AttributionIndex,
+  ): Promise<{
+    session: DiscoveredSession | null;
+    sidechainUpdate?: { sessionId: string; isSidechain: boolean; mtime: string };
+    autoNameUpdate?: { sessionId: string; autoName?: string; mtime: string };
+    previewUpdate?: { sessionId: string; preview?: string; mtime: string };
+  }> {
+    const mtimeStr = mtime.toISOString();
+
+    // Filter out sidechain (sub-agent) sessions. Claude Code marks sessions
+    // as sidechain when they're Task tool sub-agents or when --resume is used.
+    // These are mostly prompt-cache warmup sessions ("Warmup" + single response)
+    // that clutter the UI with no useful content. The flag comes from the first
+    // JSONL line and is cached (keyed on mtime) so we don't re-open every
+    // transcript on each listing. Record the (possibly refreshed) flag even for
+    // excluded sessions so the next listing can skip re-reading them.
+    const { isSidechain, needsUpdate: sidechainNeedsUpdate } = await this.resolveSidechain(
+      agentName,
+      sessionId,
+      mtimeStr,
+      sessionWorkingDir,
+      dockerEnabled,
+    );
+    const sidechainUpdate = sidechainNeedsUpdate
+      ? { sessionId, isSidechain, mtime: mtimeStr }
+      : undefined;
+    if (isSidechain) {
+      return { session: null, sidechainUpdate };
+    }
+
+    const attribution = attributionIndex.getAttribute(sessionId);
+
+    // Only show sessions that are attributed to this specific agent.
+    // When multiple agents share a working directory, this prevents the same
+    // native CLI sessions from appearing under every agent. Unattributed sessions
+    // are still visible in the global recent sessions list and All Chats view.
+    if (attribution.agentName !== agentName) {
+      return { session: null, sidechainUpdate };
+    }
+
+    const customName = await this.sessionMetadataStore.getCustomName(agentName, sessionId);
+
+    // Resolve autoName with caching — pass docker flag so it reads the right file
+    const { autoName, needsUpdate } = await this.resolveAutoName(
+      agentName,
+      sessionId,
+      mtimeStr,
+      sessionWorkingDir,
+      dockerEnabled,
+    );
+
+    // Resolve preview with caching — pass docker flag so it reads the right file
+    const { preview, needsUpdate: previewNeedsUpdate } = await this.resolvePreview(
+      agentName,
+      sessionId,
+      mtimeStr,
+      sessionWorkingDir,
+      dockerEnabled,
+    );
+
+    const session: DiscoveredSession = {
+      sessionId,
+      workingDirectory: sessionWorkingDir,
+      mtime: mtimeStr,
+      origin: attribution.origin,
+      agentName: attribution.agentName ?? agentName,
+      resumable: !dockerEnabled,
+      customName,
+      autoName,
+      preview,
+    };
+    return {
+      session,
+      sidechainUpdate,
+      // Record the update even when the value is empty so the negative result
+      // (no summary / no preview) is cached against this mtime — see
+      // resolveAutoName/resolvePreview.
+      autoNameUpdate: needsUpdate ? { sessionId, autoName, mtime: mtimeStr } : undefined,
+      previewUpdate: previewNeedsUpdate ? { sessionId, preview, mtime: mtimeStr } : undefined,
+    };
   }
 
   /**
@@ -1046,101 +1101,129 @@ export class SessionDiscoveryService {
 
       for (const { sessionId, mtime } of dir.sessionFiles) {
         const mtimeStr = mtime.toISOString();
+        // Tracks whether this entry was already counted as visible, so a later
+        // enrichment failure (which lands in the catch below and skips the entry)
+        // can back the count out — keeping `sessionCount` in sync with the
+        // sessions actually returned.
+        let countedAsVisible = false;
 
-        // Filter out sidechain (sub-agent) sessions — see comment in getAgentSessions().
-        // Cached (keyed on mtime) so we don't re-open every transcript per listing.
-        const { isSidechain, needsUpdate: sidechainNeedsUpdate } = await this.resolveSidechain(
-          dir.metadataKey,
-          sessionId,
-          mtimeStr,
-          dir.decodedPath,
-          dir.dockerEnabled,
-        );
-        if (sidechainNeedsUpdate) {
-          sidechainUpdates.push({ sessionId, isSidechain, mtime: mtimeStr });
-        }
-        if (isSidechain) {
-          continue;
-        }
-
-        // Issue #148: when several real working directories collide on this
-        // encoded transcript directory, drop sessions whose recorded cwd belongs
-        // to a *different* colliding directory so they aren't cross-attributed.
-        // Only runs when a collision was detected (dir.disambiguateWorkingDir set).
-        // Reads from the actually-scanned directory so it honours claudeHomePath.
-        if (dir.disambiguateWorkingDir !== undefined && dir.sessionDirPath !== undefined) {
-          const transcriptPath = path.join(dir.sessionDirPath, `${sessionId}.jsonl`);
-          const belongs = await sessionBelongsToWorkingDirectory(
-            transcriptPath,
-            dir.disambiguateWorkingDir,
+        try {
+          // Filter out sidechain (sub-agent) sessions — see comment in getAgentSessions().
+          // Cached (keyed on mtime) so we don't re-open every transcript per listing.
+          const { isSidechain, needsUpdate: sidechainNeedsUpdate } = await this.resolveSidechain(
+            dir.metadataKey,
+            sessionId,
+            mtimeStr,
+            dir.decodedPath,
+            dir.dockerEnabled,
           );
-          if (!belongs) {
+          if (sidechainNeedsUpdate) {
+            sidechainUpdates.push({ sessionId, isSidechain, mtime: mtimeStr });
+          }
+          if (isSidechain) {
             continue;
           }
+
+          // Issue #148: when several real working directories collide on this
+          // encoded transcript directory, drop sessions whose recorded cwd belongs
+          // to a *different* colliding directory so they aren't cross-attributed.
+          // Only runs when a collision was detected (dir.disambiguateWorkingDir set).
+          // Reads from the actually-scanned directory so it honours claudeHomePath.
+          if (dir.disambiguateWorkingDir !== undefined && dir.sessionDirPath !== undefined) {
+            const transcriptPath = path.join(dir.sessionDirPath, `${sessionId}.jsonl`);
+            const belongs = await sessionBelongsToWorkingDirectory(
+              transcriptPath,
+              dir.disambiguateWorkingDir,
+            );
+            if (!belongs) {
+              continue;
+            }
+          }
+
+          const attribution = attributionIndex.getAttribute(sessionId);
+
+          // For docker directories, only include sessions attributed to this specific agent
+          // (since all docker agents share the same docker-sessions directory)
+          if (dir.dockerEnabled && attribution.agentName !== dir.agentName) {
+            continue;
+          }
+
+          // Count visible sessions BEFORE pagination filtering — sessionCount should reflect
+          // total visible sessions for this agent, not just the paginated subset
+          visibleSessionCount++;
+          countedAsVisible = true;
+
+          // Skip sessions not in the selected set when limit is active (pagination)
+          if (selectedSessionIds && !selectedSessionIds.has(sessionId)) {
+            continue;
+          }
+
+          // Get custom name (works for both attributed and unattributed sessions)
+          const customName = await this.sessionMetadataStore.getCustomName(
+            dir.metadataKey,
+            sessionId,
+          );
+
+          // Resolve autoName with caching
+          const { autoName, needsUpdate } = await this.resolveAutoName(
+            dir.metadataKey,
+            sessionId,
+            mtimeStr,
+            dir.decodedPath,
+            dir.dockerEnabled,
+          );
+
+          // Record even an empty result so the negative case is cached (see
+          // resolveAutoName). autoName may be undefined here.
+          if (needsUpdate) {
+            autoNameUpdates.push({ sessionId, autoName, mtime: mtimeStr });
+          }
+
+          // Resolve preview with caching
+          const { preview, needsUpdate: previewNeedsUpdate } = await this.resolvePreview(
+            dir.metadataKey,
+            sessionId,
+            mtimeStr,
+            dir.decodedPath,
+            dir.dockerEnabled,
+          );
+
+          if (previewNeedsUpdate) {
+            previewUpdates.push({ sessionId, preview, mtime: mtimeStr });
+          }
+
+          sessions.push({
+            sessionId,
+            workingDirectory: dir.decodedPath,
+            mtime: mtimeStr,
+            origin: attribution.origin,
+            agentName: attribution.agentName ?? dir.agentName,
+            resumable: !dir.dockerEnabled,
+            customName,
+            autoName,
+            preview,
+          });
+        } catch (error) {
+          // Enrichment of ONE session must never take down the whole listing.
+          // A per-entry read failure — most notably an entry that stat()s as a
+          // valid `.jsonl` but is actually a directory, so open(2) succeeds and
+          // read(2) throws EISDIR (issue #424) — is skipped rather than allowed
+          // to abort this directory's loop (and, because this loop is nested in
+          // the loop over directories, every *other* directory's enrichment too).
+          // Logged at warn so a corrupt transcript folder is diagnosable instead
+          // of just quietly smaller.
+          //
+          // If the entry was already counted as visible (the sidechain check
+          // reads only the first line, so a transcript can pass it yet fail a
+          // later whole-file read for auto-name/preview), back that count out so
+          // `sessionCount` still matches the sessions actually returned.
+          if (countedAsVisible) {
+            visibleSessionCount--;
+          }
+          logger.warn(
+            `Skipping unreadable session entry ${sessionId} in ${dir.decodedPath}: ${(error as Error).message}`,
+          );
         }
-
-        const attribution = attributionIndex.getAttribute(sessionId);
-
-        // For docker directories, only include sessions attributed to this specific agent
-        // (since all docker agents share the same docker-sessions directory)
-        if (dir.dockerEnabled && attribution.agentName !== dir.agentName) {
-          continue;
-        }
-
-        // Count visible sessions BEFORE pagination filtering — sessionCount should reflect
-        // total visible sessions for this agent, not just the paginated subset
-        visibleSessionCount++;
-
-        // Skip sessions not in the selected set when limit is active (pagination)
-        if (selectedSessionIds && !selectedSessionIds.has(sessionId)) {
-          continue;
-        }
-
-        // Get custom name (works for both attributed and unattributed sessions)
-        const customName = await this.sessionMetadataStore.getCustomName(
-          dir.metadataKey,
-          sessionId,
-        );
-
-        // Resolve autoName with caching
-        const { autoName, needsUpdate } = await this.resolveAutoName(
-          dir.metadataKey,
-          sessionId,
-          mtimeStr,
-          dir.decodedPath,
-          dir.dockerEnabled,
-        );
-
-        // Record even an empty result so the negative case is cached (see
-        // resolveAutoName). autoName may be undefined here.
-        if (needsUpdate) {
-          autoNameUpdates.push({ sessionId, autoName, mtime: mtimeStr });
-        }
-
-        // Resolve preview with caching
-        const { preview, needsUpdate: previewNeedsUpdate } = await this.resolvePreview(
-          dir.metadataKey,
-          sessionId,
-          mtimeStr,
-          dir.decodedPath,
-          dir.dockerEnabled,
-        );
-
-        if (previewNeedsUpdate) {
-          previewUpdates.push({ sessionId, preview, mtime: mtimeStr });
-        }
-
-        sessions.push({
-          sessionId,
-          workingDirectory: dir.decodedPath,
-          mtime: mtimeStr,
-          origin: attribution.origin,
-          agentName: attribution.agentName ?? dir.agentName,
-          resumable: !dir.dockerEnabled,
-          customName,
-          autoName,
-          preview,
-        });
       }
 
       // Batch write any cache updates for this directory
