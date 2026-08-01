@@ -14,6 +14,7 @@
  * seamless runtime switching via agent configuration.
  */
 
+import { randomUUID } from "node:crypto";
 import { execa, type Subprocess } from "execa";
 import { createLogger } from "../../utils/logger.js";
 import { transformMcpServers } from "../sdk-adapter.js";
@@ -328,6 +329,19 @@ export class CLIRuntime implements RuntimeInterface {
       args.push("--fork-session");
     }
 
+    // A turn that starts a NEW session (a fresh run, or a fork, which writes a
+    // brand-new file) mints its own session id and tells the CLI to use it, so
+    // the transcript is `<mintedId>.jsonl` and we never have to work out which
+    // file was ours (issue #357). A plain resume keeps its existing id and needs
+    // nothing. Opt out with HERDCTL_CLI_MINT_SESSION_ID=0.
+    const mintedSessionId =
+      (!options.resume || options.fork) && process.env.HERDCTL_CLI_MINT_SESSION_ID !== "0"
+        ? randomUUID()
+        : undefined;
+    if (mintedSessionId) {
+      args.push("--session-id", mintedSessionId);
+    }
+
     // Note: Prompt is NOT added to args - it's provided via stdin (see processSpawner call below)
 
     // DEBUG: Log the command being executed
@@ -529,6 +543,7 @@ export class CLIRuntime implements RuntimeInterface {
           timeoutMs: 60000, // Allow up to 60s for MCP servers to initialize
           pollIntervalMs: 200,
           knownFiles: preSpawnSessionFiles,
+          expectedSessionId: mintedSessionId,
         });
         logger.debug(`New session, watching newly created file: ${sessionFilePath}`);
       }

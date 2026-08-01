@@ -417,32 +417,59 @@ async function newestSessionFileByMtime(
  * @param options - Optional configuration
  * @param options.knownFiles - Snapshot of `.jsonl` filenames present *before*
  *   spawning. When supplied, the new session is identified by set difference
- *   against this set (the collision-proof path); when omitted, the legacy
- *   mtime-after-`startTime` heuristic is used.
+ *   against this set; when omitted, the legacy mtime-after-`startTime` heuristic
+ *   is used. Both are inference — prefer `expectedSessionId`.
+ * @param options.expectedSessionId - The id we minted and passed to the CLI as
+ *   `--session-id`. When supplied, the session file is known by name and no
+ *   inference happens at all; the other two paths are used only if the deadline
+ *   passes without that file appearing (i.e. a CLI that ignored the flag).
  * @returns Promise resolving to path of newly created session file
  * @throws {Error} If timeout exceeded or directory doesn't exist
  */
 export async function waitForNewSessionFile(
   sessionDir: string,
   startTime: number,
-  options: { timeoutMs?: number; pollIntervalMs?: number; knownFiles?: ReadonlySet<string> } = {},
+  options: {
+    timeoutMs?: number;
+    pollIntervalMs?: number;
+    knownFiles?: ReadonlySet<string>;
+    expectedSessionId?: string;
+  } = {},
 ): Promise<string> {
-  const { timeoutMs = 5000, pollIntervalMs = 100, knownFiles } = options;
+  const { timeoutMs = 5000, pollIntervalMs = 100, knownFiles, expectedSessionId } = options;
   const deadline = Date.now() + timeoutMs;
+  const expectedFile = expectedSessionId ? `${expectedSessionId}.jsonl` : undefined;
 
   while (Date.now() < deadline) {
     try {
       const files = await readdir(sessionDir);
       const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
 
-      if (knownFiles) {
-        // Primary path (issue #357): the new session is a file whose NAME did
+      // Deterministic path (issue #357 follow-up): we minted the session id and
+      // passed it to the CLI as `--session-id`, so the file it writes is named
+      // for that id. There is nothing to infer — no snapshot, no mtime, no
+      // tie-break — and a co-located agent creating its own brand-new file in a
+      // shared session dir cannot be mistaken for ours.
+      if (expectedFile && jsonlFiles.includes(expectedFile)) {
+        return path.join(sessionDir, expectedFile);
+      }
+
+      if (expectedFile) {
+        // We asked for a specific id. Keep waiting for exactly that file — do NOT
+        // fall through to the inference paths below while polling. A co-located
+        // agent's brand-new file is indistinguishable from ours by name or mtime,
+        // so guessing here would reintroduce the very collision `--session-id`
+        // exists to remove. If the CLI turns out not to honour the flag, the
+        // deadline fallback below handles it, loudly.
+      } else if (knownFiles) {
+        // Fallback path (issue #357): the new session is a file whose NAME did
         // not exist before we spawned. This is immune to a co-located agent
-        // concurrently appending to its own (older) session in a shared dir.
+        // concurrently appending to its own (older) session in a shared dir, but
+        // NOT to one creating a new file — hence `--session-id` above.
         const brandNew = jsonlFiles.filter((f) => !knownFiles.has(f));
         if (brandNew.length > 0) {
           // Normally exactly one; if several appeared (e.g. multiple co-located
-          // spawns raced), the newest is ours.
+          // spawns raced), the newest is a guess — and can be the other agent's.
           const newest = await newestSessionFileByMtime(sessionDir, brandNew);
           if (newest) return newest;
         }
@@ -475,10 +502,25 @@ export async function waitForNewSessionFile(
     await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
   }
 
-  // Deadline exceeded. If we were using the set-difference path and no new-named
-  // file ever appeared, fall back once to the mtime heuristic before giving up —
-  // this preserves the old behaviour for genuinely degenerate cases (e.g. the
-  // CLI reused a filename) at the cost of the collision risk the snapshot avoids.
+  // Deadline exceeded.
+  //
+  // If we asked for a specific id and it never appeared, the CLI did not honour
+  // `--session-id` (too old to know the flag, or it ignored it). Say so plainly
+  // once — it is the difference between "deterministic" and "back to guessing" —
+  // then fall through to the inference paths rather than failing the turn.
+  if (expectedFile) {
+    logger.warn(
+      `Session file ${expectedFile} never appeared in ${sessionDir} within ${timeoutMs}ms — ` +
+        `the CLI does not appear to honour --session-id. Falling back to inferring the ` +
+        `session id, which can mis-attribute a co-located agent's session in a shared ` +
+        `session directory (issue #357).`,
+    );
+  }
+
+  // If we were using the set-difference path and no new-named file ever appeared,
+  // fall back once to the mtime heuristic before giving up — this preserves the
+  // old behaviour for genuinely degenerate cases (e.g. the CLI reused a filename)
+  // at the cost of the collision risk the snapshot avoids.
   if (knownFiles) {
     try {
       const files = await readdir(sessionDir);

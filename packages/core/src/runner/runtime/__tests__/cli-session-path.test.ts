@@ -606,6 +606,77 @@ describe("waitForNewSessionFile", () => {
     await utimes(file, when, when);
   }
 
+  describe("minted-id path (expectedSessionId supplied) — issue #357 follow-up", () => {
+    const MINE = "bbbbbbbb-cccc-4444-8888-111111111111";
+    const THEIRS = "aaaaaaaa-cccc-4444-8888-000000000000";
+
+    it("takes OUR file even when a co-located agent's brand-new file lands first", async () => {
+      // The case set-difference cannot solve: both files are brand new, so the
+      // snapshot cannot tell them apart and "the newest is ours" is a coin flip.
+      // Having minted the id, there is nothing left to guess.
+      const knownFiles = await snapshotSessionFiles(dir);
+      const startTime = Date.now() - 10_000;
+
+      const wait = waitForNewSessionFile(dir, startTime, {
+        knownFiles,
+        expectedSessionId: MINE,
+        timeoutMs: 3000,
+        pollIntervalMs: 10,
+      });
+
+      // The co-located agent wins the race to create a file...
+      const theirs = join(dir, `${THEIRS}.jsonl`);
+      await writeFile(theirs, "");
+      await setMtime(theirs, startTime + 5000); // ...and is the newest, too.
+      await new Promise((r) => setTimeout(r, 60));
+      // ...ours only appears afterwards.
+      const mine = join(dir, `${MINE}.jsonl`);
+      await writeFile(mine, "");
+      await setMtime(mine, startTime + 1000);
+
+      expect(await wait).toBe(mine);
+    });
+
+    it("falls back rather than failing the turn when ours never appears", async () => {
+      // A CLI that ignored --session-id. We warn and fall back to inference —
+      // the turn still runs, at the old collision risk.
+      const knownFiles = await snapshotSessionFiles(dir);
+      const startTime = Date.now() - 10_000;
+      const theirs = join(dir, `${THEIRS}.jsonl`);
+      await writeFile(theirs, "");
+      await setMtime(theirs, startTime + 5000);
+
+      const resolved = await waitForNewSessionFile(dir, startTime, {
+        knownFiles,
+        expectedSessionId: MINE,
+        timeoutMs: 150,
+        pollIntervalMs: 20,
+      });
+
+      expect(resolved).toBe(theirs);
+    });
+
+    it("(contrast) without a minted id the same race takes the WRONG file", async () => {
+      // The pre-existing behaviour this option exists to avoid.
+      const knownFiles = await snapshotSessionFiles(dir);
+      const startTime = Date.now() - 10_000;
+      const mine = join(dir, `${MINE}.jsonl`);
+      await writeFile(mine, "");
+      await setMtime(mine, startTime + 1000);
+      const theirs = join(dir, `${THEIRS}.jsonl`);
+      await writeFile(theirs, "");
+      await setMtime(theirs, startTime + 5000);
+
+      const resolved = await waitForNewSessionFile(dir, startTime, {
+        knownFiles,
+        timeoutMs: 2000,
+        pollIntervalMs: 10,
+      });
+
+      expect(resolved).toBe(theirs); // the co-located agent's — "the newest is ours"
+    });
+  });
+
   describe("set-difference path (knownFiles supplied) — issue #357", () => {
     it("returns the brand-new file even when a co-located session is newer", async () => {
       // Agent A's session already exists and is actively streaming.
