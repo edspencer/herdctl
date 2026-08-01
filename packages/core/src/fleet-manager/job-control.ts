@@ -167,6 +167,10 @@ export class JobControl {
         const existingSession = await getSessionInfo(sessionsDir, agent.qualifiedName, {
           timeout: sessionTimeout,
           logger,
+          // Resolve any CLI transcript existence check against the configured
+          // home, so a non-default home can't make a valid session look missing
+          // (and get cleared as stale) — herdctl#423.
+          claudeHomePath: this.ctx.getClaudeHomePath?.(),
         });
         if (existingSession?.session_id) {
           sessionId = existingSession.session_id;
@@ -383,6 +387,9 @@ export class JobControl {
         const existingSession = await getSessionInfo(sessionsDir, agent.qualifiedName, {
           timeout: sessionTimeout,
           logger,
+          // See trigger(): keep the transcript existence check pointed at the
+          // configured home (herdctl#423).
+          claudeHomePath: this.ctx.getClaudeHomePath?.(),
         });
         if (existingSession?.session_id) {
           sessionId = existingSession.session_id;

@@ -234,6 +234,11 @@ export class JobExecutor {
         timeout: sessionTimeout,
         logger: this.logger,
         runtime: agent.runtime ?? "sdk", // Pass runtime for correct validation
+        // For the `cli` runtime that validation probes the filesystem, so it must
+        // look in the home our runtime actually uses. Re-deriving `~/.claude`
+        // here reports a valid session as `file_not_found` — and this call
+        // CLEARS sessions it judges stale (herdctl#423).
+        claudeHomePath: this.runtime.getClaudeHomePath?.(),
       });
 
       if (existingSession?.session_id && existingSession.session_id !== options.resume) {
@@ -347,8 +352,13 @@ export class JobExecutor {
           currentWorkingDirectory
         ) {
           // Native CLI: only adopt if the transcript exists where Claude Code
-          // will look for it (the agent's working directory).
-          adopt = await cliSessionFileExists(currentWorkingDirectory, options.resume);
+          // will look for it (the agent's working directory, under the home this
+          // runtime resolved — NOT an assumed `~/.claude`, herdctl#423).
+          adopt = await cliSessionFileExists(
+            currentWorkingDirectory,
+            options.resume,
+            this.runtime.getClaudeHomePath?.(),
+          );
         }
 
         if (adopt) {

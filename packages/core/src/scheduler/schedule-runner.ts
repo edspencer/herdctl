@@ -323,6 +323,11 @@ export async function runSchedule(options: RunScheduleOptions): Promise<Schedule
           timeout: sessionTimeout,
           logger,
           runtime: agent.runtime ?? "sdk",
+          // The `cli` runtime checks the transcript exists on disk, so that check
+          // must use the configured home; otherwise a non-default home makes a
+          // valid session look missing — and it is CLEARED, not just skipped
+          // (herdctl#423).
+          claudeHomePath,
         });
         if (existingSession?.session_id) {
           sessionId = existingSession.session_id;

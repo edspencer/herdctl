@@ -382,7 +382,17 @@ describe("CLAUDE_CONFIG_DIR reaches Claude Code (herdctl#423)", () => {
 
     it("still defaults both runtimes to ~/.claude", () => {
       const sdk = RuntimeFactory.create({ ...(agent as object) } as ResolvedAgent) as SDKRuntime;
+      expect(sdk).toBeInstanceOf(SDKRuntime);
       expect(sdk.getClaudeHomePath()).toBe(defaultClaudeHome());
+
+      // "both runtimes" — the CLI half does its own path arithmetic against this
+      // home, so its default is the one that actually has to hold.
+      const cli = RuntimeFactory.create({
+        ...(agent as object),
+        runtime: "cli",
+      } as ResolvedAgent) as CLIRuntime;
+      expect(cli).toBeInstanceOf(CLIRuntime);
+      expect(cli.getClaudeHomePath()).toBe(defaultClaudeHome());
     });
   });
 });
