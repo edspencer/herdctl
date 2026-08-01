@@ -81,6 +81,21 @@ export interface FleetManagerOptions {
   stateDir: string;
 
   /**
+   * Path to the Claude home directory (the `.claude` dir holding
+   * `projects/<encoded-cwd>/<session-id>.jsonl` transcripts).
+   *
+   * Default: `~/.claude` (i.e. `path.join(os.homedir(), ".claude")`).
+   *
+   * This **must match whatever home the embedding app resolves** — e.g. if the
+   * app launches Claude with a `CLAUDE_CONFIG_DIR`/`HOME` override, pass that
+   * same directory here. It is threaded into session discovery and every
+   * transcript path resolution, so a mismatch means the *listing* path and the
+   * *read* path disagree: sessions list but open empty (herdctl#423). The
+   * failure is masked whenever this equals `~/.claude`, which is why it lurks.
+   */
+  claudeHomePath?: string;
+
+  /**
    * Logger for fleet manager operations
    *
    * Default: console-based logger with [fleet-manager] prefix

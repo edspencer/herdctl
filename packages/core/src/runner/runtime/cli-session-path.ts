@@ -111,30 +111,59 @@ export function encodePathForCli(absolutePath: string): string {
 }
 
 /**
+ * The default Claude home directory: `~/.claude`.
+ *
+ * This is the **single source of truth** for the fallback home. Every helper
+ * that resolves a transcript path takes an optional `claudeHomePath` and falls
+ * back to this function, so a caller that threads a non-default home through
+ * (e.g. {@link SessionDiscoveryService}'s `claudeHomePath` option) can be sure
+ * the *listing* path and the *read/write* path agree.
+ *
+ * Historically `getCliSessionDir`/`getCliSessionFile` hardcoded
+ * `os.homedir()/.claude` while discovery honoured an injectable home — so with
+ * any non-default home sessions would list but open empty (herdctl#423).
+ *
+ * Note this is deliberately a *function*, not a module-level constant:
+ * `os.homedir()` must be read at call time so tests (and processes that mutate
+ * `HOME`) see the current value.
+ *
+ * @returns Absolute path to the default Claude home directory
+ */
+export function defaultClaudeHome(): string {
+  return path.join(os.homedir(), ".claude");
+}
+
+/**
  * Get the CLI session directory for a workspace
  *
  * Returns the directory where Claude CLI stores sessions for the given workspace.
- * Format: ~/.claude/projects/{encoded-workspace-path}/
+ * Format: {claudeHome}/projects/{encoded-workspace-path}/
  *
  * @example
  * ```typescript
  * getCliSessionDir('/Users/ed/Code/myproject')
  * // => '/Users/ed/.claude/projects/-Users-ed-Code-myproject'
+ *
+ * getCliSessionDir('/Users/ed/Code/myproject', '/tmp/alt-home')
+ * // => '/tmp/alt-home/projects/-Users-ed-Code-myproject'
  * ```
  *
  * @param workspacePath - Absolute path to workspace directory
+ * @param claudeHomePath - Optional Claude home directory. Defaults to
+ *   {@link defaultClaudeHome} (`~/.claude`). Pass the value resolved by the
+ *   embedding app so listing and reading agree (herdctl#423).
  * @returns Absolute path to CLI session storage directory
  */
-export function getCliSessionDir(workspacePath: string): string {
+export function getCliSessionDir(workspacePath: string, claudeHomePath?: string): string {
   const encoded = encodePathForCli(workspacePath);
-  return path.join(os.homedir(), ".claude", "projects", encoded);
+  return path.join(claudeHomePath ?? defaultClaudeHome(), "projects", encoded);
 }
 
 /**
  * Get the path to a specific CLI session file
  *
  * Returns the full path to a session's JSONL file in the CLI session directory.
- * Format: ~/.claude/projects/{encoded-workspace-path}/{session-id}.jsonl
+ * Format: {claudeHome}/projects/{encoded-workspace-path}/{session-id}.jsonl
  *
  * @example
  * ```typescript
@@ -147,15 +176,22 @@ export function getCliSessionDir(workspacePath: string): string {
  *
  * @param workspacePath - Absolute path to workspace directory
  * @param sessionId - CLI session ID (UUID format)
+ * @param claudeHomePath - Optional Claude home directory. Defaults to
+ *   {@link defaultClaudeHome} (`~/.claude`). Pass the value resolved by the
+ *   embedding app so listing and reading agree (herdctl#423).
  * @returns Absolute path to session JSONL file
  * @throws {Error} If sessionId contains invalid characters
  */
-export function getCliSessionFile(workspacePath: string, sessionId: string): string {
+export function getCliSessionFile(
+  workspacePath: string,
+  sessionId: string,
+  claudeHomePath?: string,
+): string {
   // Validate sessionId to prevent path traversal
   if (!/^[A-Za-z0-9-]+$/.test(sessionId)) {
     throw new Error(`Invalid session ID: ${sessionId}`);
   }
-  const sessionDir = getCliSessionDir(workspacePath);
+  const sessionDir = getCliSessionDir(workspacePath, claudeHomePath);
   return path.join(sessionDir, `${sessionId}.jsonl`);
 }
 

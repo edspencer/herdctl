@@ -18,6 +18,8 @@ import { z } from "zod";
 import { buildLifecycleHooks, tapLifecycleStream } from "../../session/session-hooks.js";
 import { toSDKOptions } from "../sdk-adapter.js";
 import type { InjectedMcpServerDef, SDKMessage } from "../types.js";
+import { withClaudeConfigDir } from "./claude-config-dir.js";
+import { defaultClaudeHome } from "./cli-session-path.js";
 import type { RuntimeExecuteOptions, RuntimeInterface, RuntimeSession } from "./interface.js";
 import { MessageQueue } from "./message-queue.js";
 
@@ -105,6 +107,28 @@ function defToSdkMcpServer(def: InjectedMcpServerDef) {
 }
 
 /**
+ * SDK runtime configuration options
+ */
+export interface SDKRuntimeOptions {
+  /**
+   * Claude home directory the SDK's Claude Code process should use.
+   *
+   * Defaults to {@link defaultClaudeHome} (`~/.claude`). Pass the home the
+   * embedding app resolved (e.g. `FleetManager.getClaudeHomePath()`) so the
+   * transcripts the SDK reads and appends live in the same tree session
+   * discovery and adoption list from — otherwise an adopted session cannot be
+   * resumed at all, because the SDK looks for its transcript under `~/.claude`
+   * and finds nothing (herdctl#423).
+   *
+   * The SDK has no `claudeHome` option; it resolves its home from the
+   * `CLAUDE_CONFIG_DIR` environment variable, so this is applied by injecting
+   * that variable into the SDK's per-query `env` (never into `process.env` —
+   * see {@link withClaudeConfigDir}).
+   */
+  claudeHomePath?: string;
+}
+
+/**
  * SDK runtime implementation
  *
  * This runtime uses the Claude Agent SDK to execute agents. It wraps the SDK's
@@ -127,6 +151,22 @@ function defToSdkMcpServer(def: InjectedMcpServerDef) {
  * ```
  */
 export class SDKRuntime implements RuntimeInterface {
+  /** Resolved Claude home; `~/.claude` unless the caller supplied one (#423). */
+  private claudeHomePath: string;
+
+  constructor(options?: SDKRuntimeOptions) {
+    this.claudeHomePath = options?.claudeHomePath ?? defaultClaudeHome();
+  }
+
+  /**
+   * The Claude home this runtime points the SDK's Claude Code process at.
+   * Exposed for tests and for embedders asserting the home actually threaded
+   * through.
+   */
+  getClaudeHomePath(): string {
+    return this.claudeHomePath;
+  }
+
   /**
    * Execute an agent using the Claude Agent SDK
    *
@@ -311,6 +351,26 @@ export class SDKRuntime implements RuntimeInterface {
       ) {
         process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT = "120000";
       }
+    }
+
+    // Point the SDK's Claude Code process at the configured Claude home.
+    //
+    // The SDK resolves its home from `CLAUDE_CONFIG_DIR` (never from anything
+    // herdctl passes in options), so without this a non-default `claudeHomePath`
+    // splits the world: herdctl adopts and lists transcripts under the
+    // configured home while the SDK reads and writes under `~/.claude`.
+    //
+    // Scoped deliberately to THIS query's `env` rather than `process.env`: the
+    // host process runs many concurrent agents, and a global mutation would leak
+    // one agent's home into all of them. Applied last so the inherited snapshot
+    // includes the `CLAUDE_CODE_STREAM_CLOSE_TIMEOUT` bump above, and so it wins
+    // over anything earlier in this method. `env` REPLACES the subprocess
+    // environment wholesale, hence the spread of the inherited one inside
+    // `withClaudeConfigDir`. Returns undefined (leaving plain inheritance) for
+    // the default home and when the operator already set the variable.
+    const env = withClaudeConfigDir(this.claudeHomePath, sdkOptions.env ?? process.env);
+    if (env) {
+      sdkOptions.env = env;
     }
 
     return sdkOptions;

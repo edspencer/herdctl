@@ -46,7 +46,9 @@ export type {
   SlashCommand,
 } from "./runtime/index.js";
 export {
+  CLAUDE_CONFIG_DIR_VAR,
   countPendingAsyncQueueEntries,
+  defaultClaudeHome,
   encodePathForCli,
   getCliSessionDir,
   getCliSessionFile,
@@ -57,8 +59,11 @@ export {
   RuntimeFactory,
   type RuntimeType,
   readSessionCwd,
+  resolveClaudeConfigDir,
   SDKRuntime,
+  type SDKRuntimeOptions,
   sessionBelongsToWorkingDirectory,
+  withClaudeConfigDir,
 } from "./runtime/index.js";
 // Export SDK adapter functions
 export {

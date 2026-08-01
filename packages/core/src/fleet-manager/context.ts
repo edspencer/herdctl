@@ -40,6 +40,20 @@ export interface FleetManagerContext {
   getStateDir(): string;
 
   /**
+   * Get the resolved Claude home directory (`~/.claude` unless the embedder
+   * supplied {@link FleetManagerOptions.claudeHomePath}).
+   *
+   * Modules must go through this rather than re-deriving `os.homedir()/.claude`,
+   * or the listing path and the read path diverge under a non-default home —
+   * transcripts then "list but open empty" (herdctl#423).
+   *
+   * Optional so the lightweight mock contexts the module unit tests build need
+   * not implement it; callers fall back to {@link defaultClaudeHome} via the
+   * path helpers' own default, which is exactly the pre-#423 behaviour.
+   */
+  getClaudeHomePath?(): string;
+
+  /**
    * Get the state directory info (null if not initialized)
    */
   getStateDirInfo(): StateDirectory | null;

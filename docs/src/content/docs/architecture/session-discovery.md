@@ -16,6 +16,7 @@ The subsystem is composed of five modules, each handling a distinct concern. The
 | Module | File | Purpose |
 |--------|------|---------|
 | **JSONL Parser** | `packages/core/src/state/jsonl-parser.ts` | Streaming parser for Claude Code `.jsonl` session files |
+| **Claude Home Resolution** | `packages/core/src/runner/runtime/cli-session-path.ts`, `packages/core/src/runner/runtime/claude-config-dir.ts` | Resolves the configurable Claude home into transcript paths, and exports it to Claude Code as `CLAUDE_CONFIG_DIR` |
 | **Tool Parsing** | `packages/core/src/state/tool-parsing.ts` | Extracts tool_use and tool_result blocks, provides human-readable summaries |
 | **Session Attribution** | `packages/core/src/state/session-attribution.ts` | Maps session IDs to their origin (herdctl agent, native CLI, web, Discord, Slack) |
 | **Session Metadata Store** | `packages/core/src/state/session-metadata.ts` | Persistent JSON cache for custom names, auto-generated names, and mtime tracking |
@@ -258,6 +259,46 @@ const summary = await extractLastSummary(filePath);
 
 When the discovery service resolves auto-names for many sessions at once (e.g., when loading the All Chats page), it collects all updates and writes them in a single `batchSetAutoNames()` call. This avoids N sequential file writes and instead performs one atomic write per agent.
 
+## Claude Home Resolution
+
+Every transcript path in the system is `<claudeHome>/projects/<encoded-cwd>/<session-id>.jsonl`. The Claude home is configurable -- `FleetManagerOptions.claudeHomePath`, defaulting to `~/.claude` -- because an embedding host frequently runs Claude Code against a home it manages itself rather than the operator's own.
+
+There are **three separate names for this one concept**, and they must all agree:
+
+| Name | Owner | Where it appears |
+|------|-------|------------------|
+| `claudeHomePath` | herdctl | `FleetManagerOptions`, `SessionDiscoveryOptions`, `RuntimeFactory.create()` options, `SDKRuntimeOptions`, and the `CLIRuntime` options |
+| `CLAUDE_CONFIG_DIR` | Claude Code | The environment variable the Agent SDK and the `claude` binary read to locate their own home |
+| Whatever the embedding app calls it | the host | e.g. a `CLAUDE_HOME` env var the host resolves before constructing the fleet |
+
+### Threading the home through herdctl
+
+`defaultClaudeHome()` (in `packages/core/src/runner/runtime/cli-session-path.ts`) is the single source of truth for the `~/.claude` fallback. It is deliberately a function rather than a module constant, so `os.homedir()` is read at call time.
+
+`getCliSessionDir()` and `getCliSessionFile()` each take an optional trailing `claudeHomePath` and fall back to `defaultClaudeHome()`. `FleetManager` resolves the home once in its constructor, exposes it via `getClaudeHomePath()`, and threads it into:
+
+- `SessionDiscoveryService` (the `claudeHomePath` option), which passes it to every `getCliSessionFile()` call behind auto-name, preview and sidechain resolution
+- `RuntimeFactory.create()`, from `JobControl`, `ScheduleExecutor` and `runSchedule()`
+- `SDKRuntime` on the streaming-chat resume path in `JobControl`
+- `deleteSession()`, and `cliSessionFileExists()` via `SessionFileCheckOptions.claudeHomePath`
+
+Before this threading existed, discovery honoured an injectable home while the path helpers hardcoded `os.homedir()/.claude`: the *listing* path and the *read* path disagreed, so under a non-default home sessions listed but opened empty. The failure is invisible whenever the configured home happens to equal `~/.claude`.
+
+### Telling Claude Code itself
+
+Threading `claudeHomePath` only fixes herdctl's own path arithmetic. The process that actually **writes** transcripts is Claude Code -- the Agent SDK for the `sdk` runtime, the spawned `claude` binary for the `cli` runtime -- and it resolves its home from the `CLAUDE_CONFIG_DIR` environment variable. Neither runtime has a "Claude home" option to pass.
+
+So `packages/core/src/runner/runtime/claude-config-dir.ts` bridges the two:
+
+- `resolveClaudeConfigDir(claudeHomePath)` returns the value to export, or `undefined` when nothing needs to change -- the default home, or an operator who already set `CLAUDE_CONFIG_DIR` themselves (their setting wins).
+- `withClaudeConfigDir(claudeHomePath, inherited)` returns a full environment object with the variable added, or `undefined` to leave plain inheritance alone.
+
+`SDKRuntime` applies `withClaudeConfigDir()` to the per-query `sdkOptions.env` as the last step of building its options. This is scoped to the query rather than mutating `process.env`, because a host runs many concurrent agents and a global mutation would leak one agent's home into all of them. Note the SDK's `env` **replaces** the subprocess environment wholesale rather than merging, which is why `withClaudeConfigDir()` spreads the inherited environment itself.
+
+`CLIRuntime` adds the variable to its default `execa` spawn instead. `execa` merges `env` over the inherited environment (`extendEnv` defaults to true), so that is a per-spawn addition. A caller-supplied `processSpawner` owns its own environment and is left alone.
+
+`ContainerRunner` deliberately injects **nothing**. The container has its own filesystem and its own fixed home (`HOME=/home/claude`, with `/home/claude/.claude/projects/-workspace` bind-mounted back to the host `<stateDir>/docker-sessions`, which is how herdctl reads those transcripts at all). A host path would be meaningless inside the container and would move the agent's transcripts off the mount.
+
 ## Session Discovery Service
 
 The `SessionDiscoveryService` is the main orchestrator. It provides the public API that the web dashboard's REST endpoints call, and it coordinates the JSONL parser, attribution index, sidechain filtering, and metadata store into a coherent discovery pipeline.
@@ -271,6 +312,8 @@ const discovery = new SessionDiscoveryService({
   cacheTtlMs: 30_000,           // optional, defaults to 30 seconds
 });
 ```
+
+`getClaudeHomePath()` returns the resolved value, so callers that need to place or inspect a transcript themselves can use the same home the service lists and reads from.
 
 ### Public Methods
 
@@ -337,7 +380,7 @@ A request for sessions flows through the system as follows:
 
 2. **API calls SessionDiscoveryService** -- The route handler delegates to `getAllSessions()` or `getAgentSessions()` on the service instance.
 
-3. **Service scans Claude Code's projects directory** -- The service reads `~/.claude/projects/` to find encoded path directories, each representing a working directory where Claude Code sessions exist.
+3. **Service scans Claude Code's projects directory** -- The service reads `<claudeHome>/projects/` (`~/.claude/projects/` by default) to find encoded path directories, each representing a working directory where Claude Code sessions exist.
 
 4. **Directory listing with caching** -- For each directory, `listSessionFiles()` reads the directory (or returns cached results), filters to `.jsonl` files, stats each file for modification time, and sorts by mtime descending.
 

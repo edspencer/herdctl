@@ -90,7 +90,10 @@ export class ScheduleExecutor {
       );
 
       // Create the JobExecutor with the runtime
-      const runtime = RuntimeFactory.create(agent, { stateDir });
+      const runtime = RuntimeFactory.create(agent, {
+        stateDir,
+        claudeHomePath: this.ctx.getClaudeHomePath?.(),
+      });
       const executor = new JobExecutor(runtime, {
         logger,
       });

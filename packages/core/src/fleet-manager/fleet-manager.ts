@@ -25,7 +25,11 @@ import {
   type Schedule,
 } from "../config/index.js";
 import type { RuntimeSession, SlashCommand } from "../runner/index.js";
-import { getCliSessionFile, getDockerSessionFile } from "../runner/runtime/cli-session-path.js";
+import {
+  defaultClaudeHome,
+  getCliSessionFile,
+  getDockerSessionFile,
+} from "../runner/runtime/cli-session-path.js";
 import { Scheduler, type TriggerInfo } from "../scheduler/index.js";
 import {
   type ResolveInjectedMcpServers,
@@ -100,6 +104,12 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   // Configuration
   private readonly configPath?: string;
   private readonly stateDir: string;
+  /**
+   * Resolved Claude home (`~/.claude` unless overridden). Single source of
+   * truth threaded into session discovery and every transcript path
+   * resolution — see {@link FleetManagerOptions.claudeHomePath} (herdctl#423).
+   */
+  private readonly claudeHomePath: string;
   private readonly logger: FleetManagerLogger;
   private readonly checkInterval: number;
   private readonly configOverrides?: FleetConfigOverrides;
@@ -153,6 +163,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     super();
     this.configPath = options.configPath;
     this.stateDir = resolve(options.stateDir);
+    this.claudeHomePath = options.claudeHomePath ?? defaultClaudeHome();
     this.logger = options.logger ?? createDefaultLogger();
     this.checkInterval = options.checkInterval ?? DEFAULT_CHECK_INTERVAL;
     this.configOverrides = options.configOverrides;
@@ -171,6 +182,17 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   }
   getStateDir(): string {
     return this.stateDir;
+  }
+  /**
+   * The resolved Claude home directory (`~/.claude` unless a
+   * {@link FleetManagerOptions.claudeHomePath} was supplied).
+   *
+   * Exposed so embedders (and future session-adoption code) can place or
+   * inspect transcripts against the *same* home this fleet lists and reads
+   * from, instead of re-deriving `os.homedir()/.claude` (herdctl#423).
+   */
+  getClaudeHomePath(): string {
+    return this.claudeHomePath;
   }
   getStateDirInfo(): StateDirectory | null {
     return this.stateDirInfo;
@@ -809,7 +831,7 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     // throws before touching the filesystem when traversal is attempted.
     const sessionFile = dockerEnabled
       ? getDockerSessionFile(this.stateDir, sessionId)
-      : getCliSessionFile(workingDirectory, sessionId);
+      : getCliSessionFile(workingDirectory, sessionId, this.claudeHomePath);
 
     let removed: boolean;
     try {
@@ -1273,6 +1295,9 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     if (!this.sessionDiscovery) {
       this.sessionDiscovery = new SessionDiscoveryService({
         stateDir: this.stateDir,
+        // Thread the fleet's resolved home so discovery's listing AND its
+        // transcript reads resolve against the same `.claude` dir (herdctl#423).
+        claudeHomePath: this.claudeHomePath,
         sessionMetadataStore: this.getSessionMetadataStore(),
       });
     }

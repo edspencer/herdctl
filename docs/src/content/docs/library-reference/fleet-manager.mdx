@@ -57,6 +57,7 @@ const manager = new FleetManager(options: FleetManagerOptions);
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `options.stateDir` | `string` | **Yes** | — | Path to the state directory (e.g., `.herdctl`). Created if it doesn't exist. Stores job artifacts, session state, and logs. |
+| `options.claudeHomePath` | `string` | No | `~/.claude` | The Claude home directory holding `projects/<encoded-cwd>/<session-id>.jsonl` transcripts. Threaded into session discovery *and* every runtime, and exported to the Claude Code process itself as `CLAUDE_CONFIG_DIR`, so listing, reading and writing all resolve against the same home. Must match whatever home the embedding app resolved — a mismatch makes sessions list but open empty. |
 | `options.configPath` | `string` | No | Auto-discover | Path to `herdctl.yaml`. Can be absolute, relative, or a directory path. If not provided, searches up from cwd. |
 | `options.logger` | `FleetManagerLogger` | No | Console logger | Custom logger with `debug`, `info`, `warn`, `error` methods. |
 | `options.checkInterval` | `number` | No | `1000` | Interval in milliseconds between scheduler checks. |
@@ -1824,6 +1825,31 @@ type FleetManagerStatus =
 console.log(`Status: ${manager.state.status}`);
 console.log(`Agents: ${manager.state.agentCount}`);
 console.log(`Started at: ${manager.state.startedAt}`);
+```
+
+---
+
+### `getClaudeHomePath()`
+
+Returns the resolved Claude home directory — the `claudeHomePath` constructor option, or `~/.claude` when it was omitted.
+
+```typescript
+manager.getClaudeHomePath(): string
+```
+
+This is the fleet's single source of truth for the Claude home. Embedders that need to place or inspect transcripts themselves should resolve them against this value rather than re-deriving `os.homedir()/.claude`, and callers constructing their own `RuntimeFactory`/`SDKRuntime`/`CLIRuntime` should pass it through as `claudeHomePath` so the runtime reads and appends transcripts in the same tree discovery lists from.
+
+Unlike `getConfig()` this never returns `null` — the home is resolved in the constructor, before `initialize()`.
+
+#### Example
+
+```typescript
+const manager = new FleetManager({
+  stateDir: './.herdctl',
+  claudeHomePath: '/srv/herdctl/claude-home',
+});
+
+manager.getClaudeHomePath(); // => '/srv/herdctl/claude-home'
 ```
 
 ---

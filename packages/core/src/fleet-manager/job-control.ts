@@ -184,7 +184,10 @@ export class JobControl {
     // Use the effective agent so a per-trigger working-directory override flows
     // into the runtime (process cwd / SDK cwd / Docker workspace mount) and into
     // session/transcript resolution.
-    const runtime = RuntimeFactory.create(effectiveAgent, { stateDir });
+    const runtime = RuntimeFactory.create(effectiveAgent, {
+      stateDir,
+      claudeHomePath: this.ctx.getClaudeHomePath?.(),
+    });
     const executor = new JobExecutor(runtime, { logger });
 
     // Cancellation support: give this run an AbortController and register it under
@@ -460,7 +463,12 @@ export class JobControl {
       let residue: number | undefined;
       try {
         const workspacePath = resolveAgentWorkspacePath(effectiveAgent);
-        residue = await countPendingAsyncQueueEntries(getCliSessionFile(workspacePath, sessionId));
+        // Resolve against the fleet's configured Claude home, not `~/.claude`:
+        // under a non-default home this looked in the wrong place and the
+        // telemetry silently reported no residue (herdctl#423).
+        residue = await countPendingAsyncQueueEntries(
+          getCliSessionFile(workspacePath, sessionId, this.ctx.getClaudeHomePath?.()),
+        );
       } catch (error) {
         logger.debug(
           `Pending-async-queue telemetry skipped for ${sessionId}: ${(error as Error).message}`,
@@ -474,7 +482,12 @@ export class JobControl {
       );
     }
 
-    const runtime = new SDKRuntime();
+    // Thread the resolved Claude home so the SDK reads and appends the SAME
+    // transcript tree adoption/discovery listed this session from. This is the
+    // resume path: without it, resuming an adopted session asks Claude Code for
+    // a session id whose transcript does not exist under `~/.claude`, and the
+    // turn dies with `error_during_execution` (herdctl#423).
+    const runtime = new SDKRuntime({ claudeHomePath: this.ctx.getClaudeHomePath?.() });
     logger.info(`Opening streaming chat session for ${agentName} (sdk runtime)`);
 
     // Opt in to herdctl-managed lifecycle (reap-on-idle + wake re-trigger, #307)

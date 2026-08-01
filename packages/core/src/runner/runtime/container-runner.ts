@@ -223,6 +223,18 @@ export class ContainerRunner implements RuntimeInterface {
       // Override cwd for Docker - workspace is always mounted at /workspace
       sdkOptions.cwd = "/workspace";
 
+      // Deliberately NO `CLAUDE_CONFIG_DIR` here, unlike the host SDK runtime
+      // (herdctl#423). The container has its own filesystem and its own fixed
+      // Claude home: `HOME=/home/claude`, with
+      // `/home/claude/.claude/projects/-workspace` bind-mounted back to the host
+      // `<stateDir>/docker-sessions`, which is how herdctl reads these
+      // transcripts at all. The host's `claudeHomePath` names a host path that
+      // does not exist inside the container, so injecting it would move the
+      // agent's transcripts off the mount and out of herdctl's view — the same
+      // split-brain the host-side injection fixes, inverted. Note this path
+      // builds its own options via `toSDKOptions` rather than going through
+      // `SDKRuntime.buildSdkOptions`, so the host-side injection cannot leak in.
+
       // Start HTTP bridges for injected MCP servers and inject as HTTP configs
       if (options.injectedMcpServers && Object.keys(options.injectedMcpServers).length > 0) {
         const mcpServers = sdkOptions.mcpServers ?? {};

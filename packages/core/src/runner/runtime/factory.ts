@@ -31,6 +31,18 @@ interface RuntimeFactoryOptions {
    * If not provided, defaults to '.herdctl' in current working directory.
    */
   stateDir?: string;
+
+  /**
+   * Claude home directory for transcript resolution.
+   *
+   * Consumed by BOTH runtimes. Defaults to `~/.claude`. Callers that resolved a
+   * home — e.g. `FleetManager.getClaudeHomePath()` — must pass it here so the
+   * runtime writes and watches transcripts in the same home discovery lists from
+   * (herdctl#423). The `cli` runtime also uses it for its own path math; the
+   * `sdk` runtime only needs it to tell Claude Code, via `CLAUDE_CONFIG_DIR`,
+   * where to read and append transcripts.
+   */
+  claudeHomePath?: string;
 }
 
 /**
@@ -74,11 +86,11 @@ export class RuntimeFactory {
 
     switch (runtimeType) {
       case "sdk":
-        runtime = new SDKRuntime();
+        runtime = new SDKRuntime({ claudeHomePath: options.claudeHomePath });
         break;
 
       case "cli":
-        runtime = new CLIRuntime();
+        runtime = new CLIRuntime({ claudeHomePath: options.claudeHomePath });
         break;
 
       default:

@@ -6,6 +6,11 @@ const watchMessages: SDKMessage[] = [];
 const flushMessages: SDKMessage[] = [];
 
 vi.mock("../cli-session-path.js", () => ({
+  // The runtime resolves its Claude home at construction time; these tests stub
+  // the path helpers wholesale, so the home fallback must be stubbed too. The
+  // real threading is covered (unmocked) in
+  // claude-home-threading-cli-runtime.test.ts.
+  defaultClaudeHome: vi.fn(() => "/tmp/default-claude-home"),
   getCliSessionDir: vi.fn(() => "/tmp/sessions"),
   getCliSessionFile: vi.fn(() => "/tmp/sessions/session-1.jsonl"),
   snapshotSessionFiles: vi.fn(async () => new Set<string>()),
@@ -278,7 +283,12 @@ describe("CLIRuntime working directory / session resolution", () => {
     }
 
     expect(spawnedCwd).toBe(effectiveDir);
-    expect(vi.mocked(getCliSessionDir)).toHaveBeenCalledWith(effectiveDir);
+    // Second argument is the resolved Claude home (herdctl#423) — defaulted here
+    // since this runtime was constructed without one.
+    expect(vi.mocked(getCliSessionDir)).toHaveBeenCalledWith(
+      effectiveDir,
+      "/tmp/default-claude-home",
+    );
   });
 });
 

@@ -498,7 +498,13 @@ export class WebChatManager {
     this.ensureInitialized();
 
     const agent = this.buildAdhocAgent(workingDirectory, sessionId);
-    const runtime = RuntimeFactory.create(agent, { stateDir: this.stateDir! });
+    // Ad-hoc sessions resume a transcript the session browser listed out of the
+    // configured Claude home, so the runtime must be pointed at that same home
+    // rather than `~/.claude` (herdctl#423).
+    const runtime = RuntimeFactory.create(agent, {
+      stateDir: this.stateDir!,
+      claudeHomePath: this.fleetManager?.getClaudeHomePath(),
+    });
     const executor = new JobExecutor(runtime, { logger });
 
     let assistantContent = "";

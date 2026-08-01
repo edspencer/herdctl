@@ -257,6 +257,20 @@ export class SessionDiscoveryService {
   }
 
   /**
+   * The resolved Claude home directory this service reads transcripts from
+   * (the `claudeHomePath` option, or `~/.claude` when omitted).
+   *
+   * Exposed so callers that need to *place* or *inspect* transcripts (e.g.
+   * session adoption) resolve them against the same home this service lists
+   * and reads from, rather than re-deriving `os.homedir()/.claude` — which is
+   * exactly the divergence that made non-default homes list sessions that then
+   * opened empty (herdctl#423).
+   */
+  getClaudeHomePath(): string {
+    return this.claudeHomePath;
+  }
+
+  /**
    * Check if the attribution index cache is valid
    */
   private isAttributionCacheValid(): boolean {
@@ -412,7 +426,7 @@ export class SessionDiscoveryService {
     // Need to extract from JSONL
     const filePath = dockerEnabled
       ? getDockerSessionFile(this.stateDir, sessionId)
-      : getCliSessionFile(workingDirectory, sessionId);
+      : getCliSessionFile(workingDirectory, sessionId, this.claudeHomePath);
     const summary = await extractLastSummary(filePath);
 
     // Always signal an update so the (possibly empty) result is negative-cached:
@@ -451,7 +465,7 @@ export class SessionDiscoveryService {
     // Need to extract from JSONL
     const filePath = dockerEnabled
       ? getDockerSessionFile(this.stateDir, sessionId)
-      : getCliSessionFile(workingDirectory, sessionId);
+      : getCliSessionFile(workingDirectory, sessionId, this.claudeHomePath);
     const preview = await extractFirstMessagePreview(filePath);
 
     // Always signal an update so the (possibly empty) result is negative-cached:
@@ -496,7 +510,7 @@ export class SessionDiscoveryService {
     // Need to read the transcript's first line
     const filePath = dockerEnabled
       ? getDockerSessionFile(this.stateDir, sessionId)
-      : getCliSessionFile(workingDirectory, sessionId);
+      : getCliSessionFile(workingDirectory, sessionId, this.claudeHomePath);
     const isSidechain = await isSidechainSession(filePath);
 
     return { isSidechain, needsUpdate: true };
@@ -1273,7 +1287,7 @@ export class SessionDiscoveryService {
   ): string {
     return dockerEnabled
       ? getDockerSessionFile(this.stateDir, sessionId)
-      : getCliSessionFile(workingDirectory, sessionId);
+      : getCliSessionFile(workingDirectory, sessionId, this.claudeHomePath);
   }
 
   /**

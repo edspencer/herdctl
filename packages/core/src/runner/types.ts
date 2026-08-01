@@ -264,6 +264,17 @@ export interface SDKQueryOptions {
    * boundaries. Typed against the SDK's own `Options["hooks"]`.
    */
   hooks?: import("@anthropic-ai/claude-agent-sdk").Options["hooks"];
+  /**
+   * Environment for the Claude Code process the SDK spawns.
+   *
+   * Mirrors the SDK's own `Options["env"]`, including its sharp edge: when set,
+   * this **replaces** the subprocess environment entirely rather than merging
+   * with `process.env`, so whoever populates it must spread the inherited
+   * environment itself. Not set by `toSDKOptions`; injected by the SDK runtime
+   * to point Claude Code at the configured Claude home via `CLAUDE_CONFIG_DIR`
+   * (herdctl#423).
+   */
+  env?: Record<string, string | undefined>;
 }
 
 // =============================================================================

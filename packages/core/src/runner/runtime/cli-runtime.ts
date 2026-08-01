@@ -18,7 +18,9 @@ import { execa, type Subprocess } from "execa";
 import { createLogger } from "../../utils/logger.js";
 import { transformMcpServers } from "../sdk-adapter.js";
 import type { SDKMessage } from "../types.js";
+import { CLAUDE_CONFIG_DIR_VAR, resolveClaudeConfigDir } from "./claude-config-dir.js";
 import {
+  defaultClaudeHome,
   getCliSessionDir,
   getCliSessionFile,
   snapshotSessionFiles,
@@ -69,6 +71,25 @@ interface CLIRuntimeOptions {
    * container session files are visible (e.g., .herdctl/docker-sessions).
    */
   sessionDirOverride?: string;
+
+  /**
+   * Claude home directory to resolve native CLI transcript paths against.
+   *
+   * Defaults to {@link defaultClaudeHome} (`~/.claude`). Pass the home the
+   * embedding app resolved (e.g. `FleetManager.getClaudeHomePath()`) so the
+   * runtime watches the same transcripts session discovery lists — otherwise a
+   * non-default home makes the two disagree (herdctl#423).
+   *
+   * Strictly lower precedence than {@link sessionDirOverride}: the Docker path
+   * supplies an explicit host-side session directory that is not derived from a
+   * Claude home at all, and it continues to win outright.
+   *
+   * Used for two distinct things: this runtime's own transcript path math, and
+   * — via `CLAUDE_CONFIG_DIR` on the default spawner's environment — telling the
+   * spawned `claude` binary where its home is. The second is what makes the
+   * first true; a caller-supplied {@link processSpawner} owns its own env.
+   */
+  claudeHomePath?: string;
 }
 
 /**
@@ -104,19 +125,47 @@ interface CLIRuntimeOptions {
 export class CLIRuntime implements RuntimeInterface {
   private processSpawner: ProcessSpawner;
   private sessionDirOverride?: string;
+  /** Resolved Claude home; `~/.claude` unless the caller supplied one (#423). */
+  private claudeHomePath: string;
 
   constructor(options?: CLIRuntimeOptions) {
-    // Default to local execa spawning with prompt via stdin
+    this.sessionDirOverride = options?.sessionDirOverride;
+    this.claudeHomePath = options?.claudeHomePath ?? defaultClaudeHome();
+
+    // Default to local execa spawning with prompt via stdin.
+    //
+    // `claudeHomePath` alone only fixes herdctl's OWN path math — the spawned
+    // `claude` binary still resolves its home from `CLAUDE_CONFIG_DIR`, so
+    // without injecting it the CLI writes its transcript under `~/.claude`
+    // while this runtime snapshots and watches the configured home and sees
+    // nothing appear (herdctl#423). execa merges `env` over the inherited
+    // environment (`extendEnv` defaults to true), so this is a per-spawn
+    // addition, not a replacement, and never touches `process.env`.
+    //
+    // A caller-supplied `processSpawner` is left entirely alone: the only one
+    // in-tree is the Docker path, whose container has its own filesystem and
+    // its own Claude home (`/home/claude/.claude`, bind-mounted back to the
+    // host `docker-sessions` dir) — a host path would be meaningless there.
     this.processSpawner =
       options?.processSpawner ??
-      ((args, cwd, prompt, signal) =>
-        execa("claude", args, {
+      ((args, cwd, prompt, signal) => {
+        const configDir = resolveClaudeConfigDir(this.claudeHomePath);
+        return execa("claude", args, {
           cwd,
           input: prompt, // Provide prompt via stdin (required for -p mode)
           cancelSignal: signal,
-        }));
+          ...(configDir ? { env: { [CLAUDE_CONFIG_DIR_VAR]: configDir } } : {}),
+        });
+      });
+  }
 
-    this.sessionDirOverride = options?.sessionDirOverride;
+  /**
+   * The Claude home this runtime resolves native transcript paths against.
+   * Exposed for tests and for embedders asserting the home actually threaded
+   * through. Note `sessionDirOverride`, when set, bypasses it entirely.
+   */
+  getClaudeHomePath(): string {
+    return this.claudeHomePath;
   }
   /**
    * Execute an agent using the Claude CLI
@@ -396,9 +445,10 @@ export class CLIRuntime implements RuntimeInterface {
       logger.debug(`Working directory: ${cwd}`);
       logger.debug(`Agent working_directory config: ${JSON.stringify(working_directory)}`);
 
-      // Get the CLI session directory where files will be written
-      // Use override if provided (for Docker execution with mounted sessions)
-      const sessionDir = this.sessionDirOverride ?? getCliSessionDir(cwd);
+      // Get the CLI session directory where files will be written.
+      // Use override if provided (for Docker execution with mounted sessions);
+      // otherwise derive it from the configured Claude home (#423).
+      const sessionDir = this.sessionDirOverride ?? getCliSessionDir(cwd, this.claudeHomePath);
       logger.debug(`Session directory: ${sessionDir}`);
 
       // Record start time before spawning process
@@ -464,7 +514,7 @@ export class CLIRuntime implements RuntimeInterface {
         if (this.sessionDirOverride) {
           sessionFilePath = `${this.sessionDirOverride}/${options.resume}.jsonl`;
         } else {
-          sessionFilePath = getCliSessionFile(cwd, options.resume);
+          sessionFilePath = getCliSessionFile(cwd, options.resume, this.claudeHomePath);
         }
         logger.debug(`Resuming session, watching file: ${sessionFilePath}`);
       } else {

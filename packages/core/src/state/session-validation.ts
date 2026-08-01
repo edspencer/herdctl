@@ -39,6 +39,16 @@ export interface SessionFileCheckOptions {
    * Required for Docker session file lookups
    */
   sessionsDir?: string;
+
+  /**
+   * Claude home directory to resolve native CLI transcripts against.
+   *
+   * Defaults to `~/.claude`. Pass the same home the embedding app resolved (see
+   * `FleetManagerOptions.claudeHomePath`) so the existence check looks where the
+   * transcripts actually live — otherwise a non-default home makes every native
+   * session look missing (herdctl#423).
+   */
+  claudeHomePath?: string;
 }
 
 // =============================================================================
@@ -107,14 +117,18 @@ export const DEFAULT_SESSION_TIMEOUT_MS = 24 * 60 * 60 * 1000; // 24 hours
  *
  * @param workingDirectory - Working directory for the session
  * @param sessionId - Session ID to check
+ * @param claudeHomePath - Optional Claude home directory. Defaults to
+ *   `~/.claude`; pass the app-resolved home so the check agrees with discovery
+ *   (herdctl#423).
  * @returns true if the session file exists
  */
 export async function cliSessionFileExists(
   workingDirectory: string,
   sessionId: string,
+  claudeHomePath?: string,
 ): Promise<boolean> {
   try {
-    const sessionFile = getCliSessionFile(workingDirectory, sessionId);
+    const sessionFile = getCliSessionFile(workingDirectory, sessionId, claudeHomePath);
     await access(sessionFile);
     return true;
   } catch {
@@ -290,7 +304,11 @@ export async function validateSessionWithFileCheck(
       fileExists = await dockerSessionFileExists(options.sessionsDir, session.session_id);
     } else if (session.working_directory) {
       // Native CLI sessions are stored in ~/.claude/projects/
-      fileExists = await cliSessionFileExists(session.working_directory, session.session_id);
+      fileExists = await cliSessionFileExists(
+        session.working_directory,
+        session.session_id,
+        options?.claudeHomePath,
+      );
     } else {
       // No working directory and not Docker - skip file check
       return basicValidation;

@@ -67,6 +67,11 @@ export interface RunScheduleOptions {
   scheduleState: ScheduleState;
   /** Path to the state directory (e.g., .herdctl) */
   stateDir: string;
+  /**
+   * Claude home directory used to resolve native CLI transcript paths.
+   * Defaults to `~/.claude`; only the `cli` runtime consumes it (herdctl#423).
+   */
+  claudeHomePath?: string;
   /** Optional work source manager for fetching work items */
   workSourceManager?: WorkSourceManager;
   /** Optional logger */
@@ -237,6 +242,7 @@ export async function runSchedule(options: RunScheduleOptions): Promise<Schedule
     scheduleName,
     schedule,
     stateDir,
+    claudeHomePath,
     workSourceManager,
     logger = defaultLogger,
     executorOptions,
@@ -335,7 +341,7 @@ export async function runSchedule(options: RunScheduleOptions): Promise<Schedule
     }
 
     // Step 6: Execute the agent via JobExecutor
-    const runtime = RuntimeFactory.create(agent, { stateDir });
+    const runtime = RuntimeFactory.create(agent, { stateDir, claudeHomePath });
     const executor = new JobExecutor(runtime, executorOptions);
 
     const runnerResult = await executor.execute({
