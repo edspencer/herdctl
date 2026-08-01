@@ -40,8 +40,14 @@ const mockGetSidechain = vi.fn().mockResolvedValue(undefined);
 const mockBatchSetSidechains = vi.fn().mockResolvedValue(undefined);
 const mockGetUsage = vi.fn().mockResolvedValue(undefined);
 const mockSetUsage = vi.fn().mockResolvedValue(undefined);
-vi.mock("../session-metadata.js", () => {
+// Spread the ACTUAL module so the real `SessionMetadataUnreadableError` and
+// `isSessionMetadataUnreadableError` survive the mock — `persistCacheUpdates`
+// (in session-discovery) calls the guard, and mislabelling it would silently
+// break the #419 refusal path here. Only the store class is replaced.
+vi.mock("../session-metadata.js", async (importActual) => {
+  const actual = await importActual<typeof import("../session-metadata.js")>();
   return {
+    ...actual,
     SessionMetadataStore: class MockSessionMetadataStore {
       getCustomName = mockGetCustomName;
       getAutoName = mockGetAutoName;
@@ -67,6 +73,8 @@ import {
 // Import after mocks
 import { buildAttributionIndex } from "../session-attribution.js";
 import { SessionDiscoveryService } from "../session-discovery.js";
+// Resolves to the REAL class via the `...actual` spread in the mock above.
+import { SessionMetadataUnreadableError } from "../session-metadata.js";
 
 const mockBuildAttributionIndex = vi.mocked(buildAttributionIndex);
 const mockExtractFirstMessagePreview = vi.mocked(extractFirstMessagePreview);
@@ -726,6 +734,80 @@ describe("SessionDiscoveryService", () => {
         const sessions = await service.getAgentSessions("my-agent", workingDir, true);
         expect(sessions.map((s) => s.sessionId)).toEqual(["session-docker"]);
       });
+    });
+  });
+
+  // ===========================================================================
+  // #419 × #424 composition
+  //
+  // #419 makes the metadata setters THROW `SessionMetadataUnreadableError`
+  // instead of silently replacing an unreadable file with an empty one. #424
+  // (#428) wraps per-entry *read* enrichment in try/catch and skips the bad
+  // entry. These must compose so a refused *write* is handled downstream by
+  // `persistCacheUpdates` (warn, keep the listing) and is NOT swallowed by the
+  // per-entry read guard — which would drop the session and mislabel a data-
+  // preserving write refusal as a skipped unreadable entry.
+  //
+  // The write is issued AFTER the per-entry enrichment loop, so its throw lands
+  // in `persistCacheUpdates`, not the read guard. If a future refactor moved the
+  // metadata write inside `enrichAgentSession` (inside the read guard), these go
+  // red: the session would vanish from the listing.
+  // ===========================================================================
+  describe("#419 × #424 composition — a refused metadata write keeps the listing intact", () => {
+    it("getAgentSessions still returns the session when its cache write is refused as unreadable", async () => {
+      const workingDir = "/Users/ed/Code/myproject";
+      const encodedPath = "-Users-ed-Code-myproject";
+      const projectDir = join(tempClaudeHome, "projects", encodedPath);
+      await mkdir(projectDir, { recursive: true });
+      await createSessionFile(projectDir, "session-abc");
+
+      // Warming the derived caches for this good session tries to persist the
+      // freshly-extracted autoName; the store refuses because the metadata file
+      // is unreadable (rather than clobbering it — #419).
+      mockBatchSetAutoNames.mockRejectedValue(
+        new SessionMetadataUnreadableError("my-agent", "corrupt"),
+      );
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      // Must not reject, and must not drop the (successfully read) session.
+      const sessions = await service.getAgentSessions("my-agent", workingDir, false);
+
+      expect(sessions.map((s) => s.sessionId)).toEqual(["session-abc"]);
+      // The write was actually attempted (so the refusal really was exercised).
+      expect(mockBatchSetAutoNames).toHaveBeenCalled();
+    });
+
+    it("getAllSessions keeps the session and its sessionCount when a cache write is refused", async () => {
+      const workingDir = "/Users/ed/Code/myproject";
+      const encodedPath = "-Users-ed-Code-myproject";
+      const projectDir = join(tempClaudeHome, "projects", encodedPath);
+      await mkdir(projectDir, { recursive: true });
+      await createSessionFile(projectDir, "session-abc");
+
+      mockBatchSetAutoNames.mockRejectedValue(
+        new SessionMetadataUnreadableError("my-agent", "corrupt"),
+      );
+
+      const service = new SessionDiscoveryService({
+        claudeHomePath: tempClaudeHome,
+        stateDir: tempStateDir,
+      });
+
+      const groups = await service.getAllSessions([
+        { name: "my-agent", workingDirectory: workingDir, dockerEnabled: false },
+      ]);
+
+      const group = groups.find((g) => g.encodedPath === encodedPath);
+      expect(group).toBeDefined();
+      expect(group!.sessions.map((s) => s.sessionId)).toEqual(["session-abc"]);
+      // A refused *write* is not a skipped *read* entry: the visible count still
+      // reflects the session that was successfully read and returned.
+      expect(group!.sessionCount).toBe(1);
+      expect(mockBatchSetAutoNames).toHaveBeenCalled();
     });
   });
 
