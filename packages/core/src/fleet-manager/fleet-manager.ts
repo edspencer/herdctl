@@ -969,13 +969,18 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
    */
   async listAdoptableSessions(name: string, fromWorkingDir?: string): Promise<AdoptableSession[]> {
     const { agent, workingDirectory } = this.resolveAgentForSessions(name, "listAdoptableSessions");
-    const agentWorkingDirectory = workingDirectory ?? fromWorkingDir;
-    if (!agentWorkingDirectory) {
+    // NOT necessarily the agent's own directory: discovery uses this argument
+    // purely as the default to scan when no explicit source is given, so a
+    // directory-less agent can still browse an explicit one. (Adoption proper
+    // cannot — see `adoptSessionsFrom`, which needs the agent's own folder as a
+    // destination and returns empty without one.)
+    const scanBaseDirectory = workingDirectory ?? fromWorkingDir;
+    if (!scanBaseDirectory) {
       return [];
     }
     return this.getSessionDiscovery().listAdoptableSessions(
       agent.qualifiedName,
-      agentWorkingDirectory,
+      scanBaseDirectory,
       fromWorkingDir,
     );
   }
@@ -992,7 +997,9 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
    * `mode` defaults to `"copy"`, so the user's original `~/.claude` transcripts
    * are never mutated unless they explicitly ask for `"move"` or `"link"`.
    * Copies preserve the source mtime (it drives both list ordering and the
-   * metadata caches). Existing destination files are never overwritten.
+   * metadata caches). Existing destination files are never overwritten — every
+   * mode creates the destination exclusively, so an occupied destination is a
+   * `"destination-exists"` skip even when it becomes occupied after the check.
    *
    * Every candidate that is not adopted appears in `skipped` with a reason
    * (`"sidechain"`, `"already-adopted"`, `"destination-exists"`,
@@ -1000,7 +1007,8 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
    * `"record-failed"`), and one bad transcript never aborts the batch.
    *
    * With `dryRun: true` nothing at all is written — no transcripts placed, no
-   * adoption records — and the result describes what would have happened.
+   * adoption records, not even a metadata cache file — and the result describes
+   * what would have happened.
    *
    * Placement targets the CLI transcript folder, so this is for non-Docker
    * agents; a Docker-wrapped agent reads its sessions from
@@ -1009,6 +1017,14 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
    *
    * @param name - The agent qualified or local name
    * @param opts - Source directory, placement mode, dry-run
+   * @returns The adopted and skipped session ids. **Empty** when the agent has
+   *   no configured `working_directory`, even if `opts.fromWorkingDir` is given:
+   *   placement needs the agent's own transcript folder as the destination, and
+   *   {@link getAgentSessions} is scoped to that same directory, so there is
+   *   nowhere to place the transcripts and nowhere they would then appear.
+   *   {@link listAdoptableSessions} deliberately differs — it falls back to
+   *   `fromWorkingDir` — so it can list candidates this method adopts none of.
+   *   Use {@link adoptSession} to claim sessions for a directory-less agent.
    * @throws {InvalidStateError} If the fleet manager is not yet initialized
    * @throws {AgentNotFoundError} If no agent with that name exists
    */

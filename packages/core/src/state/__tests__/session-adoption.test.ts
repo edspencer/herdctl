@@ -12,7 +12,18 @@
  * exist on disk.
  */
 
-import { mkdir, mkdtemp, readdir, rm, stat, utimes, writeFile } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  symlink,
+  utimes,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,6 +32,7 @@ import { FleetManager } from "../../fleet-manager/fleet-manager.js";
 import { encodePathForCli } from "../../runner/runtime/cli-session-path.js";
 import { getAdoptedSessionsDir, getAdoption, listAdoptions } from "../adopted-sessions.js";
 import { SessionDiscoveryService } from "../session-discovery.js";
+import { PathTraversalError } from "../utils/path-safety.js";
 
 const AGENT = "keeper";
 
@@ -237,9 +249,15 @@ describe("session adoption (herdctl#423)", () => {
 
       expect(result.adopted).toEqual(["sess-link"]);
       const source = await stat(path.join(dirFor(otherDir), "sess-link.jsonl"));
-      const dest = await stat(path.join(dirFor(agentDir), "sess-link.jsonl"));
+      // lstat, not stat: stat() follows a symlink, so a symlink placement would
+      // report the source's own inode and pass the identity check below. The
+      // documented behaviour is a HARD link, with symlink only as the
+      // cross-device fallback.
+      const dest = await lstat(path.join(dirFor(agentDir), "sess-link.jsonl"));
       expect(await exists(path.join(dirFor(otherDir), "sess-link.jsonl"))).toBe(true);
+      expect(dest.isSymbolicLink()).toBe(false);
       expect(dest.ino).toBe(source.ino);
+      expect(dest.nlink).toBe(2);
     });
 
     it("records attribution without moving anything when the source is the agent's own folder", async () => {
@@ -294,6 +312,63 @@ describe("session adoption (herdctl#423)", () => {
       expect(after.size).toBe(before.size);
       expect(after.mtimeMs).toBe(before.mtimeMs);
       expect(await getAdoption(stateDir, "sess-dup")).toBeNull();
+    });
+
+    it("never clobbers an existing transcript when moving", async () => {
+      // `move` is the dangerous mode: it is the one that also destroys the
+      // source, so a clobber here loses BOTH copies of a chat.
+      await writeTranscript(otherDir, "sess-dup", { text: "the source version" });
+      await writeTranscript(agentDir, "sess-dup", { text: "the destination version" });
+      const sourceFile = path.join(dirFor(otherDir), "sess-dup.jsonl");
+      const destFile = path.join(dirFor(agentDir), "sess-dup.jsonl");
+
+      const result = await makeService().adoptSessionsFrom(AGENT, agentDir, {
+        fromWorkingDir: otherDir,
+        mode: "move",
+      });
+
+      expect(result.adopted).toEqual([]);
+      expect(result.skipped[0]).toMatchObject({
+        sessionId: "sess-dup",
+        reason: "destination-exists",
+      });
+      expect(await readFile(destFile, "utf8")).toContain("the destination version");
+      // ...and the source the user asked us to move is still there too.
+      expect(await readFile(sourceFile, "utf8")).toContain("the source version");
+      expect(await getAdoption(stateDir, "sess-dup")).toBeNull();
+    });
+
+    it("refuses to move onto a destination the existence pre-check cannot see", async () => {
+      // A dangling symlink is a destination `stat()` reports as ENOENT, so the
+      // caller's pre-check waves it through. It is exactly what an earlier
+      // cross-device `mode: "link"` placement leaves behind once the user
+      // deletes the original, and it stands in here for the general case: the
+      // pre-check is an optimisation, and never-clobber has to be enforced by
+      // the placement syscall itself. `rename` does not enforce it — it
+      // replaces the destination silently — so a move used to consume the
+      // source and report success.
+      await writeTranscript(otherDir, "sess-ghost", { text: "the only copy" });
+      const sourceFile = path.join(dirFor(otherDir), "sess-ghost.jsonl");
+      const destFile = path.join(dirFor(agentDir), "sess-ghost.jsonl");
+      await mkdir(dirFor(agentDir), { recursive: true });
+      await symlink(path.join(dirFor(agentDir), "vanished.jsonl"), destFile);
+      expect(await exists(destFile)).toBe(false); // stat() follows and fails
+
+      const result = await makeService().adoptSessionsFrom(AGENT, agentDir, {
+        fromWorkingDir: otherDir,
+        mode: "move",
+      });
+
+      expect(result.adopted).toEqual([]);
+      expect(result.skipped[0]).toMatchObject({
+        sessionId: "sess-ghost",
+        reason: "destination-exists",
+      });
+      // The user's only copy of the transcript survives...
+      expect(await readFile(sourceFile, "utf8")).toContain("the only copy");
+      // ...and the occupied destination entry was not replaced.
+      expect((await lstat(destFile)).isSymbolicLink()).toBe(true);
+      expect(await getAdoption(stateDir, "sess-ghost")).toBeNull();
     });
 
     it("reports sidechain, already-adopted and attributed-to-run skips by reason", async () => {
@@ -394,6 +469,12 @@ describe("session adoption (herdctl#423)", () => {
       // ...and no adoption record written (the store dir isn't even created).
       expect(await listAdoptions(stateDir)).toEqual([]);
       expect(await exists(getAdoptedSessionsDir(stateDir))).toBe(false);
+      // ...and not so much as a cache file. `sess-side` has to be classified as
+      // a sidechain to be skipped, and that classification used to be written
+      // straight back to `session-metadata/<agent>.json` — a dry run that
+      // creates a file, contradicting the documented "nothing at all is
+      // written". The whole state dir must be untouched.
+      expect(await readdir(stateDir)).toEqual([]);
 
       // And a real run afterwards still does the work.
       const real = await makeService().adoptSessionsFrom(AGENT, agentDir, {
@@ -498,6 +579,19 @@ describe("session adoption (herdctl#423)", () => {
       const sessions = await manager.getAgentSessions(AGENT);
       expect(sessions.map((s) => s.sessionId)).toEqual(["sess-inplace"]);
       expect(sessions[0].origin).toBe("adopted");
+    });
+
+    it("rejects a traversal session id on both the adopt and the unadopt path", async () => {
+      const manager = await buildManager();
+
+      // Session ids reach these two methods straight from user input (CLI args,
+      // HTTP bodies), and both of them turn one into a file path in the
+      // adoption store.
+      await expect(manager.adoptSession(AGENT, "../../escape")).rejects.toThrow(PathTraversalError);
+      await expect(manager.unadoptSession(AGENT, "../../escape")).rejects.toThrow(
+        PathTraversalError,
+      );
+      expect(await exists(getAdoptedSessionsDir(stateDir))).toBe(false);
     });
 
     it("will not let one agent release another agent's adoption", async () => {

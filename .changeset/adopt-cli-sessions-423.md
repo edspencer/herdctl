@@ -42,11 +42,18 @@ build rather than mtime-cached.
   a directory. `mode` defaults to `"copy"`, so the user's original `~/.claude`
   transcripts are never mutated unless they ask for `"move"` or `"link"`. Copies
   preserve the source mtime, which drives both list ordering and every metadata
-  cache key. Existing destination files are never overwritten. Every
+  cache key. Existing destination files are never overwritten: every mode
+  creates the destination exclusively (`COPYFILE_EXCL` for a copy, `link()` for
+  the other two — `move` deliberately avoids `rename()`, which replaces an
+  existing destination silently), so an occupied destination is a skip even when
+  it is occupied by something the caller's pre-check cannot see. Every
   non-adopted candidate appears in `skipped` with a reason (`"sidechain"`,
   `"already-adopted"`, `"destination-exists"`, `"attributed-to-run"`,
   `"unreadable"`, `"placement-failed"`, `"record-failed"`), and one bad
-  transcript never aborts the batch. `dryRun: true` writes nothing.
+  transcript never aborts the batch. `dryRun: true` writes nothing — not even
+  the sidechain metadata cache. Returns an empty result when the agent has no
+  configured `working_directory`, even with an explicit `fromWorkingDir`: there
+  is no destination folder to place transcripts into.
 - `unadoptSession(name, sessionId)` — release a claim; the transcript stays on
   disk. Returns `false` when the session isn't adopted or is adopted by a
   *different* agent, so one agent cannot drop another's claim.

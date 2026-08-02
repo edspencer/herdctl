@@ -7,17 +7,7 @@
  */
 
 import { constants as fsConstants } from "node:fs";
-import {
-  copyFile,
-  link,
-  mkdir,
-  readdir,
-  rename,
-  stat,
-  symlink,
-  unlink,
-  utimes,
-} from "node:fs/promises";
+import { copyFile, link, mkdir, readdir, stat, symlink, unlink, utimes } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -1432,10 +1422,16 @@ export class SessionDiscoveryService {
    * Shared by {@link listAdoptableSessions} (which only wants the candidates)
    * and {@link adoptSessionsFrom} (which reports the skips), so the two can
    * never disagree about what "adoptable" means.
+   *
+   * @param options.persistSidechainCache - Write freshly-computed sidechain
+   *   flags back to the metadata cache. Defaults to `true`. A dry run passes
+   *   `false`: `adoptSessionsFrom({ dryRun: true })` promises to write nothing
+   *   at all, and a cache file is still a file appearing on disk.
    */
   private async scanAdoptionCandidates(
     agentName: string,
     fromWorkingDir: string,
+    options?: { persistSidechainCache?: boolean },
   ): Promise<{
     sourceDir: string;
     candidates: Array<{ sessionId: string; mtime: string; size: number }>;
@@ -1524,16 +1520,21 @@ export class SessionDiscoveryService {
       }
     }
 
-    // Persist any freshly-computed sidechain flags (this is a cache write, not
-    // an adoption write — it happens under dryRun too, and is harmless: it only
-    // memoizes a fact already true of the transcript on disk).
+    // Persist any freshly-computed sidechain flags. This is a pure cache write
+    // — it only memoizes a fact already true of the transcript on disk — but a
+    // dry run suppresses it anyway (`persistSidechainCache: false`), because
+    // "dryRun writes nothing at all" is a contract we state in the JSDoc, the
+    // docs and the changeset, and a caller previewing against a read-only or
+    // pristine state dir would be entitled to hold us to it. The cost of
+    // honouring it is one re-read of each candidate's first line on the next
+    // real call.
     //
     // Wrapped in persistCacheUpdates so a metadata file that the store refuses
     // to overwrite (issue #419) degrades to a cold cache rather than aborting
     // the scan — and with it both `listAdoptableSessions` and
     // `adoptSessionsFrom`, which would otherwise fail to adopt anything because
     // one unrelated cache file is corrupt.
-    if (sidechainUpdates.length > 0) {
+    if (sidechainUpdates.length > 0 && options?.persistSidechainCache !== false) {
       await this.persistCacheUpdates(() =>
         this.sessionMetadataStore.batchSetSidechains(agentName, sidechainUpdates),
       );
@@ -1690,8 +1691,17 @@ export class SessionDiscoveryService {
    * sidechain, so a copy stamped "now" would shove a months-old chat to the top
    * of the user's list and needlessly invalidate three caches.
    *
-   * `copyFile` runs with `COPYFILE_EXCL` so the never-clobber guarantee holds
-   * even against a racing writer, not just against the caller's pre-check.
+   * **Every mode creates the destination exclusively**, so the never-clobber
+   * guarantee is enforced by the syscall rather than by the caller's pre-check:
+   * `copyFile` runs with `COPYFILE_EXCL`, and `link`/`symlink` fail `EEXIST` of
+   * their own accord. `move` therefore does NOT use `rename`, which silently
+   * replaces an existing destination on every platform — it hard-links and then
+   * unlinks the source, which is the same net effect (one inode, mtime carried
+   * for free) but refuses an occupied destination. The caller's `stat` pre-check
+   * is an optimisation that produces a tidier skip reason; it is not the
+   * guarantee, and on its own it would lose both to a racing writer and to a
+   * destination `stat` cannot see (a dangling symlink left behind by an earlier
+   * cross-device `link` placement reads as ENOENT).
    */
   private async placeTranscript(
     sourceFile: string,
@@ -1713,21 +1723,53 @@ export class SessionDiscoveryService {
     }
 
     if (mode === "move") {
+      let linked = false;
       try {
-        await rename(sourceFile, destFile);
-        return;
+        await link(sourceFile, destFile);
+        linked = true;
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "EXDEV") throw error;
-        // Cross-device move: fall through to copy-then-unlink.
+        // Same-filesystem move: the link is the move. EXDEV/EPERM mean this
+        // filesystem pair can't do it, so fall through to copy-then-unlink,
+        // which is exclusive too.
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== "EXDEV" && code !== "EPERM") throw error;
+      }
+
+      if (linked) {
+        try {
+          await unlink(sourceFile);
+        } catch (error) {
+          // The second name landed but the original survives. Drop the link we
+          // just made, or the destination folder keeps a transcript that no
+          // adoption record owns and that every later retry reports as
+          // `destination-exists`.
+          await unlink(destFile).catch(() => {});
+          throw error;
+        }
+        return;
       }
     }
 
     const stats = await stat(sourceFile);
     await copyFile(sourceFile, destFile, fsConstants.COPYFILE_EXCL);
-    await utimes(destFile, stats.atime, stats.mtime);
+
+    try {
+      await utimes(destFile, stats.atime, stats.mtime);
+    } catch (error) {
+      // Cosmetic only: mtime drives sort order and the cache keys, not
+      // correctness. Don't fail an otherwise-complete placement for it.
+      logger.warn(
+        `Adopted transcript ${destFile} kept its copy mtime: ${(error as Error).message}`,
+      );
+    }
 
     if (mode === "move") {
-      await unlink(sourceFile);
+      try {
+        await unlink(sourceFile);
+      } catch (error) {
+        await unlink(destFile).catch(() => {});
+        throw error;
+      }
     }
   }
 
@@ -1769,6 +1811,9 @@ export class SessionDiscoveryService {
     const { sourceDir, candidates, skipped } = await this.scanAdoptionCandidates(
       agentName,
       fromWorkingDir,
+      // A dry run must not even warm the sidechain cache — see the contract
+      // note on this method and on `scanAdoptionCandidates`.
+      { persistSidechainCache: !dryRun },
     );
 
     const destDir = this.transcriptDirFor(agentWorkingDirectory);
@@ -1790,6 +1835,12 @@ export class SessionDiscoveryService {
       if (!inPlace) {
         // Never clobber: an existing transcript with this id in the destination
         // belongs to the agent already and may have turns the source doesn't.
+        //
+        // This is the cheap pre-check, NOT the guarantee: it can't see a
+        // destination `stat` fails on (a dangling symlink) and it can't see a
+        // writer that arrives after it. `placeTranscript` creates the
+        // destination exclusively in every mode, and an EEXIST from it is
+        // mapped back to the same skip reason below.
         let destExists = true;
         try {
           await stat(destFile);
@@ -1808,8 +1859,9 @@ export class SessionDiscoveryService {
             const code = (error as NodeJS.ErrnoException).code;
             skipped.push({
               sessionId,
-              // A racing writer that won the COPYFILE_EXCL is still a
-              // "don't clobber" outcome, not a mystery failure.
+              // A destination the pre-check couldn't see — a racing writer, or
+              // a dangling symlink — is still a "don't clobber" outcome, not a
+              // mystery failure.
               reason: code === "EEXIST" ? "destination-exists" : "placement-failed",
               detail: `${mode}: ${(error as Error).message}`,
             });

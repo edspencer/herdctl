@@ -1227,9 +1227,11 @@ Placement modes:
 | `move` | Relocate the file. It disappears from the user's terminal history |
 | `link` | Hard-link (symlink across devices). One inode, so a resume appends to the user's original too |
 
-`copy` is the default so originals are never mutated unless explicitly requested. Copies preserve the source mtime because mtime drives both list ordering and every metadata cache key. Existing destination files are never overwritten.
+`copy` is the default so originals are never mutated unless explicitly requested. Copies preserve the source mtime because mtime drives both list ordering and every metadata cache key. Existing destination files are never overwritten: every mode creates the destination *exclusively* (`COPYFILE_EXCL` for a copy, `link`/`symlink` for the other two), so a transcript already at the destination is skipped as `destination-exists` even if it arrives between the check and the placement.
 
 One bad transcript never aborts the batch — it lands in `skipped` with a reason a UI can show verbatim.
+
+Returns `{ adopted: [], skipped: [] }` when the agent has no configured `working_directory`, **even if `fromWorkingDir` is given**. Placement needs the agent's own transcript folder as the destination, and per-agent session listing is scoped to that same directory, so there is nowhere to put the transcripts and nowhere they would then show up. [`listAdoptableSessions`](#listadoptablesessionsname-fromworkingdir) differs here — it falls back to `fromWorkingDir` — so it can list candidates that `adoptSessionsFrom` will then adopt none of. Give the agent a `working_directory`, or claim sessions individually with [`adoptSession`](#adoptsessionname-sessionid-opts), which moves no files and so needs none.
 
 Placement targets the CLI transcript folder, so this is for non-Docker agents. A Docker-wrapped agent reads its sessions from `<stateDir>/docker-sessions/` and should claim them with [`adoptSession`](#adoptsessionname-sessionid-opts).
 
