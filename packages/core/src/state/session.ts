@@ -37,6 +37,19 @@ export interface SessionOptions {
    * If "sdk" or undefined, only validates expiration (no file check).
    */
   runtime?: "cli" | "sdk";
+  /**
+   * Claude home directory to resolve native CLI transcripts against.
+   *
+   * Only consulted when `runtime` is "cli", which is the only case that probes
+   * the filesystem. Defaults to `~/.claude`; pass the home the embedding app
+   * resolved (see `FleetManagerOptions.claudeHomePath`) so the existence check
+   * looks where the transcripts actually live.
+   *
+   * Omitting it under a non-default home makes every valid CLI session look
+   * `file_not_found` — and this function CLEARS sessions it judges stale, so the
+   * pointer is destroyed, not merely skipped (herdctl#423).
+   */
+  claudeHomePath?: string;
 }
 
 /**
@@ -141,7 +154,10 @@ export async function getSessionInfo(
     // For SDK runtime (or unspecified), only check expiration
     const validation =
       options.runtime === "cli"
-        ? await validateSessionWithFileCheck(session, timeout, { sessionsDir })
+        ? await validateSessionWithFileCheck(session, timeout, {
+            sessionsDir,
+            claudeHomePath: options.claudeHomePath,
+          })
         : validateSession(session, timeout);
 
     if (!validation.valid) {

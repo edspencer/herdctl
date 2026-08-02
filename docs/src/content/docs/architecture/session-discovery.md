@@ -11,7 +11,7 @@ All session discovery logic lives in `@herdctl/core` (the `packages/core/src/sta
 
 ## Module Overview
 
-The subsystem is composed of five modules, each handling a distinct concern. They layer on top of each other, with the `SessionDiscoveryService` orchestrating the rest.
+The subsystem is composed of seven modules, each handling a distinct concern. They layer on top of each other, with the `SessionDiscoveryService` orchestrating the rest.
 
 | Module | File | Purpose |
 |--------|------|---------|

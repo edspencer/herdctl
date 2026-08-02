@@ -21,7 +21,7 @@
  * and we assert the content actually comes back.
  */
 
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -32,8 +32,9 @@ import {
   getCliSessionDir,
   getCliSessionFile,
 } from "../../runner/runtime/cli-session-path.js";
+import { getSessionInfo } from "../session.js";
 import { SessionDiscoveryService } from "../session-discovery.js";
-import { cliSessionFileExists } from "../session-validation.js";
+import { cliSessionFileExists, validateSessionWithFileCheck } from "../session-validation.js";
 
 const SESSION_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 
@@ -211,6 +212,101 @@ describe("Claude home is a single source of truth (herdctl#423)", () => {
       // Sanity: nothing was written to the real ~/.claude, so the un-threaded
       // call must NOT find it. This is what made the old behaviour wrong.
       expect(await cliSessionFileExists(workDir, SESSION_ID)).toBe(false);
+    });
+  });
+
+  /**
+   * The resume-fallback path: before a run resumes an agent's stored session,
+   * `getSessionInfo(..., { runtime: "cli", timeout })` asks
+   * `validateSessionWithFileCheck` whether the transcript is still on disk.
+   *
+   * `validateSessionWithFileCheck` accepts a `claudeHomePath`, but `SessionOptions`
+   * had no way to carry one, so `getSessionInfo` always passed `{ sessionsDir }`.
+   * Under a non-default home the check looked in `~/.claude`, found nothing, and
+   * declared a perfectly good session `file_not_found` — which does not merely
+   * skip the resume, it DELETES the session pointer as "stale".
+   */
+  describe("getSessionInfo resume-fallback validation (CLI runtime)", () => {
+    const AGENT = "keeper";
+    let sessionsDir: string;
+    let pointerFile: string;
+
+    /** Silences the "clearing stale session" warning this path emits. */
+    const silent = { warn: () => {} };
+
+    beforeEach(async () => {
+      sessionsDir = path.join(stateDir, "sessions");
+      pointerFile = path.join(sessionsDir, `${AGENT}.json`);
+      await mkdir(sessionsDir, { recursive: true });
+      const now = new Date().toISOString();
+      await writeFile(
+        pointerFile,
+        JSON.stringify({
+          agent_name: AGENT,
+          session_id: SESSION_ID,
+          created_at: now,
+          last_used_at: now,
+          job_count: 1,
+          mode: "autonomous",
+          working_directory: workDir,
+          runtime_type: "cli",
+          docker_enabled: false,
+        }),
+      );
+    });
+
+    it("validateSessionWithFileCheck honours the supplied home", async () => {
+      const session = await getSessionInfo(sessionsDir, AGENT);
+      expect(session).not.toBeNull();
+
+      await expect(
+        validateSessionWithFileCheck(session, "24h", { sessionsDir, claudeHomePath: claudeHome }),
+      ).resolves.toMatchObject({ valid: true });
+
+      // Control: the same session, resolved against the default home, is "missing".
+      await expect(
+        validateSessionWithFileCheck(session, "24h", { sessionsDir }),
+      ).resolves.toMatchObject({ valid: false, reason: "file_not_found" });
+    });
+
+    it("sees the transcript in the configured home and keeps the session", async () => {
+      const session = await getSessionInfo(sessionsDir, AGENT, {
+        timeout: "24h",
+        runtime: "cli",
+        claudeHomePath: claudeHome,
+        logger: silent,
+      });
+
+      // THE regression: without the home threaded through `SessionOptions` this
+      // returned null, and a valid CLI session silently became un-resumable.
+      expect(session?.session_id).toBe(SESSION_ID);
+      // ...and the pointer survives.
+      await expect(access(pointerFile)).resolves.toBeUndefined();
+    });
+
+    it("reports the session missing (and clears it) when no home is threaded", async () => {
+      // The control that proves the assertion above came from the alternate home:
+      // nothing was ever written to the real `~/.claude`.
+      const session = await getSessionInfo(sessionsDir, AGENT, {
+        timeout: "24h",
+        runtime: "cli",
+        logger: silent,
+      });
+
+      expect(session).toBeNull();
+      // The destructive half of the bug: the pointer is deleted as "stale".
+      await expect(access(pointerFile)).rejects.toThrow();
+    });
+
+    it("leaves the SDK runtime untouched (no file check at all)", async () => {
+      // Guards against "fixing" this by making the file check unconditional.
+      const session = await getSessionInfo(sessionsDir, AGENT, {
+        timeout: "24h",
+        runtime: "sdk",
+        logger: silent,
+      });
+
+      expect(session?.session_id).toBe(SESSION_ID);
     });
   });
 

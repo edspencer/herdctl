@@ -124,6 +124,20 @@ export interface RuntimeInterface {
    * @returns A live session handle
    */
   openSession?(options: RuntimeExecuteOptions): RuntimeSession;
+
+  /**
+   * The Claude home this runtime reads and writes transcripts in (optional).
+   *
+   * Both first-party runtimes resolve a home — one explicitly passed, or
+   * `~/.claude` by default — and expose it here so callers can do transcript
+   * path arithmetic against the SAME home the runtime will actually use, instead
+   * of re-deriving `~/.claude` and silently disagreeing with it (herdctl#423).
+   *
+   * Left undefined by runtimes that own no host-side Claude home (e.g.
+   * `ContainerRunner`, whose home lives inside the container); callers should
+   * feature-detect and fall back to the default.
+   */
+  getClaudeHomePath?(): string;
 }
 
 /**
