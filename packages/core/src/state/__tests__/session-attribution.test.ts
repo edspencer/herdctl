@@ -5,7 +5,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import yaml from "yaml";
 import { recordAdoption } from "../adopted-sessions.js";
 import type { JobMetadata, JobStatus, TriggerType } from "../schemas/job-metadata.js";
-import { AttributionIndexBuilder, buildAttributionIndex } from "../session-attribution.js";
+import {
+  AttributionIndexBuilder,
+  attributionAfterAdoptionBy,
+  buildAttributionIndex,
+  canAgentAdopt,
+  isOwnedByAgent,
+  isUnattributed,
+  type SessionAttribution,
+} from "../session-attribution.js";
 
 // Mock listJobs
 vi.mock("../job-metadata.js", () => ({
@@ -1040,5 +1048,129 @@ describe("AttributionIndexBuilder (incremental)", () => {
     index = await builder.build(tempDir);
     expect(index.getAttribute("sess-1").agentName).toBeUndefined();
     expect(index.size).toBe(0);
+  });
+});
+
+// =============================================================================
+// Ownership predicates (herdctl#437)
+// =============================================================================
+
+describe("ownership predicates", () => {
+  const nativeUnowned: SessionAttribution = {
+    origin: "native",
+    agentName: undefined,
+    triggerType: undefined,
+  };
+  /** The shape that caused #437: a real job record whose trigger folds to native. */
+  const siblingJob: SessionAttribution = {
+    origin: "native",
+    agentName: "sweeper-x",
+    triggerType: "chat",
+  };
+  const ownJob: SessionAttribution = {
+    origin: "native",
+    agentName: "keeper-x",
+    triggerType: "chat",
+  };
+  const webRun: SessionAttribution = {
+    origin: "web",
+    agentName: "sweeper-x",
+    triggerType: "web",
+  };
+  const adoptedBySibling: SessionAttribution = {
+    origin: "adopted",
+    agentName: "sweeper-x",
+    triggerType: undefined,
+  };
+
+  describe("isUnattributed", () => {
+    it("is true only when nobody owns the session", () => {
+      expect(isUnattributed(nativeUnowned)).toBe(true);
+    });
+
+    it("is false for a sibling's job record even though its origin is native", () => {
+      // This is the whole bug: `origin === "native"` is NOT "unattributed".
+      expect(siblingJob.origin).toBe("native");
+      expect(isUnattributed(siblingJob)).toBe(false);
+    });
+
+    it.each([
+      ["own job record", ownJob],
+      ["web run", webRun],
+      ["prior adoption", adoptedBySibling],
+    ] as const)("is false for a %s", (_label, attribution) => {
+      expect(isUnattributed(attribution)).toBe(false);
+    });
+  });
+
+  describe("canAgentAdopt", () => {
+    it("refuses a session a sibling agent owns via a job record", () => {
+      expect(canAgentAdopt(siblingJob, "keeper-x")).toBe(false);
+    });
+
+    it("refuses a session a sibling agent owns via a platform binding", () => {
+      expect(canAgentAdopt(webRun, "keeper-x")).toBe(false);
+    });
+
+    it("allows an unattributed session", () => {
+      expect(canAgentAdopt(nativeUnowned, "keeper-x")).toBe(true);
+    });
+
+    it("allows re-claiming a session the agent already owns", () => {
+      expect(canAgentAdopt(ownJob, "keeper-x")).toBe(true);
+    });
+
+    it("allows taking over a session another agent had merely adopted", () => {
+      // `recordAdoption` overwrites, so adoption records do not outrank a later
+      // adoption the way job and platform records do.
+      expect(canAgentAdopt(adoptedBySibling, "keeper-x")).toBe(true);
+    });
+  });
+
+  describe("the two gates cannot disagree", () => {
+    const ALL: SessionAttribution[] = [
+      nativeUnowned,
+      siblingJob,
+      ownJob,
+      webRun,
+      adoptedBySibling,
+      { origin: "schedule", agentName: "sweeper-x", triggerType: "schedule" },
+      { origin: "discord", agentName: "sweeper-x", triggerType: undefined },
+      { origin: "native", agentName: "sweeper-x", triggerType: "manual" },
+      { origin: "native", agentName: "sweeper-x", triggerType: "webhook" },
+      { origin: "native", agentName: "sweeper-x", triggerType: "fork" },
+    ];
+
+    it("anything the scan offers, the adopt path accepts", () => {
+      // isUnattributed ⇒ canAgentAdopt. Violating this is exactly the #437
+      // failure mode: a candidate offered by the scan that the write path
+      // cannot honour.
+      for (const attribution of ALL) {
+        if (isUnattributed(attribution)) {
+          expect(canAgentAdopt(attribution, "keeper-x")).toBe(true);
+        }
+      }
+    });
+
+    it("anything the adopt path accepts is then visible to the adopting agent", () => {
+      // canAgentAdopt ⇒ the listing gate passes afterwards. This is what makes
+      // an accepted adoption non-inert by construction.
+      for (const attribution of ALL) {
+        if (canAgentAdopt(attribution, "keeper-x")) {
+          expect(
+            isOwnedByAgent(attributionAfterAdoptionBy(attribution, "keeper-x"), "keeper-x"),
+          ).toBe(true);
+        }
+      }
+    });
+
+    it("anything the adopt path refuses stays with its existing owner", () => {
+      for (const attribution of ALL) {
+        if (!canAgentAdopt(attribution, "keeper-x")) {
+          expect(attributionAfterAdoptionBy(attribution, "keeper-x")).toEqual(attribution);
+          expect(isOwnedByAgent(attribution, "keeper-x")).toBe(false);
+        }
+      }
+    });
   });
 });

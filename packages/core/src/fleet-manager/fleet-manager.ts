@@ -918,6 +918,10 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
    *
    * Idempotent — re-adopting the same session rewrites the record cleanly.
    *
+   * Refuses a session that a *different* agent already owns through a job record
+   * or a platform binding: those outrank adoption, so the record would be inert
+   * and the session would never appear under this agent (herdctl#437).
+   *
    * @param name - The agent qualified or local name
    * @param sessionId - The Claude Code session ID to adopt
    * @param opts.sourceCwd - Working directory the transcript was recorded under.
@@ -926,6 +930,8 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
    * @throws {InvalidStateError} If the fleet manager is not yet initialized
    * @throws {AgentNotFoundError} If no agent with that name exists
    * @throws {PathTraversalError} If `sessionId` is not a safe identifier
+   * @throws {SessionAdoptionRefusedError} If another agent already owns the
+   *   session
    */
   async adoptSession(
     name: string,
@@ -946,9 +952,10 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
   }
 
   /**
-   * List the sessions an agent could adopt from a working directory: native,
-   * non-sidechain transcripts that aren't already adopted and aren't attributed
-   * to a real run.
+   * List the sessions an agent could adopt from a working directory:
+   * *unattributed*, non-sidechain transcripts — not already adopted, and not
+   * owned by any agent through a job record or a platform binding (including
+   * this one, which would already show them).
    *
    * Intended to back an "import my existing chats" picker — each entry carries a
    * title, a preview, an mtime and its source directory. Resolved against this
@@ -1004,7 +1011,15 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
    * Every candidate that is not adopted appears in `skipped` with a reason
    * (`"sidechain"`, `"already-adopted"`, `"destination-exists"`,
    * `"attributed-to-run"`, `"unreadable"`, `"placement-failed"`,
-   * `"record-failed"`), and one bad transcript never aborts the batch.
+   * `"record-failed"`), and one bad transcript never aborts the batch. A skip
+   * caused by an existing owner also carries `ownedBy` — compare it against the
+   * agent's own qualified name to tell "belongs to another agent" from "already
+   * yours".
+   *
+   * Only *unattributed* transcripts are adopted. A session another agent owns is
+   * skipped rather than claimed: adoption loses the precedence contest to job
+   * and platform records, so claiming it would report success and then never
+   * show the session (herdctl#437).
    *
    * With `dryRun: true` nothing at all is written — no transcripts placed, no
    * adoption records, not even a metadata cache file — and the result describes

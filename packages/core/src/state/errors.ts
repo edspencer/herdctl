@@ -65,6 +65,33 @@ export class StateFileError extends StateError {
 }
 
 /**
+ * Error thrown when an adoption claim is refused because it could not take
+ * effect (herdctl#437).
+ *
+ * Attribution resolves job records and platform bindings *ahead* of adoption
+ * records, so claiming a session that another agent already owns writes a record
+ * that is inert by construction: the caller is told the adoption succeeded, the
+ * session never appears under the adopting agent, and the burnt record excludes
+ * it from every later attempt. Refusing loudly is what keeps that recoverable.
+ */
+export class SessionAdoptionRefusedError extends StateError {
+  /** The session that could not be adopted */
+  public readonly sessionId: string;
+  /** The agent that already owns it, and would keep owning it */
+  public readonly ownedBy: string;
+
+  constructor(sessionId: string, ownedBy: string, detail: string) {
+    super(
+      `Cannot adopt session ${sessionId}: it is already attributed to agent "${ownedBy}" (${detail}). ` +
+        `Job and platform records outrank adoption, so the record would have no effect.`,
+    );
+    this.name = "SessionAdoptionRefusedError";
+    this.sessionId = sessionId;
+    this.ownedBy = ownedBy;
+  }
+}
+
+/**
  * Get a descriptive error message for common permission errors
  */
 export function getPermissionErrorMessage(code: string | undefined, path: string): string {

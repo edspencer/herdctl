@@ -299,6 +299,92 @@ function createAttributionIndex(
   };
 }
 
+// =============================================================================
+// Ownership predicates
+// =============================================================================
+//
+// One question — "who owns this session?" — was previously asked in two places
+// with two different answers (herdctl#437). The listing gate asked whether
+// `agentName` matched; the adoption gate asked whether `origin` was `"native"`.
+// Those are NOT the same question, because `triggerTypeToOrigin` folds `manual`,
+// `webhook`, `chat` and `fork` into `"native"`: a session with a real job record
+// under a *sibling* agent is `{ origin: "native", agentName: "sweeper-x" }`, so
+// it passed the adoption gate and then failed the listing gate. It was adopted,
+// reported as imported, and never appeared.
+//
+// The functions below are the single source of that answer. Crucially the
+// adoption gate is *defined in terms of* the listing gate — `canAgentAdopt` is
+// literally "would `isOwnedByAgent` be true afterwards" — so the two can no
+// longer drift apart: there is only one `isOwnedByAgent`, and everything else
+// derives from it.
+
+/**
+ * Does `agentName` own this session — i.e. will it appear in that agent's
+ * listing?
+ *
+ * This is THE listing gate. Every other predicate here is expressed through it.
+ *
+ * `agentName` is nullable to match the docker-directory call site, where the
+ * scanned directory may carry no agent name. An `undefined` name therefore
+ * matches exactly the unattributed sessions — the pre-existing behaviour of that
+ * gate, preserved deliberately.
+ */
+export function isOwnedByAgent(
+  attribution: SessionAttribution,
+  agentName: string | undefined,
+): boolean {
+  return attribution.agentName === agentName;
+}
+
+/**
+ * Is this session owned by nobody at all?
+ *
+ * The scan gate for adoption. Strictly stronger than `origin === "native"`,
+ * which is only the *absence of a platform/schedule/web run* and says nothing
+ * about whether an agent already has a claim.
+ */
+export function isUnattributed(attribution: SessionAttribution): boolean {
+  return attribution.origin === "native" && attribution.agentName === undefined;
+}
+
+/**
+ * The attribution a session would resolve to if `agentName` adopted it right
+ * now.
+ *
+ * Mirrors the precedence order encoded in {@link createAttributionIndex}: an
+ * adoption record is read *after* job records and platform bindings, so those
+ * keep their claim and the new record is inert. A prior *adoption* is different
+ * — `recordAdoption` overwrites it — so re-adoption really does take effect.
+ *
+ * Those two cases are distinguishable without knowing which index an attribution
+ * came from: only the adoption store yields `origin: "adopted"`, and only the
+ * unattributed fallback yields no `agentName`.
+ */
+export function attributionAfterAdoptionBy(
+  attribution: SessionAttribution,
+  agentName: string,
+): SessionAttribution {
+  const adoptionWouldWin = attribution.origin === "adopted" || attribution.agentName === undefined;
+
+  return adoptionWouldWin ? { origin: "adopted", agentName, triggerType: undefined } : attribution;
+}
+
+/**
+ * Would writing an adoption record for `agentName` actually make this session
+ * that agent's — either by winning the precedence contest, or because the agent
+ * already owns it?
+ *
+ * The adopt-time gate. Deliberately looser than {@link isUnattributed}: a
+ * session the agent already owns is not worth *offering* in a picker (it is
+ * already there), but re-claiming it is a harmless idempotent no-op rather than
+ * something to refuse. The relationship `isUnattributed(a) ⇒ canAgentAdopt(a,
+ * anyAgent)` is what guarantees the scan never proposes something the adopt path
+ * would reject.
+ */
+export function canAgentAdopt(attribution: SessionAttribution, agentName: string): boolean {
+  return isOwnedByAgent(attributionAfterAdoptionBy(attribution, agentName), agentName);
+}
+
 /** One job file's contribution to the index, memoized by the builder. */
 interface CachedJobFile {
   /** File mtime (epoch ms) when last parsed — the cache-invalidation key. */

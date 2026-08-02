@@ -360,8 +360,8 @@ const discovery = new SessionDiscoveryService({
 | `getSessionMetadata(workDir, sessionId)` | Get metadata for a session (cached) |
 | `getSessionUsage(workDir, sessionId)` | Get token usage data for a session |
 | `invalidateCache(workDir?)` | Clear cached data for a specific directory or all caches |
-| `listAdoptableSessions(agentName, workDir, fromWorkingDir?)` | List native transcripts an agent could adopt (see [Session Adoption](#session-adoption)) |
-| `adoptSession(agentName, sessionId, opts)` | Record an adoption claim for a single session, moving nothing |
+| `listAdoptableSessions(agentName, workDir, fromWorkingDir?)` | List unattributed transcripts an agent could adopt (see [Session Adoption](#session-adoption)) |
+| `adoptSession(agentName, sessionId, opts)` | Record an adoption claim for a single session, moving nothing. Refuses if another agent owns it |
 | `adoptSessionsFrom(agentName, workDir, opts?)` | Place and claim every adoptable session found in a directory |
 | `unadoptSession(sessionId, opts?)` | Remove an adoption record, leaving the transcript on disk |
 
@@ -436,13 +436,34 @@ This is a **dedicated store rather than a forged job record**. A job record mean
 | Method | Purpose |
 |--------|---------|
 | `listAdoptableSessions(name, fromWorkingDir?)` | Candidates for adoption, newest first -- backs an "import my existing chats" picker |
-| `adoptSession(name, sessionId, opts?)` | Claim one session by ID. Records attribution only; moves nothing. Idempotent |
+| `adoptSession(name, sessionId, opts?)` | Claim one session by ID. Records attribution only; moves nothing. Idempotent; throws `SessionAdoptionRefusedError` if another agent owns it |
 | `adoptSessionsFrom(name, opts?)` | Place and claim every adoptable session in a directory |
 | `unadoptSession(name, sessionId)` | Release this agent's claim. The transcript stays on disk |
 
 An `AdoptableSession` is deliberately **not** a `DiscoveredSession`: half of that shape is meaningless before adoption. Its `origin` is by definition `native`, its `agentName` by definition undefined (that is *why* it is invisible), `resumable` is a property of the adopting agent rather than of the candidate, and `customName` is keyed per agent. What a picker needs is which session, what it looks like, when it was last touched, and where it came from -- so the shape is `sessionId`, `sourceCwd`, `mtime`, `autoName`, `preview` and `sizeBytes`. There is no message count: obtaining one means streaming the whole transcript, which is exactly the per-session cost the listing caches exist to avoid. `sizeBytes` comes free from the `stat()` the directory listing already performs.
 
 `unadoptSession()` returns `false` -- rather than removing anything -- when the session is not adopted, or when it is adopted by a *different* agent. One agent must not be able to drop another's claim.
+
+### Only unattributed sessions are adoptable
+
+Adoption is read **last** in the precedence order, so a claim on a session some other agent already owns is inert by construction: the record is written, the job or platform record still wins, and the session never appears under the adopting agent. Worse, the burnt record then reads as `already-adopted` and excludes the session from every retry.
+
+The gate is therefore "is this session **unattributed**?", not "is its origin `native`?". Those are not the same question, because `triggerTypeToOrigin()` folds `manual`, `webhook`, `chat` and `fork` into `native` -- a session with a real job record under a sibling agent is `{ origin: "native", agentName: "sweeper-x" }`, natively-originated but firmly someone else's. Where a keeper and its sweeper share one transcript directory, that is the overwhelming majority of the folder.
+
+One set of predicates in `session-attribution.ts` answers the question for every caller, and the adoption gate is defined *in terms of* the listing gate so the two cannot drift apart:
+
+| Predicate | Question | Used by |
+|-----------|----------|---------|
+| `isOwnedByAgent(attr, agent)` | Will this session appear under `agent`? | The per-agent listing gate |
+| `isUnattributed(attr)` | Does *nobody* own this session? | The adoption scan |
+| `attributionAfterAdoptionBy(attr, agent)` | What would attribution resolve to after `agent` adopted it? | -- |
+| `canAgentAdopt(attr, agent)` | Would that record actually take effect? | The adopt-time guard |
+
+`canAgentAdopt()` is literally `isOwnedByAgent(attributionAfterAdoptionBy(...))`, which gives two invariants: anything the scan offers, the adopt path accepts; and anything the adopt path accepts is visible to the adopting agent afterwards.
+
+`canAgentAdopt()` is deliberately looser than `isUnattributed()`. A session the agent already owns is not offered by the picker -- it is already there, so there is nothing to import -- but re-claiming it is a harmless no-op rather than something to refuse. A session another agent merely *adopted* is adoptable too: `recordAdoption()` overwrites, so adoption records do not outrank a later adoption the way job and platform records do.
+
+The guard runs at the **write** sites as well as at the scan. `adoptSession()` refuses with `SessionAdoptionRefusedError`; `adoptSessionsFrom()` re-checks each candidate immediately before recording it and reports a skip instead. The scan and the write are separate calls -- and in a large import, separated by minutes of file copying, well past the attribution cache TTL -- so a sibling agent's run can land in between and make the scan's verdict stale. Turning that into a legible skip is what keeps it recoverable.
 
 ### Placement
 
@@ -460,7 +481,7 @@ Copies preserve the source mtime deliberately: mtime drives both list ordering a
 
 **Existing destination files are never overwritten, and that is enforced by the placement syscall rather than by a pre-check.** The caller does `stat()` the destination first, but only to produce a tidy `destination-exists` skip: a check-then-act pre-check cannot see a writer that arrives a microsecond later, and it cannot see a destination `stat()` itself fails on -- a dangling symlink, which is exactly what an earlier cross-device `link` placement leaves behind once the user deletes the original, reads as ENOENT. So each mode creates the destination exclusively: `copy` uses `COPYFILE_EXCL`, `link` uses `link()`/`symlink()`, and `move` -- notably -- does **not** use `rename()`, which silently replaces an existing destination on every platform. It hard-links and then unlinks the source, which is the same net effect (one inode, mtime carried for free) but refuses an occupied destination. An `EEXIST` from any of them is reported as the same `destination-exists` skip. A `move` is the one placement that also destroys the source, so a clobber there would lose both copies of a chat.
 
-Every candidate that is not adopted appears in `skipped` with a reason a UI can show verbatim -- `sidechain`, `already-adopted`, `destination-exists`, `attributed-to-run`, `unreadable`, `placement-failed`, `record-failed` -- and one bad transcript never aborts the batch. With `dryRun: true` nothing at all is written, and the result describes what would have happened. "Nothing" includes the sidechain metadata *cache*: classifying a candidate as a sidechain is a fact the scan learns anyway, but writing it back would create `session-metadata/<agent>.json` on a preview, so the scan takes a flag that suppresses the cache write under a dry run.
+Every candidate that is not adopted appears in `skipped` with a reason a UI can show verbatim -- `sidechain`, `already-adopted`, `destination-exists`, `attributed-to-run`, `unreadable`, `placement-failed`, `record-failed` -- and one bad transcript never aborts the batch. A skip caused by an existing owner also carries `ownedBy`, the owning agent's qualified name; compare it against the adopting agent to tell "belongs to another agent" from "already yours". That is a field rather than a second skip reason so consumers that switch exhaustively on `AdoptSkipReason` keep compiling. With `dryRun: true` nothing at all is written, and the result describes what would have happened. "Nothing" includes the sidechain metadata *cache*: classifying a candidate as a sidechain is a fact the scan learns anyway, but writing it back would create `session-metadata/<agent>.json` on a preview, so the scan takes a flag that suppresses the cache write under a dry run.
 
 `adoptSessionsFrom()` returns an empty result when the agent has no configured `working_directory`, even when `fromWorkingDir` is given: placement needs the agent's own transcript folder as its destination, and the per-agent listing is scoped to that same directory. `listAdoptableSessions()` differs -- it falls back to `fromWorkingDir` -- so it can list candidates that `adoptSessionsFrom()` then adopts none of. Single-session `adoptSession()` moves nothing and needs no working directory.
 

@@ -20,6 +20,7 @@ import {
 } from "../runner/runtime/cli-session-path.js";
 import { createLogger } from "../utils/logger.js";
 import { listAdoptions, recordAdoption, removeAdoption } from "./adopted-sessions.js";
+import { SessionAdoptionRefusedError } from "./errors.js";
 import {
   type ChatMessage,
   extractFirstMessagePreview,
@@ -35,6 +36,10 @@ import type { AdoptedSession } from "./schemas/adopted-session.js";
 import {
   type AttributionIndex,
   AttributionIndexBuilder,
+  canAgentAdopt,
+  isOwnedByAgent,
+  isUnattributed,
+  type SessionAttribution,
   type SessionOrigin,
 } from "./session-attribution.js";
 import {
@@ -163,6 +168,19 @@ export interface AdoptSkippedSession {
   reason: AdoptSkipReason;
   /** Extra context (e.g. the underlying errno message, the owning agent). */
   detail?: string;
+  /**
+   * The agent that already owns this session, when one does — set on
+   * `"attributed-to-run"` and `"already-adopted"` skips.
+   *
+   * This is deliberately a *field* rather than a second skip reason
+   * (herdctl#437): "owned by a sibling agent" and "produced by a web/schedule
+   * run" are the same refusal with different context, a UI that wants to say
+   * something different for each needs the owner's name either way, and adding
+   * a member to {@link AdoptSkipReason} would break consumers that switch on it
+   * exhaustively. Compare it against the adopting agent's own qualified name to
+   * tell "belongs to another agent" from "already yours".
+   */
+  ownedBy?: string;
 }
 
 /** Result of a batch adoption. */
@@ -255,6 +273,24 @@ function decodePathForDisplay(encodedPath: string): string {
 
   // Fallback: just replace all hyphens
   return encodedPath.replace(/-/g, "/");
+}
+
+/**
+ * Describe an attribution that blocks adoption, as a skip a UI can render.
+ *
+ * Shared by the scan gate and the two write-site guards so a candidate refused
+ * before any I/O and one refused after it read identically.
+ */
+function describeAttributionSkip(
+  attribution: SessionAttribution,
+): Pick<AdoptSkippedSession, "reason" | "detail" | "ownedBy"> {
+  return {
+    reason: "attributed-to-run",
+    detail: attribution.agentName
+      ? `origin "${attribution.origin}" (agent ${attribution.agentName})`
+      : `origin "${attribution.origin}"`,
+    ownedBy: attribution.agentName,
+  };
 }
 
 /**
@@ -959,7 +995,11 @@ export class SessionDiscoveryService {
     // When multiple agents share a working directory, this prevents the same
     // native CLI sessions from appearing under every agent. Unattributed sessions
     // are still visible in the global recent sessions list and All Chats view.
-    if (attribution.agentName !== agentName) {
+    //
+    // `isOwnedByAgent` is the shared predicate the adoption gate is defined
+    // against (herdctl#437) — keep this call rather than re-inlining the
+    // comparison, or the two can drift apart again.
+    if (!isOwnedByAgent(attribution, agentName)) {
       return { session: null, sidechainUpdate };
     }
 
@@ -1281,8 +1321,9 @@ export class SessionDiscoveryService {
           const attribution = attributionIndex.getAttribute(sessionId);
 
           // For docker directories, only include sessions attributed to this specific agent
-          // (since all docker agents share the same docker-sessions directory)
-          if (dir.dockerEnabled && attribution.agentName !== dir.agentName) {
+          // (since all docker agents share the same docker-sessions directory).
+          // Same shared ownership predicate as `enrichAgentSession` (herdctl#437).
+          if (dir.dockerEnabled && !isOwnedByAgent(attribution, dir.agentName)) {
             continue;
           }
 
@@ -1469,22 +1510,25 @@ export class SessionDiscoveryService {
             sessionId,
             reason: "already-adopted",
             detail: `adopted by ${existing.agentName} at ${existing.adoptedAt}`,
+            ownedBy: existing.agentName,
           });
           continue;
         }
 
-        // Anything the attribution index already resolves is not a *native*
-        // session: a job record or a live platform binding means a real run owns
-        // it, and adoption must not compete with that.
+        // Only *unattributed* sessions are adoptable. This deliberately asks
+        // `isUnattributed` rather than `origin === "native"` (herdctl#437):
+        // `triggerTypeToOrigin` folds `manual`/`webhook`/`chat`/`fork` into
+        // `"native"`, so a session with a genuine job record under a sibling
+        // agent has a native *origin* while being firmly someone else's. Offering
+        // it produced an adoption record that lost the precedence contest and was
+        // therefore inert — the session was reported as imported and never
+        // appeared, and the burnt marker excluded it from every retry.
+        //
+        // A session this agent already owns is excluded too: it is visible under
+        // the agent already, so there is nothing to import.
         const attribution = attributionIndex.getAttribute(sessionId);
-        if (attribution.origin !== "native") {
-          skipped.push({
-            sessionId,
-            reason: "attributed-to-run",
-            detail: attribution.agentName
-              ? `origin "${attribution.origin}" (agent ${attribution.agentName})`
-              : `origin "${attribution.origin}"`,
-          });
+        if (!isUnattributed(attribution)) {
+          skipped.push({ sessionId, ...describeAttributionSkip(attribution) });
           continue;
         }
 
@@ -1642,12 +1686,35 @@ export class SessionDiscoveryService {
    * @param options.sourceCwd - Working directory the transcript came from
    * @param options.workingDirectory - The agent's working directory, used only
    *   to invalidate the right listing cache
+   * @throws {SessionAdoptionRefusedError} If another agent already owns the
+   *   session, so the record could not take effect
    */
   async adoptSession(
     agentName: string,
     sessionId: string,
     options?: { sourceCwd?: string; workingDirectory?: string },
   ): Promise<AdoptedSession> {
+    // Refuse a claim that cannot win the precedence contest (herdctl#437).
+    // Attribution resolves job records and platform bindings ahead of adoptions,
+    // so claiming a session a *different* agent owns writes a record that is
+    // inert by construction: the caller is told it worked, the session never
+    // appears, and the burnt marker excludes it from every later attempt.
+    //
+    // This is a live check rather than a re-use of any scan's verdict — the
+    // picker that produced the session id and this call are separate round
+    // trips, and a sibling's run can land between them.
+    const attribution = (await this.getAttributionIndex()).getAttribute(sessionId);
+    if (!canAgentAdopt(attribution, agentName)) {
+      const { detail } = describeAttributionSkip(attribution);
+      throw new SessionAdoptionRefusedError(
+        sessionId,
+        // `canAgentAdopt` is false only when some *other* agent owns it, so
+        // `agentName` is necessarily set here.
+        attribution.agentName ?? "unknown",
+        detail ?? "",
+      );
+    }
+
     const record = await recordAdoption(this.stateDir, sessionId, {
       agentName,
       sourceCwd: options?.sourceCwd,
@@ -1831,6 +1898,22 @@ export class SessionDiscoveryService {
     for (const { sessionId } of candidates) {
       const sourceFile = path.join(sourceDir, `${sessionId}.jsonl`);
       const destFile = path.join(destDir, `${sessionId}.jsonl`);
+
+      // Re-check ownership at the write site, not just at the scan (herdctl#437).
+      // The scan and this loop are separated by real I/O — a 1500-transcript
+      // import runs for minutes, well past the attribution cache TTL — so a
+      // sibling agent's run can land in between and the scan's verdict go stale.
+      // `getAttributionIndex` is TTL-cached, so this is a map lookup per
+      // candidate in the common case and a rebuild only once the TTL lapses.
+      //
+      // Refusing here is the point: an adoption record that cannot win the
+      // precedence contest is inert *and* burns the marker, which is what made
+      // the original failure unrecoverable. A skip is recoverable.
+      const attribution = (await this.getAttributionIndex()).getAttribute(sessionId);
+      if (!canAgentAdopt(attribution, agentName)) {
+        skipped.push({ sessionId, ...describeAttributionSkip(attribution) });
+        continue;
+      }
 
       if (!inPlace) {
         // Never clobber: an existing transcript with this id in the destination

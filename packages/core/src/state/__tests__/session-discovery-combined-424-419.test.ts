@@ -43,9 +43,15 @@ vi.mock("../../runner/runtime/cli-session-path.js", async (importActual) => {
   };
 });
 
-vi.mock("../session-attribution.js", () => {
+vi.mock("../session-attribution.js", async (importActual) => {
+  const actual = await importActual<typeof import("../session-attribution.js")>();
   const fn = vi.fn();
   return {
+    // Spread the ACTUAL module so the pure ownership predicates
+    // (`isOwnedByAgent`, `isUnattributed`, `canAgentAdopt` — herdctl#437)
+    // survive the mock. Only the index *builder* is replaced; the predicates
+    // are the shared logic under test and must not be stubbed out.
+    ...actual,
     buildAttributionIndex: fn,
     AttributionIndexBuilder: class MockAttributionIndexBuilder {
       build = fn;
