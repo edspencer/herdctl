@@ -28,11 +28,17 @@ mtime, no tie-break, nothing to get wrong. A plain resume already knows its id
 and is unchanged. Set `HERDCTL_CLI_MINT_SESSION_ID=0` to restore the old
 inference.
 
-If the expected file never appears — a CLI too old to know the flag — herdctl
-logs a warning and falls back to the previous inference rather than failing the
-turn. Crucially, that fallback runs only after the deadline: while polling, the
-inference paths are disabled, because "take whichever brand-new file shows up"
-is exactly the collision `--session-id` exists to remove.
+If the expected file never appears — a CLI too old to know the flag, or a test
+harness's fake that has not been taught it — herdctl logs a warning and falls
+back to the previous inference rather than failing the turn.
+
+While the CLI is still running, the inference paths stay disabled: "take
+whichever brand-new file shows up" is exactly the collision `--session-id` exists
+to remove, so a co-located agent's file cannot be claimed just because it landed
+first. But once the process has **exited** without writing the file we asked for,
+that is settled rather than merely unknown, so the fallback runs immediately
+instead of burning the full 60 s timeout. That distinction is what keeps this
+change survivable for every existing fake-CLI harness.
 
 Also make attribution of a doubly-claimed session id deterministic — #357's
 proposed "secondary hardening", which was never implemented.

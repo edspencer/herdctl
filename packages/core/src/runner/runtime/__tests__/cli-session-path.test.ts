@@ -656,6 +656,58 @@ describe("waitForNewSessionFile", () => {
       expect(resolved).toBe(theirs);
     });
 
+    it("falls back as soon as the CLI has exited, without waiting out the timeout", async () => {
+      // A fake/older CLI that ignores --session-id would otherwise cost the FULL
+      // timeout (60s in the runtime) on every new-session turn. Once the process
+      // is gone and our file was never written, that is settled — not a guess —
+      // so give up immediately. This is what keeps the change survivable for
+      // every fake-CLI harness that has not been taught the flag yet.
+      const knownFiles = await snapshotSessionFiles(dir);
+      const startTime = Date.now() - 10_000;
+      const theirs = join(dir, `${THEIRS}.jsonl`);
+      await writeFile(theirs, "");
+      await setMtime(theirs, startTime + 5000);
+
+      const began = Date.now();
+      const resolved = await waitForNewSessionFile(dir, startTime, {
+        knownFiles,
+        expectedSessionId: MINE,
+        timeoutMs: 30_000, // would dominate if we waited it out
+        pollIntervalMs: 20,
+        hasExited: () => true,
+      });
+
+      expect(resolved).toBe(theirs);
+      expect(Date.now() - began).toBeLessThan(5_000);
+    });
+
+    it("keeps waiting for OUR file while the CLI is still running", async () => {
+      // The guarantee that matters: a co-located agent's brand-new file must not
+      // be claimed just because it appeared first, so long as our process is
+      // alive and could still write ours.
+      const knownFiles = await snapshotSessionFiles(dir);
+      const startTime = Date.now() - 10_000;
+      let exited = false;
+
+      const wait = waitForNewSessionFile(dir, startTime, {
+        knownFiles,
+        expectedSessionId: MINE,
+        timeoutMs: 3000,
+        pollIntervalMs: 10,
+        hasExited: () => exited,
+      });
+
+      const theirs = join(dir, `${THEIRS}.jsonl`);
+      await writeFile(theirs, "");
+      await setMtime(theirs, startTime + 5000);
+      await new Promise((r) => setTimeout(r, 80));
+      const mine = join(dir, `${MINE}.jsonl`);
+      await writeFile(mine, "");
+      exited = true;
+
+      expect(await wait).toBe(mine);
+    });
+
     it("(contrast) without a minted id the same race takes the WRONG file", async () => {
       // The pre-existing behaviour this option exists to avoid.
       const knownFiles = await snapshotSessionFiles(dir);

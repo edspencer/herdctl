@@ -504,6 +504,21 @@ export class CLIRuntime implements RuntimeInterface {
         }
       })();
 
+      // Has the CLI exited? Used to decide, quickly and on evidence rather than
+      // by waiting out a timeout, that it did not honour `--session-id`: if the
+      // process is gone and the file we asked for was never created, it never
+      // will be. While the process is alive we keep waiting for OUR file, which
+      // is what keeps a co-located agent's transcript from being claimed.
+      let processExited = false;
+      processExitPromise.then(
+        () => {
+          processExited = true;
+        },
+        () => {
+          processExited = true;
+        },
+      );
+
       // Monitor subprocess completion in background (for logging only)
       processExitPromise.then(
         (result) => {
@@ -544,6 +559,7 @@ export class CLIRuntime implements RuntimeInterface {
           pollIntervalMs: 200,
           knownFiles: preSpawnSessionFiles,
           expectedSessionId: mintedSessionId,
+          hasExited: () => processExited,
         });
         logger.debug(`New session, watching newly created file: ${sessionFilePath}`);
       }

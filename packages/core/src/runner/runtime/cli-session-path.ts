@@ -434,11 +434,23 @@ export async function waitForNewSessionFile(
     pollIntervalMs?: number;
     knownFiles?: ReadonlySet<string>;
     expectedSessionId?: string;
+    hasExited?: () => boolean;
   } = {},
 ): Promise<string> {
-  const { timeoutMs = 5000, pollIntervalMs = 100, knownFiles, expectedSessionId } = options;
+  const {
+    timeoutMs = 5000,
+    pollIntervalMs = 100,
+    knownFiles,
+    expectedSessionId,
+    hasExited,
+  } = options;
   const deadline = Date.now() + timeoutMs;
   const expectedFile = expectedSessionId ? `${expectedSessionId}.jsonl` : undefined;
+  // Once the CLI has exited without writing the file we asked for, it never
+  // will — so stop waiting on evidence rather than on the clock. Keep polling a
+  // moment longer than the exit itself, to let a last write land.
+  const GRACE_AFTER_EXIT_MS = 500;
+  let exitedAt: number | null = null;
 
   while (Date.now() < deadline) {
     try {
@@ -456,11 +468,20 @@ export async function waitForNewSessionFile(
 
       if (expectedFile) {
         // We asked for a specific id. Keep waiting for exactly that file — do NOT
-        // fall through to the inference paths below while polling. A co-located
-        // agent's brand-new file is indistinguishable from ours by name or mtime,
-        // so guessing here would reintroduce the very collision `--session-id`
-        // exists to remove. If the CLI turns out not to honour the flag, the
-        // deadline fallback below handles it, loudly.
+        // fall through to the inference paths below while the process is alive. A
+        // co-located agent's brand-new file is indistinguishable from ours by name
+        // or mtime, so guessing here would reintroduce the very collision
+        // `--session-id` exists to remove.
+        //
+        // Once the CLI has EXITED without producing it, though, waiting is
+        // pointless: it did not honour the flag. That is evidence, not a guess,
+        // so break out to the fallback immediately instead of burning the whole
+        // timeout — which is what makes this survivable for a CLI (or a test
+        // harness's fake) that does not implement `--session-id`.
+        if (hasExited?.()) {
+          exitedAt ??= Date.now();
+          if (Date.now() - exitedAt >= GRACE_AFTER_EXIT_MS) break;
+        }
       } else if (knownFiles) {
         // Fallback path (issue #357): the new session is a file whose NAME did
         // not exist before we spawned. This is immune to a co-located agent
@@ -510,7 +531,8 @@ export async function waitForNewSessionFile(
   // then fall through to the inference paths rather than failing the turn.
   if (expectedFile) {
     logger.warn(
-      `Session file ${expectedFile} never appeared in ${sessionDir} within ${timeoutMs}ms — ` +
+      `Session file ${expectedFile} never appeared in ${sessionDir}` +
+        `${exitedAt === null ? ` within ${timeoutMs}ms` : " before the CLI exited"} — ` +
         `the CLI does not appear to honour --session-id. Falling back to inferring the ` +
         `session id, which can mis-attribute a co-located agent's session in a shared ` +
         `session directory (issue #357).`,
