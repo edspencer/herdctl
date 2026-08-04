@@ -238,6 +238,8 @@ A live streaming session keeps a warm `claude` process around (~300 MB each). Se
 - **Reap on idle** — the session is closed the instant its turn ends, *unless* it holds live background work (running shells, subagents, monitors). Resuming later recovers the full conversation, and Claude's prompt cache is server-side and survives the reap, so closing an idle session costs only ~0.5s of respawn time.
 - **Durable wakes** — timer-class wakeups the agent scheduled in-session (`ScheduleWakeup` one-shots, `CronCreate` recurring crons) would normally die with the `claude` process. Instead, herdctl captures them as durable wake entries in `state.yaml` (`session_wakes`) and re-fires them from its own scheduler loop, resuming the session with the wake's prompt.
 
+The keep-alive rule has no backstop — no idle timer, no max lifetime. That is deliberate (reaping a session with work in flight kills the work), but it means a session whose background work never finishes is never reaped on its own, and its message stream never ends. [`reapChatSession()`](/library-reference/fleet-manager/#reapchatsessionsessionid) closes such a session on demand, so a UI can offer a working "stop".
+
 Wake semantics:
 
 | Behavior | Rule |

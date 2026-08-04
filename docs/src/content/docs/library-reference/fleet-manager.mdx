@@ -1447,6 +1447,45 @@ A `RuntimeSession` holds a live `claude` query for as long as it is open. Always
 
 ---
 
+### `reapChatSession(sessionId)`
+
+Closes a managed chat session immediately, whatever background work it is holding.
+
+```typescript
+manager.reapChatSession(sessionId: string): boolean
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `sessionId` | `string` | **Yes** | Resolved session id of a session opened with `manageLifecycle: true` |
+
+#### Returns
+
+`true` if a live managed session with that id was found and closed; `false` for an unknown, unmanaged or already-reaped id. Idempotent, and synchronous — the underlying `close()` is deferred a tick, so the session's message stream ends shortly after this returns.
+
+#### Description
+
+The reap policy keeps a session alive for exactly as long as it holds live background work, with no idle timer and no max-lifetime backstop. That protects work in flight, but it means a session can become permanently unreapable — a background task whose sentinel never arrives, or a re-invocation turn that dies without a Stop hook (a subscription usage limit, say) and so never re-arms the state the policy needs. Its message stream then never ends, and a consumer rendering that stream shows the session as running until the process restarts.
+
+`reapChatSession()` is the deliberate way out. Use it to honour a user's "stop this now" in a chat UI.
+
+<Aside type="note">
+`interrupt()` is not a substitute. It targets an in-flight model turn, and a session held open purely for background work has none.
+</Aside>
+
+Reach for this rather than calling `close()` on the `RuntimeSession` you already hold. A direct `close()` goes behind the reaper's bookkeeping: the id stays registered as live, so a later resume of it stalls until its 5-minute ceiling and the wake registry skips that session's wakes indefinitely. `reapChatSession()` routes through the same path the policy uses, so the id is unregistered, deferred resumes are released, and consumers see an ordinary end-of-stream.
+
+```typescript
+// A chat wedged "running" — end the session on the user's behalf.
+if (!manager.reapChatSession(sessionId)) {
+  logger.warn(`No live managed session ${sessionId} to reap`);
+}
+```
+
+---
+
 ### `listAgentCommands(agentName, options?)`
 
 Lists the slash commands available to an agent — for populating a command palette or autocomplete — in a single call.

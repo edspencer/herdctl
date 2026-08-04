@@ -1149,6 +1149,26 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     return this.jobControl.openChatSession(agentName, options);
   }
   /**
+   * Close a managed chat session now, whatever background work it is holding.
+   *
+   * The reaper keeps a session alive for as long as it holds live background
+   * work and has no backstop, so a session whose background tasks never finish
+   * is never reaped and its message stream never ends. A consumer driving a UI
+   * off that stream needs a way to end it on the user's behalf — a "stop" that
+   * means *end this session*, not `interrupt()` (which targets an in-flight
+   * model turn, and during the background phase there is none).
+   *
+   * Closing the {@link RuntimeSession} directly is not equivalent: it bypasses
+   * the reaper's bookkeeping and strands the session id as live, stalling later
+   * resumes and suppressing its wakes. See {@link SessionReaper.forceReap}.
+   *
+   * Only applies to sessions opened with `manageLifecycle: true`. Idempotent;
+   * returns `false` for an unknown, unmanaged, or already-reaped session id.
+   */
+  reapChatSession(sessionId: string): boolean {
+    return this.sessionLifecycle?.reaper.forceReap(sessionId) ?? false;
+  }
+  /**
    * List the slash commands available to an agent in one shot.
    *
    * A convenience wrapper that opens a streaming session, reads its command list,

@@ -162,6 +162,40 @@ export class SessionReaper {
     });
   }
 
+  /**
+   * Close a live managed session NOW, whatever it is holding.
+   *
+   * {@link decideReap} keeps a session alive for exactly as long as it holds
+   * live background work — deliberately, and with no timer, no max-lifetime
+   * backstop and no idle cap. That is the right *default*, but it must not be
+   * the only option: a session whose background work never finishes (or whose
+   * re-invocation turn dies without a `turn_end` to re-arm the awaiting-tasks
+   * state) is never reaped, its message stream never ends, and a consumer
+   * driving a UI off that stream has no way to honour a user's "stop this now".
+   *
+   * A consumer cannot do this for itself. It holds the {@link RuntimeSession}
+   * and could call `close()` directly, but that closes the query behind the
+   * reaper's back: {@link liveById} keeps a stale entry, so {@link
+   * whenSessionReaped} never resolves (a later resume of that id stalls until
+   * its ceiling, #403) and {@link WakeRegistry} skips the session's wakes
+   * forever. Reaping is the reaper's to do.
+   *
+   * So this routes through the same {@link reap} the policy uses: unregister
+   * the id, drain the reap waiters, then close. The consumer just observes an
+   * ordinary end-of-stream and unwinds through its ordinary path — no new
+   * teardown contract to get right.
+   *
+   * Idempotent, and safe to call for an unknown or already-reaped id.
+   *
+   * @returns `true` if a live session with this id was found and closed.
+   */
+  forceReap(sessionId: string): boolean {
+    const managed = this.liveById.get(sessionId);
+    if (!managed?.isLive()) return false;
+    this.reap(managed, sessionId, "force-reaped on request");
+    return true;
+  }
+
   // --- internal, called by ManagedSessionImpl ---
 
   registerLive(sessionId: string, managed: ManagedSessionImpl): void {
@@ -288,9 +322,9 @@ export class SessionReaper {
     this.reap(managed, signal.sessionId);
   }
 
-  private reap(managed: ManagedSessionImpl, sessionId: string): void {
+  private reap(managed: ManagedSessionImpl, sessionId: string, reason = "idle"): void {
     if (!managed.isLive()) return;
-    this.logger.info(`Reaping idle session ${sessionId} (${managed.agent})`);
+    this.logger.info(`Reaping ${reason} session ${sessionId} (${managed.agent})`);
     // Notify before closing, but never let a throwing consumer callback skip the
     // close() — that would leak the very session we decided to reap.
     this.notify(() => this.onReap?.({ agent: managed.agent, sessionId }));
