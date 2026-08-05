@@ -86,6 +86,7 @@ export type {
   RunnerResult,
   SDKMcpServerConfig,
   SDKMessage,
+  SDKPluginConfig,
   SDKQueryOptions,
   SDKSystemPrompt,
 } from "./types.js";

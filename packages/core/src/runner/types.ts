@@ -208,11 +208,32 @@ export interface InjectedMcpServerDef {
  * MCP server configuration for SDK
  */
 export interface SDKMcpServerConfig {
-  type?: "http";
+  /**
+   * Transport. Mirrors the SDK's three serializable MCP config shapes —
+   * `stdio` (default when `command` is set), `sse`, and `http`. `sse` is not
+   * inferrable, so it must come from an explicit `type` in agent config
+   * (edspencer/herdctl#445).
+   */
+  type?: "stdio" | "sse" | "http";
   url?: string;
+  /** Request headers for `sse`/`http` servers — carries bearer / API-key auth. */
+  headers?: Record<string, string>;
   command?: string;
   args?: string[];
   env?: Record<string, string>;
+  /** Per-server tool-call timeout in milliseconds. */
+  timeout?: number;
+  /** Always include this server's tools in the prompt rather than deferring them. */
+  alwaysLoad?: boolean;
+}
+
+/**
+ * Plugin configuration for SDK, mirroring the SDK's own `SdkPluginConfig`.
+ */
+export interface SDKPluginConfig {
+  type: "local";
+  path: string;
+  skipMcpDiscovery?: boolean;
 }
 
 /**
@@ -241,6 +262,17 @@ export interface SDKQueryOptions {
   systemPrompt?: SDKSystemPrompt;
   settingSources?: string[];
   mcpServers?: Record<string, SDKMcpServerConfig>;
+  /**
+   * Claude Code plugins to load, from the agent's `plugins` config.
+   *
+   * Set by `toSDKOptions` only when the agent lists plugins. These are merged
+   * by the SDK with any it auto-discovers under `$CLAUDE_CONFIG_DIR/plugins` —
+   * but discovery is only *enabled* through the `enabledPlugins` key in the
+   * user settings source, which herdctl loads only when the agent asks for it
+   * via `setting_sources`. Listing plugins here needs no such opt-in
+   * (edspencer/herdctl#444).
+   */
+  plugins?: SDKPluginConfig[];
   resume?: string;
   forkSession?: boolean;
   /** Maximum number of agentic turns before stopping */

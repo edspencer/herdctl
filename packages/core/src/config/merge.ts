@@ -13,6 +13,7 @@ import type {
   Docker,
   McpServer,
   PermissionMode,
+  Plugin,
   Session,
   WorkSource,
 } from "./schema.js";
@@ -128,6 +129,7 @@ export interface ExtendedDefaults {
   allowed_tools?: string[];
   denied_tools?: string[];
   mcp_servers?: Record<string, McpServer>;
+  plugins?: Plugin[];
 }
 
 // =============================================================================
@@ -149,6 +151,7 @@ export interface ExtendedDefaults {
  * - tools: Agent array replaces default (arrays are not merged)
  * - allowed_tools: Agent array replaces default (arrays are not merged)
  * - denied_tools: Agent array replaces default (arrays are not merged)
+ * - plugins: Agent array replaces default (arrays are not merged)
  *
  * Arrays within these objects are replaced, not merged.
  *
@@ -242,6 +245,10 @@ export function mergeAgentConfig(
 
   if (defaults.denied_tools !== undefined && result.denied_tools === undefined) {
     result.denied_tools = defaults.denied_tools;
+  }
+
+  if (defaults.plugins !== undefined && result.plugins === undefined) {
+    result.plugins = defaults.plugins;
   }
 
   // Merge mcp_servers (deep merge — agent servers override defaults with same name,

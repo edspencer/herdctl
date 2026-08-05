@@ -18,6 +18,7 @@ import {
   AgentConfigSchema,
   IdentitySchema,
   McpServerSchema,
+  PluginSchema,
   ScheduleSchema,
   SessionSchema,
 } from "../schema.js";
@@ -406,6 +407,86 @@ describe("McpServerSchema", () => {
   it("parses empty MCP server config", () => {
     const result = McpServerSchema.safeParse({});
     expect(result.success).toBe(true);
+  });
+
+  // edspencer/herdctl#445 — these keys used to be stripped by the plain
+  // z.object, losing bearer auth and the SSE transport.
+  it("keeps headers on a remote server", () => {
+    const result = McpServerSchema.safeParse({
+      url: "https://mcp.example.com/mcp",
+      headers: { Authorization: "Bearer sk-test" },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.headers).toEqual({ Authorization: "Bearer sk-test" });
+    }
+  });
+
+  it.each(["stdio", "sse", "http"] as const)("accepts an explicit type: %s", (type) => {
+    const result = McpServerSchema.safeParse({ type, url: "https://mcp.example.com/sse" });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.type).toBe(type);
+    }
+  });
+
+  it("rejects a transport the SDK does not support", () => {
+    expect(McpServerSchema.safeParse({ type: "websocket", url: "wss://x" }).success).toBe(false);
+  });
+
+  it("keeps timeout and alwaysLoad", () => {
+    const result = McpServerSchema.safeParse({
+      command: "npx",
+      timeout: 30_000,
+      alwaysLoad: true,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.timeout).toBe(30_000);
+      expect(result.data.alwaysLoad).toBe(true);
+    }
+  });
+});
+
+describe("PluginSchema (#444)", () => {
+  it("normalises a bare path string to the SDK's object form", () => {
+    const result = PluginSchema.safeParse("/opt/plugins/slack");
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toEqual({ type: "local", path: "/opt/plugins/slack" });
+    }
+  });
+
+  it("defaults type to local for the object form", () => {
+    const result = PluginSchema.safeParse({ path: "/opt/plugins/slack" });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.type).toBe("local");
+    }
+  });
+
+  it("carries skipMcpDiscovery", () => {
+    const result = PluginSchema.safeParse({ path: "/opt/plugins/slack", skipMcpDiscovery: true });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.skipMcpDiscovery).toBe(true);
+    }
+  });
+
+  it("rejects a plugin type the SDK does not support", () => {
+    expect(PluginSchema.safeParse({ type: "remote", path: "/x" }).success).toBe(false);
+  });
+
+  it("requires a path", () => {
+    expect(PluginSchema.safeParse({ type: "local" }).success).toBe(false);
+  });
+
+  it("is reachable from agent YAML", () => {
+    const config = parseAgentConfig(
+      ["name: plugged", "plugins:", "  - /opt/plugins/slack"].join("\n"),
+      "/path/to/agent.yaml",
+    );
+    expect(config.plugins).toEqual([{ type: "local", path: "/opt/plugins/slack" }]);
   });
 });
 

@@ -42,10 +42,26 @@ const _DEFAULT_PRESET = "claude_code";
 export function transformMcpServer(server: McpServer): SDKMcpServerConfig {
   const result: SDKMcpServerConfig = {};
 
-  // HTTP-based MCP server
-  if (server.url) {
+  // Transport. An explicit `type` always wins — `sse` cannot be inferred, and
+  // rewriting it to `http` both misconfigures the transport and changes the key
+  // Claude Code files the server's OAuth token under (edspencer/herdctl#445).
+  // Fall back to the historical inference (`url` implies `http`) when absent so
+  // existing configs keep working; stdio stays implicit, as the SDK defaults it.
+  if (server.type) {
+    result.type = server.type;
+  } else if (server.url) {
     result.type = "http";
+  }
+
+  // Remote (sse/http) MCP server
+  if (server.url) {
     result.url = server.url;
+  }
+
+  // Headers carry bearer / API-key auth for remote servers, and feed the OAuth
+  // token's storage key — dropping them breaks auth twice over.
+  if (server.headers && Object.keys(server.headers).length > 0) {
+    result.headers = server.headers;
   }
 
   // Process-based MCP server
@@ -59,6 +75,14 @@ export function transformMcpServer(server: McpServer): SDKMcpServerConfig {
 
   if (server.env && Object.keys(server.env).length > 0) {
     result.env = server.env;
+  }
+
+  if (server.timeout !== undefined) {
+    result.timeout = server.timeout;
+  }
+
+  if (server.alwaysLoad !== undefined) {
+    result.alwaysLoad = server.alwaysLoad;
   }
 
   return result;
@@ -196,6 +220,12 @@ export function toSDKOptions(
 
   // MCP servers (always include, even if empty)
   result.mcpServers = transformMcpServers(agent.mcp_servers);
+
+  // Claude Code plugins. Omitted entirely when the agent lists none, so the SDK
+  // sees no `plugins` key at all rather than an empty array (edspencer/herdctl#444).
+  if (agent.plugins?.length) {
+    result.plugins = agent.plugins.map((plugin) => ({ ...plugin }));
+  }
 
   // Max turns limit (agent-level or session-level)
   const maxTurns = agent.max_turns ?? agent.session?.max_turns;
