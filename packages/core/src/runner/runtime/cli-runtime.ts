@@ -235,6 +235,17 @@ export class CLIRuntime implements RuntimeInterface {
       args.push("--setting-sources", options.agent.setting_sources.join(","));
     }
 
+    // Add Claude Code plugins (edspencer/herdctl#444). Mirrors exactly what the
+    // Agent SDK does with its own `plugins` option — one `--plugin-dir` per
+    // entry, or `--plugin-dir-no-mcp` when the host owns that plugin's MCP
+    // connections — so a `plugins` list behaves the same on either runtime.
+    // Only `type: "local"` exists today, and the schema already enforces it.
+    if (options.agent.plugins?.length) {
+      for (const plugin of options.agent.plugins) {
+        args.push(plugin.skipMcpDiscovery ? "--plugin-dir-no-mcp" : "--plugin-dir", plugin.path);
+      }
+    }
+
     // Add MCP servers if specified
     // Transform agent config format to SDK format and serialize to JSON
     // Claude CLI expects: {"mcpServers": { ... }} (same shape as .mcp.json)

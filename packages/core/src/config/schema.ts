@@ -551,8 +551,16 @@ export const McpServerSchema = z.object({
  * load unless the agent opts in with `setting_sources: ["user", ...]`
  * (edspencer/herdctl#444).
  */
+interface NormalisedPlugin {
+  type: "local";
+  path: string;
+  skipMcpDiscovery?: boolean;
+}
+
 export const PluginSchema = z.union([
-  z.string().transform((path) => ({ type: "local" as const, path })),
+  // The annotated return type matters: without it the two branches infer
+  // different object types and the union's output loses `skipMcpDiscovery`.
+  z.string().transform((path): NormalisedPlugin => ({ type: "local", path })),
   z.object({
     /** Plugin type. Only `local` is supported by the SDK today. */
     type: z.literal("local").default("local"),
