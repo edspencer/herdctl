@@ -350,6 +350,24 @@ defaults:
         GITHUB_TOKEN: ${GITHUB_TOKEN}
 ```
 
+#### defaults.plugins
+
+| Property | Value |
+|----------|-------|
+| **Type** | `array` (of path strings or `{ type, path }` objects) |
+| **Default** | `undefined` |
+| **Required** | No |
+
+Default Claude Code plugins loaded for agents that don't declare their own. Same shape as the per-agent [`plugins`](/configuration/agent-config/#plugins) field. An agent's own `plugins` array **replaces** this default rather than merging with it.
+
+```yaml
+defaults:
+  plugins:
+    - /opt/claude-plugins/slack
+    - path: /opt/claude-plugins/jira
+      skipMcpDiscovery: true
+```
+
 #### defaults.working_directory
 
 | Property | Value |

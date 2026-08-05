@@ -38,9 +38,12 @@ mcp_servers:
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `type` | string | Transport — `stdio`. Optional; inferred as stdio when no `url` is set |
 | `command` | string | Executable to run |
 | `args` | string[] | Command-line arguments |
 | `env` | object | Environment variables (supports `${VAR}` interpolation) |
+| `timeout` | integer | Per-server tool-call timeout in milliseconds (values below `1000` are ignored) |
+| `alwaysLoad` | boolean | Always include this server's tools in the prompt instead of deferring them behind tool search |
 
 ### HTTP-Based Servers
 
@@ -54,7 +57,33 @@ mcp_servers:
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `type` | string | Transport — `http` or `sse`. Optional; inferred as `http` when `url` is set |
 | `url` | string | URL endpoint for the MCP server |
+| `headers` | object | Request headers sent with every call — carries bearer / API-key auth |
+| `timeout` | integer | Per-server tool-call timeout in milliseconds (values below `1000` are ignored) |
+| `alwaysLoad` | boolean | Always include this server's tools in the prompt instead of deferring them behind tool search |
+
+### SSE and Authenticated Remote Servers
+
+`type` is only inferred as `http` or stdio, never `sse` — a server that speaks Server-Sent Events must say so explicitly. Authentication for a remote server goes in `headers`:
+
+```yaml
+mcp_servers:
+  linear:
+    type: sse
+    url: https://mcp.linear.app/sse
+    headers:
+      Authorization: Bearer ${LINEAR_API_KEY}
+    timeout: 30000
+```
+
+:::caution[Set `type` and `headers` accurately]
+Claude Code files a remote server's stored OAuth token under a key derived from `{type, url, headers}`. If a field is dropped or rewritten, the token is looked up under a different key and a previously-authorised server is no longer recognised — so it is not just auth-on-the-wire that breaks, it is the saved authorisation too.
+:::
+
+:::note[camelCase is deliberate]
+`alwaysLoad` (and the rest of these fields) mirror the Agent SDK's own `McpServerConfig` names rather than herdctl's usual snake_case. Entries are passed through verbatim, so you can paste a block straight out of `.mcp.json` or `~/.claude.json`.
+:::
 
 ---
 
@@ -361,7 +390,7 @@ mcp_servers:
 MCP servers follow the agent session lifecycle:
 
 1. **Startup**: When an agent session begins, herdctl spawns all configured MCP servers
-2. **Connection**: Servers connect via stdio (process-based) or HTTP
+2. **Connection**: Servers connect via stdio (process-based), HTTP, or SSE
 3. **Available**: Tools become available for the agent to use
 4. **Shutdown**: When the session ends, process-based servers are terminated
 
@@ -478,16 +507,23 @@ herdctl status --agent my-agent
 ```typescript
 mcp_servers:
   [server-name]:
+    type?: "stdio" | "sse" | "http"  # Transport (inferred: http if url set, else stdio)
     command?: string      # Executable for process-based servers
     args?: string[]       # Command arguments
     env?: Record<string, string>  # Environment variables
-    url?: string          # URL for HTTP-based servers
+    url?: string          # URL for HTTP/SSE-based servers
+    headers?: Record<string, string>  # Request headers for sse/http servers
+    timeout?: number      # Per-server tool-call timeout in ms (below 1000 ignored)
+    alwaysLoad?: boolean  # Always include this server's tools in the prompt
 ```
+
+Every field is passed through to the Agent SDK unchanged. A bare `url` with no `type` still becomes `type: "http"`, so existing configs keep working.
 
 ---
 
 ## Related Pages
 
 - [Agent Configuration](/configuration/agent-config/) — Full agent config reference
+- [plugins](/configuration/agent-config/#plugins) — Claude Code plugins, which can also supply MCP servers
 - [Permissions](/configuration/permissions/) — Tool permission controls
 - [Environment Variables](/configuration/environment/) — Environment configuration

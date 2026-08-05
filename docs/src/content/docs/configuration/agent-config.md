@@ -81,6 +81,7 @@ max_turns: 100
 | `denied_tools` | string[] | No | Tools explicitly denied |
 | `setting_sources` | string[] | No | Where Claude discovers settings: `user`, `project`, `local` |
 | `mcp_servers` | object | No | MCP server configurations |
+| `plugins` | array | No | Claude Code plugins to load (paths or `{type, path}` objects) |
 | `chat` | object | No | Chat integration settings |
 | `docker` | object | No | Docker execution settings |
 | `runtime` | string | No | Runtime type: `"sdk"` (default) or `"cli"` |
@@ -555,10 +556,27 @@ Each MCP server is a named entry with these fields:
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `type` | string | Transport: `stdio`, `sse`, or `http`. Optional — inferred as `http` when `url` is set, stdio otherwise |
 | `command` | string | Executable command |
 | `args` | string[] | Command arguments |
 | `env` | object | Environment variables |
-| `url` | string | URL for HTTP-based MCP servers |
+| `url` | string | URL for HTTP/SSE-based MCP servers |
+| `headers` | object | Request headers for `sse`/`http` servers (bearer / API-key auth) |
+| `timeout` | integer | Per-server tool-call timeout in milliseconds (values below `1000` are ignored) |
+| `alwaysLoad` | boolean | Always include this server's tools in the prompt instead of deferring them behind tool search |
+
+Fields are passed through to the Agent SDK verbatim, which is why some are camelCase. An SSE server must set `type: sse` explicitly — it cannot be inferred:
+
+```yaml
+mcp_servers:
+  linear:
+    type: sse
+    url: https://mcp.linear.app/sse
+    headers:
+      Authorization: Bearer ${LINEAR_API_KEY}
+```
+
+See [MCP Servers](/configuration/mcp-servers/#sse-and-authenticated-remote-servers) for why `type` and `headers` matter to a remote server's stored authorisation.
 
 ### chat
 
@@ -719,6 +737,42 @@ setting_sources:
 | `local` | Read from `.claude/settings.local.json` (project-local overrides) |
 
 Default: `["project"]` when a working directory is set, `[]` otherwise.
+
+:::note[Auto-discovered plugins need the `user` source]
+The SDK auto-discovers plugins under `$CLAUDE_CONFIG_DIR/plugins`, but only *enables* them through the `enabledPlugins` key, which lives in the **user** settings source. With the default `["project"]`, those plugins are discovered and never enabled. For CLI-parity auto-discovery, opt in explicitly:
+
+```yaml
+setting_sources: ["user", "project"]
+```
+
+That also inherits everything else from the user source — `~/.claude/CLAUDE.md`, user `agents/`, `commands/`, and `settings.json` hooks — so it is a broader grant than naming the plugins you want. Listing them under [`plugins`](#plugins) needs no such opt-in.
+:::
+
+### plugins
+
+Load [Claude Code plugins](https://docs.claude.com/en/docs/claude-code/plugins) for this agent. A plugin can supply commands, agents, skills, hooks, and MCP servers. The list is passed through to the Agent SDK's `plugins` option.
+
+Entries are either a bare path string or an object:
+
+```yaml
+plugins:
+  - /opt/claude-plugins/slack           # shorthand
+  - path: /opt/claude-plugins/jira      # object form
+    type: local
+    skipMcpDiscovery: true
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `path` | string | — | **Required.** Path to the plugin directory. Used as given — absolute paths recommended (herdctl does not resolve it relative to the config file) |
+| `type` | string | `local` | Plugin type. Only `local` is supported by the SDK today |
+| `skipMcpDiscovery` | boolean | — | Load the plugin's skills, hooks, agents, and commands but ignore its MCP servers |
+
+Fleet [`defaults.plugins`](/configuration/fleet-config/#defaultsplugins) applies to agents that do not set `plugins` themselves. An agent's own array **replaces** the default — arrays are not merged, the same as `tools` and `allowed_tools`.
+
+:::caution[Docker agents]
+For a [dockerized agent](/configuration/docker/) the path must resolve *inside* the container, so the plugin directory has to be mounted there.
+:::
 
 ### model
 
