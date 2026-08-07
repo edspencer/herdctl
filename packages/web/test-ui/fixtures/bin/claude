@@ -41,6 +41,7 @@ function parseArgs(argv) {
     model: undefined,
     systemPrompt: undefined,
     resume: undefined,
+    sessionId: undefined,
     permissionMode: undefined,
     allowedTools: undefined,
   };
@@ -50,6 +51,11 @@ function parseArgs(argv) {
     else if (a === "--model") flags.model = argv[++i];
     else if (a === "--system-prompt") flags.systemPrompt = argv[++i];
     else if (a === "--resume") flags.resume = argv[++i];
+    // Real Claude Code names the transcript after --session-id, and herdctl now
+    // mints the id and passes it rather than inferring which new file was ours
+    // (#357). Honour it, or the runtime waits out its whole timeout for a file
+    // named after the id we ignored before falling back to inference.
+    else if (a === "--session-id") flags.sessionId = argv[++i];
     else if (a === "--permission-mode") flags.permissionMode = argv[++i];
     else if (a === "--allowedTools") flags.allowedTools = argv[++i];
     else if (a === "--disallowedTools") argv[++i];
@@ -171,10 +177,17 @@ function main() {
   }
 
   const resuming = !!flags.resume;
-  const sessionId = resuming ? flags.resume : crypto.randomUUID();
+  // --session-id names the transcript whenever it is supplied — that is the whole
+  // point of the flag, and it is what real Claude Code does. It wins over
+  // --resume so a FORK (`--resume <src> --fork-session --session-id <new>`) lands
+  // in a new file rather than appending to its source. A plain resume is passed
+  // no --session-id, so it keeps the id it is resuming.
+  const sessionId = flags.sessionId ?? (resuming ? flags.resume : crypto.randomUUID());
   const file = path.join(dir, `${sessionId}.jsonl`);
 
-  const priorText = resuming ? readPriorText(file) : "";
+  // Continuity comes from the session being RESUMED, which for a fork is the
+  // source rather than the (new, still-empty) file we are about to write.
+  const priorText = resuming ? readPriorText(path.join(dir, `${flags.resume}.jsonl`)) : "";
   const reply = replyFor(prompt, script, priorText);
   const messageId = `msg_${crypto.randomBytes(8).toString("hex")}`;
   const model = flags.model || "claude-opus-4-8";

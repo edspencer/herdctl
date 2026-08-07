@@ -385,6 +385,22 @@ export function canAgentAdopt(attribution: SessionAttribution, agentName: string
   return isOwnedByAgent(attributionAfterAdoptionBy(attribution, agentName), agentName);
 }
 
+/**
+ * Does `candidate` beat the currently-held claim on the same session id?
+ *
+ * Newest `started_at` wins; ties break on job id. Both are ISO-8601 / fixed-shape
+ * strings, so lexicographic comparison is chronological and total — the point is
+ * that the winner depends only on the records themselves, never on the order the
+ * filesystem happened to hand them to us.
+ */
+function claimWins(
+  candidate: { startedAt: string; jobId: string },
+  held: { startedAt: string; jobId: string },
+): boolean {
+  if (candidate.startedAt !== held.startedAt) return candidate.startedAt > held.startedAt;
+  return candidate.jobId > held.jobId;
+}
+
 /** One job file's contribution to the index, memoized by the builder. */
 interface CachedJobFile {
   /** File mtime (epoch ms) when last parsed — the cache-invalidation key. */
@@ -394,7 +410,15 @@ interface CachedJobFile {
    * has no `session_id` yet (e.g. still running) or failed to parse. Cached
    * either way so we don't re-read an unchanged file.
    */
-  entry: { sessionId: string; agent: string; triggerType: string } | null;
+  entry: {
+    sessionId: string;
+    agent: string;
+    triggerType: string;
+    /** The record's own `started_at` — orders competing claims on one session. */
+    startedAt: string;
+    /** The job id — a stable tie-break when two claims share a timestamp. */
+    jobId: string;
+  } | null;
 }
 
 /**
@@ -487,18 +511,42 @@ export class AttributionIndexBuilder {
         this.jobFileCache.set(file, {
           mtimeMs,
           entry: job.session_id
-            ? { sessionId: job.session_id, agent: job.agent, triggerType: job.trigger_type }
+            ? {
+                sessionId: job.session_id,
+                agent: job.agent,
+                triggerType: job.trigger_type,
+                startedAt: job.started_at,
+                jobId: job.id,
+              }
             : null,
         });
       }),
     );
 
     // Assemble the session→attribution map from the cached per-file contributions.
+    //
+    // Two records CAN claim one session id: deliberately, when a session is
+    // re-attributed (a promote/adopt writes a record naming the new owner), and
+    // accidentally, when a co-located agent's spawn was handed the wrong session
+    // id (issue #357 — which `--session-id` now prevents at the source).
+    //
+    // Resolving that by iteration order was the bug: this map used to be filled
+    // in `Promise.all` completion order, so the winner was whichever file's
+    // stat+parse happened to finish last — i.e. decided by file size and machine
+    // load, with no owner semantics at all. Identical on-disk state could resolve
+    // to a different agent on a different machine or under different load.
+    //
+    // Order explicitly instead: the LATEST claim wins, tie-broken by job id. That
+    // keeps deliberate re-attribution working (a promote's record is newer, so it
+    // still wins) while making the answer a pure function of what is on disk.
     const index = new Map<string, JobIndexEntry>();
+    const winners = new Map<string, { startedAt: string; jobId: string }>();
     for (const { entry } of this.jobFileCache.values()) {
-      if (entry) {
-        index.set(entry.sessionId, { agent: entry.agent, triggerType: entry.triggerType });
-      }
+      if (!entry) continue;
+      const held = winners.get(entry.sessionId);
+      if (held && !claimWins(entry, held)) continue;
+      winners.set(entry.sessionId, { startedAt: entry.startedAt, jobId: entry.jobId });
+      index.set(entry.sessionId, { agent: entry.agent, triggerType: entry.triggerType });
     }
     return index;
   }

@@ -887,6 +887,97 @@ describe("AttributionIndexBuilder (incremental)", () => {
     });
   });
 
+  describe("two records claiming one session id — issue #357 hardening", () => {
+    // A collision leaves two job records naming the SAME session id for
+    // different agents. This used to resolve by `Promise.all` completion order,
+    // i.e. by whichever file's stat+parse finished last — a function of file
+    // size and machine load, not of anything meaningful. Order it explicitly:
+    // newest `started_at` wins, ties broken on job id.
+    async function writeCompeting(dir: string, opts: { keeperFirst: boolean }) {
+      const keeper = {
+        id: "job-2024-01-15-aaa111",
+        session_id: "sess-x",
+        agent: "keeper",
+        started_at: "2024-01-15T10:00:05Z",
+      };
+      const sweeper = {
+        id: "job-2024-01-15-zzz999",
+        session_id: "sess-x",
+        agent: "sweeper",
+        started_at: "2024-01-15T10:00:01Z",
+      };
+      for (const rec of opts.keeperFirst ? [keeper, sweeper] : [sweeper, keeper]) {
+        await writeJobFile(dir, rec);
+      }
+    }
+
+    it("resolves to the newest claim regardless of the order files are read", async () => {
+      await writeCompeting(tempDir, { keeperFirst: true });
+      expect(
+        (await new AttributionIndexBuilder().build(tempDir)).getAttribute("sess-x").agentName,
+      ).toBe("keeper");
+
+      const other = await createTempDir();
+      try {
+        await writeCompeting(other, { keeperFirst: false });
+        expect(
+          (await new AttributionIndexBuilder().build(other)).getAttribute("sess-x").agentName,
+        ).toBe("keeper");
+      } finally {
+        await rm(other, { recursive: true, force: true });
+      }
+    });
+
+    it("is stable across repeated builds", async () => {
+      await writeCompeting(tempDir, { keeperFirst: true });
+      const seen = new Set<string | undefined>();
+      for (let i = 0; i < 10; i++) {
+        const index = await new AttributionIndexBuilder().build(tempDir);
+        seen.add(index.getAttribute("sess-x").agentName);
+      }
+      expect([...seen]).toEqual(["keeper"]);
+    });
+
+    it("still lets a deliberate re-attribution win (promote/adopt writes a newer record)", async () => {
+      // The reason this is "newest wins" rather than "first owner keeps it":
+      // adopting or promoting a session is a legitimate change of owner.
+      await writeJobFile(tempDir, {
+        id: "job-2024-01-15-aaa111",
+        session_id: "sess-y",
+        agent: "old-owner",
+        started_at: "2024-01-15T10:00:00Z",
+      });
+      await writeJobFile(tempDir, {
+        id: "job-2024-01-16-bbb222",
+        session_id: "sess-y",
+        agent: "new-owner",
+        started_at: "2024-01-16T09:00:00Z",
+      });
+
+      const index = await new AttributionIndexBuilder().build(tempDir);
+      expect(index.getAttribute("sess-y").agentName).toBe("new-owner");
+    });
+
+    it("breaks an exact timestamp tie on job id", async () => {
+      const at = "2024-01-15T10:00:00Z";
+      await writeJobFile(tempDir, {
+        id: "job-2024-01-15-aaa111",
+        session_id: "sess-z",
+        agent: "lower",
+        started_at: at,
+      });
+      await writeJobFile(tempDir, {
+        id: "job-2024-01-15-zzz999",
+        session_id: "sess-z",
+        agent: "higher",
+        started_at: at,
+      });
+
+      const index = await new AttributionIndexBuilder().build(tempDir);
+      expect(index.getAttribute("sess-z").agentName).toBe("higher");
+    });
+  });
+
   it("returns an empty index when the jobs dir does not exist", async () => {
     const index = await new AttributionIndexBuilder().build(tempDir);
     expect(index.getAttribute("whatever").agentName).toBeUndefined();
