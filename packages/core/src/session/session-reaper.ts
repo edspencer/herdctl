@@ -17,6 +17,7 @@
  * See edspencer/herdctl#307.
  */
 
+import { SessionTaskControlUnsupportedError } from "../fleet-manager/errors.js";
 import type { RuntimeSession } from "../runner/runtime/interface.js";
 import { createLogger } from "../utils/logger.js";
 import { decideReap } from "./reaper-policy.js";
@@ -193,6 +194,47 @@ export class SessionReaper {
     const managed = this.liveById.get(sessionId);
     if (!managed?.isLive()) return false;
     this.reap(managed, sessionId, "force-reaped on request");
+    return true;
+  }
+
+  /**
+   * Stop ONE background task in a live managed session, by session id.
+   *
+   * `RuntimeSession.stopTask` exists, but a consumer cannot reach it when it
+   * matters. It holds the handle only for the duration of a turn and releases it
+   * when the turn's result lands — while background shells, sub-agents and
+   * monitors routinely outlive that turn. So a handle-scoped stop works only
+   * while a turn happens to be in flight, and goes inert over exactly the long
+   * tail where something is still running and the user is asking why.
+   *
+   * Consumers cannot fix that by holding the handle longer, because they do not
+   * own the session's lifetime — this reaper does, and {@link liveById} already
+   * keeps the session past the turn precisely so its background work can finish.
+   * This is the door onto that state: same shape as {@link forceReap}, one step
+   * short of it — stop this *task*, not the whole session.
+   *
+   * Deliberately does NOT pre-check that the task is live. The CLI answers
+   * `not_found` / `not_running` with a success, so stopping a task that just
+   * completed on its own resolves normally; a liveness gate here would only
+   * reintroduce that race. Nor is it ownership-gated — the control request
+   * carries no caller id, which is what makes an out-of-band stop button work.
+   *
+   * Rejections from the runtime propagate. Notably `monitor_mcp` tasks, which
+   * the CLI has no kill strategy for and rejects with `unsupported_type`: a
+   * consumer needs to see that the stop did nothing rather than render a
+   * success. A rejection leaves reaper state untouched — the session stays live
+   * and reapable, and nothing about the reap decision is disturbed.
+   *
+   * @returns `true` once the stop request has been delivered — matching
+   *   {@link forceReap}, `false` means only "no live session with this id".
+   * @throws {@link import("../fleet-manager/errors.js").SessionTaskControlUnsupportedError}
+   *   if the live session's handle carries no `stopTask`.
+   */
+  async stopTaskInSession(sessionId: string, taskId: string): Promise<boolean> {
+    const managed = this.liveById.get(sessionId);
+    if (!managed?.isLive()) return false;
+    this.logger.debug(`Stopping task ${taskId} in session ${sessionId} (${managed.agent})`);
+    await managed.stopTask(taskId);
     return true;
   }
 
@@ -438,6 +480,21 @@ class ManagedSessionImpl implements ManagedSession {
 
   detach(): void {
     this.markDone();
+  }
+
+  /**
+   * Forward a stop-task control request to the underlying session handle.
+   *
+   * The handle is a plain structural object supplied by whoever opened the
+   * session, so `stopTask` may be missing at runtime even though the type
+   * requires it (an older build, a foreign runtime). Throw rather than resolve:
+   * a silent success here reports a still-running task as stopped.
+   */
+  stopTask(taskId: string): Promise<void> {
+    if (typeof this.session.stopTask !== "function") {
+      throw new SessionTaskControlUnsupportedError(this.resolvedSessionId ?? "unknown");
+    }
+    return this.session.stopTask(taskId);
   }
 
   /** Reap: mark not-live and close the session after the current hook unwinds. */

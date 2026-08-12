@@ -19,7 +19,10 @@ async function* stream(messages: SDKMessage[]): AsyncGenerator<SDKMessage> {
   for (const m of messages) yield m;
 }
 
-function fakeSession(): RuntimeSession & { close: ReturnType<typeof vi.fn> } {
+function fakeSession(): RuntimeSession & {
+  close: ReturnType<typeof vi.fn>;
+  stopTask: ReturnType<typeof vi.fn>;
+} {
   async function* empty(): AsyncGenerator<never> {}
   return {
     messages: empty(),
@@ -27,6 +30,7 @@ function fakeSession(): RuntimeSession & { close: ReturnType<typeof vi.fn> } {
     interrupt: vi.fn().mockResolvedValue(undefined),
     listCommands: vi.fn().mockResolvedValue([]),
     setModel: vi.fn().mockResolvedValue(undefined),
+    stopTask: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
   };
 }

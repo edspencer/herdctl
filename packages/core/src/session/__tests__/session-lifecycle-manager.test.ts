@@ -23,6 +23,7 @@ function fakeSession(): RuntimeSession {
     interrupt: vi.fn().mockResolvedValue(undefined),
     listCommands: vi.fn().mockResolvedValue([]),
     setModel: vi.fn().mockResolvedValue(undefined),
+    stopTask: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
   };
 }

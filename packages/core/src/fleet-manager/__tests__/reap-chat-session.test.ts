@@ -32,7 +32,10 @@ const silentLogger = () => ({
 /** A background task, so the policy holds the session open and never reaps it. */
 const TASK = { id: "t1", type: "shell", status: "running", description: "server" };
 
-function fakeSession(): RuntimeSession & { close: ReturnType<typeof vi.fn> } {
+function fakeSession(): RuntimeSession & {
+  close: ReturnType<typeof vi.fn>;
+  stopTask: ReturnType<typeof vi.fn>;
+} {
   async function* empty(): AsyncGenerator<never> {}
   return {
     messages: empty(),
@@ -40,6 +43,7 @@ function fakeSession(): RuntimeSession & { close: ReturnType<typeof vi.fn> } {
     interrupt: vi.fn().mockResolvedValue(undefined),
     listCommands: vi.fn().mockResolvedValue([]),
     setModel: vi.fn().mockResolvedValue(undefined),
+    stopTask: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
   };
 }

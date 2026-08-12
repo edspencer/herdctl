@@ -240,6 +240,8 @@ A live streaming session keeps a warm `claude` process around (~300 MB each). Se
 
 The keep-alive rule has no backstop — no idle timer, no max lifetime. That is deliberate (reaping a session with work in flight kills the work), but it means a session whose background work never finishes is never reaped on its own, and its message stream never ends. [`reapChatSession()`](/library-reference/fleet-manager/#reapchatsessionsessionid) closes such a session on demand, so a UI can offer a working "stop".
 
+For the narrower case — one runaway background task, not the whole session — [`stopTaskInSession()`](/library-reference/fleet-manager/#stoptaskinsessionsessionid-taskid) stops a single shell, subagent or monitor by id and leaves the session running. Both are keyed by session id for the same reason: background work outlives the turn that started it, so the `RuntimeSession` handle a consumer holds is already gone by the time the stop is wanted.
+
 Wake semantics:
 
 | Behavior | Rule |

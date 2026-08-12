@@ -43,6 +43,7 @@ export const FleetManagerErrorCode = {
   JOB_FORK_ERROR: "JOB_FORK_ERROR",
   INVALID_WORKING_DIRECTORY_OVERRIDE: "INVALID_WORKING_DIRECTORY_OVERRIDE",
   STREAMING_SESSION_UNSUPPORTED: "STREAMING_SESSION_UNSUPPORTED",
+  SESSION_TASK_CONTROL_UNSUPPORTED: "SESSION_TASK_CONTROL_UNSUPPORTED",
 
   // Distribution errors
   SOURCE_PARSE_ERROR: "SOURCE_PARSE_ERROR",
@@ -732,6 +733,40 @@ export class StreamingSessionUnsupportedError extends FleetManagerError {
     );
     this.name = "StreamingSessionUnsupportedError";
     this.runtime = options?.runtime;
+  }
+}
+
+/**
+ * Thrown when a live session cannot service a per-task control request because
+ * its `RuntimeSession` handle carries no `stopTask`.
+ *
+ * `stopTask` is a required member of `RuntimeSession`, and the only runtime that
+ * opens sessions at all is the SDK runtime — so in-tree this is unreachable. It
+ * exists because the handle is a plain structural object supplied by whoever
+ * opened the session: an older build, a test double, or a third-party runtime
+ * can satisfy the type nominally and still not carry the method at runtime.
+ *
+ * The alternative — resolving quietly — would report a task as stopped that is
+ * still running, which is the one outcome a stop button must never produce. So
+ * this is thrown, and kept distinct from the `false` that
+ * {@link import("./fleet-manager.js").FleetManager.stopTaskInSession} returns
+ * for a session that is simply not live.
+ */
+export class SessionTaskControlUnsupportedError extends FleetManagerError {
+  /** The session whose runtime handle cannot stop tasks */
+  public readonly sessionId: string;
+
+  constructor(sessionId: string, options?: { cause?: Error }) {
+    super(
+      `Session "${sessionId}" cannot stop background tasks: its runtime session ` +
+        "handle does not implement stopTask. Per-task control requires the SDK runtime.",
+      {
+        cause: options?.cause,
+        code: FleetManagerErrorCode.SESSION_TASK_CONTROL_UNSUPPORTED,
+      },
+    );
+    this.name = "SessionTaskControlUnsupportedError";
+    this.sessionId = sessionId;
   }
 }
 

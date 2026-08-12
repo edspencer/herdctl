@@ -203,8 +203,8 @@ export class SDKRuntime implements RuntimeInterface {
    * The initial `options.prompt` (if any) is sent as the first turn; further
    * turns are sent via {@link RuntimeSession.send}. Because the input iterable
    * stays open, the returned SDK `Query` handle is retained so its control
-   * requests (`interrupt`, `supportedCommands`, `setModel`) stay available for
-   * the life of the session.
+   * requests (`interrupt`, `supportedCommands`, `setModel`, `stopTask`) stay
+   * available for the life of the session.
    */
   openSession(options: RuntimeExecuteOptions): RuntimeSession {
     const sdkOptions = this.buildSdkOptions(options);
@@ -257,6 +257,7 @@ export class SDKRuntime implements RuntimeInterface {
       },
       listCommands: () => q.supportedCommands(),
       setModel: (model?: string) => q.setModel(model),
+      stopTask: (taskId: string) => q.stopTask(taskId),
       close: async () => {
         input.end();
         // Best-effort: tell the SDK generator we're done so it tears down the CLI.

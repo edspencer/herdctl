@@ -1486,6 +1486,56 @@ if (!manager.reapChatSession(sessionId)) {
 
 ---
 
+### `stopTaskInSession(sessionId, taskId)`
+
+Stops one background task in a managed chat session, leaving the session running.
+
+```typescript
+await manager.stopTaskInSession(
+  sessionId: string,
+  taskId: string
+): Promise<boolean>
+```
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `sessionId` | `string` | **Yes** | Resolved session id of a session opened with `manageLifecycle: true` |
+| `taskId` | `string` | **Yes** | Id of the background task, as carried on the session's `task_notification` messages and on the `BackgroundTaskSummary` handed to `onKeepAlive` |
+
+#### Returns
+
+`true` once the stop request has been delivered; `false` for an unknown, unmanaged or already-reaped session id. Rejects if the runtime refuses the stop — see below.
+
+#### Description
+
+The finer-grained sibling of [`reapChatSession()`](#reapchatsessionsessionid): that ends the whole session, this ends a single background shell, sub-agent or monitor and leaves everything else running. The SDK emits the terminal `task_notification` with `status: "stopped"` on the session's own message stream, so a consumer driving a UI off that stream needs no separate confirmation and no bookkeeping.
+
+Why by session id rather than on the `RuntimeSession` you hold? Because background tasks routinely outlive the turn that started them, and your handle does not — you release it when the turn's result lands. A stop reachable only through the handle would work while a turn happened to be in flight and go inert over exactly the window where a task is still running and the user is asking why. Past the turn, the reaper is the only thing still holding the session, so that is where the door has to be.
+
+<Aside type="note">
+`interrupt()` is not a substitute here either. It targets the in-flight model turn; during the background phase there is none, and interrupting would not touch the task anyway.
+</Aside>
+
+Stopping is idempotent and not ownership-gated. A task that finished a moment ago stops cleanly — the CLI answers `not_found` / `not_running` with a success — so do not guard the call with your own liveness check; that only reintroduces the race. And because the control request carries no caller id, any task in the session can be stopped by an out-of-band actor, which is what makes a UI stop button work at all.
+
+One case rejects rather than resolving: `monitor_mcp` tasks, which have no kill strategy and answer `unsupported_type`. That is surfaced deliberately — reporting a still-running task as stopped is the one outcome a stop button must never produce.
+
+```typescript
+// Per-row stop button on a running-work bar.
+try {
+  if (!(await manager.stopTaskInSession(sessionId, taskId))) {
+    logger.warn(`No live managed session ${sessionId}`);
+  }
+} catch (error) {
+  // e.g. a monitor_mcp task the CLI cannot kill — tell the user, don't swallow.
+  logger.error(`Could not stop task ${taskId}: ${(error as Error).message}`);
+}
+```
+
+---
+
 ### `listAgentCommands(agentName, options?)`
 
 Lists the slash commands available to an agent — for populating a command palette or autocomplete — in a single call.

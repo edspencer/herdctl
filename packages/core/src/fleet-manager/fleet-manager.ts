@@ -1169,6 +1169,34 @@ export class FleetManager extends EventEmitter implements FleetManagerContext {
     return this.sessionLifecycle?.reaper.forceReap(sessionId) ?? false;
   }
   /**
+   * Stop ONE background task in a managed chat session, by session id.
+   *
+   * The finer-grained sibling of {@link reapChatSession}: that ends the whole
+   * session, this ends a single background shell / sub-agent / monitor and
+   * leaves the session running. The SDK emits the terminal
+   * `task_notification{status:"stopped"}` on the session's own message stream,
+   * so a consumer driving a UI off that stream needs no separate confirmation.
+   *
+   * Keyed by session id rather than taken on the {@link RuntimeSession} handle
+   * for the same reason `reapChatSession` is: background tasks outlive the turn
+   * that started them, and the consumer's handle does not. Only the reaper holds
+   * the session across that gap. See {@link SessionReaper.stopTaskInSession}.
+   *
+   * Idempotent — stopping a task that already finished resolves normally, since
+   * the CLI answers `not_found` / `not_running` with a success. Not
+   * ownership-gated: any task in the session can be stopped by an out-of-band
+   * caller.
+   *
+   * Only applies to sessions opened with `manageLifecycle: true`. Returns
+   * `false` for an unknown, unmanaged, or already-reaped session id. Rejects if
+   * the runtime refuses the stop — notably `monitor_mcp` tasks, which the CLI
+   * cannot kill and rejects with `unsupported_type`; that surfaces rather than
+   * being reported as a success.
+   */
+  async stopTaskInSession(sessionId: string, taskId: string): Promise<boolean> {
+    return (await this.sessionLifecycle?.reaper.stopTaskInSession(sessionId, taskId)) ?? false;
+  }
+  /**
    * List the slash commands available to an agent in one shot.
    *
    * A convenience wrapper that opens a streaming session, reads its command list,
