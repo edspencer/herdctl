@@ -21,6 +21,45 @@ import type { ChatMessage, ChatSession, ChatToolCall, RecentChatSession } from "
 /** Maximum number of sessions shown per agent in the sidebar */
 const SIDEBAR_SESSION_LIMIT = 5;
 
+/** How long to wait for a session's messages before giving up and offering a retry */
+export const CHAT_MESSAGES_TIMEOUT_MS = 15_000;
+
+/**
+ * Run a message fetch under a hard timeout.
+ *
+ * Without this a hung API call (proxy timeout, huge transcript, dead server)
+ * left the message feed stuck on "Loading messages..." forever, with a page
+ * reload as the only escape.
+ */
+async function fetchMessagesWithTimeout<T>(
+  run: (signal: AbortSignal) => Promise<T>,
+  fallbackMessage: string,
+): Promise<{ ok: true; value: T } | { ok: false; message: string }> {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, CHAT_MESSAGES_TIMEOUT_MS);
+
+  try {
+    return { ok: true, value: await run(controller.signal) };
+  } catch (error) {
+    if (timedOut) {
+      return {
+        ok: false,
+        message: `Timed out loading messages after ${Math.round(CHAT_MESSAGES_TIMEOUT_MS / 1000)}s`,
+      };
+    }
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : fallbackMessage,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export interface ChatState {
   /** List of chat sessions for the current agent */
   chatSessions: ChatSession[];
@@ -174,21 +213,29 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
       chatStreamingContent: "",
     });
 
-    try {
-      const response = await fetchChatSession(agentName, sessionId);
+    const result = await fetchMessagesWithTimeout(
+      (signal) => fetchChatSession(agentName, sessionId, { signal }),
+      "Failed to fetch chat messages",
+    );
+
+    if (result.ok) {
       set({
-        chatMessages: response.messages,
+        chatMessages: result.value.messages,
         chatMessagesLoading: false,
         activeChatSessionId: sessionId,
         activeChatAgent: agentName,
       });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to fetch chat messages";
-      set({
-        chatMessagesLoading: false,
-        chatError: message,
-      });
+      return;
     }
+
+    set({
+      chatMessagesLoading: false,
+      chatError: result.message,
+      // Keep the session active so a retry knows what to re-fetch and the
+      // header/sidebar don't flicker back to "new chat".
+      activeChatSessionId: sessionId,
+      activeChatAgent: agentName,
+    });
   },
 
   renameChatSession: async (agentName: string, sessionId: string, customName: string) => {
@@ -442,21 +489,26 @@ export const createChatSlice: StateCreator<ChatSlice, [], [], ChatSlice> = (set,
       chatStreamingContent: "",
     });
 
-    try {
-      const response = await fetchSessionByPath(encodedPath, sessionId);
+    const result = await fetchMessagesWithTimeout(
+      (signal) => fetchSessionByPath(encodedPath, sessionId, { signal }),
+      "Failed to fetch ad hoc chat messages",
+    );
+
+    if (result.ok) {
       set({
-        chatMessages: response.messages,
+        chatMessages: result.value.messages,
         chatMessagesLoading: false,
         activeChatSessionId: sessionId,
         activeChatAgent: null, // Ad hoc sessions don't have an associated agent
       });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to fetch ad hoc chat messages";
-      set({
-        chatMessagesLoading: false,
-        chatError: message,
-      });
+      return;
     }
+
+    set({
+      chatMessagesLoading: false,
+      chatError: result.message,
+      activeChatSessionId: sessionId,
+      activeChatAgent: null,
+    });
   },
 });

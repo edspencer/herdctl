@@ -6,8 +6,8 @@
  * Supports both existing sessions (with sessionId in URL) and new chats (no sessionId).
  */
 
-import { Container, Info, MessageCircle, SplitSquareHorizontal } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { Container, Info, MessageCircle, RefreshCw, SplitSquareHorizontal } from "lucide-react";
+import { useCallback, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router";
 import { agentChatPath } from "../../lib/paths";
 import {
@@ -62,6 +62,15 @@ export function ChatView() {
     };
   }, [qualifiedName, clearActiveChatState]);
 
+  // Re-run the message fetch for the session currently in the URL. Wired to the
+  // error banner and the "no messages found" empty state so a transient failure
+  // (timeout, 5xx, transcript not yet flushed) doesn't require a page reload.
+  const handleRetry = useCallback(() => {
+    if (sessionId && qualifiedName) {
+      fetchChatMessages(qualifiedName, sessionId);
+    }
+  }, [sessionId, qualifiedName, fetchChatMessages]);
+
   // Fetch messages when session ID changes
   useEffect(() => {
     if (sessionId && qualifiedName) {
@@ -103,8 +112,18 @@ export function ChatView() {
         {chatError && (
           <div className="px-4 pt-4">
             <div className="max-w-2xl mx-auto">
-              <div className="bg-herd-status-error/10 border border-herd-status-error/20 text-herd-status-error rounded-lg px-3 py-2 text-xs">
-                {chatError}
+              <div className="bg-herd-status-error/10 border border-herd-status-error/20 text-herd-status-error rounded-lg px-3 py-2 text-xs flex items-center justify-between gap-4">
+                <span>{chatError}</span>
+                {sessionId && (
+                  <button
+                    type="button"
+                    onClick={handleRetry}
+                    className="shrink-0 inline-flex items-center gap-1 font-medium hover:underline"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Retry
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -179,7 +198,7 @@ export function ChatView() {
           </div>
         ) : (
           /* Message feed for existing sessions or new chats with messages */
-          <MessageFeed agentName={qualifiedName} />
+          <MessageFeed agentName={qualifiedName} sessionId={sessionId} onRetry={handleRetry} />
         )}
 
         {/* Composer - shown for resumable sessions or new chats */}
