@@ -93,4 +93,25 @@ describe("DirectoryGroup", () => {
       ).toBeInTheDocument();
     });
   });
+
+  it("shows all sessions of a group whose directory path matches the query", () => {
+    renderGroup(makeGroup(3), "project");
+
+    expect(screen.getByText("Session 1")).toBeInTheDocument();
+    expect(screen.getByText("Session 3")).toBeInTheDocument();
+  });
+
+  it("shows only matching sessions when the group header does not match", () => {
+    const group = makeGroup(0);
+    group.sessions = [
+      makeSession(1, { customName: "alpha" }),
+      makeSession(2, { customName: "beta" }),
+    ];
+    group.sessionCount = 2;
+
+    renderGroup(group, "alpha");
+
+    expect(screen.getByText("alpha")).toBeInTheDocument();
+    expect(screen.queryByText("beta")).not.toBeInTheDocument();
+  });
 });

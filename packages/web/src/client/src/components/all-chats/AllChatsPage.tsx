@@ -7,8 +7,7 @@
 
 import { FolderSearch } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { sessionMatchesQuery } from "../../lib/session-utils";
-import type { DirectoryGroup as DirectoryGroupType } from "../../lib/types";
+import { groupMatchesQuery } from "../../lib/session-utils";
 import {
   useAllChatsActions,
   useAllChatsError,
@@ -20,23 +19,6 @@ import {
 } from "../../store";
 import { AllChatsSearch } from "./AllChatsSearch";
 import { DirectoryGroup } from "./DirectoryGroup";
-
-/**
- * Check if a directory group matches the search query.
- * A group matches if the working directory, agent name, or any session matches.
- */
-function groupMatchesQuery(group: DirectoryGroupType, query: string): boolean {
-  const lowerQuery = query.toLowerCase();
-
-  // Check working directory
-  if (group.workingDirectory.toLowerCase().includes(lowerQuery)) return true;
-
-  // Check agent name
-  if (group.agentName?.toLowerCase().includes(lowerQuery)) return true;
-
-  // Check sessions
-  return group.sessions.some((session) => sessionMatchesQuery(session, query));
-}
 
 // =============================================================================
 // Sub-Components

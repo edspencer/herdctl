@@ -1,10 +1,12 @@
 /**
  * AllChatsPage component tests
  *
- * Regression coverage for herdctl#145: collapsing a group during an active
- * search immediately re-expanded it, because `expandedGroups` was in the
- * auto-expand effect's dependency array and the store always produces a fresh
- * Set on toggle.
+ * Regression coverage for:
+ * - herdctl#145: collapsing a group during an active search immediately
+ *   re-expanded it, because `expandedGroups` was in the auto-expand effect's
+ *   dependency array and the store always produces a fresh Set on toggle.
+ * - herdctl#275: the no-results state must be the single top-level message,
+ *   not a per-group one, regardless of how many groups the host machine has.
  */
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -98,5 +100,31 @@ describe("AllChatsPage", () => {
     // And it stays collapsed — the effect must not re-expand it on the next render.
     await vi.advanceTimersByTimeAsync(500);
     expect(screen.queryByText("Alpha chat")).not.toBeInTheDocument();
+  });
+
+  it("renders the top-level no-results state for an unmatched query (herdctl#275)", async () => {
+    renderPage();
+    await waitFor(() => expect(screen.getByText("/tmp/alpha")).toBeInTheDocument());
+
+    await search("zzz-no-such-session-qqq");
+
+    await waitFor(() => {
+      expect(screen.getByText("No matching sessions")).toBeInTheDocument();
+    });
+    // Non-matching groups are dropped entirely rather than rendered empty, so
+    // there is never a competing per-group message.
+    expect(screen.queryByText("/tmp/alpha")).not.toBeInTheDocument();
+    expect(screen.queryByText("/tmp/beta")).not.toBeInTheDocument();
+  });
+
+  it("keeps a group whose directory path matches, showing all of its sessions", async () => {
+    renderPage();
+    await waitFor(() => expect(screen.getByText("/tmp/alpha")).toBeInTheDocument());
+
+    await search("alpha");
+
+    await waitFor(() => expect(screen.queryByText("/tmp/beta")).not.toBeInTheDocument());
+    expect(screen.getByText("/tmp/alpha")).toBeInTheDocument();
+    expect(screen.getByText("Alpha chat")).toBeInTheDocument();
   });
 });

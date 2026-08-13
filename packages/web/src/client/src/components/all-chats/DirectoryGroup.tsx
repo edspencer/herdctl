@@ -9,7 +9,7 @@ import { ChevronRight, Info } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
 import { agentPath } from "../../lib/paths";
-import { sessionMatchesQuery } from "../../lib/session-utils";
+import { groupHeaderMatchesQuery, sessionMatchesQuery } from "../../lib/session-utils";
 import type { DirectoryGroup as DirectoryGroupType } from "../../lib/types";
 import { useAllChatsActions } from "../../store";
 import { SessionRow } from "./SessionRow";
@@ -48,11 +48,14 @@ export function DirectoryGroup({ group, expanded, onToggle, searchQuery }: Direc
   const [showAll, setShowAll] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // Filter sessions client-side when searching
+  // Filter sessions client-side when searching. When the group itself matches
+  // the query (directory path or agent name), every session in it is relevant —
+  // see the same rule in AllChatsPage.groupMatchesQuery.
   const filteredSessions = useMemo(() => {
     if (!searchQuery) return group.sessions;
+    if (groupHeaderMatchesQuery(group, searchQuery)) return group.sessions;
     return group.sessions.filter((session) => sessionMatchesQuery(session, searchQuery));
-  }, [group.sessions, searchQuery]);
+  }, [group, searchQuery]);
 
   // Determine how many sessions to show
   const sessionsToShow = showAll
@@ -129,7 +132,7 @@ export function DirectoryGroup({ group, expanded, onToggle, searchQuery }: Direc
       {expanded && (
         <div className="divide-y divide-herd-border">
           {sessionsToShow.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-herd-muted">No sessions match your search</div>
+            <div className="px-4 py-3 text-sm text-herd-muted">No sessions in this directory</div>
           ) : (
             <>
               {sessionsToShow.map((session) => (
