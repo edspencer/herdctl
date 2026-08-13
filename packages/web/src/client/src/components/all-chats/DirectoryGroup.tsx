@@ -6,7 +6,7 @@
  */
 
 import { ChevronRight, Info } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router";
 import { agentPath } from "../../lib/paths";
 import { sessionMatchesQuery } from "../../lib/session-utils";
@@ -42,6 +42,11 @@ const INITIAL_SESSIONS_SHOWN = 10;
 
 export function DirectoryGroup({ group, expanded, onToggle, searchQuery }: DirectoryGroupProps) {
   const { loadMoreGroupSessions } = useAllChatsActions();
+  // Whether the user has asked to see every locally-loaded session in this
+  // group. Without this the render slice was pinned to INITIAL_SESSIONS_SHOWN
+  // forever, so "Show all" fetched more sessions that were never displayed.
+  const [showAll, setShowAll] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // Filter sessions client-side when searching
   const filteredSessions = useMemo(() => {
@@ -50,13 +55,25 @@ export function DirectoryGroup({ group, expanded, onToggle, searchQuery }: Direc
   }, [group.sessions, searchQuery]);
 
   // Determine how many sessions to show
-  const sessionsToShow = filteredSessions.slice(0, INITIAL_SESSIONS_SHOWN);
-  const hasMoreLoaded = filteredSessions.length > INITIAL_SESSIONS_SHOWN;
+  const sessionsToShow = showAll
+    ? filteredSessions
+    : filteredSessions.slice(0, INITIAL_SESSIONS_SHOWN);
+  const hasMoreLoaded = !showAll && filteredSessions.length > INITIAL_SESSIONS_SHOWN;
   const hasMoreOnServer = group.sessionCount > group.sessions.length;
+  const remainingOnServer = group.sessionCount - group.sessions.length;
 
-  // Handle "Show all" click
-  const handleShowAll = () => {
-    loadMoreGroupSessions(group.encodedPath);
+  // Handle "Show all" click: reveal everything already loaded, and pull the
+  // next page from the server when the group is only partially loaded. The
+  // button stays visible while the server still has more.
+  const handleShowAll = async () => {
+    setShowAll(true);
+    if (!hasMoreOnServer || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      await loadMoreGroupSessions(group.encodedPath);
+    } finally {
+      setLoadingMore(false);
+    }
   };
 
   return (
@@ -130,9 +147,14 @@ export function DirectoryGroup({ group, expanded, onToggle, searchQuery }: Direc
                   <button
                     type="button"
                     onClick={handleShowAll}
-                    className="text-xs text-herd-primary hover:text-herd-primary-hover transition-colors font-medium"
+                    disabled={loadingMore}
+                    className="text-xs text-herd-primary hover:text-herd-primary-hover transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Show all {group.sessionCount} sessions
+                    {loadingMore
+                      ? "Loading..."
+                      : showAll
+                        ? `Load more (${remainingOnServer} remaining)`
+                        : `Show all ${group.sessionCount} sessions`}
                   </button>
                 </div>
               )}
