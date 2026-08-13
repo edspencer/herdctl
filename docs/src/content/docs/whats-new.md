@@ -7,6 +7,83 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Stop and Force-Close Live Sessions from Your App
+**August 12, 2026** · `@herdctl/core@5.33.0` · `@herdctl/core@5.31.0`
+
+New `FleetManager` controls let a consuming app act on a session the reaper still holds open after a turn ends. `stopTaskInSession(sessionId, taskId)` stops a single long-running background task — a detached shell, subagent, or monitor — addressed by session ID rather than by a handle the caller no longer holds, and `reapChatSession(sessionId)` force-closes a session that background work would otherwise keep alive forever. Together they make a UI "Stop" button able to actually stop work that outlives the turn that started it. [#449](https://github.com/edspencer/herdctl/pull/449), [#441](https://github.com/edspencer/herdctl/pull/441)
+
+---
+
+### Full Plugin and MCP Server Configuration
+**August 5, 2026** · `@herdctl/core@5.32.0`
+
+Agents can now load Claude Code plugins via a new `plugins` field on an agent or on fleet `defaults`, honored by both the SDK and CLI runtimes. MCP server config is no longer narrowed to `{command, args, env, url}` — it now accepts `headers`, an explicit transport `type` (`stdio`/`sse`/`http`), `timeout`, and `alwaysLoad`, so authenticated remote servers keep their bearer token and SSE servers connect correctly instead of being forced to HTTP. Backwards compatible: a bare `url` with no `type` still resolves to HTTP. [#446](https://github.com/edspencer/herdctl/pull/446)
+
+---
+
+### Much Faster Job Listings at Scale
+**August 2, 2026** · `@herdctl/core@5.30.0` · `@herdctl/core@5.27.0`
+
+`listJobs` is now backed by an incremental, mtime-keyed index, so filtered and paged listings only read the records they return instead of parsing every job file on disk. A follow-up added filtering by a set of agents plus in-query pagination, which the web dashboard's `/api/jobs` endpoint now uses. Fleets that accumulate thousands of jobs get dramatically faster history views. [#416](https://github.com/edspencer/herdctl/pull/416), [#432](https://github.com/edspencer/herdctl/pull/432)
+
+---
+
+### Adopt Pre-existing Claude Code Sessions
+**August 1, 2026** · `@herdctl/core@5.29.0` · `@herdctl/core@5.29.1`
+
+A transcript you ran yourself in a terminal can now be claimed by an agent so it becomes discoverable, attributed, and resumable like any herdctl-created session. New `FleetManager` methods `listAdoptableSessions`, `adoptSession`, `adoptSessionsFrom`, and `unadoptSession` handle discovery and claiming (copy, move, or link), with title-based auto-naming so an adopted session no longer shows as a raw session ID. Adoption only offers genuinely unattributed sessions, so agents that share a working directory can't shadow each other's transcripts. [#434](https://github.com/edspencer/herdctl/pull/434), [#438](https://github.com/edspencer/herdctl/pull/438)
+
+---
+
+### Point herdctl at a Custom Claude Home
+**August 1, 2026** · `@herdctl/core@5.28.0`
+
+herdctl now resolves the `.claude` transcript directory consistently across listing, reading, and the underlying Claude Code process, and sets `CLAUDE_CONFIG_DIR` so the SDK and CLI runtimes write transcripts where herdctl is watching. A new `claudeHomePath` option (with a `defaultClaudeHome()` helper) makes running agents against a non-default Claude home work end to end — sessions created under a custom home now list, open, and resume correctly instead of appearing empty. [#433](https://github.com/edspencer/herdctl/pull/433)
+
+---
+
+### Hardened Long-Running and Persistent Chat Sessions
+**August 1, 2026** · `@herdctl/core@5.20.0`–`@herdctl/core@5.27.1`
+
+A sustained pass of fixes made herdctl's persistent, session-drive-mode chat far more robust. Sessions are no longer reaped out from under a still-running background task, subagent, or a resumed human turn; a resume no longer spawns a competing process against a still-live session; and git worktrees, injected MCP servers on wake-driven turns, and in-flight tool calls now survive transcript rehydration. A single unreadable transcript or metadata file no longer blanks a session listing or wipes cached session names, so long-running autonomous sessions stay alive, consistent, and correctly rendered across restarts. [#407](https://github.com/edspencer/herdctl/pull/407), [#428](https://github.com/edspencer/herdctl/pull/428), [#391](https://github.com/edspencer/herdctl/pull/391)
+
+---
+
+### Per-Run Token and Cost Accounting on Every Job
+**July 21, 2026** · `@herdctl/core@5.23.0`
+
+Job records now carry a `usage` field capturing per-model token counts (input, output, and cache creation/read), total agentic turns, and the SDK's own `total_cost_usd` when reported. A single run that spans multiple models — for example an Opus main agent delegating to Haiku subagents — is broken down per model, giving consuming apps the raw data to build cost and usage reporting. [#396](https://github.com/edspencer/herdctl/pull/396)
+
+---
+
+### Inline Images from Agents and Tools
+**July 21, 2026** · `@herdctl/core@5.23.0` · `@herdctl/chat@0.8.0` · `@herdctl/web@0.11.0`
+
+Images an agent emits inline, or that an MCP tool returns (e.g. a Playwright `browser_take_screenshot`), are no longer flattened away — they're preserved through message extraction and the SDK message translator, with new `ExtractedImage`/`ToolResult.images` surfaces and an `onImages` handler. The web dashboard adds a guarded `GET /files/:agentName/*` route (with traversal and symlink-escape protection) so an agent can write an image into its working directory and have the dashboard render it inline in chat. [#394](https://github.com/edspencer/herdctl/pull/394)
+
+---
+
+### Token-by-Token Assistant Streaming
+**July 19, 2026** · `@herdctl/core@5.22.0` · `@herdctl/chat@0.7.0`
+
+An opt-in `includePartialMessages` flag makes the SDK runtime emit incremental text deltas, so callers can stream an agent's response into a chat UI token by token instead of waiting for the whole message. Off by default, so batch and non-streaming session callers are unchanged. [#383](https://github.com/edspencer/herdctl/pull/383)
+
+---
+
+### Embeddable Scheduler with Runtime Schedule Mutation
+**July 18, 2026** · `@herdctl/core@5.21.0` · `@herdctl/web@0.10.0`
+
+A host embedding `@herdctl/core` can now own schedule execution via `setScheduleTriggerHandler` and add or remove a single agent's schedules at runtime (`setAgentSchedule` / `removeAgentSchedule`) without re-registering the whole agent. A new `spawned` trigger type records agent-spawned run provenance as a first-class value. Every capability is opt-in, so headless fleets are unchanged. [#379](https://github.com/edspencer/herdctl/pull/379), [#380](https://github.com/edspencer/herdctl/pull/380)
+
+---
+
+### More Consistent FleetManager Events and Config
+**July 11, 2026** · `@herdctl/core@5.19.0`
+
+The `FleetManager` event stream now matches its documented contract: `agent:started`/`agent:stopped` actually fire, `job:created` is emitted the moment a job record is created (before it runs), and manual triggers now stream `job:output` like scheduled runs. A long-standing bug where `denied_tools` was silently ignored on `runtime: sdk` agents is fixed, and the never-used fleet-level `chat` config block is deprecated in favor of per-agent chat config. [#343](https://github.com/edspencer/herdctl/pull/343)
+
+---
+
 ### Published Package Deduplication Fix
 **July 10, 2026** · `herdctl@1.5.26` · `@herdctl/chat@0.5.5` (and the other packages that declare internal deps)
 
