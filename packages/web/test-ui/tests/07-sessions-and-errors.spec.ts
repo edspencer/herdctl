@@ -37,9 +37,10 @@ async function seedCompletedSession(page: Page, harness: Harness): Promise<void>
       async () => {
         const res = await page.request.get(`${harness.baseUrl}/api/chat/all?limit=200`);
         const all = await res.json();
+        // Compare on encodedPath: it is the exact key core groups by, whereas
+        // workingDirectory is a lossy decode of it.
         return (all.groups ?? []).some(
-          (g: { workingDirectory: string }) =>
-            g.workingDirectory === harness.agentWorkdir("talker"),
+          (g: { encodedPath: string }) => g.encodedPath === harness.agentEncodedPath("talker"),
         );
       },
       { timeout: 30_000, intervals: [500] },
@@ -63,7 +64,9 @@ test.describe("All Chats session list", () => {
     // Assert on the group's working directory, not the agent name: "talker"
     // also renders in the layout sidebar, so matching it proves nothing about
     // the All Chats list. The temp workdir is unique to this harness.
-    await expect(page.getByText(harness.agentWorkdir("talker"))).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(harness.agentDisplayWorkdir("talker"))).toBeVisible({
+      timeout: 20_000,
+    });
   });
 
   // /chats is machine-wide (it discovers every Claude Code session under
@@ -86,7 +89,9 @@ test.describe("All Chats session list", () => {
 
     await expect(page.getByRole("heading", { name: "All Chats" })).toBeVisible();
     await expect(page.getByText("Every Claude Code session on this machine")).toBeVisible();
-    await expect(page.getByText(harness.agentWorkdir("talker"))).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(harness.agentDisplayWorkdir("talker"))).toBeVisible({
+      timeout: 20_000,
+    });
 
     await page
       .getByPlaceholder(/Search sessions/)
