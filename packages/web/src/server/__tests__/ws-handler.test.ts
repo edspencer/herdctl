@@ -243,6 +243,49 @@ describe("WebSocketHandler", () => {
       );
     });
 
+    // Regression: the "message" listener used to be attached AFTER awaiting
+    // getFleetStatus(), so a client that sent a frame the instant its socket
+    // opened had it delivered to a listener-less socket and silently dropped.
+    // On a cold/loaded server that window is wide enough to be hit for real
+    // (herdctl#275: the raw ws ping/pong probe timing out in CI).
+    it("handles a message that arrives before the fleet status snapshot resolves", async () => {
+      let releaseStatus: (() => void) | undefined;
+      mockFleetManager.getFleetStatus = vi.fn(
+        () =>
+          new Promise((resolve) => {
+            releaseStatus = () => resolve({ state: "running", counts: { totalAgents: 1 } });
+          }),
+      );
+
+      const handler = new WebSocketHandler(mockFleetManager);
+
+      let messageHandler: ((data: any) => void) | undefined;
+      const mockSocket = {
+        on: vi.fn((event: string, cb: any) => {
+          if (event === "message") messageHandler = cb;
+        }),
+        readyState: 1,
+        OPEN: 1,
+        send: vi.fn(),
+        close: vi.fn(),
+      };
+
+      // Don't await: the snapshot promise is still pending on purpose.
+      const connected = handler.handleConnection(mockSocket as any);
+
+      // The listener must already be attached at this point.
+      expect(messageHandler).toBeDefined();
+
+      messageHandler!(Buffer.from(JSON.stringify({ type: "ping" })));
+      expect(mockSocket.send).toHaveBeenCalledWith(expect.stringContaining('"type":"pong"'));
+
+      releaseStatus?.();
+      await connected;
+      expect(mockSocket.send).toHaveBeenCalledWith(
+        expect.stringContaining('"type":"fleet:status"'),
+      );
+    });
+
     it("handles disconnect", async () => {
       const handler = new WebSocketHandler(mockFleetManager);
 
