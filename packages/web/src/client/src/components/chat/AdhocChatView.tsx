@@ -6,7 +6,7 @@
  * Uses the CLI runtime to execute `claude --resume <sessionId>` in the session's working directory.
  */
 
-import { ArrowLeft, FolderOpen } from "lucide-react";
+import { ArrowLeft, FolderOpen, RefreshCw } from "lucide-react";
 import { useCallback, useEffect } from "react";
 import { useNavigate, useParams } from "react-router";
 import { allChatsPath } from "../../lib/paths";
@@ -64,6 +64,13 @@ export function AdhocChatView() {
     navigate(allChatsPath());
   }, [navigate]);
 
+  // Re-run the fetch after a timeout/failure without a full page reload
+  const handleRetry = useCallback(() => {
+    if (encodedPath && sessionId) {
+      fetchAdhocChatMessages(encodedPath, sessionId);
+    }
+  }, [encodedPath, sessionId, fetchAdhocChatMessages]);
+
   // Decode path for display
   const displayPath = encodedPath ? decodePathForDisplay(encodedPath) : "";
   const shortSessionId = sessionId?.slice(0, 8) ?? "";
@@ -118,15 +125,23 @@ export function AdhocChatView() {
       {chatError && (
         <div className="px-4 pt-4">
           <div className="max-w-2xl mx-auto">
-            <div className="bg-herd-status-error/10 border border-herd-status-error/20 text-herd-status-error rounded-lg px-3 py-2 text-xs">
-              {chatError}
+            <div className="bg-herd-status-error/10 border border-herd-status-error/20 text-herd-status-error rounded-lg px-3 py-2 text-xs flex items-center justify-between gap-4">
+              <span>{chatError}</span>
+              <button
+                type="button"
+                onClick={handleRetry}
+                className="shrink-0 inline-flex items-center gap-1 font-medium hover:underline"
+              >
+                <RefreshCw className="w-3 h-3" />
+                Retry
+              </button>
             </div>
           </div>
         </div>
       )}
 
       {/* Message feed */}
-      <MessageFeed agentName="__adhoc__" />
+      <MessageFeed agentName="__adhoc__" sessionId={sessionId} onRetry={handleRetry} />
 
       {/* Composer with ad hoc props */}
       <Composer

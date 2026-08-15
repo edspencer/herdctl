@@ -381,6 +381,85 @@ describe("CLIRuntime --mcp-config serialization (issue #182)", () => {
     expect(await captureMcpConfigArg({})).toBeUndefined();
     expect(await captureMcpConfigArg({ mcp_servers: {} })).toBeUndefined();
   });
+
+  // edspencer/herdctl#445 — headers and an explicit `sse` transport must reach
+  // the CLI's --mcp-config too, not just the SDK runtime.
+  it("carries headers and type: sse into --mcp-config", async () => {
+    const mcpConfigArg = await captureMcpConfigArg({
+      mcp_servers: {
+        linear: {
+          type: "sse",
+          url: "https://mcp.linear.app/sse",
+          headers: { Authorization: "Bearer sk-test-123" },
+        },
+      },
+    });
+
+    expect(JSON.parse(mcpConfigArg as string)).toEqual({
+      mcpServers: {
+        linear: {
+          type: "sse",
+          url: "https://mcp.linear.app/sse",
+          headers: { Authorization: "Bearer sk-test-123" },
+        },
+      },
+    });
+  });
+});
+
+// =============================================================================
+// Plugins (#444)
+// =============================================================================
+
+describe("CLIRuntime plugins (--plugin-dir)", () => {
+  /** Runs the CLI runtime and returns the full argv handed to `claude`. */
+  async function captureArgs(agent: Record<string, unknown>): Promise<string[]> {
+    let spawnedArgs: string[] = [];
+
+    const runtime = new CLIRuntime({
+      processSpawner: ((args: string[]) => {
+        spawnedArgs = args;
+        return makeSubprocess() as never;
+      }) as never,
+    });
+
+    for await (const _message of runtime.execute({
+      prompt: "Hello",
+      agent: { name: "plugin-agent", configPath: "/tmp/agent.yaml", ...agent } as never,
+    })) {
+      // drain
+    }
+
+    return spawnedArgs;
+  }
+
+  it("emits one --plugin-dir per plugin, in order", async () => {
+    const args = await captureArgs({
+      plugins: [
+        { type: "local", path: "/opt/plugins/slack" },
+        { type: "local", path: "/opt/plugins/jira" },
+      ],
+    });
+
+    expect(args.filter((a) => a === "--plugin-dir")).toHaveLength(2);
+    expect(args[args.indexOf("--plugin-dir") + 1]).toBe("/opt/plugins/slack");
+    expect(args).toContain("/opt/plugins/jira");
+  });
+
+  it("uses --plugin-dir-no-mcp when skipMcpDiscovery is set", async () => {
+    const args = await captureArgs({
+      plugins: [{ type: "local", path: "/opt/plugins/slack", skipMcpDiscovery: true }],
+    });
+
+    expect(args[args.indexOf("--plugin-dir-no-mcp") + 1]).toBe("/opt/plugins/slack");
+    expect(args).not.toContain("--plugin-dir");
+  });
+
+  it("emits no plugin flag when the agent lists none", async () => {
+    const args = await captureArgs({});
+    expect(args).not.toContain("--plugin-dir");
+    expect(args).not.toContain("--plugin-dir-no-mcp");
+  });
 });
 
 describe("CLIRuntime session fork (--fork-session)", () => {

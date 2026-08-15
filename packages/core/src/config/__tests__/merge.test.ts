@@ -587,6 +587,30 @@ describe("mergeAgentConfig", () => {
       expect(result.mcp_servers?.github.command).toBe("npx");
     });
 
+    // edspencer/herdctl#444 — `mergeAgentConfig` is a per-field allowlist, not a
+    // generic deep merge, so a new field is silently dropped from fleet defaults
+    // unless it is wired in explicitly.
+    it("inherits plugins from fleet defaults when the agent lists none", () => {
+      const defaults: ExtendedDefaults = {
+        plugins: [{ type: "local", path: "/opt/plugins/shared" }],
+      };
+      const agent: AgentConfig = { name: "my-agent" };
+      const result = mergeAgentConfig(defaults, agent);
+      expect(result.plugins).toEqual([{ type: "local", path: "/opt/plugins/shared" }]);
+    });
+
+    it("lets an agent's plugins array replace the default (arrays are not merged)", () => {
+      const defaults: ExtendedDefaults = {
+        plugins: [{ type: "local", path: "/opt/plugins/shared" }],
+      };
+      const agent: AgentConfig = {
+        name: "my-agent",
+        plugins: [{ type: "local", path: "/opt/plugins/own" }],
+      };
+      const result = mergeAgentConfig(defaults, agent);
+      expect(result.plugins).toEqual([{ type: "local", path: "/opt/plugins/own" }]);
+    });
+
     it("preserves agent chat", () => {
       const defaults: ExtendedDefaults = { model: "default-model" };
       const agent = {

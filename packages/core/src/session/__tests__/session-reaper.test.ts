@@ -19,7 +19,10 @@ async function* stream(messages: SDKMessage[]): AsyncGenerator<SDKMessage> {
   for (const m of messages) yield m;
 }
 
-function fakeSession(): RuntimeSession & { close: ReturnType<typeof vi.fn> } {
+function fakeSession(): RuntimeSession & {
+  close: ReturnType<typeof vi.fn>;
+  stopTask: ReturnType<typeof vi.fn>;
+} {
   async function* empty(): AsyncGenerator<never> {}
   return {
     messages: empty(),
@@ -27,6 +30,7 @@ function fakeSession(): RuntimeSession & { close: ReturnType<typeof vi.fn> } {
     interrupt: vi.fn().mockResolvedValue(undefined),
     listCommands: vi.fn().mockResolvedValue([]),
     setModel: vi.fn().mockResolvedValue(undefined),
+    stopTask: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
   };
 }
@@ -503,6 +507,98 @@ describe("SessionReaper", () => {
       await vi.runAllTimersAsync(); // no further turn → grace elapses → reap
       expect(onReap).toHaveBeenCalledTimes(1);
       expect(managed.isLive()).toBe(false);
+    });
+  });
+
+  // The policy has no backstop by design, so a session can end up permanently
+  // unreapable and its message stream never ends. forceReap is the escape hatch
+  // a consumer needs to honour a user's "stop this now" — and it has to unwind
+  // the reaper's own bookkeeping, not just close the query.
+  describe("forceReap", () => {
+    it("closes a session the policy is deliberately holding alive for background work", async () => {
+      const onReap = vi.fn();
+      const reaper = new SessionReaper({ registry: fakeRegistry(), onReap });
+      const session = fakeSession();
+      const managed = reaper.manage(session, "team/agent");
+
+      await managed.handleSignal(signal({ backgroundTasks: [TASK] }));
+      expect(managed.isLive()).toBe(true); // keepAlive: the policy will never reap this
+
+      expect(reaper.forceReap("sess-1")).toBe(true);
+      expect(onReap).toHaveBeenCalledWith({ agent: "team/agent", sessionId: "sess-1" });
+      expect(managed.isLive()).toBe(false);
+      await tick();
+      expect(session.close).toHaveBeenCalledTimes(1);
+    });
+
+    // The whole reason this lives on the reaper rather than being a `close()` the
+    // consumer calls itself: closing behind the reaper's back leaves the id
+    // registered live, so a later resume stalls on whenSessionReaped until its
+    // ceiling (#403) and the wake registry skips the session's wakes forever.
+    it("unregisters the id and releases resumes waiting on whenSessionReaped", async () => {
+      const reaper = new SessionReaper({ registry: fakeRegistry() });
+      const session = fakeSession();
+      const managed = reaper.manage(session, "team/agent");
+      await managed.handleSignal(signal({ backgroundTasks: [TASK] }));
+
+      expect(reaper.isSessionLive("sess-1")).toBe(true);
+      let resumed = false;
+      const waiting = reaper.whenSessionReaped("sess-1").then(() => {
+        resumed = true;
+      });
+      await tick();
+      expect(resumed).toBe(false); // still live → a resume is correctly deferred
+
+      reaper.forceReap("sess-1");
+      await waiting;
+      expect(resumed).toBe(true);
+      expect(reaper.isSessionLive("sess-1")).toBe(false);
+    });
+
+    it("is idempotent and returns false for an unknown or already-reaped id", async () => {
+      const reaper = new SessionReaper({ registry: fakeRegistry() });
+      const session = fakeSession();
+      const managed = reaper.manage(session, "team/agent");
+      await managed.handleSignal(signal({ backgroundTasks: [TASK] }));
+
+      expect(reaper.forceReap("nope")).toBe(false);
+      expect(reaper.forceReap("sess-1")).toBe(true);
+      expect(reaper.forceReap("sess-1")).toBe(false); // already reaped
+      await tick();
+      expect(session.close).toHaveBeenCalledTimes(1);
+    });
+
+    // The production wedge (paddock#528). A turn spawns background sub-agents, then
+    // the sub-agents die and the parent's re-invocation turn dies too — on a usage
+    // limit, say — without firing a Stop hook. `activity` has already cleared
+    // awaitingTasks, so every later background_tasks_changed returns early, and
+    // only a turn_end could re-arm it or reap. None comes. The session is stranded
+    // live with no pending reap, forever: the stream never ends, so a consumer
+    // rendering it shows "running" until the process restarts.
+    it("rescues a session stranded live by a re-invocation turn that never ends", async () => {
+      vi.useFakeTimers();
+      const onReap = vi.fn();
+      const reaper = new SessionReaper({ registry: fakeRegistry(), onReap });
+      const session = fakeSession();
+      const managed = reaper.manage(session, "team/agent");
+
+      await managed.handleSignal(signal({ backgroundTasks: [TASK] })); // turn_end → keepAlive
+      await managed.handleSignal(signal({ kind: "background_tasks_changed" })); // drained → grace armed
+      await managed.handleSignal(signal({ kind: "activity" })); // re-invocation starts → grace cancelled
+
+      // ...and that turn dies without a turn_end. Nothing left can reap this.
+      await vi.runAllTimersAsync();
+      await managed.handleSignal(signal({ kind: "background_tasks_changed" }));
+      await vi.runAllTimersAsync();
+      expect(onReap).not.toHaveBeenCalled();
+      expect(managed.isLive()).toBe(true);
+      expect(session.close).not.toHaveBeenCalled();
+
+      // The escape hatch: the stream ends, and the consumer unwinds normally.
+      expect(reaper.forceReap("sess-1")).toBe(true);
+      await vi.runAllTimersAsync();
+      expect(managed.isLive()).toBe(false);
+      expect(session.close).toHaveBeenCalledTimes(1);
     });
   });
 });

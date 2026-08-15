@@ -160,7 +160,8 @@ The SDK Adapter (`sdk-adapter.ts`) transforms a `ResolvedAgent` configuration in
 | `denied_tools` | `disallowedTools` | Direct passthrough |
 | `system_prompt` | `systemPrompt` | Plain string; falls back to `claude_code` preset |
 | `setting_sources` | `settingSources` | Explicit config, or `["project"]` if working directory set, else `[]` |
-| `mcp_servers` | `mcpServers` | Each server transformed individually |
+| `mcp_servers` | `mcpServers` | Each server transformed individually; entry fields mirror the SDK's own `McpServerConfig` and pass through verbatim |
+| `plugins` | `plugins` | Path strings normalised to `{ type: "local", path }`; paths used as given |
 | `max_turns` | `maxTurns` | Agent-level or session-level |
 | `working_directory` | `cwd` | Resolved path for session working directory |
 | `model` | `model` | Model selection override |
@@ -316,7 +317,7 @@ For detailed permission configuration, see [Permissions](/configuration/permissi
 
 ## MCP Server Configuration
 
-MCP (Model Context Protocol) servers extend agent capabilities with external tools. The runner handles two types of MCP servers.
+MCP (Model Context Protocol) servers extend agent capabilities with external tools. The runner handles three transports, selected by the optional `type` field — `http` is inferred when `url` is set, stdio otherwise, and `sse` must be stated explicitly.
 
 ### Process-Based Servers
 
@@ -340,6 +341,21 @@ mcp_servers:
   custom-api:
     url: http://localhost:8080/mcp
 ```
+
+### SSE-Based Servers
+
+Connect to a Server-Sent Events endpoint, with `headers` carrying authentication:
+
+```yaml
+mcp_servers:
+  linear:
+    type: sse
+    url: https://mcp.linear.app/sse
+    headers:
+      Authorization: Bearer ${LINEAR_API_KEY}
+```
+
+Server entries are handed to the SDK unchanged, so `type`, `headers`, `timeout`, and `alwaysLoad` all survive the transformation. This matters beyond the wire format: Claude Code keys a remote server's stored OAuth token on `{type, url, headers}`. See [MCP Servers](/configuration/mcp-servers/#sse-and-authenticated-remote-servers).
 
 ### Tool Naming Convention
 

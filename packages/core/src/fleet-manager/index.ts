@@ -81,6 +81,7 @@ export {
   // Schedule mutation gate error (D2)
   ScheduleMutationDisabledError,
   ScheduleNotFoundError,
+  SessionTaskControlUnsupportedError,
   StreamingSessionUnsupportedError,
 } from "./errors.js";
 // Event emitters (US-4: Extract Event Emitters Module)

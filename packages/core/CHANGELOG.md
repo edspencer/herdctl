@@ -1,5 +1,113 @@
 # @herdctl/core
 
+## 5.33.0
+
+### Minor Changes
+
+- [#450](https://github.com/edspencer/herdctl/pull/450) [`fb5f04d`](https://github.com/edspencer/herdctl/commit/fb5f04daac5e85576a6939f6fd160a94724fc4db) Thanks [@edspencer](https://github.com/edspencer)! - feat(core): stop a single background task in a live session
+
+  A consumer could not stop **one** background task in a session — two gaps, both
+  of which had to close.
+
+  **`RuntimeSession.stopTask(taskId)`** forwards the SDK's `stop_task` control
+  request. The SDK `Query` was a `const` captured in `SDKRuntime.openSession`'s
+  closure: never assigned to `this`, never returned, with no generic passthrough,
+  so `stopTask` was unreachable from outside. (`session.messages` is the `Query`
+  behind a cast, but any caller passing `onLifecycleSignal` — the interesting
+  case — gets a wrapper generator that forwards nothing.)
+
+  **`FleetManager.stopTaskInSession(sessionId, taskId)`** (and
+  `SessionReaper.stopTaskInSession` beneath it) addresses that stop by session id
+  instead of by handle. That is the half that actually bites: background shells,
+  subagents and monitors routinely outlive the turn that started them, while a
+  consumer holds its `RuntimeSession` only until the turn's result lands. A
+  handle-scoped stop therefore works only while a turn happens to be in flight and
+  goes inert over exactly the long tail where something is still running and the
+  user is asking why. Consumers cannot hold the handle longer, because they do not
+  own the session's lifetime — the reaper does, and already keeps the session past
+  the turn. This is the door onto that state, mirroring `reapChatSession` /
+  `forceReap`.
+
+  Semantics carried over from the CLI's own handler: idempotent (`not_found` /
+  `not_running` are successes, so stopping a task that just finished is fine — and
+  no liveness pre-check is added that would reintroduce that race); not
+  ownership-gated, so an out-of-band actor such as a UI stop button can stop any
+  task in the session; and self-notifying, since the SDK emits the terminal
+  `task_notification{status:"stopped"}` on the session's own stream.
+
+  `stopTaskInSession` returns `false` only for a session that is not live, matching
+  `reapChatSession`. A runtime refusal propagates rather than being translated into
+  a silent success — notably `monitor_mcp` tasks, which the CLI has no kill
+  strategy for and rejects with `unsupported_type`; a consumer needs to know the
+  button did nothing. A live session whose handle carries no `stopTask` at all
+  throws the new `SessionTaskControlUnsupportedError` for the same reason.
+
+## 5.32.0
+
+### Minor Changes
+
+- [#446](https://github.com/edspencer/herdctl/pull/446) [`d45d7f9`](https://github.com/edspencer/herdctl/commit/d45d7f92ad602becef0f8087c6519b643c8fa3b7) Thanks [@edspencer](https://github.com/edspencer)! - Stop narrowing what the Agent SDK supports: plugins passthrough and full MCP server config
+
+  **Plugins (#444).** New optional `plugins` field on an agent config and on fleet `defaults`, passed through `toSDKOptions` to the SDK's `plugins` option. Entries are either a bare path string or `{ type: "local", path, skipMcpDiscovery? }`; the shorthand normalises to the object form. An agent's own array replaces the fleet default, consistent with `tools` / `allowed_tools`.
+
+  Both runtimes honour it: the SDK runtime sets the `plugins` option, and the CLI runtime emits `--plugin-dir` (or `--plugin-dir-no-mcp` for `skipMcpDiscovery`) per entry, which is exactly what the SDK does with its own option.
+
+  Note that the SDK _also_ auto-discovers plugins under `$CLAUDE_CONFIG_DIR/plugins`, but only enables them via the `enabledPlugins` key in the **user** settings source — which herdctl does not load unless an agent opts in with `setting_sources: ["user", ...]`. An explicit `plugins` list needs no such opt-in, and avoids inheriting the rest of the user source along with it.
+
+  **MCP servers (#445).** `McpServerSchema` was `{command, args, env, url}` and silently stripped everything else, while `transformMcpServer` rewrote every `url` to `type: "http"`. It now also accepts `headers`, an explicit `type` (`"stdio" | "sse" | "http"`), `timeout` and `alwaysLoad`, mirroring the SDK's own `McpServerConfig`. This fixes authenticated remote servers (which lost their bearer token) and SSE servers (which were misconfigured as HTTP) — and with them the stored OAuth token, which Claude Code keys on a hash of `{type, url, headers}`, so a stripped field also made a previously-authorised server unrecognisable.
+
+  Backwards compatible: a bare `url` with no `type` still resolves to `type: "http"`, and stdio servers are unchanged.
+
+## 5.31.0
+
+### Minor Changes
+
+- [#441](https://github.com/edspencer/herdctl/pull/441) [`2a60e82`](https://github.com/edspencer/herdctl/commit/2a60e82646d1eaa3c6b5a7145224dcd67af23c25) Thanks [@edspencer](https://github.com/edspencer)! - feat(core): `FleetManager.reapChatSession` — close a managed session that the reap policy will never release
+
+  `decideReap` keeps a streaming session alive for exactly as long as it holds
+  live background work, with — by its own header comment — "no idle timer, no
+  max-lifetime backstop, no idle-concurrency cap". That is the right default:
+  reaping a session with work in flight kills the work. But it left consumers with
+  no way out when a session becomes permanently unreapable, and there are at least
+  two ordinary ways that happens:
+
+  - A background task never exits (a model-authored `until` loop whose sentinel
+    never arrives), so `backgroundTasks` never drains.
+  - A re-invocation turn dies without firing a Stop hook — on a subscription usage
+    limit, say. `activity` has already cleared `awaitingTasks`, so every later
+    `background_tasks_changed` returns early at the guard, and only a `turn_end`
+    could re-arm it or reap. None comes. The session is stranded live with no
+    pending reap.
+
+  In both cases the session's message stream never ends, so a consumer rendering
+  that stream shows the chat as running until the process restarts. There was no
+  API to end it.
+
+  **`SessionReaper.forceReap(sessionId)`** closes a live managed session
+  regardless of what it is holding, and **`FleetManager.reapChatSession(sessionId)`**
+  exposes it (the lifecycle manager is private on the fleet). Both are idempotent
+  and return `false` for an unknown, unmanaged or already-reaped id.
+
+  This belongs on the reaper rather than being a `close()` the consumer calls on
+  the `RuntimeSession` it already holds. Closing the query directly goes behind the
+  reaper's bookkeeping: `liveById` keeps a stale entry, so `whenSessionReaped`
+  never resolves — a later resume of that id stalls until its 5-minute ceiling
+  (#403) — and `WakeRegistry` skips that session's wakes forever. `forceReap`
+  routes through the same private `reap` the policy uses, so the id is
+  unregistered, reap waiters drain, and the consumer observes an ordinary
+  end-of-stream and unwinds through its ordinary path. No new teardown contract.
+
+  The reap log line now carries a reason (`Reaping idle session …` is unchanged;
+  a forced one reads `Reaping force-reaped on request session …`).
+
+  Policy is untouched: nothing reaps on its own that didn't before. This only adds
+  a door that can be opened deliberately, so a consumer can honour a user's "stop
+  this now". Note that `interrupt()` is not that door — it targets an in-flight
+  model turn, and a session held open purely for background work has none.
+
+  Unblocks [paddock#528](https://github.com/edspencer/paddock/issues/528), where a
+  chat wedges "running" with a Stop button that cannot do anything.
+
 ## 5.30.0
 
 ### Minor Changes

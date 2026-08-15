@@ -178,6 +178,36 @@ export interface RuntimeSession {
   /** Change the model used for subsequent turns in this session. */
   setModel(model?: string): Promise<void>;
 
+  /**
+   * Stop ONE background task in this session by id — a background shell, a
+   * sub-agent, a monitor — without touching the rest of the session.
+   *
+   * Distinct from {@link interrupt} (which stops the in-flight model turn, and
+   * during the background phase there is none) and from closing the session
+   * (which stops everything). The SDK emits the terminal
+   * `task_notification{status:"stopped"}` on {@link messages} itself, so callers
+   * need no separate confirmation and no bookkeeping.
+   *
+   * Idempotent by construction: the CLI converts `not_found` / `not_running`
+   * into a success, so stopping a task that just finished on its own resolves
+   * normally. Do NOT wrap this in a liveness pre-check — that only reintroduces
+   * the race it is designed to absorb.
+   *
+   * Not ownership-gated: this control request carries no caller id, so it can
+   * stop any task in the session. That is the point — an out-of-band actor (a
+   * UI's stop button) is exactly who needs it.
+   *
+   * Rejects when the task cannot be stopped for a reason that is not a race —
+   * notably `monitor_mcp` tasks, for which the CLI has no kill strategy and
+   * answers `unsupported_type`. That rejection is surfaced rather than
+   * swallowed: a caller needs to know the button did nothing.
+   *
+   * @param taskId - The background task's id, as carried on the session's
+   *   `task_notification` messages and on
+   *   {@link import("../../session/types.js").BackgroundTaskSummary}.
+   */
+  stopTask(taskId: string): Promise<void>;
+
   /** Close the session, ending the input stream and shutting down the query. */
   close(): Promise<void>;
 }

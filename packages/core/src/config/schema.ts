@@ -424,6 +424,7 @@ export const DefaultsSchema = z.object({
       z.lazy(() => McpServerSchema),
     )
     .optional(),
+  plugins: z.array(z.lazy(() => PluginSchema)).optional(),
 });
 
 // =============================================================================
@@ -501,12 +502,78 @@ export const ScheduleSchema = z
 // MCP Server Schema
 // =============================================================================
 
+/**
+ * A single MCP server entry.
+ *
+ * Field names deliberately mirror the Agent SDK's own `McpServerConfig`
+ * (`McpStdioServerConfig` | `McpSSEServerConfig` | `McpHttpServerConfig`) rather
+ * than herdctl's usual snake_case, because an entry here is passed through to
+ * the SDK verbatim. That lets an operator paste a block straight out of
+ * `.mcp.json` / `~/.claude.json`, and means there is no translation layer to
+ * drop fields in (edspencer/herdctl#445).
+ *
+ * `type` is optional and inferred when absent: `http` when `url` is set, stdio
+ * otherwise. Set it explicitly for an SSE server — inference cannot distinguish
+ * `sse` from `http`, and getting it wrong both misconfigures the transport and
+ * changes the key Claude Code files the server's OAuth token under
+ * (`${name}|sha256({type,url,headers})`), so a previously-authorised server is
+ * no longer recognised.
+ */
 export const McpServerSchema = z.object({
+  /** Transport. Inferred when omitted: `http` if `url` is set, else stdio. */
+  type: z.enum(["stdio", "sse", "http"]).optional(),
   command: z.string().optional(),
   args: z.array(z.string()).optional(),
   env: z.record(z.string(), z.string()).optional(),
   url: z.string().optional(),
+  /** Request headers for `sse`/`http` servers — carries bearer / API-key auth. */
+  headers: z.record(z.string(), z.string()).optional(),
+  /** Per-server tool-call timeout in ms. Values below 1000 are ignored by the SDK. */
+  timeout: z.number().int().positive().optional(),
+  /** Always include this server's tools in the prompt instead of deferring them. */
+  alwaysLoad: z.boolean().optional(),
 });
+
+// =============================================================================
+// Plugin Schema
+// =============================================================================
+
+/**
+ * A Claude Code plugin to load for an agent.
+ *
+ * Accepts either a bare path string or the Agent SDK's own `SdkPluginConfig`
+ * shape; both normalise to the object form. Plugins supply commands, agents,
+ * skills, hooks and MCP servers.
+ *
+ * Note that this is an *explicit* list. The SDK also auto-discovers plugins
+ * under `$CLAUDE_CONFIG_DIR/plugins`, but only enables them via the
+ * `enabledPlugins` key in the **user** settings source — which herdctl does not
+ * load unless the agent opts in with `setting_sources: ["user", ...]`
+ * (edspencer/herdctl#444).
+ */
+interface NormalisedPlugin {
+  type: "local";
+  path: string;
+  skipMcpDiscovery?: boolean;
+}
+
+export const PluginSchema = z.union([
+  // The annotated return type matters: without it the two branches infer
+  // different object types and the union's output loses `skipMcpDiscovery`.
+  z.string().transform((path): NormalisedPlugin => ({ type: "local", path })),
+  z.object({
+    /** Plugin type. Only `local` is supported by the SDK today. */
+    type: z.literal("local").default("local"),
+    /** Absolute (recommended) or relative path to the plugin directory. */
+    path: z.string(),
+    /**
+     * Load the plugin's skills/hooks/agents/commands but ignore its
+     * `.mcp.json` / manifest `mcpServers` — for when the host owns those
+     * connections itself.
+     */
+    skipMcpDiscovery: z.boolean().optional(),
+  }),
+]);
 
 // =============================================================================
 // Agent Chat Discord Schemas (per-agent Discord bot configuration)
@@ -998,6 +1065,16 @@ export const AgentConfigSchema = z
     schedules: z.record(z.string(), ScheduleSchema).optional(),
     session: SessionSchema.optional(),
     mcp_servers: z.record(z.string(), McpServerSchema).optional(),
+    /**
+     * Claude Code plugins to load for this agent, as paths or
+     * `{ type: "local", path }` entries. Passed through to the SDK's `plugins`
+     * option (edspencer/herdctl#444).
+     *
+     * Paths are used as given — prefer absolute ones. For a dockerized agent
+     * the path must resolve *inside* the container, so the plugin directory
+     * needs mounting.
+     */
+    plugins: z.array(PluginSchema).optional(),
     chat: AgentChatSchema.optional(),
     hooks: AgentHooksSchema.optional(),
     docker: AgentDockerSchema.optional(),
@@ -1179,6 +1256,10 @@ export type Session = z.infer<typeof SessionSchema>;
 export type ScheduleType = z.infer<typeof ScheduleTypeSchema>;
 export type Schedule = z.infer<typeof ScheduleSchema>;
 export type McpServer = z.infer<typeof McpServerSchema>;
+/** Accepted plugin input: a bare path string or an `SdkPluginConfig`-shaped object. */
+export type PluginInput = z.input<typeof PluginSchema>;
+/** Normalised plugin config — always the object form. */
+export type Plugin = z.infer<typeof PluginSchema>;
 // Agent Chat types (shared)
 export type ChatOutput = z.infer<typeof ChatOutputSchema>;
 export type ChatDM = z.infer<typeof ChatDMSchema>;

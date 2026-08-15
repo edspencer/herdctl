@@ -71,17 +71,12 @@ export class WebSocketHandler {
     this.clients.add(client);
     logger.info(`WebSocket client connected: ${clientId} (total: ${this.clients.size})`);
 
-    // Send initial fleet status snapshot
-    try {
-      const status = await this.fleetManager.getFleetStatus();
-      this.sendToClient(client, { type: "fleet:status", payload: status });
-    } catch (error) {
-      logger.warn(
-        `Failed to send initial fleet status to ${clientId}: ${(error as Error).message}`,
-      );
-    }
-
-    // Handle incoming messages
+    // Attach listeners SYNCHRONOUSLY, before any await. A client that sends a
+    // frame immediately on `open` (the dashboard's keepalive ping, subscribe,
+    // or chat:send) would otherwise have it delivered to a socket with no
+    // "message" listener and silently dropped, because the fleet-status
+    // snapshot below yields to the event loop first. On a cold/busy server
+    // getFleetStatus() is slow enough for that window to be real.
     socket.on("message", (data: RawData) => {
       this.handleMessage(client, data);
     });
@@ -95,6 +90,16 @@ export class WebSocketHandler {
     socket.on("error", (error: Error) => {
       logger.warn(`WebSocket error for ${clientId}: ${error.message}`);
     });
+
+    // Send initial fleet status snapshot
+    try {
+      const status = await this.fleetManager.getFleetStatus();
+      this.sendToClient(client, { type: "fleet:status", payload: status });
+    } catch (error) {
+      logger.warn(
+        `Failed to send initial fleet status to ${clientId}: ${(error as Error).message}`,
+      );
+    }
   }
 
   /**

@@ -95,6 +95,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
 async function get<T>(
   path: string,
   params?: Record<string, string | number | undefined>,
+  options?: { signal?: AbortSignal },
 ): Promise<T> {
   const url = new URL(`${baseUrl}${path}`);
 
@@ -111,6 +112,7 @@ async function get<T>(
     headers: {
       Accept: "application/json",
     },
+    signal: options?.signal,
   });
 
   return handleResponse<T>(response);
@@ -356,9 +358,12 @@ export async function fetchChatSessions(
 export async function fetchChatSession(
   agentName: string,
   sessionId: string,
+  options?: { signal?: AbortSignal },
 ): Promise<ChatSessionDetailResponse> {
   return get<ChatSessionDetailResponse>(
     `/api/chat/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`,
+    undefined,
+    options,
   );
 }
 
@@ -446,8 +451,11 @@ export async function fetchDirectoryGroupSessions(
 export async function fetchSessionByPath(
   encodedPath: string,
   sessionId: string,
+  options?: { signal?: AbortSignal },
 ): Promise<ChatSessionDetailResponse> {
   return get<ChatSessionDetailResponse>(
     `/api/chat/sessions/by-path/${encodeURIComponent(encodedPath)}/${encodeURIComponent(sessionId)}`,
+    undefined,
+    options,
   );
 }

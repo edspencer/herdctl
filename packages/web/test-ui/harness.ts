@@ -15,8 +15,8 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FleetManager } from "@herdctl/core";
@@ -53,12 +53,16 @@ export interface Harness {
   fleet: FleetManager;
   /** The web server bundle (server, wsHandler, fleetBridge, chatManager). */
   web: WebServerResult;
-  /** Temp directory holding the fleet config + workspaces + state. */
+  /** Temp directory holding the fleet config + state (NOT the workspaces). */
   tmpRoot: string;
   /** The encoded ~/.claude/projects dir each agent writes its transcripts to. */
   agentSessionDir: (agentName: string) => string;
-  /** Working directory for an agent. */
+  /** Real on-disk working directory for an agent. */
   agentWorkdir: (agentName: string) => string;
+  /** The agent working directory encoded the way core keys directory groups. */
+  agentEncodedPath: (agentName: string) => string;
+  /** The working directory as the All Chats UI displays it (lossy decode). */
+  agentDisplayWorkdir: (agentName: string) => string;
   /** Tear everything down and remove temp files / transcripts. */
   stop: () => Promise<void>;
 }
@@ -66,6 +70,19 @@ export interface Harness {
 /** Mirror @herdctl/core encodePathForCli: every non-alphanumeric → "-". */
 function encodePathForCli(absolutePath: string): string {
   return absolutePath.replace(/[^A-Za-z0-9]/g, "-");
+}
+
+/**
+ * Mirror @herdctl/core decodePathForDisplay: the inverse of the encoder above,
+ * and lossy — every "-" becomes "/". This is the string the All Chats listing
+ * shows as a group's working directory, so assertions must compare against it
+ * rather than the real on-disk path.
+ */
+function decodePathForDisplay(encodedPath: string): string {
+  if (encodedPath.startsWith("-")) {
+    return `/${encodedPath.slice(1).replace(/-/g, "/")}`;
+  }
+  return encodedPath.replace(/-/g, "/");
 }
 
 function buildAgentYaml(agent: AgentSpec, workdir: string): string {
@@ -99,6 +116,28 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
   const tmpRoot = realpathSync(mkdtempSync(join(tmpdir(), "herd-web-ui-")));
   const stateDir = join(tmpRoot, ".herdctl");
 
+  // Agent WORKING DIRECTORIES must live outside os.tmpdir(). Core's session
+  // discovery deliberately skips temp paths (isTempDirectory in
+  // state/session-discovery.ts filters /tmp/, /private/tmp/, /var/folders/ and
+  // os.tmpdir()), so a fleet whose agents work under the temp root can NEVER
+  // appear in the machine-wide All Chats listing. That made the All Chats specs
+  // untestable in a clean environment and let one of them pass only by matching
+  // the agent name in the layout sidebar (herdctl#275). Config, state and
+  // scratch all stay under tmpRoot; only the workspaces move here.
+  //
+  // The directory names are deliberately alphanumeric-only: encodePathForCli
+  // maps every non-alphanumeric character to "-", and the listing decodes that
+  // back by turning every "-" into "/", so anything else round-trips lossily.
+  const workRootRaw = join(
+    homedir(),
+    "herdctlwebuitests",
+    `run${Math.random().toString(36).slice(2, 10)}`,
+  );
+  mkdirSync(workRootRaw, { recursive: true });
+  // realpath for the same reason tmpRoot does it: the spawned binary reports a
+  // fully-resolved cwd, and core must watch the matching encoded directory.
+  const workRoot = realpathSync(workRootRaw);
+
   // 1) Write a fake-claude script file the binary reads via HERD_FAKE_SCRIPT.
   const scriptPath = join(tmpRoot, "fake-script.json");
   writeFileSync(scriptPath, JSON.stringify(fakeScript), "utf8");
@@ -114,7 +153,7 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
   spawnSync("mkdir", ["-p", agentDir]);
   const agentRefs: string[] = [];
   for (const agent of agents) {
-    const workdir = join(tmpRoot, "work", agent.name);
+    const workdir = join(workRoot, agent.name);
     spawnSync("mkdir", ["-p", workdir]);
     const agentPath = join(agentDir, `${agent.name}.yaml`);
     writeFileSync(agentPath, buildAgentYaml(agent, workdir), "utf8");
@@ -159,9 +198,12 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
   }
   const baseUrl = `http://127.0.0.1:${address.port}`;
 
-  const agentWorkdir = (agentName: string) => join(tmpRoot, "work", agentName);
+  const agentWorkdir = (agentName: string) => join(workRoot, agentName);
+  const agentEncodedPath = (agentName: string) => encodePathForCli(agentWorkdir(agentName));
+  const agentDisplayWorkdir = (agentName: string) =>
+    decodePathForDisplay(agentEncodedPath(agentName));
   const agentSessionDir = (agentName: string) =>
-    join(process.env.HOME ?? "", ".claude", "projects", encodePathForCli(agentWorkdir(agentName)));
+    join(process.env.HOME ?? "", ".claude", "projects", agentEncodedPath(agentName));
 
   const stop = async (): Promise<void> => {
     try {
@@ -191,12 +233,24 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
         /* ignore */
       }
     }
-    try {
-      rmSync(tmpRoot, { recursive: true, force: true });
-    } catch {
-      /* ignore */
+    for (const dir of [tmpRoot, workRoot]) {
+      try {
+        rmSync(dir, { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
     }
   };
 
-  return { baseUrl, fleet, web, tmpRoot, agentSessionDir, agentWorkdir, stop };
+  return {
+    baseUrl,
+    fleet,
+    web,
+    tmpRoot,
+    agentSessionDir,
+    agentWorkdir,
+    agentEncodedPath,
+    agentDisplayWorkdir,
+    stop,
+  };
 }

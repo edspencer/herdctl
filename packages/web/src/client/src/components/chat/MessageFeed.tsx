@@ -5,7 +5,7 @@
  * Shows streaming indicator when agent is responding.
  */
 
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChatMessage } from "../../lib/types";
 import { useChatMessages } from "../../store";
@@ -18,13 +18,21 @@ import { MessageBubble } from "./MessageBubble";
 interface MessageFeedProps {
   /** Agent name for display in empty state */
   agentName: string;
+  /**
+   * Session being viewed, when this is an *existing* session rather than a new
+   * chat. Drives the empty state: an existing session with zero messages means
+   * something went wrong, not "say hello".
+   */
+  sessionId?: string;
+  /** Re-run the message fetch for the current session */
+  onRetry?: () => void;
 }
 
 // =============================================================================
 // Component
 // =============================================================================
 
-export function MessageFeed(_props: MessageFeedProps) {
+export function MessageFeed({ sessionId, onRetry }: MessageFeedProps) {
   const {
     chatMessages,
     chatMessagesLoading,
@@ -97,8 +105,36 @@ export function MessageFeed(_props: MessageFeedProps) {
     );
   }
 
-  // Empty state
+  // Empty state. An existing session that loaded zero messages is a problem
+  // (transcript missing, still being written, or the fetch failed) — say so and
+  // offer a retry, rather than the misleading "start the conversation" prompt.
   if (displayMessages.length === 0 && !chatStreaming) {
+    if (sessionId) {
+      return (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3 text-herd-muted text-center px-4">
+            <MessageCircle className="w-12 h-12 opacity-50" />
+            <div>
+              <p className="text-sm text-herd-fg">No messages found for this session</p>
+              <p className="text-xs mt-1 max-w-xs">
+                The transcript may still be writing, or it could not be read from disk.
+              </p>
+            </div>
+            {onRetry && (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="inline-flex items-center gap-1.5 text-xs text-herd-primary hover:text-herd-primary-hover transition-colors font-medium"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Retry
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-herd-muted">

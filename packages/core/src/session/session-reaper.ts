@@ -17,6 +17,7 @@
  * See edspencer/herdctl#307.
  */
 
+import { SessionTaskControlUnsupportedError } from "../fleet-manager/errors.js";
 import type { RuntimeSession } from "../runner/runtime/interface.js";
 import { createLogger } from "../utils/logger.js";
 import { decideReap } from "./reaper-policy.js";
@@ -162,6 +163,81 @@ export class SessionReaper {
     });
   }
 
+  /**
+   * Close a live managed session NOW, whatever it is holding.
+   *
+   * {@link decideReap} keeps a session alive for exactly as long as it holds
+   * live background work — deliberately, and with no timer, no max-lifetime
+   * backstop and no idle cap. That is the right *default*, but it must not be
+   * the only option: a session whose background work never finishes (or whose
+   * re-invocation turn dies without a `turn_end` to re-arm the awaiting-tasks
+   * state) is never reaped, its message stream never ends, and a consumer
+   * driving a UI off that stream has no way to honour a user's "stop this now".
+   *
+   * A consumer cannot do this for itself. It holds the {@link RuntimeSession}
+   * and could call `close()` directly, but that closes the query behind the
+   * reaper's back: {@link liveById} keeps a stale entry, so {@link
+   * whenSessionReaped} never resolves (a later resume of that id stalls until
+   * its ceiling, #403) and {@link WakeRegistry} skips the session's wakes
+   * forever. Reaping is the reaper's to do.
+   *
+   * So this routes through the same {@link reap} the policy uses: unregister
+   * the id, drain the reap waiters, then close. The consumer just observes an
+   * ordinary end-of-stream and unwinds through its ordinary path — no new
+   * teardown contract to get right.
+   *
+   * Idempotent, and safe to call for an unknown or already-reaped id.
+   *
+   * @returns `true` if a live session with this id was found and closed.
+   */
+  forceReap(sessionId: string): boolean {
+    const managed = this.liveById.get(sessionId);
+    if (!managed?.isLive()) return false;
+    this.reap(managed, sessionId, "force-reaped on request");
+    return true;
+  }
+
+  /**
+   * Stop ONE background task in a live managed session, by session id.
+   *
+   * `RuntimeSession.stopTask` exists, but a consumer cannot reach it when it
+   * matters. It holds the handle only for the duration of a turn and releases it
+   * when the turn's result lands — while background shells, sub-agents and
+   * monitors routinely outlive that turn. So a handle-scoped stop works only
+   * while a turn happens to be in flight, and goes inert over exactly the long
+   * tail where something is still running and the user is asking why.
+   *
+   * Consumers cannot fix that by holding the handle longer, because they do not
+   * own the session's lifetime — this reaper does, and {@link liveById} already
+   * keeps the session past the turn precisely so its background work can finish.
+   * This is the door onto that state: same shape as {@link forceReap}, one step
+   * short of it — stop this *task*, not the whole session.
+   *
+   * Deliberately does NOT pre-check that the task is live. The CLI answers
+   * `not_found` / `not_running` with a success, so stopping a task that just
+   * completed on its own resolves normally; a liveness gate here would only
+   * reintroduce that race. Nor is it ownership-gated — the control request
+   * carries no caller id, which is what makes an out-of-band stop button work.
+   *
+   * Rejections from the runtime propagate. Notably `monitor_mcp` tasks, which
+   * the CLI has no kill strategy for and rejects with `unsupported_type`: a
+   * consumer needs to see that the stop did nothing rather than render a
+   * success. A rejection leaves reaper state untouched — the session stays live
+   * and reapable, and nothing about the reap decision is disturbed.
+   *
+   * @returns `true` once the stop request has been delivered — matching
+   *   {@link forceReap}, `false` means only "no live session with this id".
+   * @throws {@link import("../fleet-manager/errors.js").SessionTaskControlUnsupportedError}
+   *   if the live session's handle carries no `stopTask`.
+   */
+  async stopTaskInSession(sessionId: string, taskId: string): Promise<boolean> {
+    const managed = this.liveById.get(sessionId);
+    if (!managed?.isLive()) return false;
+    this.logger.debug(`Stopping task ${taskId} in session ${sessionId} (${managed.agent})`);
+    await managed.stopTask(taskId);
+    return true;
+  }
+
   // --- internal, called by ManagedSessionImpl ---
 
   registerLive(sessionId: string, managed: ManagedSessionImpl): void {
@@ -288,9 +364,9 @@ export class SessionReaper {
     this.reap(managed, signal.sessionId);
   }
 
-  private reap(managed: ManagedSessionImpl, sessionId: string): void {
+  private reap(managed: ManagedSessionImpl, sessionId: string, reason = "idle"): void {
     if (!managed.isLive()) return;
-    this.logger.info(`Reaping idle session ${sessionId} (${managed.agent})`);
+    this.logger.info(`Reaping ${reason} session ${sessionId} (${managed.agent})`);
     // Notify before closing, but never let a throwing consumer callback skip the
     // close() — that would leak the very session we decided to reap.
     this.notify(() => this.onReap?.({ agent: managed.agent, sessionId }));
@@ -404,6 +480,21 @@ class ManagedSessionImpl implements ManagedSession {
 
   detach(): void {
     this.markDone();
+  }
+
+  /**
+   * Forward a stop-task control request to the underlying session handle.
+   *
+   * The handle is a plain structural object supplied by whoever opened the
+   * session, so `stopTask` may be missing at runtime even though the type
+   * requires it (an older build, a foreign runtime). Throw rather than resolve:
+   * a silent success here reports a still-running task as stopped.
+   */
+  stopTask(taskId: string): Promise<void> {
+    if (typeof this.session.stopTask !== "function") {
+      throw new SessionTaskControlUnsupportedError(this.resolvedSessionId ?? "unknown");
+    }
+    return this.session.stopTask(taskId);
   }
 
   /** Reap: mark not-live and close the session after the current hook unwinds. */

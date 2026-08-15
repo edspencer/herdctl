@@ -1,8 +1,52 @@
+import type { Page } from "@playwright/test";
 import { expect, test } from "../fixtures.js";
+import type { Harness } from "../harness.js";
 
 /**
  * Session-list (All Chats) journeys and error/empty states across the app.
  */
+
+/**
+ * Run one agent turn via REST, wait for it to finish, and wait for the server's
+ * session discovery to surface the resulting transcript in /api/chat/all.
+ *
+ * Both waits matter. The All Chats page fetches once on mount, so a test that
+ * navigates before discovery has caught up renders the base empty state and
+ * never recovers. The old spec instead waited on the text "talker", which also
+ * appears in the layout sidebar — a match that proves nothing about the session
+ * list and let the test proceed too early (herdctl#275).
+ */
+async function seedCompletedSession(page: Page, harness: Harness): Promise<void> {
+  const res = await page.request.post(`${harness.baseUrl}/api/agents/talker/trigger`, {
+    data: { prompt: "First message", triggerType: "web" },
+  });
+  expect(res.ok()).toBeTruthy();
+
+  await expect
+    .poll(
+      async () => {
+        const jobs = await (await page.request.get(`${harness.baseUrl}/api/jobs`)).json();
+        return jobs.jobs?.[0]?.status;
+      },
+      { timeout: 80_000, intervals: [1000] },
+    )
+    .toBe("completed");
+
+  await expect
+    .poll(
+      async () => {
+        const res = await page.request.get(`${harness.baseUrl}/api/chat/all?limit=200`);
+        const all = await res.json();
+        // Compare on encodedPath: it is the exact key core groups by, whereas
+        // workingDirectory is a lossy decode of it.
+        return (all.groups ?? []).some(
+          (g: { encodedPath: string }) => g.encodedPath === harness.agentEncodedPath("talker"),
+        );
+      },
+      { timeout: 30_000, intervals: [500] },
+    )
+    .toBe(true);
+}
 
 test.describe("All Chats session list", () => {
   test.use({
@@ -13,28 +57,16 @@ test.describe("All Chats session list", () => {
   });
 
   test("a completed chat appears in the All Chats directory listing", async ({ page, harness }) => {
-    // Run one chat turn via REST so a transcript exists on disk.
-    const res = await page.request.post(`${harness.baseUrl}/api/agents/talker/trigger`, {
-      data: { prompt: "First message", triggerType: "web" },
-    });
-    expect(res.ok()).toBeTruthy();
-
-    // Wait for the job to complete.
-    await expect
-      .poll(
-        async () => {
-          const jobs = await (await page.request.get(`${harness.baseUrl}/api/jobs`)).json();
-          return jobs.jobs?.[0]?.status;
-        },
-        { timeout: 80_000, intervals: [1000] },
-      )
-      .toBe("completed");
+    await seedCompletedSession(page, harness);
 
     await page.goto(`${harness.baseUrl}/chats`);
     await expect(page.getByRole("heading", { name: "All Chats" })).toBeVisible();
-    // The agent's working directory group should be listed (it contains the
-    // session we just created). The agent name surfaces in the group header.
-    await expect(page.getByText("talker").first()).toBeVisible({ timeout: 20_000 });
+    // Assert on the group's working directory, not the agent name: "talker"
+    // also renders in the layout sidebar, so matching it proves nothing about
+    // the All Chats list. The temp workdir is unique to this harness.
+    await expect(page.getByText(harness.agentDisplayWorkdir("talker"))).toBeVisible({
+      timeout: 20_000,
+    });
   });
 
   // /chats is machine-wide (it discovers every Claude Code session under
@@ -47,44 +79,24 @@ test.describe("All Chats session list", () => {
     page,
     harness,
   }) => {
-    // The no-results state only renders when ALL session groups filter out (true
-    // on a dev machine with many groups); in CI with a single seeded group the
-    // group is kept-but-empty and no top-level message shows. Skipped in CI
-    // pending a render fix — see herdctl#275. The directory listing itself is
-    // still covered (the "a completed chat appears" test above).
-    test.skip(!!process.env.CI, "machine-state-dependent no-results render — herdctl#275");
-    const trigger = await page.request.post(`${harness.baseUrl}/api/agents/talker/trigger`, {
-      data: { prompt: "First message", triggerType: "web" },
-    });
-    expect(trigger.ok()).toBeTruthy();
-    await expect
-      .poll(
-        async () => {
-          const jobs = await (await page.request.get(`${harness.baseUrl}/api/jobs`)).json();
-          return jobs.jobs?.[0]?.status;
-        },
-        { timeout: 80_000, intervals: [1000] },
-      )
-      .toBe("completed");
+    // One seeded group is enough for a deterministic result: a group matching
+    // neither its path/agent nor any of its sessions is now dropped entirely,
+    // so the single top-level state renders regardless of how many other
+    // session groups the host machine happens to have (herdctl#275).
+    await seedCompletedSession(page, harness);
 
     await page.goto(`${harness.baseUrl}/chats`);
 
     await expect(page.getByRole("heading", { name: "All Chats" })).toBeVisible();
     await expect(page.getByText("Every Claude Code session on this machine")).toBeVisible();
-    // Wait for the seeded session's group to LOAD before searching — otherwise the
-    // filter applies to a still-empty list (groups.length === 0 → base EmptyState,
-    // not the search "No matching sessions" state). The agent name heads its group.
-    await expect(page.getByText("talker").first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(harness.agentDisplayWorkdir("talker"))).toBeVisible({
+      timeout: 20_000,
+    });
 
     await page
       .getByPlaceholder(/Search sessions/)
       .fill("zzz-no-such-session-qqq-impossible-match-xyz");
-    // Accept either no-results form: the top-level "No matching sessions" (when
-    // all groups filter out) or a group's "No sessions match your search" (when a
-    // single group remains with no matching sessions). See herdctl#275.
-    await expect(
-      page.getByText(/No matching sessions|No sessions match your search/).first(),
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText("No matching sessions")).toBeVisible({ timeout: 20_000 });
   });
 });
 
