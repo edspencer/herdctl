@@ -1,17 +1,17 @@
 ---
-last_updated: 2026-03-06T00:00:00Z
+last_updated: 2026-08-24T10:05:02Z
 last_mapping: 2026-02-14
-last_audit: 2026-03-06
+last_audit: 2026-08-24
 commits_since_audit: 0
-commits_since_mapping: 111
+commits_since_mapping: 269
 open_findings: 8
 open_questions: 8
-status: audit_complete_yellow
+status: audit_complete_red
 ---
 
 # Security Audit State
 
-**Last Updated:** 2026-02-20 00:00 UTC
+**Last Updated:** 2026-08-24 10:05 UTC
 
 This document provides persistent state for security audits, enabling incremental reviews that build on previous work rather than starting fresh each time.
 
@@ -22,19 +22,19 @@ This document provides persistent state for security audits, enabling incrementa
 | Metric | Value | Notes |
 |--------|-------|-------|
 | Last full mapping | 2026-02-14 | Comprehensive audit completed |
-| Last incremental audit | 2026-03-06 | Incremental - YELLOW - 1 new HIGH finding (#012 Web API) |
-| Commits since last audit | 0 | At 5f79021 (2026-03-06) |
+| Last incremental audit | 2026-08-24 | Incremental - RED - CRITICAL dependency vulnerabilities |
+| Commits since last audit | 0 | At cdfbf2b (2026-08-24) |
 | Open findings | 8 | See [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
-| Open questions | 8 | Q1, Q3, Q4, Q5, Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q14 (3 answered) |
+| Open questions | 8 | Q1, Q3, Q4, Q5, Q7, Q8, Q9, Q10 (Q6, Q13, Q14 answered) |
 
-**Status:** YELLOW - Finding #012 (Web API lacks authentication) needs documentation; Finding #011 risk elevated.
+**Status:** RED - Finding #008 (181 npm vulnerabilities including 1 CRITICAL protobufjs RCE); Finding #013 (MCP headers credential exposure).
 
 ### Finding Breakdown
 
-- **Critical: 0**
-- **High: 1** (#012 NEW - web API auth missing)
+- **Critical: 1** (#008 npm vulnerabilities - 1 CRITICAL protobufjs RCE + 65 HIGH)
+- **High: 2** (#013 MCP headers credential exposure, #012 likely resolved but needs verification)
 - High: 1 (accepted risk - hostConfigOverride #002)
-- **Medium: 4** (#011 OAuth risk elevated, #010 job retention, #008 npm audit, #006 accepted)
+- **Medium: 4** (#011 OAuth file permissions partial fix, #010 job retention stable, #006 accepted)
 - Low: 1 (partially fixed - shell escaping #009)
 - Intentional: 1 (#005 example config)
 
@@ -52,12 +52,13 @@ Security coverage by area with staleness tracking.
 
 | Area | Last Checked | Commits Since | Status | Notes |
 |------|--------------|---------------|--------|-------|
-| Attack surface | 2026-03-06 | 0 | ✅ Current | Agent distribution + session discovery analyzed |
-| Data flows | 2026-03-06 | 0 | ✅ Current | Web API flows traced, OAuth paths reviewed |
-| Security controls | 2026-03-06 | 0 | ✅ Current | Path validation + shell escaping verified |
-| Threat vectors | 2026-03-06 | 0 | ✅ Current | SSRF, traversal, unauth access assessed |
-| Hot spots | 2026-03-06 | 0 | ✅ Current | Scanner run complete - 4422ms |
-| Code patterns | 2026-03-06 | 0 | ✅ Current | buildSafeFilePath usage verified |
+| Attack surface | 2026-08-24 | 0 | ✅ Current | No changes since 2026-08-23 (housekeeping commit) |
+| Data flows | 2026-08-24 | 0 | ✅ Current | No changes since 2026-08-23 (housekeeping commit) |
+| Security controls | 2026-08-24 | 0 | ✅ Current | No changes since 2026-08-23 (housekeeping commit) |
+| Threat vectors | 2026-08-24 | 0 | ✅ Current | No changes since 2026-08-23 (housekeeping commit) |
+| Hot spots | 2026-08-24 | 0 | ✅ Current | Scanner run complete - 23128ms |
+| Code patterns | 2026-08-24 | 0 | ✅ Current | No changes since 2026-08-23 (housekeeping commit) |
+| Dependencies | 2026-08-24 | 0 | 🔴 CRITICAL | 181 vulnerabilities (1 CRITICAL, 65 HIGH) - network issues prevented re-audit |
 
 ### Staleness Thresholds
 
@@ -73,11 +74,12 @@ Active findings and open questions requiring attention.
 
 | ID | Type | Summary | Priority | Status | Source |
 |----|------|---------|----------|--------|--------|
-| #012 | Finding | Web API lacks authentication | **HIGH** | OPEN - Needs documentation | [2026-03-06 Report](intel/2026-03-06.md) |
-| #011 | Finding | OAuth credential management - risk elevated | **MEDIUM** | YELLOW - Session exposure risk | [2026-03-06 Report](intel/2026-03-06.md) |
-| #010 | Finding | bypassPermissions in 22 job files | MEDIUM | YELLOW - Retention policy needed | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
-| #008 | Finding | npm audit - 4 HIGH, 4 MEDIUM vulns | Medium | Manual check needed | Scanner 2026-03-06 |
-| Q1 | Question | Webhook authentication | Medium | Related to #012 - web API has no auth | [2026-03-06 Report](intel/2026-03-06.md) |
+| #008 | Finding | npm vulnerabilities - 1 CRITICAL, 65 HIGH | **CRITICAL** | RED - protobufjs RCE + 180 others | [2026-08-23 Report](intel/2026-08-23.md) |
+| #013 | Finding | MCP server headers credential exposure | **HIGH** | RED - Add credential redaction | [2026-08-23 Report](intel/2026-08-23.md) |
+| #012 | Finding | Web API lacks authentication | **HIGH** | VERIFY - Likely resolved (commit 2033c47) | [2026-08-22 Report](intel/2026-08-22.md) |
+| #011 | Finding | OAuth credential file permissions | **MEDIUM** | YELLOW - Partial fix, chmod missing | [2026-08-23 Report](intel/2026-08-23.md) |
+| #010 | Finding | bypassPermissions in 22 job files | MEDIUM | YELLOW - Retention policy needed (stable 6mo) | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
+| Q1 | Question | Webhook authentication | Medium | Related to #012 - web API likely resolved | [2026-03-06 Report](intel/2026-03-06.md) |
 | Q13 | Question | encodedPath path traversal | Medium | Partially answered - indirect validation via groups | [2026-03-06 Report](intel/2026-03-06.md) |
 | Q11 | Question | GitHub SSRF in repo cloning | Medium | Confirmed - no allowlist; mitigations present | [2026-03-06 Report](intel/2026-03-06.md) |
 | Q4 | Question | Log injection via agent output | Medium | Open | [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
@@ -89,13 +91,14 @@ Active findings and open questions requiring attention.
 
 Ordered by urgency for next audit session:
 
-1. **HIGH P1:** Document web dashboard as localhost-only, warn against network exposure (#012)
-2. **HIGH P2:** Audit session files for OAuth credential leaks (#011 + #012 combined risk)
-3. **MEDIUM P1:** Add encodedPath explicit validation (Q13)
-4. **MEDIUM P2:** Review OAuth logging for credential leaks (#011)
-5. **MEDIUM P3:** Implement job file retention policy (30 days) to resolve #010
-6. **MEDIUM P4:** Consider GitHub URL allowlist for distribution system (Q11)
-7. **LOW:** Complete shell escaping verification (#009)
+1. **CRITICAL P1:** Update protobufjs to >=7.5.5 (Finding #008 - RCE vulnerability)
+2. **CRITICAL P2:** Update undici, rollup, minimatch (Finding #008 - 65 HIGH severity vulns)
+3. **HIGH P1:** Add MCP headers credential redaction (Finding #013)
+4. **HIGH P2:** Fix OAuth file permissions - add fs.chmodSync 0o600 (Finding #011)
+5. **HIGH P3:** Verify Finding #012 resolved in docs (commit 2033c47), close if confirmed
+6. **MEDIUM P1:** Implement job file retention policy (30 days) to resolve #010
+7. **MEDIUM P2:** Add encodedPath explicit validation (Q13)
+8. **LOW:** Complete shell escaping verification (#009)
 
 ---
 
@@ -105,9 +108,12 @@ Ordered by urgency for next audit session:
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
-| 2026-03-06 | #012 HIGH - Web API lacks authentication | New web API routes have no auth; designed for localhost only; needs documentation |
-| 2026-03-06 | #011 risk ELEVATED | Session files exposed via web API may contain OAuth tokens; combined risk with #012 |
-| 2026-03-06 | #009 status updated to PARTIALLY FIXED | Commit a0e7ad8 escapes $ and backtick; full verification still needed |
+| 2026-08-24 | #008 remains CRITICAL | protobufjs v7.5.4 still installed (local verification); network issues prevented npm audit |
+| 2026-08-24 | Status RED maintained | Housekeeping commit (cdfbf2b) has zero security impact; dependency vulnerabilities dominate |
+| 2026-08-23 | #008 ESCALATED to CRITICAL | 181 vulnerabilities (1 CRITICAL protobufjs RCE, 65 HIGH); was MEDIUM |
+| 2026-08-23 | #013 NEW - MCP headers exposure | Bearer tokens in headers field may be logged; introduced commit d45d7f9 |
+| 2026-08-23 | #011 PARTIAL FIX confirmed | OAuth token injection fixed (18834f8); file permissions still missing |
+| 2026-08-22 | #012 likely RESOLVED | Documentation added in commit 2033c47; needs verification |
 | 2026-03-06 | Q14 ANSWERED - Agent name validation SAFE | AGENT_NAME_PATTERN properly enforced before all file operations |
 | 2026-03-06 | Q13 ANSWERED - encodedPath validation PARTIAL | Indirect protection via groups lookup; recommend explicit validation |
 | 2026-03-06 | Q12 ANSWERED - Web API auth status NO | No authentication present; localhost-only design |
@@ -123,22 +129,22 @@ Ordered by urgency for next audit session:
 
 Security capabilities not yet implemented or areas needing investigation:
 
-- **HIGH NEW: Web API has no authentication** - localhost-only by design but needs documentation (#012)
-- **HIGH NEW: Session files exposed via web API** - may contain OAuth tokens from error logs (#011 + #012)
-- **MEDIUM: encodedPath validation is indirect** - should add explicit regex validation (Q13)
+- **CRITICAL: npm dependency vulnerabilities** - protobufjs RCE + 65 HIGH severity issues (#008)
+- **HIGH: MCP server headers credential exposure** - bearer tokens may be logged in plaintext (#013)
+- **HIGH: Web API authentication (likely resolved)** - needs verification of documentation (#012)
 - **MEDIUM: OAuth credential file permissions not enforced** - writeCredentialsFile() doesn't set 0600 (#011)
-- **MEDIUM: OAuth error logging may leak tokens** - logger.error() calls need review (#011)
-- **MEDIUM: Job file retention policy not implemented** - 22 bypassPermissions files accumulating (#010)
+- **MEDIUM: Job file retention policy not implemented** - 22 bypassPermissions files (stable 6mo) (#010)
+- **MEDIUM: encodedPath validation is indirect** - should add explicit regex validation (Q13)
 - **MEDIUM: GitHub SSRF potential** - no URL allowlist for repository cloning (Q11)
 - No secret detection in logs (output could leak sensitive data) - Q4
 - No rate limiting on triggers (DoS vector for scheduled jobs) - Q9
 
 ### Session Continuity
 
-- **Last session:** 2026-03-06 - Incremental audit covering 71 commits
-- **Completed:** Scanner run (FAIL - no regressions), change analysis (distribution + session discovery), web API auth review, agent name validation, encodedPath analysis, #012 discovery
-- **Resume from:** Normal operations; next scheduled audit ~2026-03-13
-- **Next priority:** Document web dashboard security model (#012), audit session files for credential leaks (#011), encodedPath validation (Q13)
+- **Last session:** 2026-08-24 - Incremental audit covering 1 commit (housekeeping only)
+- **Completed:** Scanner run (FAIL - expected findings), commit analysis (zero security impact), dependency verification (network issues), protobufjs local verification (v7.5.4 vulnerable)
+- **Resume from:** Normal operations; next scheduled audit ~2026-08-31
+- **Next priority:** Update protobufjs (#008), fix MCP headers redaction (#013), fix OAuth chmod (#011), verify #012 resolved
 
 ---
 
