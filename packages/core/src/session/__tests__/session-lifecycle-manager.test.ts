@@ -12,6 +12,16 @@ import {
 } from "../session-lifecycle-manager.js";
 import type { SessionLifecycleSignal, SessionWakeEntry } from "../types.js";
 
+function turnEndSignal(overrides: Partial<SessionLifecycleSignal> = {}): SessionLifecycleSignal {
+  return {
+    kind: "turn_end",
+    sessionId: "sess-job-1",
+    sessionCrons: [],
+    backgroundTasks: [],
+    ...overrides,
+  };
+}
+
 const NOW = new Date("2026-07-09T12:00:00.000Z");
 const resolveNextRun = (_s: string, from: Date) => new Date(from.getTime() + 5 * 60_000);
 
@@ -222,6 +232,280 @@ describe("SessionLifecycleManager", () => {
     const slm = new SessionLifecycleManager({ stateDir, openChatSession, resolveNextRun });
     expect(await slm.dispatchDue(NOW)).toEqual([]);
     expect(openChatSession).not.toHaveBeenCalled();
+  });
+});
+
+// vulpes-pack#148 — wiring session wakes into the job path. Before this,
+// RuntimeExecuteOptions.onLifecycleSignal was documented "ignored" by
+// execute() and neither job call site fed it anywhere: a job that called
+// ScheduleWakeup completed and its wake evaporated. `trackJob` is the
+// capture-only sink that closes that gap without a second reaper.
+describe("SessionLifecycleManager.trackJob (vulpes-pack#148)", () => {
+  let stateDir: string;
+
+  beforeEach(async () => {
+    stateDir = await mkdtemp(join(tmpdir(), "herdctl-slm-trackjob-"));
+  });
+
+  afterEach(async () => {
+    await rm(stateDir, { recursive: true, force: true });
+  });
+
+  it("persists a wake from an authoritative turn_end, keyed to the qualified agent name", async () => {
+    const slm = new SessionLifecycleManager({
+      stateDir,
+      openChatSession: vi.fn(),
+      resolveNextRun,
+    });
+    const tracker = slm.trackJob("team/agent");
+
+    await tracker.onLifecycleSignal(
+      turnEndSignal({
+        sessionCrons: [{ id: "c1", schedule: "+60s", recurring: false, prompt: "WAKE" }],
+      }),
+    );
+
+    const persisted = await new FleetStateWakePersistence({ stateDir }).load();
+    expect(persisted).toHaveLength(1);
+    expect(persisted[0]).toMatchObject({
+      id: "c1",
+      agent: "team/agent",
+      sessionId: "sess-job-1",
+      prompt: "WAKE",
+    });
+  });
+
+  // The test that matters most: pins the #459 hasSnapshot semantics on the job
+  // path too. A turn_end fired without the CLI's background_tasks/session_crons
+  // envelope must NOT reconcile — reading its empty arrays as authoritative
+  // would silently delete a wake a PRIOR turn in the same job already captured.
+  it("does not reconcile a turn_end with hasSnapshot: false — a captured wake survives", async () => {
+    const slm = new SessionLifecycleManager({
+      stateDir,
+      openChatSession: vi.fn(),
+      resolveNextRun,
+    });
+    const tracker = slm.trackJob("team/agent");
+
+    await tracker.onLifecycleSignal(
+      turnEndSignal({
+        sessionCrons: [{ id: "c1", schedule: "+60s", recurring: false, prompt: "WAKE" }],
+      }),
+    );
+    // A later turn_end in the same job fires without the envelope at all.
+    await tracker.onLifecycleSignal(turnEndSignal({ sessionCrons: [], hasSnapshot: false }));
+
+    const persisted = await new FleetStateWakePersistence({ stateDir }).load();
+    expect(persisted.map((w) => w.id)).toEqual(["c1"]);
+  });
+
+  // Counter-check: an authoritative empty report (hasSnapshot undefined/true)
+  // DOES reconcile — a retired one-shot is dropped as normal.
+  it("reconciles an authoritative empty turn_end — a retired wake is dropped", async () => {
+    const slm = new SessionLifecycleManager({
+      stateDir,
+      openChatSession: vi.fn(),
+      resolveNextRun,
+    });
+    const tracker = slm.trackJob("team/agent");
+
+    await tracker.onLifecycleSignal(
+      turnEndSignal({
+        sessionCrons: [{ id: "c1", schedule: "+60s", recurring: false, prompt: "WAKE" }],
+      }),
+    );
+    await tracker.onLifecycleSignal(turnEndSignal({ sessionCrons: [] }));
+
+    const persisted = await new FleetStateWakePersistence({ stateDir }).load();
+    expect(persisted).toEqual([]);
+  });
+
+  it("removes a wake on a cron_deleted signal", async () => {
+    const slm = new SessionLifecycleManager({
+      stateDir,
+      openChatSession: vi.fn(),
+      resolveNextRun,
+    });
+    const tracker = slm.trackJob("team/agent");
+
+    await tracker.onLifecycleSignal(
+      turnEndSignal({
+        sessionCrons: [{ id: "c1", schedule: "+60s", recurring: false, prompt: "WAKE" }],
+      }),
+    );
+    await tracker.onLifecycleSignal({
+      kind: "cron_deleted",
+      sessionId: "sess-job-1",
+      sessionCrons: [],
+      backgroundTasks: [],
+      deletedCronIds: ["c1"],
+    });
+
+    const persisted = await new FleetStateWakePersistence({ stateDir }).load();
+    expect(persisted).toEqual([]);
+  });
+
+  it("ignores activity and background_tasks_changed signals (no registry write)", async () => {
+    const slm = new SessionLifecycleManager({
+      stateDir,
+      openChatSession: vi.fn(),
+      resolveNextRun,
+    });
+    const reconcileSpy = vi.spyOn(slm.registry, "reconcile");
+    const tracker = slm.trackJob("team/agent");
+
+    await tracker.onLifecycleSignal({
+      kind: "activity",
+      sessionId: "sess-job-1",
+      sessionCrons: [],
+      backgroundTasks: [],
+    });
+    await tracker.onLifecycleSignal({
+      kind: "background_tasks_changed",
+      sessionId: "sess-job-1",
+      sessionCrons: [],
+      backgroundTasks: [{ id: "t1", type: "shell", status: "running", description: "server" }],
+    });
+
+    expect(reconcileSpy).not.toHaveBeenCalled();
+    expect(await new FleetStateWakePersistence({ stateDir }).load()).toEqual([]);
+  });
+
+  it("marks a resumed job's session live: dispatchDue skips it, then fires it after release()", async () => {
+    await new FleetStateWakePersistence({ stateDir }).save([
+      dueWake({ id: "w-live", sessionId: "sess-job-1" }),
+    ]);
+    const openChatSession = vi.fn().mockResolvedValue(fakeSession());
+    const slm = new SessionLifecycleManager({ stateDir, openChatSession, resolveNextRun });
+
+    const tracker = slm.trackJob("team/agent", "sess-job-1");
+    expect(await slm.dispatchDue(NOW)).toEqual([]);
+    expect(openChatSession).not.toHaveBeenCalled();
+
+    tracker.release();
+    const dispatched = await slm.dispatchDue(NOW);
+    expect(dispatched.map((e) => e.id)).toEqual(["w-live"]);
+  });
+
+  it("marks a fresh job's session live off the first signal's sessionId", async () => {
+    await new FleetStateWakePersistence({ stateDir }).save([
+      dueWake({ id: "w-fresh", sessionId: "sess-new" }),
+    ]);
+    const openChatSession = vi.fn().mockResolvedValue(fakeSession());
+    const slm = new SessionLifecycleManager({ stateDir, openChatSession, resolveNextRun });
+
+    // No resume target — trackJob doesn't know the session id yet, but a due
+    // wake for a session it hasn't heard of must still fire normally.
+    const tracker = slm.trackJob("team/agent");
+    expect((await slm.dispatchDue(NOW)).map((e) => e.id)).toEqual(["w-fresh"]);
+
+    // Re-seed the same wake (dispatchDue above consumed the one-shot) and have
+    // the job's first signal arrive for "sess-new" — it should now be live.
+    await new FleetStateWakePersistence({ stateDir }).save([
+      dueWake({ id: "w-fresh-2", sessionId: "sess-new" }),
+    ]);
+    await tracker.onLifecycleSignal({
+      kind: "activity",
+      sessionId: "sess-new",
+      sessionCrons: [],
+      backgroundTasks: [],
+    });
+    expect(await slm.dispatchDue(NOW)).toEqual([]);
+    expect(openChatSession).toHaveBeenCalledTimes(1); // unchanged since the first dispatchDue above
+
+    tracker.release();
+    expect((await slm.dispatchDue(NOW)).map((e) => e.id)).toEqual(["w-fresh-2"]);
+  });
+
+  it("release() is idempotent and safe to call without any signal ever arriving", async () => {
+    const slm = new SessionLifecycleManager({
+      stateDir,
+      openChatSession: vi.fn(),
+      resolveNextRun,
+    });
+    const tracker = slm.trackJob("team/agent", "sess-job-1");
+    tracker.release();
+    expect(() => tracker.release()).not.toThrow();
+
+    // The live mark is gone — a due wake for that session now fires normally.
+    await new FleetStateWakePersistence({ stateDir }).save([
+      dueWake({ id: "w-after-release", sessionId: "sess-job-1" }),
+    ]);
+    const openChatSession = vi.fn().mockResolvedValue(fakeSession());
+    const slm2 = new SessionLifecycleManager({ stateDir, openChatSession, resolveNextRun });
+    expect((await slm2.dispatchDue(NOW)).map((e) => e.id)).toEqual(["w-after-release"]);
+  });
+
+  it("keeps a session live until every concurrent job tracking it has released (refcount)", async () => {
+    await new FleetStateWakePersistence({ stateDir }).save([
+      dueWake({ id: "w-refcount", sessionId: "sess-shared" }),
+    ]);
+    const openChatSession = vi.fn().mockResolvedValue(fakeSession());
+    const slm = new SessionLifecycleManager({ stateDir, openChatSession, resolveNextRun });
+
+    // Two jobs concurrently resume the same session id (e.g. `dispatchDue`
+    // firing a wake for it while a second job is already mid-flight against
+    // it — see edspencer/herdctl#460).
+    const trackerA = slm.trackJob("team/agent", "sess-shared");
+    const trackerB = slm.trackJob("team/agent", "sess-shared");
+
+    trackerA.release();
+    // A `Set`-based live mark would have unpinned the session right here —
+    // trackerB is still running against it.
+    expect(await slm.dispatchDue(NOW)).toEqual([]);
+    expect(openChatSession).not.toHaveBeenCalled();
+
+    trackerB.release();
+    const dispatched = await slm.dispatchDue(NOW);
+    expect(dispatched.map((e) => e.id)).toEqual(["w-refcount"]);
+  });
+
+  it("a lifecycle signal that arrives after release() does not re-pin the session live or persist a wake", async () => {
+    const slm = new SessionLifecycleManager({
+      stateDir,
+      openChatSession: vi.fn().mockResolvedValue(fakeSession()),
+      resolveNextRun,
+    });
+    const tracker = slm.trackJob("team/agent"); // fresh job, learns its id off the first signal
+    tracker.release(); // the job's own turn already completed before any signal arrived
+
+    // A straggler signal (e.g. a deferred `emit()` microtask from a Stop hook
+    // firing right as the job finished) must be a full no-op: it must neither
+    // persist the wake it carries nor re-pin the session live — otherwise
+    // nothing left holding this tracker will ever release it, and every
+    // future dispatch for that session id silently stops firing.
+    await tracker.onLifecycleSignal(
+      turnEndSignal({
+        sessionId: "sess-straggler",
+        sessionCrons: [{ id: "c-straggler", schedule: "+60s", recurring: false, prompt: "WAKE" }],
+      }),
+    );
+    expect(await new FleetStateWakePersistence({ stateDir }).load()).toEqual([]);
+
+    // A wake for that same session id, seeded independently, must still fire
+    // normally — the straggler must not have pinned it live.
+    await new FleetStateWakePersistence({ stateDir }).save([
+      dueWake({ id: "w-straggler", sessionId: "sess-straggler" }),
+    ]);
+    expect((await slm.dispatchDue(NOW)).map((e) => e.id)).toEqual(["w-straggler"]);
+  });
+
+  it("a rejecting registry.reconcile never propagates out of onLifecycleSignal", async () => {
+    const slm = new SessionLifecycleManager({
+      stateDir,
+      openChatSession: vi.fn(),
+      resolveNextRun,
+    });
+    vi.spyOn(slm.registry, "reconcile").mockRejectedValue(new Error("state io error"));
+    const tracker = slm.trackJob("team/agent");
+
+    await expect(
+      tracker.onLifecycleSignal(
+        turnEndSignal({
+          sessionCrons: [{ id: "c1", schedule: "+60s", recurring: false, prompt: "WAKE" }],
+        }),
+      ),
+    ).resolves.toBeUndefined();
   });
 });
 

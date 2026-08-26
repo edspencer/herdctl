@@ -202,6 +202,16 @@ export class JobControl {
     const abortController = new AbortController();
     let registeredJobId: string | undefined;
 
+    // Wake capture (vulpes-pack#148): without this, a `ScheduleWakeup`/session
+    // cron the job registers is silently dropped the instant the job completes
+    // — nothing was ever wired to `onLifecycleSignal` on this path. `trackJob`
+    // also marks the (possibly not-yet-known) session id "live" for the run so
+    // a due wake for it can't cold-resume it out from under this job. `null`
+    // when the fleet has no lifecycle manager (e.g. lightweight test contexts);
+    // the tracker is then simply absent and behavior is unchanged from today.
+    const lifecycleManager = this.ctx.getSessionLifecycle?.() ?? undefined;
+    const lifecycleTracker = lifecycleManager?.trackJob(agentName, sessionId);
+
     // Execute the job - this creates the job record and runs it
     // Note: Job output is written to JSONL by JobExecutor; log streaming picks it up
     // If onMessage callback is provided, it will be called for each SDK message
@@ -251,11 +261,13 @@ export class JobControl {
         injectedMcpServers: options?.injectedMcpServers,
         systemPromptAppend: options?.systemPromptAppend,
         abortController,
+        onLifecycleSignal: lifecycleTracker?.onLifecycleSignal,
       });
     } finally {
       if (registeredJobId) {
         this.ctx.unregisterJob?.(registeredJobId);
       }
+      lifecycleTracker?.release();
     }
 
     // If the run was cancelled mid-flight, cancelJob() has already recorded the

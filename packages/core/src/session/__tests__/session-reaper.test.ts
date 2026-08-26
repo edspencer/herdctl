@@ -436,6 +436,44 @@ describe("SessionReaper", () => {
     expect(session.close).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps a background-task session alive on a turn_end without a background_tasks snapshot (#459 follow-up)", async () => {
+    // The CLI's Stop-hook payload builder can omit background_tasks/
+    // session_crons entirely for a turn_end, independent of the SDK's own
+    // per-field optionality — session-hooks.ts then reports hasSnapshot:
+    // false. Reading its empty backgroundTasks as authoritative would reap a
+    // session with real live background work. See job-2026-08-26-6opnmq.
+    const registry = fakeRegistry();
+    const onReap = vi.fn();
+    const reaper = new SessionReaper({ registry, onReap });
+    const session = fakeSession();
+    const managed = reaper.manage(session, "team/agent");
+
+    await managed.handleSignal(signal({ backgroundTasks: [TASK] })); // turn_end → keepAlive
+    await managed.handleSignal(
+      signal({ backgroundTasks: [], hasSnapshot: false }), // no-snapshot turn_end
+    );
+
+    expect(managed.isLive()).toBe(true);
+    expect(onReap).not.toHaveBeenCalled();
+    expect(registry.reconcile).toHaveBeenCalledTimes(1); // not called for the no-snapshot signal
+    expect(session.close).not.toHaveBeenCalled();
+  });
+
+  it("still reaps a genuinely idle session on a turn_end that authoritatively reports empty background_tasks", async () => {
+    // Counter-check: a real empty snapshot (field present, genuinely empty) must
+    // still reap as before — only an omitted field is a non-snapshot.
+    const registry = fakeRegistry();
+    const onReap = vi.fn();
+    const reaper = new SessionReaper({ registry, onReap });
+    const session = fakeSession();
+    const managed = reaper.manage(session, "team/agent");
+
+    await managed.handleSignal(signal({ backgroundTasks: [] }));
+
+    expect(managed.isLive()).toBe(false);
+    expect(onReap).toHaveBeenCalledWith({ agent: "team/agent", sessionId: "sess-1" });
+  });
+
   // A resume that may replay a stale async-input backlog runs the replayed backlog
   // as its OWN turn ahead of the caller's queued prompt turn. Reaping on the
   // backlog turn's turn_end would close the session out from under the queued turn

@@ -110,6 +110,14 @@ export class ScheduleExecutor {
       const abortController = new AbortController();
       let registeredJobId: string | undefined;
 
+      // Wake capture (vulpes-pack#148): mirrors JobControl.trigger() — without
+      // this a scheduled job's `ScheduleWakeup`/session cron is silently
+      // dropped when the job completes. Scheduled jobs never resume an
+      // explicit session here, so trackJob learns the session id off the
+      // job's first lifecycle signal.
+      const lifecycleManager = this.ctx.getSessionLifecycle?.() ?? undefined;
+      const lifecycleTracker = lifecycleManager?.trackJob(agent.qualifiedName);
+
       // Execute the job with streaming output
       let result: Awaited<ReturnType<typeof executor.execute>>;
       try {
@@ -149,11 +157,13 @@ export class ScheduleExecutor {
             }
           },
           abortController,
+          onLifecycleSignal: lifecycleTracker?.onLifecycleSignal,
         });
       } finally {
         if (registeredJobId) {
           this.ctx.unregisterJob?.(registeredJobId);
         }
+        lifecycleTracker?.release();
       }
 
       // If the run was cancelled mid-flight (e.g. shutdown bulk-cancel),

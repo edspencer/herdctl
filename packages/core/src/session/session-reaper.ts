@@ -22,7 +22,7 @@ import type { RuntimeSession } from "../runner/runtime/interface.js";
 import { createLogger } from "../utils/logger.js";
 import { decideReap } from "./reaper-policy.js";
 import type { BackgroundTaskSummary, SessionLifecycleSignal } from "./types.js";
-import type { WakeRegistry } from "./wake-registry.js";
+import { applyWakeSignal, type WakeRegistry } from "./wake-registry.js";
 
 type Logger = ReturnType<typeof createLogger>;
 
@@ -275,15 +275,7 @@ export class SessionReaper {
     // delete) and so deliberately keeps recurring wakes (#409). Firing continues
     // regardless of the surrounding reap decision, so handle it and return.
     if (signal.kind === "cron_deleted") {
-      for (const id of signal.deletedCronIds ?? []) {
-        try {
-          await this.registry.remove(id);
-        } catch (error) {
-          this.logger.warn(
-            `Failed to retire wake ${id} after CronDelete in session ${signal.sessionId} (${managed.agent}): ${(error as Error).message}`,
-          );
-        }
-      }
+      await applyWakeSignal(this.registry, managed.agent, signal, this.logger);
       return;
     }
 
@@ -311,20 +303,25 @@ export class SessionReaper {
       return;
     }
 
+    // The CLI's Stop-hook payload builder can omit the background_tasks/
+    // session_crons envelope entirely for a given turn_end (independent of the
+    // SDK's own per-field optionality) — `signal.hasSnapshot === false` then
+    // means the arrays below are just empty stand-ins, not an authoritative
+    // "nothing pending". Reading them as authoritative would reap a session
+    // with real live background work out from under it. Do nothing and keep
+    // whatever state this session already has; the next signal that does carry
+    // a snapshot (background_tasks_changed or a later turn_end) re-decides.
+    // See edspencer/herdctl#459 follow-up.
+    if (signal.hasSnapshot === false) return;
+
     // turn_end: the authoritative snapshot supersedes any pending grace reap.
     managed.cancelPendingReap();
 
     // Capture pending crons first so they survive whatever we decide next. A
     // reconcile I/O failure loses that turn's capture but must NOT block the reap
     // — leaving the session alive is the leak this module exists to prevent — so
-    // log and press on with the decision.
-    try {
-      await this.registry.reconcile(managed.agent, signal.sessionId, signal.sessionCrons);
-    } catch (error) {
-      this.logger.warn(
-        `Failed to reconcile wakes for session ${signal.sessionId} (${managed.agent}): ${(error as Error).message}`,
-      );
-    }
+    // applyWakeSignal logs and swallows it; press on with the decision.
+    await applyWakeSignal(this.registry, managed.agent, signal, this.logger);
 
     const decision = decideReap(signal);
     if (decision.action === "keepAlive") {
