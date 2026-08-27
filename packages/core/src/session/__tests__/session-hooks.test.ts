@@ -93,6 +93,86 @@ describe("buildLifecycleHooks", () => {
     expect(signal.backgroundTasks).toEqual([]);
   });
 
+  it("marks hasSnapshot false when the CLI omits the background_tasks envelope entirely", async () => {
+    // The CLI's Stop-hook payload builder wraps background_tasks/
+    // session_crons in one conditional envelope and can omit the key
+    // outright — distinct from the field being present with value
+    // `undefined` (the previous test). See #459 follow-up.
+    const sink = vi.fn();
+    const hooks = buildLifecycleHooks(sink);
+    const cb = hooks!.Stop![0].hooks[0];
+    const inputWithoutEnvelope = {
+      hook_event_name: "Stop",
+      session_id: "sess-1",
+      transcript_path: "/tmp/t.jsonl",
+      cwd: "/tmp",
+      stop_hook_active: false,
+      // no background_tasks / session_crons keys at all
+    } as unknown as HookInput;
+
+    await cb(inputWithoutEnvelope, undefined, { signal: new AbortController().signal });
+
+    const signal = sink.mock.calls[0][0] as SessionLifecycleSignal;
+    expect(signal.hasSnapshot).toBe(false);
+    expect(signal.backgroundTasks).toEqual([]);
+    expect(signal.sessionCrons).toEqual([]);
+  });
+
+  it("marks hasSnapshot false when the key is present but explicitly undefined", async () => {
+    // Array.isArray(undefined) is false, so a present-but-undefined key reads
+    // the same as an absent key — the stricter of the two readings. `in`
+    // would have called this "present" (true even for
+    // `{ background_tasks: undefined }`), reintroducing the old `?? []`
+    // clobber for this shape.
+    const sink = vi.fn();
+    const hooks = buildLifecycleHooks(sink);
+    const cb = hooks!.Stop![0].hooks[0];
+    await cb(stopInput({ session_crons: undefined, background_tasks: undefined }), undefined, {
+      signal: new AbortController().signal,
+    });
+    const signal = sink.mock.calls[0][0] as SessionLifecycleSignal;
+    expect(signal.hasSnapshot).toBe(false);
+    expect(signal.sessionCrons).toEqual([]);
+    expect(signal.backgroundTasks).toEqual([]);
+  });
+
+  it("marks hasSnapshot true on a normal turn_end carrying a real snapshot", async () => {
+    const sink = vi.fn();
+    const hooks = buildLifecycleHooks(sink);
+    const cb = hooks!.Stop![0].hooks[0];
+    await cb(stopInput(), undefined, { signal: new AbortController().signal });
+    const signal = sink.mock.calls[0][0] as SessionLifecycleSignal;
+    expect(signal.hasSnapshot).toBe(true);
+  });
+
+  it("marks hasSnapshot false and ignores the snapshot when background_tasks is present but malformed", async () => {
+    // `?? []` only normalizes nullish — a non-array/invalid SDK payload must
+    // not sneak through as SessionCronSummary[]/BackgroundTaskSummary[].
+    // Field present + invalid shape is treated like field absent: logged and
+    // dropped, not crashed on.
+    const sink = vi.fn();
+    const hooks = buildLifecycleHooks(sink);
+    const cb = hooks!.Stop![0].hooks[0];
+    const malformedInput = {
+      hook_event_name: "Stop",
+      session_id: "sess-1",
+      transcript_path: "/tmp/t.jsonl",
+      cwd: "/tmp",
+      stop_hook_active: false,
+      background_tasks: "not-an-array",
+      session_crons: [{ id: "c1", schedule: "35 13 * * *", recurring: false, prompt: "go" }],
+    } as unknown as HookInput;
+
+    await expect(
+      cb(malformedInput, undefined, { signal: new AbortController().signal }),
+    ).resolves.toEqual({ continue: true });
+
+    const signal = sink.mock.calls[0][0] as SessionLifecycleSignal;
+    expect(signal.hasSnapshot).toBe(false);
+    expect(signal.backgroundTasks).toEqual([]);
+    expect(signal.sessionCrons).toEqual([]);
+  });
+
   it("does nothing for non-stop hook inputs", async () => {
     const sink = vi.fn();
     const hooks = buildLifecycleHooks(sink);

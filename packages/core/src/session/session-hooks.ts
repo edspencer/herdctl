@@ -20,11 +20,28 @@ import type {
   SessionCronSummary,
   StopHookInput,
 } from "@anthropic-ai/claude-agent-sdk";
+import { z } from "zod";
 import type { SDKMessage } from "../runner/types.js";
 import { createLogger } from "../utils/logger.js";
 import type { SessionLifecycleSignal } from "./types.js";
 
 const logger = createLogger("session-hooks");
+
+// Loose shape checks for the Stop hook's `background_tasks`/`session_crons`
+// snapshot — an external SDK payload, so validated rather than trusted
+// outright. Only the fields herdctl actually reads are required;
+// `.passthrough()` keeps the rest (e.g. `command`, `agent_type`) intact for
+// downstream consumers instead of stripping them.
+const backgroundTaskSummarySchema = z
+  .object({ id: z.string(), type: z.string(), status: z.string(), description: z.string() })
+  .passthrough();
+const sessionCronSummarySchema = z
+  .object({ id: z.string(), schedule: z.string(), recurring: z.boolean(), prompt: z.string() })
+  .passthrough();
+const stopSnapshotSchema = z.object({
+  background_tasks: z.array(backgroundTaskSummarySchema).optional(),
+  session_crons: z.array(sessionCronSummarySchema).optional(),
+});
 
 /** Receiver for lifecycle signals (the session-reaper's `handleSignal`). */
 export type LifecycleSignalSink = (signal: SessionLifecycleSignal) => void | Promise<void>;
@@ -95,11 +112,39 @@ function deletedCronId(input: PostToolUseHookInput): string | null {
 export function buildLifecycleHooks(sink: LifecycleSignalSink): Options["hooks"] {
   const stopCallback = async (input: HookInput) => {
     if (isMainAgentStop(input)) {
-      const sessionCrons: SessionCronSummary[] = input.session_crons ?? [];
-      const backgroundTasks: BackgroundTaskSummary[] = input.background_tasks ?? [];
+      // The CLI builds `background_tasks`/`session_crons` as one conditional
+      // envelope and can omit BOTH fields for a given Stop, independent of the
+      // SDK's own per-field `?`-optionality. Detect via `Array.isArray` — not
+      // `in` (true even for `{ background_tasks: undefined }`, reintroducing
+      // the old `?? []` clobber) and not `??` on the value — so "no snapshot
+      // reported" isn't conflated with "authoritative empty snapshot". See
+      // {@link SessionLifecycleSignal.hasSnapshot}.
+      const fieldPresent = Array.isArray(input.background_tasks);
+      // `?? []` only normalizes nullish — it can't catch a non-array or
+      // malformed SDK payload sneaking through as SessionCronSummary[]/
+      // BackgroundTaskSummary[] (the reaper would then reconcile/decide off
+      // invalid state). Validate the shape too; an invalid payload is logged
+      // and treated the same as an absent field (hasSnapshot: false).
+      const parsed = stopSnapshotSchema.safeParse(input);
+      const hasSnapshot = fieldPresent && parsed.success;
+      if (fieldPresent && !parsed.success) {
+        logger.warn(
+          `Stop hook for session ${input.session_id} carried a malformed background_tasks/session_crons snapshot; ignoring it: ${parsed.error.message}`,
+        );
+      }
+      const sessionCrons: SessionCronSummary[] =
+        (parsed.success ? parsed.data.session_crons : undefined) ?? [];
+      const backgroundTasks: BackgroundTaskSummary[] =
+        (parsed.success ? parsed.data.background_tasks : undefined) ?? [];
       // Never let a sink failure reject the hook (which would disrupt turn flow);
       // log and continue. `emit` observes the async rejection off the hot path.
-      emit(sink, { kind: "turn_end", sessionId: input.session_id, sessionCrons, backgroundTasks });
+      emit(sink, {
+        kind: "turn_end",
+        sessionId: input.session_id,
+        sessionCrons,
+        backgroundTasks,
+        hasSnapshot,
+      });
     }
     return { continue: true };
   };

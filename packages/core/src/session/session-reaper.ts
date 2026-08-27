@@ -311,6 +311,17 @@ export class SessionReaper {
       return;
     }
 
+    // The CLI's Stop-hook payload builder can omit the background_tasks/
+    // session_crons envelope entirely for a given turn_end (independent of the
+    // SDK's own per-field optionality) — `signal.hasSnapshot === false` then
+    // means the arrays below are just empty stand-ins, not an authoritative
+    // "nothing pending". Reading them as authoritative would reap a session
+    // with real live background work out from under it. Do nothing and keep
+    // whatever state this session already has; the next signal that does carry
+    // a snapshot (background_tasks_changed or a later turn_end) re-decides.
+    // See edspencer/herdctl#459 follow-up.
+    if (signal.hasSnapshot === false) return;
+
     // turn_end: the authoritative snapshot supersedes any pending grace reap.
     managed.cancelPendingReap();
 
