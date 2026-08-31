@@ -1,9 +1,9 @@
 ---
-last_updated: 2026-08-24T10:05:02Z
+last_updated: 2026-08-31T10:00:20Z
 last_mapping: 2026-02-14
-last_audit: 2026-08-24
+last_audit: 2026-08-31
 commits_since_audit: 0
-commits_since_mapping: 269
+commits_since_mapping: 276
 open_findings: 8
 open_questions: 8
 status: audit_complete_red
@@ -11,7 +11,7 @@ status: audit_complete_red
 
 # Security Audit State
 
-**Last Updated:** 2026-08-24 10:05 UTC
+**Last Updated:** 2026-08-31 10:00 UTC
 
 This document provides persistent state for security audits, enabling incremental reviews that build on previous work rather than starting fresh each time.
 
@@ -22,8 +22,8 @@ This document provides persistent state for security audits, enabling incrementa
 | Metric | Value | Notes |
 |--------|-------|-------|
 | Last full mapping | 2026-02-14 | Comprehensive audit completed |
-| Last incremental audit | 2026-08-24 | Incremental - RED - CRITICAL dependency vulnerabilities |
-| Commits since last audit | 0 | At cdfbf2b (2026-08-24) |
+| Last incremental audit | 2026-08-31 | Incremental - RED - CRITICAL dependency vulnerabilities |
+| Commits since last audit | 0 | At 590e625 (2026-08-31) |
 | Open findings | 8 | See [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
 | Open questions | 8 | Q1, Q3, Q4, Q5, Q7, Q8, Q9, Q10 (Q6, Q13, Q14 answered) |
 
@@ -52,13 +52,13 @@ Security coverage by area with staleness tracking.
 
 | Area | Last Checked | Commits Since | Status | Notes |
 |------|--------------|---------------|--------|-------|
-| Attack surface | 2026-08-24 | 0 | ✅ Current | No changes since 2026-08-23 (housekeeping commit) |
-| Data flows | 2026-08-24 | 0 | ✅ Current | No changes since 2026-08-23 (housekeeping commit) |
-| Security controls | 2026-08-24 | 0 | ✅ Current | No changes since 2026-08-23 (housekeeping commit) |
-| Threat vectors | 2026-08-24 | 0 | ✅ Current | No changes since 2026-08-23 (housekeeping commit) |
-| Hot spots | 2026-08-24 | 0 | ✅ Current | Scanner run complete - 23128ms |
-| Code patterns | 2026-08-24 | 0 | ✅ Current | No changes since 2026-08-23 (housekeeping commit) |
-| Dependencies | 2026-08-24 | 0 | 🔴 CRITICAL | 181 vulnerabilities (1 CRITICAL, 65 HIGH) - network issues prevented re-audit |
+| Attack surface | 2026-08-31 | 0 | ✅ Current | No changes since 2026-08-24 (7 housekeeping commits) |
+| Data flows | 2026-08-31 | 0 | ✅ Current | No changes since 2026-08-24 (7 housekeeping commits) |
+| Security controls | 2026-08-31 | 0 | ✅ Current | No changes since 2026-08-24 (7 housekeeping commits) |
+| Threat vectors | 2026-08-31 | 0 | ✅ Current | No changes since 2026-08-24 (7 housekeeping commits) |
+| Hot spots | 2026-08-31 | 0 | ✅ Current | Scanner run complete - 19751ms |
+| Code patterns | 2026-08-31 | 0 | ✅ Current | No changes since 2026-08-24 (7 housekeeping commits) |
+| Dependencies | 2026-08-31 | 0 | 🔴 CRITICAL | 181 vulnerabilities (1 CRITICAL, 65 HIGH) - network issues persist |
 
 ### Staleness Thresholds
 
@@ -108,6 +108,8 @@ Ordered by urgency for next audit session:
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
+| 2026-08-31 | #008 remains CRITICAL | Network issues persist; assume 181 vulnerabilities unchanged since 2026-08-23 |
+| 2026-08-31 | Status RED maintained | 7 housekeeping commits (590e625-6f16fd1) have zero security impact; dependency vulnerabilities dominate |
 | 2026-08-24 | #008 remains CRITICAL | protobufjs v7.5.4 still installed (local verification); network issues prevented npm audit |
 | 2026-08-24 | Status RED maintained | Housekeeping commit (cdfbf2b) has zero security impact; dependency vulnerabilities dominate |
 | 2026-08-23 | #008 ESCALATED to CRITICAL | 181 vulnerabilities (1 CRITICAL protobufjs RCE, 65 HIGH); was MEDIUM |
@@ -141,10 +143,10 @@ Security capabilities not yet implemented or areas needing investigation:
 
 ### Session Continuity
 
-- **Last session:** 2026-08-24 - Incremental audit covering 1 commit (housekeeping only)
-- **Completed:** Scanner run (FAIL - expected findings), commit analysis (zero security impact), dependency verification (network issues), protobufjs local verification (v7.5.4 vulnerable)
-- **Resume from:** Normal operations; next scheduled audit ~2026-08-31
-- **Next priority:** Update protobufjs (#008), fix MCP headers redaction (#013), fix OAuth chmod (#011), verify #012 resolved
+- **Last session:** 2026-08-31 - Incremental audit covering 7 commits (all housekeeping only)
+- **Completed:** Scanner run (FAIL - expected findings), commit analysis (zero security impact), dependency verification (network issues persist)
+- **Resume from:** Normal operations; next scheduled audit ~2026-09-07
+- **Next priority:** Resolve network connectivity, update protobufjs (#008), fix MCP headers redaction (#013), fix OAuth chmod (#011), verify #012 resolved
 
 ---
 
