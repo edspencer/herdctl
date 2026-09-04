@@ -209,6 +209,7 @@ export default defineConfig({
 						{ label: 'Creating Agents', slug: 'guides/creating-agents' },
 						{ label: 'Discord Chat Quick Start', slug: 'guides/discord-quick-start' },
 						{ label: 'Slack Chat Quick Start', slug: 'guides/slack-quick-start' },
+						{ label: 'Displaying Images', slug: 'guides/displaying-images' },
 						{ label: 'Example Projects', slug: 'guides/examples' },
 						{ label: 'Persistent Memory', slug: 'guides/persistent-memory' },
 						{ label: 'Recipes & Patterns', slug: 'guides/recipes' },
