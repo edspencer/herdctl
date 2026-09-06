@@ -1,9 +1,9 @@
 ---
-last_updated: 2026-08-31T10:00:20Z
+last_updated: 2026-09-06T10:10:00Z
 last_mapping: 2026-02-14
-last_audit: 2026-08-31
+last_audit: 2026-09-06
 commits_since_audit: 0
-commits_since_mapping: 276
+commits_since_mapping: 283
 open_findings: 8
 open_questions: 8
 status: audit_complete_red
@@ -11,7 +11,7 @@ status: audit_complete_red
 
 # Security Audit State
 
-**Last Updated:** 2026-08-31 10:00 UTC
+**Last Updated:** 2026-09-06 10:10 UTC
 
 This document provides persistent state for security audits, enabling incremental reviews that build on previous work rather than starting fresh each time.
 
@@ -22,16 +22,16 @@ This document provides persistent state for security audits, enabling incrementa
 | Metric | Value | Notes |
 |--------|-------|-------|
 | Last full mapping | 2026-02-14 | Comprehensive audit completed |
-| Last incremental audit | 2026-08-31 | Incremental - RED - CRITICAL dependency vulnerabilities |
-| Commits since last audit | 0 | At 590e625 (2026-08-31) |
+| Last incremental audit | 2026-09-06 | Incremental - RED - Dependency verification required |
+| Commits since last audit | 0 | At 9cebdcf (2026-09-06) |
 | Open findings | 8 | See [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
 | Open questions | 8 | Q1, Q3, Q4, Q5, Q7, Q8, Q9, Q10 (Q6, Q13, Q14 answered) |
 
-**Status:** RED - Finding #008 (181 npm vulnerabilities including 1 CRITICAL protobufjs RCE); Finding #013 (MCP headers credential exposure).
+**Status:** RED - Finding #008 (dependency vulnerabilities - manual verification required after network restoration); Finding #013 (MCP headers credential exposure).
 
 ### Finding Breakdown
 
-- **Critical: 1** (#008 npm vulnerabilities - 1 CRITICAL protobufjs RCE + 65 HIGH)
+- **Critical: 1** (#008 npm vulnerabilities - verification required; was 181 vulns with 1 CRITICAL protobufjs RCE + 65 HIGH)
 - **High: 2** (#013 MCP headers credential exposure, #012 likely resolved but needs verification)
 - High: 1 (accepted risk - hostConfigOverride #002)
 - **Medium: 4** (#011 OAuth file permissions partial fix, #010 job retention stable, #006 accepted)
@@ -52,13 +52,13 @@ Security coverage by area with staleness tracking.
 
 | Area | Last Checked | Commits Since | Status | Notes |
 |------|--------------|---------------|--------|-------|
-| Attack surface | 2026-08-31 | 0 | ✅ Current | No changes since 2026-08-24 (7 housekeeping commits) |
-| Data flows | 2026-08-31 | 0 | ✅ Current | No changes since 2026-08-24 (7 housekeeping commits) |
-| Security controls | 2026-08-31 | 0 | ✅ Current | No changes since 2026-08-24 (7 housekeeping commits) |
-| Threat vectors | 2026-08-31 | 0 | ✅ Current | No changes since 2026-08-24 (7 housekeeping commits) |
-| Hot spots | 2026-08-31 | 0 | ✅ Current | Scanner run complete - 19751ms |
-| Code patterns | 2026-08-31 | 0 | ✅ Current | No changes since 2026-08-24 (7 housekeeping commits) |
-| Dependencies | 2026-08-31 | 0 | 🔴 CRITICAL | 181 vulnerabilities (1 CRITICAL, 65 HIGH) - network issues persist |
+| Attack surface | 2026-09-06 | 0 | ✅ Current | No changes since 2026-08-31 (7 housekeeping commits) |
+| Data flows | 2026-09-06 | 0 | ✅ Current | No changes since 2026-08-31 (7 housekeeping commits) |
+| Security controls | 2026-09-06 | 0 | ✅ Current | No changes since 2026-08-31 (7 housekeeping commits) |
+| Threat vectors | 2026-09-06 | 0 | ✅ Current | No changes since 2026-08-31 (7 housekeeping commits) |
+| Hot spots | 2026-09-06 | 0 | ✅ Current | Scanner run complete - 70912ms |
+| Code patterns | 2026-09-06 | 0 | ✅ Current | No changes since 2026-08-31 (7 housekeeping commits) |
+| Dependencies | 2026-09-06 | 0 | 🟡 VERIFY | Network restored - npm-audit passes; manual verification required |
 
 ### Staleness Thresholds
 
@@ -74,7 +74,7 @@ Active findings and open questions requiring attention.
 
 | ID | Type | Summary | Priority | Status | Source |
 |----|------|---------|----------|--------|--------|
-| #008 | Finding | npm vulnerabilities - 1 CRITICAL, 65 HIGH | **CRITICAL** | RED - protobufjs RCE + 180 others | [2026-08-23 Report](intel/2026-08-23.md) |
+| #008 | Finding | npm vulnerabilities - manual verification required | **CRITICAL** | RED - Network restored, verify status | [2026-08-23 Report](intel/2026-08-23.md) |
 | #013 | Finding | MCP server headers credential exposure | **HIGH** | RED - Add credential redaction | [2026-08-23 Report](intel/2026-08-23.md) |
 | #012 | Finding | Web API lacks authentication | **HIGH** | VERIFY - Likely resolved (commit 2033c47) | [2026-08-22 Report](intel/2026-08-22.md) |
 | #011 | Finding | OAuth credential file permissions | **MEDIUM** | YELLOW - Partial fix, chmod missing | [2026-08-23 Report](intel/2026-08-23.md) |
@@ -91,8 +91,8 @@ Active findings and open questions requiring attention.
 
 Ordered by urgency for next audit session:
 
-1. **CRITICAL P1:** Update protobufjs to >=7.5.5 (Finding #008 - RCE vulnerability)
-2. **CRITICAL P2:** Update undici, rollup, minimatch (Finding #008 - 65 HIGH severity vulns)
+1. **CRITICAL P1:** Verify protobufjs version; update to >=7.5.5 if needed (Finding #008 - RCE vulnerability)
+2. **CRITICAL P2:** Run `pnpm audit --audit-level=high` to verify dependency status
 3. **HIGH P1:** Add MCP headers credential redaction (Finding #013)
 4. **HIGH P2:** Fix OAuth file permissions - add fs.chmodSync 0o600 (Finding #011)
 5. **HIGH P3:** Verify Finding #012 resolved in docs (commit 2033c47), close if confirmed
@@ -108,6 +108,8 @@ Ordered by urgency for next audit session:
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
+| 2026-09-06 | #008 requires manual verification | Network connectivity restored; scanner passes but doesn't guarantee resolution |
+| 2026-09-06 | Status RED maintained | 7 housekeeping commits (9cebdcf-f3bd24e) have zero security impact; dependency status unknown |
 | 2026-08-31 | #008 remains CRITICAL | Network issues persist; assume 181 vulnerabilities unchanged since 2026-08-23 |
 | 2026-08-31 | Status RED maintained | 7 housekeeping commits (590e625-6f16fd1) have zero security impact; dependency vulnerabilities dominate |
 | 2026-08-24 | #008 remains CRITICAL | protobufjs v7.5.4 still installed (local verification); network issues prevented npm audit |
@@ -131,7 +133,7 @@ Ordered by urgency for next audit session:
 
 Security capabilities not yet implemented or areas needing investigation:
 
-- **CRITICAL: npm dependency vulnerabilities** - protobufjs RCE + 65 HIGH severity issues (#008)
+- **CRITICAL: npm dependency vulnerabilities** - Manual verification required after network restoration (#008)
 - **HIGH: MCP server headers credential exposure** - bearer tokens may be logged in plaintext (#013)
 - **HIGH: Web API authentication (likely resolved)** - needs verification of documentation (#012)
 - **MEDIUM: OAuth credential file permissions not enforced** - writeCredentialsFile() doesn't set 0600 (#011)
@@ -143,10 +145,10 @@ Security capabilities not yet implemented or areas needing investigation:
 
 ### Session Continuity
 
-- **Last session:** 2026-08-31 - Incremental audit covering 7 commits (all housekeeping only)
-- **Completed:** Scanner run (FAIL - expected findings), commit analysis (zero security impact), dependency verification (network issues persist)
-- **Resume from:** Normal operations; next scheduled audit ~2026-09-07
-- **Next priority:** Resolve network connectivity, update protobufjs (#008), fix MCP headers redaction (#013), fix OAuth chmod (#011), verify #012 resolved
+- **Last session:** 2026-09-06 - Incremental audit covering 7 commits (all housekeeping only)
+- **Completed:** Scanner run (FAIL - expected findings), commit analysis (zero security impact), npm-audit passes (network restored)
+- **Resume from:** Normal operations; next scheduled audit ~2026-09-13
+- **Next priority:** Run manual `pnpm audit`, verify protobufjs version (#008), fix MCP headers redaction (#013), fix OAuth chmod (#011), verify #012 resolved
 
 ---
 
@@ -175,4 +177,3 @@ When commits occur to the codebase:
 ---
 
 **End of STATE.md**
-
