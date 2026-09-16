@@ -55,7 +55,7 @@ agents:
 2. Create agent config `agents/my-agent.yaml`:
 ```yaml
 name: my-agent
-model: claude-sonnet-4-20250514
+model: claude-sonnet-5
 workSources:
   schedules:
     - name: daily-task

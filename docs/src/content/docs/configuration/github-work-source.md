@@ -527,7 +527,7 @@ schedules:
 session:
   max_turns: 100
   timeout: 4h
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-5
 
 # Permissions
 permission_mode: acceptEdits

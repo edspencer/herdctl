@@ -27,7 +27,7 @@ Add Discord chat configuration to your agent YAML:
 
 ```yaml
 name: my-assistant
-model: claude-sonnet-4-20250514
+model: claude-sonnet-5
 
 chat:
   discord:
@@ -42,7 +42,7 @@ chat:
 
 ```yaml
 name: support-bot
-model: claude-sonnet-4-20250514
+model: claude-sonnet-5
 
 chat:
   discord:

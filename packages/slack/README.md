@@ -29,7 +29,7 @@ Add Slack chat configuration to your agent YAML:
 
 ```yaml
 name: support-bot
-model: claude-sonnet-4-20250514
+model: claude-sonnet-5
 
 chat:
   slack:
@@ -48,7 +48,7 @@ chat:
 
 ```yaml
 name: my-assistant
-model: claude-sonnet-4-20250514
+model: claude-sonnet-5
 
 chat:
   slack:

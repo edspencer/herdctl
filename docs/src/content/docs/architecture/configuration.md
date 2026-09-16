@@ -80,7 +80,7 @@ fleet:
   description: "Optional description"
 
 defaults:
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-5
   permission_mode: acceptEdits
   allowed_tools: [Read, Edit, Write, Bash, Glob, Grep]
   work_source:
@@ -104,7 +104,7 @@ agents:
   - path: ./agents/security-auditor.yaml
   - path: ./agents/engineer.yaml
     overrides:
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-5
 
 web:
   enabled: true
@@ -143,7 +143,7 @@ description: "Runs security audits on pull requests"
 working_directory: ~/herdctl-workspace/my-project
 repo: owner/my-project
 
-model: claude-sonnet-4-20250514
+model: claude-sonnet-5
 max_turns: 100
 permission_mode: acceptEdits
 runtime: sdk
@@ -215,7 +215,7 @@ agents:
   - path: ./agents/engineer.yaml
   - path: ./agents/auditor.yaml
     overrides:
-      model: claude-sonnet-4-20250514
+      model: claude-sonnet-5
       max_turns: 200
 ```
 
@@ -277,7 +277,7 @@ This means an agent that specifies `allowed_tools: [Read, Glob]` completely repl
 ```yaml
 # herdctl.yaml
 defaults:
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-5
   permission_mode: acceptEdits
   allowed_tools: [Read, Edit, Write, Bash, Glob, Grep]
   work_source:
@@ -289,7 +289,7 @@ defaults:
 ```yaml
 # agents/engineer.yaml
 name: engineer
-model: claude-sonnet-4-20250514       # overrides default model
+model: claude-sonnet-5       # overrides default model
 work_source:
   type: github
   repo: owner/my-project    # merged with default work_source
@@ -298,7 +298,7 @@ work_source:
 # allowed_tools inherited from defaults
 ```
 
-The resolved agent config will have `model: claude-sonnet-4-20250514` (from agent), `permission_mode: acceptEdits` (from defaults), `allowed_tools: [Read, Edit, Write, Bash, Glob, Grep]` (from defaults), and a `work_source` with both `type`, `repo`, and `labels.ready` populated (deep merge of defaults and agent).
+The resolved agent config will have `model: claude-sonnet-5` (from agent), `permission_mode: acceptEdits` (from defaults), `allowed_tools: [Read, Edit, Write, Bash, Glob, Grep]` (from defaults), and a `work_source` with both `type`, `repo`, and `labels.ready` populated (deep merge of defaults and agent).
 
 ## Environment Variable Interpolation
 
