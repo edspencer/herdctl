@@ -36,7 +36,7 @@ fleet:
 # defaults:
 #   permission_mode: default        # default | acceptEdits | bypassPermissions | plan
 #   max_turns: 50
-#   model: claude-sonnet-4-20250514
+#   model: claude-sonnet-5
 #
 #   # Docker isolation (applies to all agents unless overridden)
 #   # docker:

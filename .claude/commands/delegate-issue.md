@@ -97,7 +97,7 @@ Write the filled prompt to a file in the clone, then launch via stdin to avoid s
 cd ~/Code/herdctl-issues/issue-<N> && \
 cat worker-prompt.txt | claude -p - \
   --dangerously-skip-permissions \
-  --model claude-opus-4-20250514 \
+  --model claude-opus-5 \
   2>&1 | tee ~/Code/herdctl-issues/issue-<N>/claude-worker.log
 ```
 
