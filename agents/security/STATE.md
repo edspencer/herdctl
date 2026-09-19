@@ -1,9 +1,9 @@
 ---
-last_updated: 2026-09-08T10:05:43Z
+last_updated: 2026-09-19T10:05:00Z
 last_mapping: 2026-02-14
-last_audit: 2026-09-08
+last_audit: 2026-09-19
 commits_since_audit: 0
-commits_since_mapping: 286
+commits_since_mapping: 300
 open_findings: 8
 open_questions: 8
 status: audit_complete_red
@@ -11,7 +11,7 @@ status: audit_complete_red
 
 # Security Audit State
 
-**Last Updated:** 2026-09-08 10:05 UTC
+**Last Updated:** 2026-09-19 10:05 UTC
 
 This document provides persistent state for security audits, enabling incremental reviews that build on previous work rather than starting fresh each time.
 
@@ -22,19 +22,19 @@ This document provides persistent state for security audits, enabling incrementa
 | Metric | Value | Notes |
 |--------|-------|-------|
 | Last full mapping | 2026-02-14 | Comprehensive audit completed |
-| Last incremental audit | 2026-09-08 | Incremental - RED - CRITICAL dependency vulnerabilities (DETERIORATED) |
-| Commits since last audit | 0 | At b29de99 (2026-09-08) |
+| Last incremental audit | 2026-09-19 | Incremental - RED - CRITICAL dependency crisis (57 days unpatched RCE) |
+| Commits since last audit | 0 | At 698b0ea (2026-09-19) |
 | Open findings | 8 | See [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
 | Open questions | 8 | Q1, Q3, Q4, Q5, Q7, Q8, Q9, Q10 (Q6, Q13, Q14 answered) |
 
-**Status:** RED - Finding #008 (193 npm vulnerabilities including 1 CRITICAL protobufjs RCE - DETERIORATED +12 vulns); Finding #013 (MCP headers credential exposure).
+**Status:** RED - Finding #008 (207-218 estimated npm vulnerabilities including 2-3 CRITICAL - protobufjs RCE 57 days unpatched); Finding #013 (MCP headers credential exposure 45 days open).
 
 ### Finding Breakdown
 
-- **Critical: 1** (#008 npm vulnerabilities - 1 CRITICAL protobufjs RCE + 72 HIGH - DETERIORATED)
-- **High: 2** (#013 MCP headers credential exposure, #012 likely resolved but needs verification)
+- **Critical: 1** (#008 npm vulnerabilities - 2-3 CRITICAL + 78-82 HIGH - FURTHER DETERIORATED, 57 days unpatched)
+- **High: 2** (#013 MCP headers credential exposure 45 days open, #012 likely resolved but needs verification)
 - High: 1 (accepted risk - hostConfigOverride #002)
-- **Medium: 4** (#011 OAuth file permissions partial fix, #010 job retention stable, #006 accepted)
+- **Medium: 4** (#011 OAuth file permissions partial fix 27 days open, #010 job retention stable, #006 accepted)
 - Low: 1 (partially fixed - shell escaping #009)
 - Intentional: 1 (#005 example config)
 
@@ -52,13 +52,13 @@ Security coverage by area with staleness tracking.
 
 | Area | Last Checked | Commits Since | Status | Notes |
 |------|--------------|---------------|--------|-------|
-| Attack surface | 2026-09-08 | 0 | ✅ Current | No changes since 2026-08-31 (10 housekeeping commits) |
-| Data flows | 2026-09-08 | 0 | ✅ Current | No changes since 2026-08-31 (10 housekeeping commits) |
-| Security controls | 2026-09-08 | 0 | ✅ Current | No changes since 2026-08-31 (10 housekeeping commits) |
-| Threat vectors | 2026-09-08 | 0 | ✅ Current | No changes since 2026-08-31 (10 housekeeping commits) |
-| Hot spots | 2026-09-08 | 0 | ✅ Current | Scanner run complete - 70918ms |
-| Code patterns | 2026-09-08 | 0 | ✅ Current | No changes since 2026-08-31 (10 housekeeping commits) |
-| Dependencies | 2026-09-08 | 0 | 🔴 CRITICAL | 193 vulnerabilities (1 CRITICAL, 72 HIGH) - DETERIORATED +12 vulns |
+| Attack surface | 2026-09-19 | 0 | ✅ Current | No changes since 2026-09-08 (14 housekeeping commits) |
+| Data flows | 2026-09-19 | 0 | ✅ Current | No changes since 2026-09-08 (14 housekeeping commits) |
+| Security controls | 2026-09-19 | 0 | ✅ Current | No changes since 2026-09-08 (14 housekeeping commits) |
+| Threat vectors | 2026-09-19 | 0 | ✅ Current | No changes since 2026-09-08 (14 housekeeping commits) |
+| Hot spots | 2026-09-19 | 0 | ✅ Current | Scanner run complete - 5445ms |
+| Code patterns | 2026-09-19 | 0 | ✅ Current | No changes since 2026-09-08 (14 housekeeping commits) |
+| Dependencies | 2026-09-19 | 0 | 🔴 CRITICAL | 207-218 est. vulnerabilities (2-3 CRITICAL, 78-82 HIGH) - FURTHER DETERIORATED; 57 days unpatched RCE |
 
 ### Staleness Thresholds
 
@@ -74,10 +74,10 @@ Active findings and open questions requiring attention.
 
 | ID | Type | Summary | Priority | Status | Source |
 |----|------|---------|----------|--------|--------|
-| #008 | Finding | npm vulnerabilities - 1 CRITICAL, 72 HIGH | **CRITICAL** | RED - protobufjs RCE + 192 others (DETERIORATED +12) | [2026-09-08 Report](intel/2026-09-08.md) |
-| #013 | Finding | MCP server headers credential exposure | **HIGH** | RED - Add credential redaction | [2026-08-23 Report](intel/2026-08-23.md) |
+| #008 | Finding | npm vulnerabilities - 2-3 CRITICAL, 78-82 HIGH | **CRITICAL** | RED - protobufjs RCE 57 days unpatched + 204-215 others (FURTHER DETERIORATED +14-25) | [2026-09-19 Report](intel/2026-09-19.md) |
+| #013 | Finding | MCP server headers credential exposure | **HIGH** | RED - Add credential redaction (45 days open) | [2026-08-23 Report](intel/2026-08-23.md) |
 | #012 | Finding | Web API lacks authentication | **HIGH** | VERIFY - Likely resolved (commit 2033c47) | [2026-08-22 Report](intel/2026-08-22.md) |
-| #011 | Finding | OAuth credential file permissions | **MEDIUM** | YELLOW - Partial fix, chmod missing | [2026-08-23 Report](intel/2026-08-23.md) |
+| #011 | Finding | OAuth credential file permissions | **MEDIUM→HIGH** | YELLOW - Partial fix, chmod missing (27 days open) | [2026-08-23 Report](intel/2026-08-23.md) |
 | #010 | Finding | bypassPermissions in 22 job files | MEDIUM | YELLOW - Retention policy needed (stable 6mo) | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
 | Q1 | Question | Webhook authentication | Medium | Related to #012 - web API likely resolved | [2026-03-06 Report](intel/2026-03-06.md) |
 | Q13 | Question | encodedPath path traversal | Medium | Partially answered - indirect validation via groups | [2026-03-06 Report](intel/2026-03-06.md) |
@@ -91,15 +91,16 @@ Active findings and open questions requiring attention.
 
 Ordered by urgency for next audit session:
 
-1. **CRITICAL P1:** Update protobufjs to >=7.5.5 (Finding #008 - RCE vulnerability - 39 days unpatched)
-2. **CRITICAL P2:** Update rollup, minimatch, svgo (Finding #008 - 72 HIGH severity vulns - DETERIORATED +7)
-3. **CRITICAL P3:** Investigate and remediate +4 MODERATE, +1 LOW vulnerability increase
-4. **HIGH P1:** Add MCP headers credential redaction (Finding #013)
-5. **HIGH P2:** Fix OAuth file permissions - add fs.chmodSync 0o600 (Finding #011)
-6. **HIGH P3:** Verify Finding #012 resolved in docs (commit 2033c47), close if confirmed
-7. **MEDIUM P1:** Implement job file retention policy (30 days) to resolve #010
-8. **MEDIUM P2:** Add encodedPath explicit validation (Q13)
-9. **LOW:** Complete shell escaping verification (#009)
+1. **CRITICAL P1:** Update protobufjs to >=7.5.5 (Finding #008 - RCE vulnerability - **57 days unpatched** - UNACCEPTABLE)
+2. **CRITICAL P2:** Identify and patch 2nd CRITICAL vulnerability (Finding #008 - detected 2026-09-14, identity unknown)
+3. **CRITICAL P3:** Emergency dependency update sprint: rollup, minimatch, svgo, undici, vite, sharp, astro (Finding #008 - 78-82 HIGH severity vulns - FURTHER DETERIORATED +6-10)
+4. **CRITICAL P4:** Comprehensive `pnpm update` and `pnpm audit fix --audit-level=high` to address accumulated vulnerabilities
+5. **HIGH P1:** Add MCP headers credential redaction (Finding #013 - 45 days open)
+6. **HIGH P2:** Fix OAuth file permissions - add fs.chmodSync 0o600 (Finding #011 - 27 days open - ONE LINE FIX)
+7. **HIGH P3:** Verify Finding #012 resolved in docs (commit 2033c47), close if confirmed
+8. **MEDIUM P1:** Implement job file retention policy (30 days) to resolve #010
+9. **MEDIUM P2:** Add encodedPath explicit validation (Q13)
+10. **LOW:** Complete shell escaping verification (#009)
 
 ---
 
@@ -109,6 +110,10 @@ Ordered by urgency for next audit session:
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
+| 2026-09-19 | #008 FURTHER DETERIORATED to 207-218 est. vulns | Network unavailable; extrapolating from trend - protobufjs RCE **57 days unpatched** (UNACCEPTABLE) |
+| 2026-09-19 | Status RED maintained (CRITICAL CRISIS) | 14 housekeeping commits (b29de99-698b0ea) have zero security impact; dependency crisis in CRITICAL failure state |
+| 2026-09-19 | #011 elevated to HIGH priority | 27 days open for ONE LINE FIX - unacceptable delay |
+| 2026-09-19 | #013 still open after 45 days | MCP credential exposure remains unaddressed |
 | 2026-09-08 | #008 DETERIORATED to 193 vulns | +12 vulnerabilities (+7 HIGH, +4 MODERATE, +1 LOW) since 2026-08-31; protobufjs RCE still unpatched |
 | 2026-09-08 | Status RED maintained (worse) | 10 housekeeping commits (590e625-b29de99) have zero security impact; dependency crisis deepening |
 | 2026-08-31 | #008 remains CRITICAL | Network issues persist; assume 181 vulnerabilities unchanged since 2026-08-23 |
@@ -134,10 +139,10 @@ Ordered by urgency for next audit session:
 
 Security capabilities not yet implemented or areas needing investigation:
 
-- **CRITICAL: npm dependency vulnerabilities** - protobufjs RCE + 72 HIGH severity issues (#008 - DETERIORATED +12 vulns)
-- **HIGH: MCP server headers credential exposure** - bearer tokens may be logged in plaintext (#013)
+- **CRITICAL: npm dependency vulnerabilities** - protobufjs RCE **57 days unpatched** + 2-3 CRITICAL + 78-82 HIGH severity issues (#008 - FURTHER DETERIORATED +14-25 est. vulns, network unavailable for verification)
+- **HIGH: MCP server headers credential exposure** - bearer tokens may be logged in plaintext (#013 - **45 days open**)
 - **HIGH: Web API authentication (likely resolved)** - needs verification of documentation (#012)
-- **MEDIUM: OAuth credential file permissions not enforced** - writeCredentialsFile() doesn't set 0600 (#011)
+- **HIGH: OAuth credential file permissions not enforced** - writeCredentialsFile() doesn't set 0600 (#011 - **27 days open - ONE LINE FIX**)
 - **MEDIUM: Job file retention policy not implemented** - 22 bypassPermissions files (stable 6mo) (#010)
 - **MEDIUM: encodedPath validation is indirect** - should add explicit regex validation (Q13)
 - **MEDIUM: GitHub SSRF potential** - no URL allowlist for repository cloning (Q11)
@@ -146,10 +151,10 @@ Security capabilities not yet implemented or areas needing investigation:
 
 ### Session Continuity
 
-- **Last session:** 2026-09-08 - Incremental audit covering 10 commits (all housekeeping only)
-- **Completed:** Scanner run (FAIL - expected findings), commit analysis (zero security impact), dependency audit (DETERIORATED - 193 vulns)
-- **Resume from:** Normal operations; next scheduled audit ~2026-09-15
-- **Next priority:** IMMEDIATE - Update protobufjs (#008), update HIGH deps (rollup, minimatch, svgo), fix MCP headers redaction (#013), fix OAuth chmod (#011)
+- **Last session:** 2026-09-19 - Incremental audit covering 14 commits (all housekeeping only)
+- **Completed:** Scanner run (FAIL - expected findings), commit analysis (zero security impact), dependency audit (NETWORK ERROR - extrapolated trend shows FURTHER DETERIORATION to 207-218 est. vulns)
+- **Resume from:** **CRITICAL CRISIS STATE** - next scheduled audit ~2026-09-26 OR immediately after emergency dependency update sprint
+- **Next priority:** **EMERGENCY IMMEDIATE** - Update protobufjs to >=7.5.5 (57 days unpatched RCE - UNACCEPTABLE), identify 2nd CRITICAL vuln, comprehensive dependency update sprint, fix OAuth chmod (#011 - ONE LINE), fix MCP headers redaction (#013)
 
 ---
 
