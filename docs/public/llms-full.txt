@@ -81,7 +81,7 @@ Create `agents/code-reviewer.yaml`:
 ```yaml
 name: code-reviewer
 description: Reviews pull requests and provides feedback
-model: claude-sonnet-4-20250514
+model: claude-sonnet-5
 
 allowed_tools:
   - Read
@@ -129,7 +129,7 @@ fleet:
   description: string         # Human-readable description
 
 defaults:                     # Default settings for all agents
-  model: string               # Default model (e.g., claude-sonnet-4-20250514)
+  model: string               # Default model (e.g., claude-sonnet-5)
   maxConcurrentJobs: number   # Max parallel jobs per agent
   allowed_tools: string[]     # Default allowed tools
   denied_tools: string[]      # Default denied tools
@@ -496,7 +496,7 @@ herdctl maintains state in `.herdctl/` directory:
 ```yaml
 name: code-reviewer
 description: Automated code review for pull requests
-model: claude-sonnet-4-20250514
+model: claude-sonnet-5
 
 allowed_tools:
   - Read
@@ -519,7 +519,7 @@ workSources:
 ```yaml
 name: doc-generator
 description: Generates and updates documentation
-model: claude-sonnet-4-20250514
+model: claude-sonnet-5
 
 allowed_tools:
   - Read
@@ -543,7 +543,7 @@ workSources:
 ```yaml
 name: issue-triage
 description: Triages and labels GitHub issues
-model: claude-sonnet-4-20250514
+model: claude-sonnet-5
 
 workSources:
   schedules:

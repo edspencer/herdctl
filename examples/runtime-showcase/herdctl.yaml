@@ -15,7 +15,7 @@ agents:
     # Mixed: Shows overrides for different runtimes per schedule
 
 defaults:
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-5
   permission_mode: acceptEdits
   session:
     timeout: 30m

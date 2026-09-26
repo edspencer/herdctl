@@ -37,7 +37,7 @@ schedules:
 session:
   max_turns: 50
   timeout: 2h
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-5
 
 permission_mode: acceptEdits
 allowed_tools:
@@ -53,7 +53,7 @@ mcp_servers:
     env:
       GITHUB_TOKEN: ${GITHUB_TOKEN}
 
-model: claude-sonnet-4-20250514
+model: claude-sonnet-5
 max_turns: 100
 ```
 
@@ -484,7 +484,7 @@ Runtime settings for agent sessions.
 session:
   max_turns: 50
   timeout: 2h
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-5
 ```
 
 | Field | Type | Description |
@@ -779,12 +779,12 @@ For a [dockerized agent](/configuration/docker/) the path must resolve *inside* 
 Override the Claude model for this agent.
 
 ```yaml
-model: claude-sonnet-4-20250514
+model: claude-sonnet-5
 ```
 
 Common models:
-- `claude-sonnet-4-20250514` — Fast, capable (recommended)
-- `claude-opus-4-20250514` — Most capable
+- `claude-sonnet-5` — Fast, capable (recommended)
+- `claude-opus-5` — Most capable
 
 ### max_turns
 
@@ -853,7 +853,7 @@ schedules:
 session:
   max_turns: 100
   timeout: 4h
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-5
 
 permission_mode: acceptEdits
 allowed_tools:
@@ -995,7 +995,7 @@ schedules:
 session:
   max_turns: 200
   timeout: 8h
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-5
 
 permission_mode: default
 allowed_tools:
@@ -1041,7 +1041,7 @@ Agents inherit default settings from the fleet configuration (`herdctl.yaml`). A
 ```yaml
 # herdctl.yaml
 defaults:
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-5
   permission_mode: acceptEdits
   session:
     timeout: 2h
@@ -1050,7 +1050,7 @@ defaults:
 ```yaml
 # agents/special-agent.yaml
 name: special-agent
-model: claude-opus-4-20250514  # Override default model
+model: claude-opus-5  # Override default model
 session:
   timeout: 4h  # Override default timeout
 ```

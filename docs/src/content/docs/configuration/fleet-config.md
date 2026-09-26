@@ -105,7 +105,7 @@ Default Claude model for all agents.
 
 ```yaml
 defaults:
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-5
 ```
 
 #### defaults.max_turns
@@ -327,7 +327,7 @@ defaults:
   session:
     max_turns: 100
     timeout: 1h
-    model: claude-sonnet-4-20250514
+    model: claude-sonnet-5
 ```
 
 #### defaults.mcp_servers
@@ -484,7 +484,7 @@ fleets:
   - path: ./other-project/herdctl.yaml
     overrides:
       defaults:
-        model: claude-opus-4-20250514
+        model: claude-opus-5
 
 agents:                               # Direct agents still supported
   - path: ./global-agents/monitor.yaml
@@ -536,13 +536,13 @@ When composing fleets, defaults merge across levels with this priority (lowest t
 ```yaml
 # Super-fleet sets a default model
 defaults:
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-5
 
 fleets:
   - path: ./project/herdctl.yaml
     overrides:
       defaults:
-        model: claude-opus-4-20250514  # Forces all agents in this sub-fleet to use Opus
+        model: claude-opus-5  # Forces all agents in this sub-fleet to use Opus
 ```
 
 #### Web Suppression
@@ -567,7 +567,7 @@ web:
   port: 3232
 
 defaults:
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-5
   permission_mode: acceptEdits
 
 fleets:
@@ -662,7 +662,7 @@ agents:
 3. **Override model:**
    ```yaml
    overrides:
-     model: claude-opus-4-20250514
+     model: claude-opus-5
    ```
 
 :::tip[Tiered Security]
@@ -910,7 +910,7 @@ fleet:
   description: Production agent fleet for automated development workflows
 
 defaults:
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-5
   max_turns: 50
   permission_mode: acceptEdits
   allowed_tools:

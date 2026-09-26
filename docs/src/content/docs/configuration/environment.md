@@ -38,7 +38,7 @@ working_directory:
   root: ${HERDCTL_WORKSPACE_ROOT:-/home/user/herdctl-workspace}
 
 defaults:
-  model: ${CLAUDE_MODEL:-claude-sonnet-4-20250514}
+  model: ${CLAUDE_MODEL:-claude-sonnet-5}
 ```
 
 If `HERDCTL_WORKSPACE_ROOT` is not set, the value `/home/user/herdctl-workspace` will be used instead.
@@ -285,7 +285,7 @@ fleet:
   description: ${FLEET_DESCRIPTION:-Local development fleet}
 
 defaults:
-  model: ${CLAUDE_MODEL:-claude-sonnet-4-20250514}
+  model: ${CLAUDE_MODEL:-claude-sonnet-5}
 
   # Numeric fields like instances.max_concurrent cannot be interpolated
   # (validation runs before interpolation) - set them literally:
@@ -332,7 +332,7 @@ fleet:
   description: ${FLEET_DESCRIPTION:-Agent fleet for ${TEAM_NAME:-engineering}}
 
 defaults:
-  model: ${CLAUDE_MODEL:-claude-sonnet-4-20250514}
+  model: ${CLAUDE_MODEL:-claude-sonnet-5}
   # max_turns is a number field - it cannot use ${VAR} interpolation
   max_turns: 50
 

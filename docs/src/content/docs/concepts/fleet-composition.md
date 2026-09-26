@@ -164,7 +164,7 @@ flowchart LR
 ```yaml
 # Super-fleet: sets a default model for everyone
 defaults:
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-5
 
 fleets:
   - path: ./herdctl/herdctl.yaml
@@ -173,7 +173,7 @@ fleets:
   - path: ./critical-project/herdctl.yaml
     overrides:
       defaults:
-        model: claude-opus-4-20250514  # Force all agents in this sub-fleet to use Opus
+        model: claude-opus-5  # Force all agents in this sub-fleet to use Opus
 ```
 
 Fleet-level overrides apply to the sub-fleet's top-level config fields (`defaults`, `web`, etc.). They cannot reach into individual agent configs — if you need to override a specific agent, import it directly as an agent reference with overrides.
