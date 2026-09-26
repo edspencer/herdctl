@@ -9,6 +9,7 @@
  */
 
 import {
+  type BackgroundTaskSummary,
   createSdkMcpServer,
   query,
   type SDKUserMessage,
@@ -16,12 +17,32 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { buildLifecycleHooks, tapLifecycleStream } from "../../session/session-hooks.js";
+import type { SessionLifecycleSignal } from "../../session/types.js";
+import { isTerminalMessage } from "../message-processor.js";
 import { toSDKOptions } from "../sdk-adapter.js";
 import type { InjectedMcpServerDef, SDKMessage } from "../types.js";
 import { withClaudeConfigDir } from "./claude-config-dir.js";
 import { defaultClaudeHome } from "./cli-session-path.js";
 import type { RuntimeExecuteOptions, RuntimeInterface, RuntimeSession } from "./interface.js";
 import { MessageQueue } from "./message-queue.js";
+
+/**
+ * Ceiling for holding a one-shot `execute()` run's terminal message while a
+ * `run_in_background` Agent-tool subagent it spawned is still live (issue #458).
+ * Mirrors `claude -p`'s own `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS` (default
+ * 10 min since Claude Code 2.1.182; `0` disables the wait) — the SDK runtime
+ * gets the same background-subagent grace the CLI runtime already gets.
+ */
+const DEFAULT_BG_WAIT_CEILING_MS = 10 * 60_000;
+function bgWaitCeilingMs(): number {
+  const raw = process.env.CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS;
+  if (raw === undefined || raw === "") return DEFAULT_BG_WAIT_CEILING_MS;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_BG_WAIT_CEILING_MS;
+}
+
+/** Sentinel distinguishing "the ceiling timer won the race" from a real message. */
+const BG_WAIT_TIMED_OUT = Symbol("bg-wait-timed-out");
 
 /**
  * Build a streaming-input user message from plain text.
@@ -179,21 +200,147 @@ export class SDKRuntime implements RuntimeInterface {
   async *execute(options: RuntimeExecuteOptions): AsyncIterable<SDKMessage> {
     const sdkOptions = this.buildSdkOptions(options);
 
-    // Execute via SDK query(). Thread through the AbortController so the run is
-    // cancellable: the SDK `query()` options accept an `abortController` and stop
-    // the query when it aborts. This is what makes cancelJob able to interrupt an
-    // in-flight SDK turn (the CLI runtime aborts its subprocess separately).
-    const messages = query({
-      prompt: options.prompt,
+    // issue #458: a one-shot string-prompt `query()` ends its own generator the
+    // moment the top-level turn's terminal message arrives — abandoning any
+    // `run_in_background` Agent-tool subagent that hasn't finished yet, because
+    // JobExecutor's `for await` loop breaks on that same terminal message
+    // (nothing left to consult it wants to keep the query alive for). Fixed by
+    // borrowing openSession()'s streaming-input + lifecycle-hook wiring: a
+    // queue-backed prompt keeps the underlying query open, the Stop/
+    // background_tasks_changed hooks report whether background work is still
+    // live, and the terminal message is held back (up to bgWaitCeilingMs, the
+    // same grace `claude -p` gives via `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS`)
+    // until it drains — instead of tearing the session down out from under it.
+    // Updated two ways: synchronously in this loop below (from the same
+    // `background_tasks_changed` stream message `tapLifecycleStream` reacts
+    // to — inspected directly here, not via its `sink`, which fires on a
+    // deferred microtask and would race the very message that triggered it),
+    // and from the Stop hook's authoritative end-of-turn snapshot via
+    // `onLifecycleSignal` below (fine to be async there — nothing in this
+    // loop is waiting on that same tick).
+    let liveBackgroundTasks: BackgroundTaskSummary[] = [];
+    const onLifecycleSignal = (signal: SessionLifecycleSignal) => {
+      // `activity` and `cron_deleted` carry no task snapshot (always `[]`,
+      // see SessionLifecycleSignal's own doc) — only `turn_end` and
+      // `background_tasks_changed` are authoritative. Taking every signal
+      // here would let an `activity` signal (fired on the next assistant
+      // message) wipe a real pending-task count to `[]` and release a held
+      // terminal early.
+      // `hasSnapshot === false` means a `turn_end` fired without the CLI's
+      // background_tasks envelope (see SessionLifecycleSignal.hasSnapshot) —
+      // `signal.backgroundTasks` is then just an empty stand-in, not "drained
+      // to empty". Keep whatever we already tracked instead of clobbering it,
+      // which previously released a held terminal (and its live background
+      // subagent got killed) mid-wait. See edspencer/herdctl#459 follow-up.
+      if (
+        (signal.kind === "turn_end" || signal.kind === "background_tasks_changed") &&
+        signal.hasSnapshot !== false
+      ) {
+        liveBackgroundTasks = signal.backgroundTasks;
+      }
+    };
+    sdkOptions.hooks = {
+      ...(sdkOptions.hooks ?? {}),
+      ...buildLifecycleHooks(onLifecycleSignal),
+    };
+
+    const input = new MessageQueue<SDKUserMessage>();
+    if (options.prompt) {
+      input.push(toUserMessage(options.prompt));
+    }
+
+    // Thread the AbortController through so teardown has a lever beyond the
+    // generator's own `return()` (mirrors the original one-shot call).
+    const abortController = options.abortController ?? new AbortController();
+    const q = query({
+      prompt: input as AsyncIterable<SDKUserMessage>,
       options: {
         ...(sdkOptions as Record<string, unknown>),
-        abortController: options.abortController,
+        abortController,
       },
     });
+    const messages = tapLifecycleStream(
+      q as unknown as AsyncIterable<SDKMessage>,
+      onLifecycleSignal,
+    );
+    const iterator = messages[Symbol.asyncIterator]();
 
-    // Stream messages from SDK
-    for await (const message of messages) {
-      yield message as SDKMessage;
+    const ceilingMs = bgWaitCeilingMs();
+    let pendingTerminal: SDKMessage | undefined;
+    // Armed once, on the first message we hold back — a single deadline for
+    // the whole wait, not reset per message.
+    let ceilingTimer: ReturnType<typeof setTimeout> | undefined;
+    let ceilingPromise: Promise<typeof BG_WAIT_TIMED_OUT> | undefined;
+    const armCeiling = (): Promise<typeof BG_WAIT_TIMED_OUT> => {
+      if (!ceilingPromise) {
+        ceilingPromise = new Promise((resolve) => {
+          ceilingTimer = setTimeout(() => resolve(BG_WAIT_TIMED_OUT), ceilingMs);
+          ceilingTimer.unref?.();
+        });
+      }
+      return ceilingPromise;
+    };
+
+    try {
+      while (true) {
+        const nextResult = pendingTerminal
+          ? await Promise.race([iterator.next(), armCeiling()])
+          : await iterator.next();
+
+        if (nextResult === BG_WAIT_TIMED_OUT) break; // ceiling hit; yield the held terminal below
+        if (nextResult.done) break;
+
+        const message = nextResult.value;
+        // Read synchronously off the raw message, ahead of (and independent
+        // from) tapLifecycleStream's own deferred `sink` call for the same
+        // message — see the comment on `liveBackgroundTasks` above.
+        if (
+          message &&
+          (message as { type?: string }).type === "system" &&
+          (message as { subtype?: string }).subtype === "background_tasks_changed"
+        ) {
+          liveBackgroundTasks =
+            ((message as { tasks?: BackgroundTaskSummary[] }).tasks as BackgroundTaskSummary[]) ??
+            [];
+        }
+
+        if (isTerminalMessage(message)) {
+          // Supersedes any terminal already held — e.g. a re-invocation turn
+          // (the background task's own completion) produces a newer one.
+          pendingTerminal = message;
+          // Only a *fresh* terminal message may end the wait. Checking this
+          // outside the branch (on every message once a terminal was pending)
+          // let a non-terminal `background_tasks_changed` drain event — which
+          // reaches this loop synchronously above and can flip
+          // liveBackgroundTasks to `[]` in the same iteration — break the
+          // loop right after the drain, before the background task's own
+          // re-invocation turn (further assistant messages + its real
+          // terminal) ever streamed. The consumer then saw the stale first
+          // terminal as the final answer.
+          if (liveBackgroundTasks.length === 0 || ceilingMs === 0) break;
+          // else: keep looping, still holding.
+        } else {
+          // Always forwarded, including while a terminal is held: a
+          // re-invocation's own content (assistant/tool messages) must reach
+          // the consumer, not just its eventual terminal.
+          yield message;
+        }
+      }
+
+      // Inside the same try/finally as the loop above (not after it): a
+      // `yield` suspends the generator, and if the consumer aborts iteration
+      // right here (breaks its `for await`, calls `.return()`) without this
+      // being in the try, the `finally` below — and therefore input.end()/
+      // q.return() — would never run, leaking the query.
+      if (pendingTerminal) yield pendingTerminal;
+    } finally {
+      if (ceilingTimer) clearTimeout(ceilingTimer);
+      input.end();
+      try {
+        await q.return(undefined);
+      } catch {
+        // Already closed / never started — nothing to clean up.
+      }
     }
   }
 
