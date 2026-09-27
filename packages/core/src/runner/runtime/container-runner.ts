@@ -240,7 +240,10 @@ export class ContainerRunner implements RuntimeInterface {
         const mcpServers = sdkOptions.mcpServers ?? {};
 
         for (const [name, def] of Object.entries(options.injectedMcpServers)) {
-          const bridge = await startMcpHttpBridge(def);
+          // The agent container is in another network namespace, so this
+          // bridge cannot bind loopback. The bearer token is what keeps other
+          // containers and hosts from calling it.
+          const bridge = await startMcpHttpBridge(def, { host: "0.0.0.0" });
           bridges.push(bridge);
 
           // Agent container connects via Docker DNS: herdctl is the hostname
@@ -248,6 +251,7 @@ export class ContainerRunner implements RuntimeInterface {
           mcpServers[name] = {
             type: "http",
             url: `http://herdctl:${bridge.port}/mcp`,
+            headers: bridge.headers,
           };
 
           logger.debug(`Started MCP HTTP bridge for '${name}' on port ${bridge.port}`);
