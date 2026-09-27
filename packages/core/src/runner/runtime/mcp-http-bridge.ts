@@ -7,6 +7,11 @@
  * The agent container connects to `http://herdctl:<port>/mcp` and the bridge
  * translates tool calls to the in-process handler functions from InjectedMcpServerDef.
  *
+ * Every bridge requires a per-bridge bearer token (`Authorization: Bearer <token>`)
+ * and binds loopback unless the caller asks for another interface. The tools it
+ * serves run with herdctl's own privileges, so an unauthenticated listener would
+ * let anything that can reach the port call them.
+ *
  * Supports:
  * - initialize
  * - notifications/initialized
@@ -17,6 +22,7 @@
  * @module mcp-http-bridge
  */
 
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { InjectedMcpServerDef, McpToolCallResult } from "../types.js";
 
@@ -38,11 +44,28 @@ interface JsonRpcResponse {
   error?: { code: number; message: string; data?: unknown };
 }
 
+export interface McpHttpBridgeOptions {
+  /**
+   * Interface to bind. Defaults to `127.0.0.1`, which is all a same-host client
+   * (the CLI runtime) needs. Only pass a wider address when the client is on
+   * another network namespace, such as an agent container.
+   */
+  host?: string;
+  /** Bearer token clients must present. Generated per bridge when omitted. */
+  token?: string;
+}
+
 export interface McpHttpBridge {
   /** The HTTP server */
   server: Server;
   /** Port the server is listening on */
   port: number;
+  /** Interface the server is bound to */
+  host: string;
+  /** Bearer token every request must carry */
+  token: string;
+  /** Headers a client must send, ready to drop into an MCP server config */
+  headers: Record<string, string>;
   /** Stop the bridge server */
   close: () => Promise<void>;
 }
@@ -147,11 +170,35 @@ async function readBody(req: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString("utf-8");
 }
 
+/**
+ * Constant-time check of the `Authorization` header against the bridge token.
+ * Both sides are hashed first so the comparison is fixed-length and leaks
+ * neither the token's length nor a matching prefix.
+ */
+function isAuthorized(req: IncomingMessage, token: string): boolean {
+  const header = req.headers.authorization;
+  if (typeof header !== "string" || !header.startsWith("Bearer ")) {
+    return false;
+  }
+  const presented = createHash("sha256").update(header.slice("Bearer ".length)).digest();
+  const expected = createHash("sha256").update(token).digest();
+  return timingSafeEqual(presented, expected);
+}
+
 async function handleRequest(
   req: IncomingMessage,
   res: ServerResponse,
   def: InjectedMcpServerDef,
+  token: string,
 ): Promise<void> {
+  // Authenticate before anything else, so an unauthenticated caller learns
+  // nothing about paths, methods or tools.
+  if (!isAuthorized(req, token)) {
+    res.writeHead(401, { "Content-Type": "application/json", "WWW-Authenticate": "Bearer" });
+    res.end(JSON.stringify({ error: "Unauthorized" }));
+    return;
+  }
+
   // Only accept POST to /mcp
   if (req.method !== "POST" || (req.url !== "/mcp" && req.url !== "/")) {
     res.writeHead(404, { "Content-Type": "application/json" });
@@ -222,16 +269,27 @@ async function handleRequest(
 /**
  * Start an MCP HTTP bridge for an InjectedMcpServerDef.
  *
- * Binds to 0.0.0.0 on a random available port. The agent container
- * connects via `http://herdctl:<port>/mcp`.
+ * Binds `options.host` (default `127.0.0.1`) on a random available port and
+ * rejects any request that does not carry the bridge's bearer token. Pass the
+ * returned `headers` alongside the URL in the client's MCP server config.
  *
  * @param def - The injected MCP server definition to expose
- * @returns Promise resolving to the bridge with server, port, and close method
+ * @param options - Bind host and (optionally) a fixed token
+ * @returns Promise resolving to the bridge with server, port, token, and close method
  */
-export async function startMcpHttpBridge(def: InjectedMcpServerDef): Promise<McpHttpBridge> {
+export async function startMcpHttpBridge(
+  def: InjectedMcpServerDef,
+  options: McpHttpBridgeOptions = {},
+): Promise<McpHttpBridge> {
+  const host = options.host ?? "127.0.0.1";
+  const token = options.token ?? randomBytes(32).toString("base64url");
+  if (token.length === 0) {
+    throw new Error("MCP HTTP bridge token must not be empty");
+  }
+
   return new Promise((resolve, reject) => {
     const server = createServer((req, res) => {
-      handleRequest(req, res, def).catch((error) => {
+      handleRequest(req, res, def, token).catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
         if (!res.headersSent) {
           res.writeHead(500, { "Content-Type": "application/json" });
@@ -242,8 +300,8 @@ export async function startMcpHttpBridge(def: InjectedMcpServerDef): Promise<Mcp
 
     server.on("error", reject);
 
-    // Bind to 0.0.0.0:0 for random available port
-    server.listen(0, "0.0.0.0", () => {
+    // Port 0 picks a random available port
+    server.listen(0, host, () => {
       const addr = server.address();
       if (!addr || typeof addr === "string") {
         server.close();
@@ -254,6 +312,9 @@ export async function startMcpHttpBridge(def: InjectedMcpServerDef): Promise<Mcp
       resolve({
         server,
         port: addr.port,
+        host,
+        token,
+        headers: { Authorization: `Bearer ${token}` },
         close: () =>
           new Promise<void>((resolveClose, rejectClose) => {
             server.close((err) => {

@@ -1,6 +1,9 @@
 import { EventEmitter } from "node:events";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { networkInterfaces } from "node:os";
+import { dirname } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SDKMessage } from "../../types.js";
+import type { InjectedMcpServerDef, SDKMessage } from "../../types.js";
 
 const watchMessages: SDKMessage[] = [];
 const flushMessages: SDKMessage[] = [];
@@ -546,5 +549,243 @@ describe("CLIRuntime session fork (--fork-session)", () => {
   it("does NOT snapshot on a plain resume (no new file is expected)", async () => {
     await run({ resume: "source" });
     expect(vi.mocked(snapshotSessionFiles)).not.toHaveBeenCalled();
+  });
+});
+
+describe("CLIRuntime injected MCP servers (HTTP bridge)", () => {
+  beforeEach(() => {
+    watchMessages.length = 0;
+    flushMessages.length = 0;
+  });
+
+  interface ConfiguredServer {
+    type: string;
+    url: string;
+    headers?: Record<string, string>;
+  }
+
+  interface Observed {
+    args: string[];
+    configArg: string;
+    config: { mcpServers: Record<string, ConfiguredServer & Record<string, unknown>> };
+    fileMode?: number;
+    dirMode?: number;
+    unauthenticatedStatus?: number;
+    authenticatedToolText?: string;
+    lanError?: boolean;
+  }
+
+  function injectedDef(onCall?: (args: Record<string, unknown>) => void): InjectedMcpServerDef {
+    return {
+      name: "probe",
+      tools: [
+        {
+          name: "write_fact",
+          description: "records a fact",
+          inputSchema: { type: "object", properties: { fact: { type: "string" } } },
+          handler: async (args) => {
+            onCall?.(args);
+            return { content: [{ type: "text" as const, text: `stored ${String(args.fact)}` }] };
+          },
+        },
+      ],
+    };
+  }
+
+  function nonLoopbackIPv4(): string | undefined {
+    for (const addrs of Object.values(networkInterfaces())) {
+      for (const addr of addrs ?? []) {
+        if (addr.family === "IPv4" && !addr.internal) return addr.address;
+      }
+    }
+    return undefined;
+  }
+
+  async function postToolsCall(url: string, headers: Record<string, string>): Promise<Response> {
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name: "write_fact", arguments: { fact: "from-test" } },
+      }),
+    });
+  }
+
+  /**
+   * Run one turn. The fake `claude` reads the MCP config it was given and,
+   * while the turn is live, calls the bridge the way the real CLI would (with
+   * the configured headers) and the way an attacker would (without them).
+   */
+  async function runTurn(
+    runtimeOptions: ConstructorParameters<typeof CLIRuntime>[0],
+    agent: Record<string, unknown> = {},
+    injected: Record<string, InjectedMcpServerDef> = { probe: injectedDef() },
+  ): Promise<Observed> {
+    let observed: Observed | undefined;
+
+    const runtime = new CLIRuntime({
+      ...runtimeOptions,
+      processSpawner: ((args: string[]) => {
+        const configArg = args[args.indexOf("--mcp-config") + 1];
+        const isFile = !configArg.trimStart().startsWith("{");
+        observed = {
+          args: [...args],
+          configArg,
+          config: JSON.parse(isFile ? readFileSync(configArg, "utf8") : configArg),
+          fileMode: isFile ? statSync(configArg).mode & 0o777 : undefined,
+          dirMode: isFile ? statSync(dirname(configArg)).mode & 0o777 : undefined,
+        };
+        const probe = observed.config.mcpServers.probe;
+        const lanIp = nonLoopbackIPv4();
+
+        const done = (async () => {
+          if (probe) {
+            const unauth = await postToolsCall(probe.url, {});
+            observed!.unauthenticatedStatus = unauth.status;
+            const auth = await postToolsCall(probe.url, probe.headers ?? {});
+            const body = (await auth.json()) as { result: { content: { text: string }[] } };
+            observed!.authenticatedToolText = body.result.content[0].text;
+            if (lanIp) {
+              const port = new URL(probe.url).port;
+              observed!.lanError = await postToolsCall(
+                `http://${lanIp}:${port}/mcp`,
+                probe.headers ?? {},
+              ).then(
+                () => false,
+                () => true,
+              );
+            }
+          }
+          return { exitCode: 0 };
+        })();
+
+        return Object.assign(done, {
+          pid: 4321,
+          stdout: new EventEmitter(),
+          stderr: new EventEmitter(),
+          kill: vi.fn(),
+        }) as never;
+      }) as never,
+    });
+
+    for await (const _message of runtime.execute({
+      prompt: "Hello",
+      agent: { name: "mcp-agent", configPath: "/tmp/agent.yaml", ...agent } as never,
+      injectedMcpServers: injected,
+    })) {
+      // drain
+    }
+
+    if (!observed) throw new Error("claude was never spawned");
+    return observed;
+  }
+
+  it("gives claude a loopback URL plus a bearer header, and the bridge enforces it", async () => {
+    const o = await runTurn({ mcpConfigTransport: "file" });
+    const probe = o.config.mcpServers.probe;
+
+    expect(probe.type).toBe("http");
+    expect(probe.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/mcp$/);
+    expect(probe.headers?.Authorization).toMatch(/^Bearer [A-Za-z0-9_-]{43}$/);
+
+    expect(o.unauthenticatedStatus).toBe(401);
+    expect(o.authenticatedToolText).toBe("stored from-test");
+  });
+
+  it.skipIf(!nonLoopbackIPv4())("does not expose the bridge on the LAN interface", async () => {
+    const o = await runTurn({ mcpConfigTransport: "file" });
+
+    expect(o.lanError).toBe(true);
+  });
+
+  it("passes the config as an owner-only file and keeps the token out of argv", async () => {
+    const o = await runTurn({ mcpConfigTransport: "file" });
+    const token = o.config.mcpServers.probe.headers?.Authorization.slice("Bearer ".length);
+
+    expect(o.configArg.endsWith("mcp-config.json")).toBe(true);
+    expect(o.fileMode).toBe(0o600);
+    expect(o.dirMode).toBe(0o700);
+    expect(token).toBeTruthy();
+    expect(o.args.some((a) => a.includes(token as string))).toBe(false);
+  });
+
+  it("removes the config file and closes the bridge when the turn ends", async () => {
+    const o = await runTurn({ mcpConfigTransport: "file" });
+
+    expect(o.fileMode).toBe(0o600); // it existed while claude ran
+    expect(existsSync(o.configArg)).toBe(false);
+    expect(existsSync(dirname(o.configArg))).toBe(false);
+    await expect(postToolsCall(o.config.mcpServers.probe.url, {})).rejects.toThrow();
+  });
+
+  it("merges declared servers into the same config (and keeps their secrets out of argv)", async () => {
+    const o = await runTurn(
+      { mcpConfigTransport: "file" },
+      {
+        mcp_servers: {
+          github: { command: "npx", args: ["-y", "gh-mcp"], env: { GITHUB_TOKEN: "tok-secret" } },
+        },
+      },
+    );
+
+    expect(Object.keys(o.config.mcpServers).sort()).toEqual(["github", "probe"]);
+    expect(o.config.mcpServers.github).toMatchObject({ env: { GITHUB_TOKEN: "tok-secret" } });
+    expect(o.args.filter((a) => a === "--mcp-config")).toHaveLength(1);
+    expect(o.args.some((a) => a.includes("tok-secret"))).toBe(false);
+  });
+
+  it("gives every injected server its own bridge and token", async () => {
+    const o = await runTurn(
+      { mcpConfigTransport: "file" },
+      {},
+      {
+        probe: injectedDef(),
+        other: { ...injectedDef(), name: "other" },
+      },
+    );
+    const { probe, other } = o.config.mcpServers;
+
+    expect(probe.url).not.toBe(other.url);
+    expect(probe.headers?.Authorization).not.toBe(other.headers?.Authorization);
+  });
+
+  it("inlines the config (headers included) when mcpConfigTransport is inline", async () => {
+    const o = await runTurn({ mcpConfigTransport: "inline" });
+
+    expect(o.configArg.trimStart().startsWith("{")).toBe(true);
+    expect(o.config.mcpServers.probe.headers?.Authorization).toMatch(/^Bearer /);
+    expect(o.unauthenticatedStatus).toBe(401);
+    expect(o.authenticatedToolText).toBe("stored from-test");
+  });
+
+  it("defaults to inline for a caller-supplied spawner, which may not share the host filesystem", async () => {
+    const o = await runTurn({});
+
+    expect(o.configArg.trimStart().startsWith("{")).toBe(true);
+  });
+
+  it("removes the config file even when spawning claude throws", async () => {
+    let configPath = "";
+    const runtime = new CLIRuntime({
+      mcpConfigTransport: "file",
+      processSpawner: ((args: string[]) => {
+        configPath = args[args.indexOf("--mcp-config") + 1];
+        throw new Error("spawn failed");
+      }) as never,
+    });
+
+    for await (const _message of runtime.execute({
+      prompt: "Hello",
+      agent: { name: "mcp-agent", configPath: "/tmp/agent.yaml" } as never,
+      injectedMcpServers: { probe: injectedDef() },
+    })) {
+      // drain
+    }
+
+    expect(configPath.endsWith("mcp-config.json")).toBe(true);
+    expect(existsSync(dirname(configPath))).toBe(false);
   });
 });

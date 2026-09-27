@@ -15,6 +15,9 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { execa, type Subprocess } from "execa";
 import { createLogger } from "../../utils/logger.js";
 import { transformMcpServers } from "../sdk-adapter.js";
@@ -91,6 +94,44 @@ interface CLIRuntimeOptions {
    * first true; a caller-supplied {@link processSpawner} owns its own env.
    */
   claudeHomePath?: string;
+
+  /**
+   * How the MCP server config reaches `claude`.
+   *
+   * - `"file"`: written to an owner-only (0600) temp file whose path is passed
+   *   to `--mcp-config`, and deleted when the run ends. Keeps bridge tokens and
+   *   declared servers' `env`/`headers` out of the process's argv, which any
+   *   local user can read via `ps` or `/proc/<pid>/cmdline`.
+   * - `"inline"`: the JSON itself is passed as the `--mcp-config` argument.
+   *
+   * Defaults to `"file"` with the built-in spawner and `"inline"` with a
+   * caller-supplied {@link processSpawner}, which may run `claude` somewhere a
+   * host path does not exist (the Docker path does exactly that).
+   */
+  mcpConfigTransport?: "file" | "inline";
+}
+
+/** Shape the Claude CLI expects for `--mcp-config` (same as `.mcp.json`). */
+interface McpConfig {
+  mcpServers: Record<string, unknown>;
+}
+
+/**
+ * Write an MCP config to an owner-only file in a fresh private temp directory.
+ * Returns the file path and a cleanup function that removes the directory.
+ */
+async function writeMcpConfigFile(
+  config: McpConfig,
+): Promise<{ path: string; cleanup: () => Promise<void> }> {
+  const dir = await mkdtemp(join(tmpdir(), "herdctl-mcp-"));
+  const path = join(dir, "mcp-config.json");
+  try {
+    await writeFile(path, JSON.stringify(config), { mode: 0o600, flag: "wx" });
+  } catch (error) {
+    await rm(dir, { recursive: true, force: true });
+    throw error;
+  }
+  return { path, cleanup: () => rm(dir, { recursive: true, force: true }) };
 }
 
 /**
@@ -128,10 +169,13 @@ export class CLIRuntime implements RuntimeInterface {
   private sessionDirOverride?: string;
   /** Resolved Claude home; `~/.claude` unless the caller supplied one (#423). */
   private claudeHomePath: string;
+  private mcpConfigTransport: "file" | "inline";
 
   constructor(options?: CLIRuntimeOptions) {
     this.sessionDirOverride = options?.sessionDirOverride;
     this.claudeHomePath = options?.claudeHomePath ?? defaultClaudeHome();
+    this.mcpConfigTransport =
+      options?.mcpConfigTransport ?? (options?.processSpawner ? "inline" : "file");
 
     // Default to local execa spawning with prompt via stdin.
     //
@@ -247,13 +291,12 @@ export class CLIRuntime implements RuntimeInterface {
       }
     }
 
-    // Add MCP servers if specified
-    // Transform agent config format to SDK format and serialize to JSON
-    // Claude CLI expects: {"mcpServers": { ... }} (same shape as .mcp.json)
+    // Collect MCP servers for --mcp-config. Claude CLI expects
+    // {"mcpServers": { ... }} (same shape as .mcp.json). Declared servers are
+    // transformed from agent config format; injected servers are added below.
+    let mcpConfig: McpConfig | undefined;
     if (options.agent.mcp_servers && Object.keys(options.agent.mcp_servers).length > 0) {
-      const mcpServers = transformMcpServers(options.agent.mcp_servers);
-      const mcpConfig = JSON.stringify({ mcpServers });
-      args.push("--mcp-config", mcpConfig);
+      mcpConfig = { mcpServers: { ...transformMcpServers(options.agent.mcp_servers) } };
     }
 
     // Track env mutation so we can restore it (see CLAUDE_CODE_STREAM_CLOSE_TIMEOUT below)
@@ -261,50 +304,38 @@ export class CLIRuntime implements RuntimeInterface {
 
     // Start HTTP bridges for injected MCP servers (e.g., file sender)
     // Same pattern as container-runner: expose in-process handlers via HTTP,
-    // then pass as HTTP-type MCP servers in --mcp-config
+    // then pass as HTTP-type MCP servers in --mcp-config. Each bridge binds
+    // loopback and requires its own bearer token, which only the spawned
+    // `claude` learns (through the config's `headers`).
     const bridges: McpHttpBridge[] = [];
+    const closeBridges = async (): Promise<void> => {
+      for (const b of bridges) {
+        try {
+          await b.close();
+        } catch (err) {
+          logger.error(`Failed to close MCP HTTP bridge: ${err}`);
+        }
+      }
+      bridges.length = 0;
+    };
     if (options.injectedMcpServers && Object.keys(options.injectedMcpServers).length > 0) {
+      mcpConfig ??= { mcpServers: {} };
       for (const [name, def] of Object.entries(options.injectedMcpServers)) {
         let bridge: McpHttpBridge;
         try {
           bridge = await startMcpHttpBridge(def);
         } catch (bridgeError) {
           // Clean up any bridges that started successfully before this failure
-          for (const b of bridges) {
-            try {
-              await b.close();
-            } catch {
-              // best-effort cleanup
-            }
-          }
-          bridges.length = 0;
+          await closeBridges();
           throw bridgeError;
         }
         bridges.push(bridge);
 
-        // Build or extend the --mcp-config to include this HTTP server
-        // Find existing --mcp-config arg index to merge with it
-        const mcpConfigIdx = args.indexOf("--mcp-config");
-        let mcpConfig: { mcpServers: Record<string, unknown> };
-
-        if (mcpConfigIdx !== -1 && mcpConfigIdx + 1 < args.length) {
-          // Parse existing config and add the bridge
-          mcpConfig = JSON.parse(args[mcpConfigIdx + 1]);
-        } else {
-          mcpConfig = { mcpServers: {} };
-        }
-
         mcpConfig.mcpServers[name] = {
           type: "http",
           url: `http://127.0.0.1:${bridge.port}/mcp`,
+          headers: bridge.headers,
         };
-
-        const configJson = JSON.stringify(mcpConfig);
-        if (mcpConfigIdx !== -1) {
-          args[mcpConfigIdx + 1] = configJson;
-        } else {
-          args.push("--mcp-config", configJson);
-        }
 
         logger.debug(`Started MCP HTTP bridge for '${name}' on port ${bridge.port}`);
       }
@@ -362,6 +393,7 @@ export class CLIRuntime implements RuntimeInterface {
     // Track process and watcher for cleanup
     let subprocess: Subprocess | undefined;
     let watcher: CLISessionWatcher | undefined;
+    let cleanupMcpConfigFile: (() => Promise<void>) | undefined;
     let hasError = false;
 
     // Track usage stats across all assistant turns for synthetic result message.
@@ -489,6 +521,19 @@ export class CLIRuntime implements RuntimeInterface {
       const preSpawnSessionFiles = needNewSessionFile
         ? await snapshotSessionFiles(sessionDir)
         : undefined;
+
+      // Hand the MCP config to claude. Done inside `try` so the `finally` below
+      // removes the file along with the bridges it points at.
+      if (mcpConfig) {
+        if (this.mcpConfigTransport === "file") {
+          const file = await writeMcpConfigFile(mcpConfig);
+          cleanupMcpConfigFile = file.cleanup;
+          args.push("--mcp-config", file.path);
+          logger.debug(`MCP config written to ${file.path}`);
+        } else {
+          args.push("--mcp-config", JSON.stringify(mcpConfig));
+        }
+      }
 
       // Spawn claude subprocess with prompt via stdin
       // Uses custom spawner if provided (e.g., for Docker execution)
@@ -763,11 +808,14 @@ export class CLIRuntime implements RuntimeInterface {
       }
 
       // Close HTTP bridges for injected MCP servers
-      for (const bridge of bridges) {
+      await closeBridges();
+
+      // Remove the MCP config file (it holds the bridge tokens)
+      if (cleanupMcpConfigFile) {
         try {
-          await bridge.close();
+          await cleanupMcpConfigFile();
         } catch (err) {
-          logger.error(`Failed to close MCP HTTP bridge: ${err}`);
+          logger.error(`Failed to remove MCP config file: ${err}`);
         }
       }
     }

@@ -30,7 +30,6 @@ Tracked in the [issue tracker](https://github.com/edspencer/herdctl/issues):
 - **Per-agent chat verbosity** — verbosity control across Discord, Slack, and Web frontends. [#181](https://github.com/edspencer/herdctl/issues/181)
 - **Session attribution** — assign unattributed Claude Code sessions to agents. [#143](https://github.com/edspencer/herdctl/issues/143)
 - **File transfer** — inbound file/image transfer from Discord and Slack to agents ([#59](https://github.com/edspencer/herdctl/issues/59)) and agent-to-Discord file sending ([#55](https://github.com/edspencer/herdctl/issues/55)).
-- **MCP bridge auth** — per-request bearer token authentication for the MCP HTTP bridge. [#54](https://github.com/edspencer/herdctl/issues/54)
 
 ## Longer-Term Direction
 
