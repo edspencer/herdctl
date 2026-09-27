@@ -377,8 +377,9 @@ Injected servers use the `InjectedMcpServerDef` abstraction, which separates too
 
 - **SDKRuntime**: converts definitions to in-process MCP servers via `createSdkMcpServer()`.
 - **ContainerRunner**: starts an HTTP MCP bridge on the Docker network, exposing tools at `http://herdctl:<port>/mcp`.
+- **CLIRuntime**: starts an HTTP MCP bridge on loopback, exposing tools at `http://127.0.0.1:<port>/mcp`.
 
-This separation is necessary because function closures (used by in-process servers) cannot be serialized into a Docker container.
+This separation is necessary because function closures (used by in-process servers) cannot be serialized into a Docker container or another process. Every bridge requires a per-bridge bearer token, which herdctl passes only to the agent it spawns. See [MCP HTTP Bridge](/architecture/docker-runtime/#mcp-http-bridge).
 
 For detailed MCP server configuration, see [MCP Servers](/configuration/mcp-servers/).
 

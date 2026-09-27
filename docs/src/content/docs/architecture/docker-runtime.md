@@ -296,10 +296,11 @@ defaults:
 
 ## MCP HTTP Bridge
 
-When MCP servers are injected at runtime (for example, the Slack file sender), the `SDKRuntime` and `ContainerRunner` handle them differently:
+When MCP servers are injected at runtime (for example, the Slack file sender), the runtimes handle them differently:
 
 - **SDKRuntime** (non-Docker): converts `InjectedMcpServerDef` to an in-process MCP server using the Claude Agent SDK's `tool()` and `createSdkMcpServer()` functions. The server runs in the same process as the SDK.
 - **ContainerRunner** (Docker): in-process function closures cannot be serialized into a Docker container. The solution is the MCP HTTP bridge.
+- **CLIRuntime** (non-Docker): the `claude` CLI is a separate process, so it also reaches injected servers through an MCP HTTP bridge, bound to loopback.
 
 ### The Problem
 
@@ -315,18 +316,33 @@ herdctl container                    agent container
 │ MCP HTTP Bridge     │◄── HTTP ────►│ Claude Agent SDK    │
 │ port: <random>      │              │ MCP client          │
 │ host: 0.0.0.0       │              │ url: http://herdctl │
-│                     │              │      :<port>/mcp    │
-│ routes to in-process│              └─────────────────────┘
-│ handler functions   │
+│ token: <random>     │              │      :<port>/mcp    │
+│                     │              │ Authorization:      │
+│ routes to in-process│              │   Bearer <token>    │
+│ handler functions   │              └─────────────────────┘
 └─────────────────────┘
 ```
 
+### Authentication
+
+The tools behind a bridge run with herdctl's own privileges, so every bridge requires a bearer token:
+
+- `startMcpHttpBridge()` generates a random 256-bit token per bridge.
+- The client's MCP server config carries it as an `Authorization: Bearer <token>` header, next to the URL.
+- The bridge rejects any request without that exact token with `401`, before looking at the path, method, or body.
+
+Only the agent learns the token, because herdctl writes the agent's MCP config itself. Consumers that pass `injectedMcpServers` never see the token, port, or URL.
+
+The bridge binds `127.0.0.1` by default. The Docker path binds `0.0.0.0`, because the agent container is in another network namespace, so there the token is what keeps other hosts and containers out.
+
+On the CLI runtime, herdctl writes the MCP config to an owner-only (`0600`) temp file and passes its path to `--mcp-config`, rather than passing the JSON as an argument. Process arguments are readable by any local user (`ps`, `/proc/<pid>/cmdline`), and the config holds the bridge tokens and any `env`/`headers` of declared servers. The file is deleted when the run ends. When a custom `processSpawner` is supplied (as the Docker CLI path does), the config is passed inline, since the host path may not exist where `claude` runs.
+
 ### Bridge Lifecycle
 
-1. **Start**: `startMcpHttpBridge(def)` creates an HTTP server bound to `0.0.0.0:0` (random available port).
-2. **Inject**: The bridge URL (`http://herdctl:<port>/mcp`) is added to `sdkOptions.mcpServers` as an HTTP-type MCP server config.
-3. **Execute**: The agent container calls the bridge via HTTP during execution. The bridge translates tool calls to the in-process handler functions.
-4. **Cleanup**: All bridges are closed in a `finally` block after execution completes, regardless of success or failure.
+1. **Start**: `startMcpHttpBridge(def, { host })` creates an HTTP server on a random available port and generates the bridge's bearer token. `host` defaults to `127.0.0.1`; `ContainerRunner` passes `0.0.0.0`.
+2. **Inject**: The bridge URL and its `Authorization` header are added to the agent's MCP config as an HTTP-type MCP server (`http://herdctl:<port>/mcp` for Docker, `http://127.0.0.1:<port>/mcp` for the CLI runtime).
+3. **Execute**: The agent calls the bridge via HTTP during execution. The bridge checks the token, then translates tool calls to the in-process handler functions.
+4. **Cleanup**: All bridges are closed in a `finally` block after execution completes, regardless of success or failure. The CLI runtime also deletes its MCP config file there.
 
 ### Supported MCP Methods
 
@@ -496,7 +512,7 @@ Docker configuration follows the same merge strategy as other agent settings: ag
 | `packages/core/src/runner/runtime/container-runner.ts` | `ContainerRunner` decorator -- execution delegation for CLI and SDK runtimes in Docker |
 | `packages/core/src/runner/runtime/container-manager.ts` | `ContainerManager` -- container lifecycle (create, start, stop, remove, cleanup), `buildContainerMounts()`, `buildContainerEnv()`, OAuth token refresh |
 | `packages/core/src/runner/runtime/docker-config.ts` | `DockerConfig` type, `resolveDockerConfig()`, parsers for memory, ports, volumes, tmpfs |
-| `packages/core/src/runner/runtime/mcp-http-bridge.ts` | `startMcpHttpBridge()` -- HTTP server implementing MCP Streamable HTTP transport for Docker |
+| `packages/core/src/runner/runtime/mcp-http-bridge.ts` | `startMcpHttpBridge()` -- token-authenticated HTTP server implementing MCP Streamable HTTP transport for Docker and the CLI runtime |
 | `packages/core/src/runner/runtime/docker-sdk-wrapper.js` | In-container wrapper script that runs the Claude Agent SDK and streams JSONL to stdout |
 | `packages/core/src/runner/runtime/factory.ts` | `RuntimeFactory` -- composes ContainerRunner around base runtimes when Docker is enabled |
 | `packages/core/src/runner/runtime/interface.ts` | `RuntimeInterface` and `RuntimeExecuteOptions` types |
