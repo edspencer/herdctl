@@ -247,17 +247,38 @@ Expected output:
 - Overall result: PASS/FAIL/WARN
 ```
 
-**Decision point 2: Question-investigator**
+**Decision point 2: Question-investigator (MANDATORY)**
 
-IF open High priority questions exist in CODEBASE-UNDERSTANDING.md:
+Question investigation is MANDATORY for every audit. Even baseline audits with zero commits MUST make progress on open questions.
+
+**Investigation quota:**
+- Baseline audits (0 commits): Investigate at least 2 questions (you have more time)
+- Small audits (1-10 commits): Investigate at least 1 question
+- Large audits (50+ commits): Investigate at least 1 question
+
+**Priority order for question selection:**
+1. High priority Open questions (highest priority)
+2. Medium priority Open questions with "Days Open" >90 (stale questions)
+3. Medium priority Open questions
+4. Low priority Open questions
+
+**Check for open questions:**
 ```bash
 # Check for High priority open questions
-grep -E "\| (High|Medium) \| Open\|Partial \|" agents/security/CODEBASE-UNDERSTANDING.md
+HIGH_QUESTIONS=$(grep -E "\| High \| Open\|Partial \|" agents/security/CODEBASE-UNDERSTANDING.md | wc -l)
+
+# Check for Medium priority open questions
+MEDIUM_QUESTIONS=$(grep -E "\| Medium \| Open\|Partial \|" agents/security/CODEBASE-UNDERSTANDING.md | wc -l)
+
+echo "High priority questions: $HIGH_QUESTIONS"
+echo "Medium priority questions: $MEDIUM_QUESTIONS"
 ```
 
-IF found:
-- Select the highest priority Open question (High > Medium, Open > Partial)
-- Spawn question-investigator with that question
+**Select questions to investigate:**
+- IF High priority questions exist: Select 1+ High priority question
+- IF no High priority AND commits_since == 0: Select 2+ Medium priority questions
+- IF no High priority AND commits_since > 0: Select 1+ Medium priority question
+- IF no High/Medium questions: Select 1 Low priority question OR note "All questions answered"
 
 Use Task tool with:
 - subagent_type: "question-investigator"

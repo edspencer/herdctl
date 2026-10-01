@@ -190,24 +190,26 @@ accepted but documented. Users control their own hook configuration.
 
 ## Open Security Questions
 
-These questions should be systematically investigated during audits. Each audit should attempt to answer or make progress on at least one open question.
+These questions should be systematically investigated during audits. Each audit MUST make progress on at least one open question (see investigation quotas in security-audit.md).
 
-| ID | Question | Priority | Status | Assigned | Last Checked | Notes |
-|----|----------|----------|--------|----------|--------------|-------|
-| Q1 | How are GitHub webhooks authenticated? Is signature verification implemented? | Medium | Open | - | - | Check work-sources/ for webhook handling |
+Questions open >90 days are marked STALE and should be prioritized in baseline audits.
+
+| ID | Question | Priority | Status | Days Open | Last Checked | Notes |
+|----|----------|----------|--------|-----------|--------------|-------|
+| Q1 | How are GitHub webhooks authenticated? Is signature verification implemented? | Medium | Open | 238 (STALE) | Never | Check work-sources/ for webhook handling |
 | Q2 | Are there other places where user-controlled strings become file paths? | High | Answered | - | 2026-02-06 | Audited all path.join() and file operations. FOUND: job-executor.ts:183 creates directories using job.id (validated), job-output.ts:62 uses validated job.id, cli-session-path.ts:53 encodes workspace paths safely. All other path.join() calls use static strings or validated config. NO additional risks. Status: VERIFIED SAFE. |
-| Q3 | What happens if a Docker container name contains special characters? | Low | Open | - | - | Could cause issues in docker exec commands |
-| Q4 | Could malicious agent output cause log injection in job-output.ts? | Medium | Open | - | - | Output streams to files - check for escape sequences |
-| Q5 | When fleet config merges with agent config, are there unexpected overrides? | Medium | Open | - | - | Check config merging logic in loader.ts |
+| Q3 | What happens if a Docker container name contains special characters? | Low | Open | 238 (STALE) | Never | Could cause issues in docker exec commands |
+| Q4 | Could malicious agent output cause log injection in job-output.ts? | Medium | Open | 238 (STALE) | Never | Output streams to files - check for escape sequences |
+| Q5 | When fleet config merges with agent config, are there unexpected overrides? | Medium | Open | 238 (STALE) | Never | Check config merging logic in loader.ts |
 | Q6 | Are session IDs validated against a safe pattern like agent names? | Low | Answered | - | 2026-02-05 | Session IDs come from Claude SDK (UUIDs), not user input. Low risk. |
-| Q7 | What user does the Docker container run as? Root or unprivileged? | Medium | Open | - | - | Check container-manager.ts User config |
-| Q8 | Is the prompt in SDK wrapper (HERDCTL_SDK_OPTIONS) properly escaped? | Medium | Open | - | - | container-runner.ts:206-207 uses JSON.stringify + shell escaping |
-| Q9 | Does job-executor.ts need buildSafeFilePath for mkdir operations? | Medium | Open | - | - | Line 183 creates directories using job.id - currently relies on schema validation only |
-| Q10 | Does AGENT_NAME_PATTERN handle unicode normalization attacks? | Medium | Open | - | - | Regex `/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/` - check for unicode bypass attempts |
-| Q11 | Can symlinks be created in .herdctl/ to escape buildSafeFilePath? | Medium | Open | - | - | If attacker can create symlinks before buildSafeFilePath runs, could escape |
-| Q12 | Are OAuth access_token and refresh_token properly sanitized from error messages? | High | Open | - | - | container-manager.ts logger.error() calls in OAuth functions - check for credential leaks |
-| Q13 | Does credentials file (~/.claude/.credentials.json) have 0600 permissions enforced? | High | Open | - | - | writeCredentialsFile() should enforce permissions - verify with fs.chmodSync() |
-| Q14 | Can token refresh handle network failures without leaking credentials in stack traces? | Medium | Open | - | - | refreshClaudeOAuthToken() error handling - verify no token data in Error objects |
+| Q7 | What user does the Docker container run as? Root or unprivileged? | Medium | Open | 238 (STALE) | Never | Check container-manager.ts User config |
+| Q8 | Is the prompt in SDK wrapper (HERDCTL_SDK_OPTIONS) properly escaped? | Medium | Open | 238 (STALE) | Never | container-runner.ts:206-207 uses JSON.stringify + shell escaping |
+| Q9 | Does job-executor.ts need buildSafeFilePath for mkdir operations? | Medium | Open | 238 (STALE) | Never | Line 183 creates directories using job.id - currently relies on schema validation only |
+| Q10 | Does AGENT_NAME_PATTERN handle unicode normalization attacks? | Medium | Open | 238 (STALE) | Never | Regex `/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/` - check for unicode bypass attempts |
+| Q11 | Can symlinks be created in .herdctl/ to escape buildSafeFilePath? | Medium | Open | 238 (STALE) | Never | If attacker can create symlinks before buildSafeFilePath runs, could escape |
+| Q12 | Are OAuth access_token and refresh_token properly sanitized from error messages? | High | Open | 224 (STALE) | Never | container-manager.ts logger.error() calls in OAuth functions - check for credential leaks |
+| Q13 | Does credentials file (~/.claude/.credentials.json) have 0600 permissions enforced? | High | Open | 224 (STALE) | Never | writeCredentialsFile() should enforce permissions - verify with fs.chmodSync() |
+| Q14 | Can token refresh handle network failures without leaking credentials in stack traces? | Medium | Open | 224 (STALE) | Never | refreshClaudeOAuthToken() error handling - verify no token data in Error objects |
 
 ### Question Guidelines
 
