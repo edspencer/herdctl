@@ -1,5 +1,13 @@
 # @herdctl/core
 
+## 5.33.3
+
+### Patch Changes
+
+- [#469](https://github.com/edspencer/herdctl/pull/469) [`ef324ba`](https://github.com/edspencer/herdctl/commit/ef324ba36678359f5f6fb7a6e4787f685be37747) Thanks [@edspencer](https://github.com/edspencer)! - Raise the `@anthropic-ai/claude-agent-sdk` floor from `^0.3.215` to `^0.3.283`, so the SDK runtime (and every streaming chat session) runs a bundled Claude Code of at least 2.1.283.
+
+  The SDK runs its own bundled `claude` binary, not the one on `PATH`. The old floor let consumers resolve SDK 0.3.215, whose binary (2.1.215) predates Claude Opus 5.5, which needs Claude Code 2.1.280 or newer. With it, every turn using `claude-opus-5-5` failed with `API Error: 400 Claude Code 2.1.216 does not support this model`. Consumers that already lock a newer SDK are unaffected.
+
 ## 5.33.2
 
 ### Patch Changes
