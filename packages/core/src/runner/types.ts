@@ -110,6 +110,18 @@ export interface RunnerOptionsWithCallbacks extends RunnerOptions {
   onMessage?: MessageCallback;
   /** Called when the job is created, before execution starts */
   onJobCreated?: JobCreatedCallback;
+  /**
+   * Observe the run's session-lifecycle signals (turn boundaries,
+   * background-task changes). Threaded straight through to
+   * `RuntimeExecuteOptions.onLifecycleSignal` — see that type's doc. Wired by
+   * `JobControl.trigger`/`ScheduleExecutor` via
+   * `SessionLifecycleManager.trackJob` so a job's `ScheduleWakeup`/session
+   * cron is captured into the fleet's wake registry instead of being silently
+   * dropped when the job completes (vulpes-pack#148).
+   */
+  onLifecycleSignal?: (
+    signal: import("../session/types.js").SessionLifecycleSignal,
+  ) => void | Promise<void>;
 }
 
 // =============================================================================

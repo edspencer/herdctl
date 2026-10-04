@@ -437,6 +437,7 @@ export class JobExecutor {
             abortController: options.abortController,
             injectedMcpServers: options.injectedMcpServers,
             systemPromptAppend: options.systemPromptAppend,
+            onLifecycleSignal: options.onLifecycleSignal,
           });
         } catch (initError) {
           // Wrap initialization errors with context
