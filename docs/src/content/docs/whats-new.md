@@ -7,6 +7,34 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Web Chat Resilience and Search Improvements
+**October 3, 2026** · `@herdctl/web@0.13.0`
+
+The web dashboard's chat interface is now far more robust when handling slow or unstable sessions. Chat loading includes exponential backoff retry logic, so a slow-starting session no longer times out and leaves the UI blank. The "Show All Sessions" toggle now actually works, displaying every session on your system regardless of working directory or agent attribution. Session search is now deterministic — results always appear in the same order for the same query, making it easier to find conversations in large fleets. [#170](https://github.com/edspencer/herdctl/pull/170), [#150](https://github.com/edspencer/herdctl/pull/150), [#145](https://github.com/edspencer/herdctl/pull/145), [#275](https://github.com/edspencer/herdctl/pull/275), [#455](https://github.com/edspencer/herdctl/pull/455)
+
+---
+
+### MCP HTTP Bridge Security Hardening
+**October 3, 2026** · `@herdctl/core@5.33.2`
+
+The MCP HTTP bridge now requires bearer token authentication and binds strictly to 127.0.0.1 (loopback) instead of all interfaces, preventing unauthorized access from other machines on your network. MCP server configuration is written to an owner-only temporary file instead of being passed on the command line, eliminating the risk of secrets leaking through process listings. These changes apply when the CLI runtime spawns HTTP bridges for injected MCP servers. [#467](https://github.com/edspencer/herdctl/pull/467)
+
+---
+
+### Claude Opus 5.5 Support
+**October 3, 2026** · `@herdctl/core@5.33.3`
+
+Raised the Claude Agent SDK floor to 0.3.283, ensuring compatibility with the new Opus 5.5 model. Agents configured with `model: claude-opus-5-5-20270101` (or any other Opus 5.5 variant) will now run correctly instead of failing with an unsupported model error. [#469](https://github.com/edspencer/herdctl/pull/469)
+
+---
+
+### Session ID Minting Fixes Race Conditions
+**October 3, 2026** · `@herdctl/core@5.33.1`
+
+CLI session IDs are now minted upfront instead of being inferred from filesystem scans. The previous approach had a race condition where concurrent agents starting at the same time could swap session IDs or adopt the wrong session from disk, leading to conversation cross-contamination. Session ID generation is now deterministic and conflict-free, making concurrent CLI-runtime agent launches safe. [#431](https://github.com/edspencer/herdctl/pull/431), [#357](https://github.com/edspencer/herdctl/pull/357)
+
+---
+
 ### Stop and Force-Close Live Sessions from Your App
 **August 12, 2026** · `@herdctl/core@5.33.0` · `@herdctl/core@5.31.0`
 
