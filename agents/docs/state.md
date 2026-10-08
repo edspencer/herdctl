@@ -1,7 +1,7 @@
 ---
-last_checked_commit: eed88a1
-last_run: "2026-07-10T23:17:20Z"
-docs_gaps_found: 7
+last_checked_commit: 3707bd4
+last_run: "2026-10-08T07:02:36Z"
+docs_gaps_found: 0
 branches_created: ["docs/auto-update-2026-02-21", "docs/auto-update-2026-03-01", "docs/auto-update-2026-03-05", "docs/auto-update-2026-03-07", "docs/auto-update-2026-03-13", "docs/auto-update-2026-06-30", "docs/auto-update-2026-07-10"]
 status: completed
 ---
@@ -19,10 +19,10 @@ incremental reviews that analyze only new commits since the last check.
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Last checked commit | eed88a1 | chore: version packages (#318) |
-| Last run | 2026-07-10T23:17:20Z | Manual invocation |
-| Gaps found (last run) | 7 | openChatSession, session reaper + wakes, trigger fork, cancelJob interrupt, translator attribution, ChatMessage.uuid, stale What's New |
-| Branches created | docs/auto-update-2026-07-10 | Streaming sessions + reaper/wake docs, fork/cancelJob/uuid reference updates, What's New refresh |
+| Last checked commit | 3707bd4 | chore(engineer): daily housekeeping |
+| Last run | 2026-10-08T07:02:36Z | Daily automated audit |
+| Gaps found (last run) | 0 | What's New already current through Oct 3 (Opus 5.5, MCP bridge security, web chat fixes, session ID minting). Only housekeeping commits since then. |
+| Branches created | (none) | No documentation changes needed |
 
 ---
 
@@ -30,6 +30,7 @@ incremental reviews that analyze only new commits since the last check.
 
 | Date | Commits Analyzed | Gaps Found | Action | Branch |
 |------|-----------------|------------|--------|--------|
+| 2026-10-08 | 92 | 0 | no-changes-needed | (none) |
 | 2026-07-10 | 51 | 7 | created-branch | docs/auto-update-2026-07-10 |
 | 2026-06-30 | 20 | 3 | created-branch | docs/auto-update-2026-06-30 |
 | 2026-03-13 | 3 | 5 | created-branch | docs/auto-update-2026-03-13 |
