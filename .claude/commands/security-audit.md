@@ -124,6 +124,32 @@ fi
 - FINDINGS-INDEX.md updates (Phase 5)
 </step>
 
+<step name="phase_1_5_manual_patterns">
+## Phase 1.5: Manual Grep Patterns
+
+Even if scanner passes, run these manual patterns to verify no dangerous code exists.
+
+**Run mandatory grep patterns:**
+
+```bash
+# New eval or dynamic code (should be 0)
+echo "=== Checking for eval/dynamic code ==="
+rg "eval\(|Function\(|vm\." packages/ --type ts --glob '!**/__tests__/**' --count-matches | grep -v ":0$" || echo "PASS: No eval/dynamic code found"
+
+# Secrets in logs (check for new occurrences)
+echo "=== Checking for secrets in logs ==="
+rg "logger\.|console\." packages/ --type ts -A 1 -B 1 --glob '!**/__tests__/**' | rg -i "key|token|secret|password" --count-matches | grep -v ":0$" || echo "PASS: No obvious secret logging"
+```
+
+**Document results in intelligence report:**
+- If 0 findings: Note "Manual grep patterns confirmed clean"
+- If findings: List file paths and investigate each occurrence
+- Even PASS results should be documented to prove the check ran
+
+**Why this matters:**
+Scanner may miss patterns. Manual verification provides defense-in-depth and proves thoroughness.
+</step>
+
 <step name="phase_2_change_detection">
 ## Phase 2: Change Detection Phase
 
@@ -295,6 +321,25 @@ Expected output:
 If either or both agents were spawned:
 - Wait for all spawned agents to complete before proceeding to Phase 4
 - Collect their structured result reports
+- **DO NOT proceed to Phase 4 until sub-agent results are available**
+
+**Sub-Agent Completion Tracking:**
+
+When delegating to sub-agents:
+
+1. **Note what questions you're asking them** - Document in temp variable or comment
+2. **Set expected completion time** - Background tasks should complete within 30-60 minutes
+3. **Wait for their response before finalizing report** - Use Task tool output when it returns
+4. **Integrate their findings into the main report** - Don't just reference them
+
+**DO NOT:**
+- Delegate and then immediately close the audit
+- Note "sub-agent working" without waiting for results
+- Create intelligence report before sub-agents complete
+
+**Either:**
+- Wait for sub-agent results and integrate them into report, OR
+- Note "Verification pending - sub-agent working" with specific timeline and pause audit
 
 **If no agents spawned:**
 - Note "No investigation agents needed" in report

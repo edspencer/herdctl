@@ -70,6 +70,12 @@ grep -r "CapAdd\|Privileged\|hostConfigOverride" packages/ --include="*.ts"
 
 # OAuth credential handling
 grep -r "readCredentialsFile\|writeCredentialsFile\|refreshClaudeOAuthToken\|ensureValidOAuthToken" packages/ --include="*.ts"
+
+# MCP bridge authentication
+grep -r "startMcpHttpBridge\|createMcpConfig" packages/ --include="*.ts"
+
+# File permission enforcement
+grep -r "chmodSync\|chmod\|0o600" packages/ --include="*.ts"
 ```
 
 ## Recent Additions
@@ -83,6 +89,8 @@ Track recently added hot spots here (move to main tables after 30 days):
 | 2026-02-06 | job-output.ts | Discovered during Q2 audit - constructs paths with job.id |
 | 2026-02-06 | job-executor.ts | Discovered during Q2 audit - mkdir with job.id |
 | 2026-02-20 | container-manager.ts OAuth code | New credential file read/write/refresh functionality (Finding #011) |
+| 2026-10-08 | mcp-http-bridge.ts | Bearer token authentication for MCP HTTP bridge - verify token generation/comparison |
+| 2026-10-08 | cli-runtime.ts | MCP config file creation with 0600 permissions - verify enforcement |
 
 ---
 

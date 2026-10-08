@@ -22,6 +22,7 @@ and manual review. Updated after each security review.
 |----|-------|----------|----------|
 | 001 | Path traversal via agent names | feature/security-scanner | 2026-02-05 |
 | 007 | network:none in example config | Already commented out | 2026-02-05 |
+| 054 | MCP HTTP bridge lacks authentication | bf4995a (PR #467) | 2026-10-08 |
 
 ## False Positives (Scanner Limitations)
 
@@ -316,4 +317,35 @@ Based on false positives identified:
 
 **Last Updated:** 2026-03-06
 **Status:** 🟡 YELLOW - 1 HIGH finding needs documentation, 1 MEDIUM risk elevated
+
+
+---
+
+### ID 054: MCP HTTP Bridge Lacks Authentication ✅ FIXED
+**Severity**: CRITICAL → Resolved
+**First Seen**: 2026-10-08 (backlog review)
+**Fixed In**: Commit bf4995a (PR #467)
+**Verified**: 2026-10-08
+
+The MCP HTTP bridge that exposes injected MCP servers to CLI runtime and Docker agents listened on 0.0.0.0 with no authentication. Any process that could reach the port during a run could call the injected tools.
+
+**Fix Applied**:
+- `startMcpHttpBridge` generates random 256-bit token per bridge
+- Rejects requests without `Authorization: Bearer <token>` (401)
+- Constant-time token comparison prevents timing attacks
+- Bridge binds 127.0.0.1 by default (localhost only)
+- Container runtime uses 0.0.0.0 with token auth (necessary for Docker)
+- MCP config written to owner-only temp file (0600 permissions)
+- Tokens passed via headers, not argv (prevents process table exposure)
+
+**Security Assessment**:
+- ✅ Excellent fix with proper cryptographic token generation
+- ✅ Constant-time comparison prevents timing attacks  
+- ✅ Localhost binding by default reduces attack surface
+- ✅ File permissions protect tokens at rest
+- ✅ Comprehensive test coverage (613 new test lines)
+
+**Related Issues**: Fixes GitHub issue #54
+
+| 2026-10-08 | /security-audit | 0 | 1 | **#054 RESOLVED** - MCP bridge auth; 170 commits; #012 escalated; 4 hot spots need verification |
 

@@ -208,6 +208,10 @@ These questions should be systematically investigated during audits. Each audit 
 | Q12 | Are OAuth access_token and refresh_token properly sanitized from error messages? | High | Open | - | - | container-manager.ts logger.error() calls in OAuth functions - check for credential leaks |
 | Q13 | Does credentials file (~/.claude/.credentials.json) have 0600 permissions enforced? | High | Open | - | - | writeCredentialsFile() should enforce permissions - verify with fs.chmodSync() |
 | Q14 | Can token refresh handle network failures without leaking credentials in stack traces? | Medium | Open | - | - | refreshClaudeOAuthToken() error handling - verify no token data in Error objects |
+| Q15 | How is the MCP bridge token stored and passed to agents? | Medium | Open | - | - | Verify no token leakage via logs/argv/process table |
+| Q16 | Does SDK update (^0.3.283) introduce any security changes? | Low | Open | - | - | Check SDK changelog for security fixes/regressions |
+| Q17 | Is image serving from workspace properly sandboxed? | High | Open | - | - | Session discovery serves images - check path validation to prevent traversal |
+| Q18 | Does `/api/jobs` endpoint have same auth issue as other web routes? | High | Open | - | - | New endpoint added - verify auth status (relates to Finding #012) |
 
 ### Question Guidelines
 
