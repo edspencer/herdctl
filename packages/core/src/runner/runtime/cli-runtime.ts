@@ -291,6 +291,12 @@ export class CLIRuntime implements RuntimeInterface {
       }
     }
 
+    // Flag-tier settings — the same `--settings` the Agent SDK emits for its own
+    // `settings` option, so an agent's `settings` behaves the same on either runtime.
+    if (options.agent.settings && Object.keys(options.agent.settings).length > 0) {
+      args.push("--settings", JSON.stringify(options.agent.settings));
+    }
+
     // Collect MCP servers for --mcp-config. Claude CLI expects
     // {"mcpServers": { ... }} (same shape as .mcp.json). Declared servers are
     // transformed from agent config format; injected servers are added below.

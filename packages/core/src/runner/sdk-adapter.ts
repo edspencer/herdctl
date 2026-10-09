@@ -227,6 +227,13 @@ export function toSDKOptions(
     result.plugins = agent.plugins.map((plugin) => ({ ...plugin }));
   }
 
+  // Flag-tier settings. Omitted when the agent sets none, so the SDK passes no
+  // `--settings` at all. Shallow-copied for the same no-aliasing reason as
+  // `allowedTools` above.
+  if (agent.settings && Object.keys(agent.settings).length > 0) {
+    result.settings = { ...agent.settings };
+  }
+
   // Max turns limit (agent-level or session-level)
   const maxTurns = agent.max_turns ?? agent.session?.max_turns;
   if (maxTurns !== undefined) {

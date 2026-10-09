@@ -82,6 +82,7 @@ max_turns: 100
 | `setting_sources` | string[] | No | Where Claude discovers settings: `user`, `project`, `local` |
 | `mcp_servers` | object | No | MCP server configurations |
 | `plugins` | array | No | Claude Code plugins to load (paths or `{type, path}` objects) |
+| `settings` | object | No | Claude Code settings applied at the flag tier (`--settings`) |
 | `chat` | object | No | Chat integration settings |
 | `docker` | object | No | Docker execution settings |
 | `runtime` | string | No | Runtime type: `"sdk"` (default) or `"cli"` |
@@ -773,6 +774,20 @@ Fleet [`defaults.plugins`](/configuration/fleet-config/#defaultsplugins) applies
 :::caution[Docker agents]
 For a [dockerized agent](/configuration/docker/) the path must resolve *inside* the container, so the plugin directory has to be mounted there.
 :::
+
+### settings
+
+Claude Code [settings](https://docs.claude.com/en/docs/claude-code/settings) for this agent, applied at the **flag tier**: passed to the Agent SDK's `settings` option, or as `--settings <json>` on the [CLI runtime](#runtime). The object is passed through verbatim, and Claude Code validates the keys.
+
+```yaml
+settings:
+  autoMemoryDirectory: /srv/agents/coder/memory
+  effortLevel: high
+```
+
+Flag settings outrank every settings file except managed policy, and they apply whatever [`setting_sources`](#setting_sources) loads. That makes them the place for a key a project's checked-in `.claude/settings.json` is not trusted to set: Claude Code ignores `autoMemoryDirectory` there, but honours it here.
+
+Agent-level only; there is no fleet `defaults.settings`.
 
 ### model
 

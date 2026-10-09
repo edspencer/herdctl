@@ -273,6 +273,12 @@ export interface SDKQueryOptions {
    * (edspencer/herdctl#444).
    */
   plugins?: SDKPluginConfig[];
+  /**
+   * Flag-tier Claude Code settings, from the agent's `settings` config. Set by
+   * `toSDKOptions` only when the agent declares a non-empty object; the SDK
+   * hands it to Claude Code as `--settings`.
+   */
+  settings?: Record<string, unknown>;
   resume?: string;
   forkSession?: boolean;
   /** Maximum number of agentic turns before stopping */

@@ -39,6 +39,14 @@ type _OurPluginsMatchTheOption = Extends<
   NonNullable<SdkOptions["plugins"]>
 >;
 
+// --- settings: flag-tier settings object ----------------------------------
+
+// Our `settings` must be something the SDK's `settings` option accepts.
+type _OurSettingsMatchTheOption = Extends<
+  NonNullable<SDKQueryOptions["settings"]>,
+  NonNullable<SdkOptions["settings"]>
+>;
+
 // --- #445: MCP server transports -------------------------------------------
 
 // Every transport the SDK's serializable configs declare must be expressible in
