@@ -1,5 +1,11 @@
 # @herdctl/core
 
+## 5.34.0
+
+### Minor Changes
+
+- [#473](https://github.com/edspencer/herdctl/pull/473) [`2cef420`](https://github.com/edspencer/herdctl/commit/2cef42089da72d7c711157c113a94568e6520708) Thanks [@edspencer](https://github.com/edspencer)! - Add an agent-level `settings` field: Claude Code settings passed through at the flag tier, as the Agent SDK's `settings` option or `--settings <json>` on the CLI runtime. It lets an embedder set a key per agent that a project's checked-in `.claude/settings.json` is not trusted to set, such as `autoMemoryDirectory` (edspencer/paddock#955).
+
 ## 5.33.3
 
 ### Patch Changes
