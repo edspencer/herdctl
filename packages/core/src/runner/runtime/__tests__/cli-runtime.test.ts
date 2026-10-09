@@ -498,6 +498,24 @@ describe("CLIRuntime flag settings (--settings)", () => {
     });
   });
 
+  it("never writes the settings JSON to the debug log", async () => {
+    const debug = vi.spyOn(console, "debug").mockImplementation(() => {});
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const prev = process.env.HERDCTL_LOG_LEVEL;
+    process.env.HERDCTL_LOG_LEVEL = "debug";
+    try {
+      await captureArgs({ settings: { env: { TOKEN: "s3cret-value" } } });
+      const logged = [...debug.mock.calls, ...log.mock.calls].flat().map(String).join("\n");
+      expect(logged).toContain("--settings <redacted>");
+      expect(logged).not.toContain("s3cret-value");
+    } finally {
+      if (prev === undefined) delete process.env.HERDCTL_LOG_LEVEL;
+      else process.env.HERDCTL_LOG_LEVEL = prev;
+      debug.mockRestore();
+      log.mockRestore();
+    }
+  });
+
   it("emits no --settings when the agent sets none, or an empty object", async () => {
     expect(await captureArgs({})).not.toContain("--settings");
     expect(await captureArgs({ settings: {} })).not.toContain("--settings");

@@ -777,7 +777,7 @@ For a [dockerized agent](/configuration/docker/) the path must resolve *inside* 
 
 ### settings
 
-Claude Code [settings](https://docs.claude.com/en/docs/claude-code/settings) for this agent, applied at the **flag tier**: passed to the Agent SDK's `settings` option, or as `--settings <json>` on the [CLI runtime](#runtime). The object is passed through verbatim, and Claude Code validates the keys.
+Claude Code [settings](https://docs.claude.com/en/docs/claude-code/settings) for this agent, applied at the **flag tier**: passed to the Agent SDK's `settings` option, or as `--settings <json>` on the [CLI runtime](#runtime). The object is passed through verbatim. Claude Code ignores an unknown key or an invalid value without reporting it, so check that a setting took effect rather than assuming it did.
 
 ```yaml
 settings:
@@ -788,6 +788,14 @@ settings:
 Flag settings outrank every settings file except managed policy, and they apply whatever [`setting_sources`](#setting_sources) loads. That makes them the place for a key a project's checked-in `.claude/settings.json` is not trusted to set: Claude Code ignores `autoMemoryDirectory` there, but honours it here.
 
 Agent-level only; there is no fleet `defaults.settings`.
+
+:::caution[Don't put secrets in `settings`]
+On both runtimes the object reaches Claude Code as a `--settings` command-line argument, so any local user can read it in `/proc/<pid>/cmdline`. herdctl redacts it from its own debug log, but it can't hide the argv. Keep credentials out of it, including `env` entries and `${VAR}` values that interpolation would resolve.
+:::
+
+:::note[`${...}` is interpolated]
+In a YAML config, herdctl interpolates `${VAR}` and `${VAR:-default}` inside `settings` like any other field, and an unset variable with no default is an error. There is no escape syntax, so a value that must reach Claude Code with its own `${...}` intact, such as `${CLAUDE_PROJECT_DIR}` in a hook command, can't be written here. Put it in a project settings file instead, or register the agent programmatically, which skips interpolation.
+:::
 
 ### model
 

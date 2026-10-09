@@ -393,7 +393,11 @@ export class CLIRuntime implements RuntimeInterface {
     // Note: Prompt is NOT added to args - it's provided via stdin (see processSpawner call below)
 
     // DEBUG: Log the command being executed
-    logger.debug(`Executing command: claude ${args.join(" ")}`);
+    // `--settings` carries the agent's flag-tier settings verbatim, which can
+    // hold resolved secrets (`env`, `apiKeyHelper`, interpolated `${VAR}`s), so
+    // its value never reaches the log.
+    const loggedArgs = args.map((arg, i) => (args[i - 1] === "--settings" ? "<redacted>" : arg));
+    logger.debug(`Executing command: claude ${loggedArgs.join(" ")}`);
     logger.debug(`Prompt: ${options.prompt}`);
 
     // Track process and watcher for cleanup
