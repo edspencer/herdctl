@@ -465,6 +465,63 @@ describe("CLIRuntime plugins (--plugin-dir)", () => {
   });
 });
 
+describe("CLIRuntime flag settings (--settings)", () => {
+  async function captureArgs(agent: Record<string, unknown>): Promise<string[]> {
+    let spawnedArgs: string[] = [];
+
+    const runtime = new CLIRuntime({
+      processSpawner: ((args: string[]) => {
+        spawnedArgs = args;
+        return makeSubprocess() as never;
+      }) as never,
+    });
+
+    for await (const _message of runtime.execute({
+      prompt: "Hello",
+      agent: { name: "settings-agent", configPath: "/tmp/agent.yaml", ...agent } as never,
+    })) {
+      // drain
+    }
+
+    return spawnedArgs;
+  }
+
+  it("serialises the agent's settings into one --settings argument", async () => {
+    const args = await captureArgs({
+      settings: { autoMemoryDirectory: "/data/memory", effortLevel: "high" },
+    });
+
+    expect(args.filter((a) => a === "--settings")).toHaveLength(1);
+    expect(JSON.parse(args[args.indexOf("--settings") + 1])).toEqual({
+      autoMemoryDirectory: "/data/memory",
+      effortLevel: "high",
+    });
+  });
+
+  it("never writes the settings JSON to the debug log", async () => {
+    const debug = vi.spyOn(console, "debug").mockImplementation(() => {});
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const prev = process.env.HERDCTL_LOG_LEVEL;
+    process.env.HERDCTL_LOG_LEVEL = "debug";
+    try {
+      await captureArgs({ settings: { env: { TOKEN: "s3cret-value" } } });
+      const logged = [...debug.mock.calls, ...log.mock.calls].flat().map(String).join("\n");
+      expect(logged).toContain("--settings <redacted>");
+      expect(logged).not.toContain("s3cret-value");
+    } finally {
+      if (prev === undefined) delete process.env.HERDCTL_LOG_LEVEL;
+      else process.env.HERDCTL_LOG_LEVEL = prev;
+      debug.mockRestore();
+      log.mockRestore();
+    }
+  });
+
+  it("emits no --settings when the agent sets none, or an empty object", async () => {
+    expect(await captureArgs({})).not.toContain("--settings");
+    expect(await captureArgs({ settings: {} })).not.toContain("--settings");
+  });
+});
+
 describe("CLIRuntime session fork (--fork-session)", () => {
   beforeEach(() => {
     watchMessages.length = 0;

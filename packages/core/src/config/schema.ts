@@ -1075,6 +1075,17 @@ export const AgentConfigSchema = z
      * needs mounting.
      */
     plugins: z.array(PluginSchema).optional(),
+    /**
+     * Claude Code settings applied at the flag tier — the SDK's `settings`
+     * option, or `--settings <json>` on the CLI runtime.
+     *
+     * Flag settings outrank every file source except managed policy, and they
+     * apply whatever `setting_sources` loads, so this is how an embedder sets a
+     * key per agent that a project's checked-in `.claude/settings.json` is not
+     * trusted to set (e.g. `autoMemoryDirectory`). Passed through verbatim;
+     * Claude Code validates the keys.
+     */
+    settings: z.record(z.string(), z.unknown()).optional(),
     chat: AgentChatSchema.optional(),
     hooks: AgentHooksSchema.optional(),
     docker: AgentDockerSchema.optional(),

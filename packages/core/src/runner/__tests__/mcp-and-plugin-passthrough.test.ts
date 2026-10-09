@@ -275,6 +275,48 @@ describe("MCP server + plugin passthrough (#444, #445)", () => {
   });
 
   // ===========================================================================
+  // settings — flag-tier settings passthrough
+  // ===========================================================================
+
+  describe("settings reach SDKQueryOptions", () => {
+    it("survives addAgent (the strict schema) and reaches the SDK query() options", async () => {
+      const agent = await addAndResolve({
+        name: "flag-settings",
+        settings: { autoMemoryDirectory: "/data/memory" },
+      });
+
+      expect(agent.settings).toEqual({ autoMemoryDirectory: "/data/memory" });
+      expect(toSDKOptions(agent).settings).toEqual({ autoMemoryDirectory: "/data/memory" });
+
+      const runtime = new SDKRuntime();
+      for await (const _ of runtime.execute({ prompt: "hi", agent })) {
+        // mocked query() yields nothing
+      }
+
+      expect(queryCalls).toHaveLength(1);
+      expect(queryCalls[0].settings).toEqual({ autoMemoryDirectory: "/data/memory" });
+    });
+
+    it("omits the key when the agent sets none, or an empty object", async () => {
+      expect(toSDKOptions(await addAndResolve({ name: "no-settings" }))).not.toHaveProperty(
+        "settings",
+      );
+      expect(
+        toSDKOptions(await addAndResolve({ name: "empty-settings", settings: {} })),
+      ).not.toHaveProperty("settings");
+    });
+
+    it("does not alias the agent's object, so a runtime cannot mutate config", async () => {
+      const agent = await addAndResolve({ name: "isolated-settings", settings: { a: 1 } });
+
+      const sdkOptions = toSDKOptions(agent);
+      sdkOptions.settings!.a = 2;
+
+      expect(agent.settings).toEqual({ a: 1 });
+    });
+  });
+
+  // ===========================================================================
   // #444 second blocker — the settingSources lever that already exists
   // ===========================================================================
 
