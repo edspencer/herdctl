@@ -7,6 +7,13 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Agent-Level Claude Code Settings
+**October 9, 2026** · `@herdctl/core@5.34.0`
+
+Agents can now specify Claude Code settings in their configuration through a new `settings` field. This allows fleet operators to set per-agent Claude Code options like `autoMemoryDirectory` that override project defaults. Settings are passed as flag-tier options to the Claude Code runtime, giving them appropriate priority in the settings hierarchy. This is particularly useful for programmatic deployments where different agents need different memory storage locations or other runtime configurations. [#473](https://github.com/edspencer/herdctl/pull/473), [#474](https://github.com/edspencer/herdctl/pull/474)
+
+---
+
 ### Web Chat Resilience and Search Improvements
 **October 3, 2026** · `@herdctl/web@0.13.0`
 
