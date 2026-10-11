@@ -1,11 +1,11 @@
 ---
-last_updated: 2026-03-06T00:00:00Z
+last_updated: 2026-10-09T10:00:00Z
 last_mapping: 2026-02-14
-last_audit: 2026-03-06
+last_audit: 2026-10-09
 commits_since_audit: 0
-commits_since_mapping: 111
+commits_since_mapping: 283
 open_findings: 8
-open_questions: 8
+open_questions: 6
 status: audit_complete_yellow
 ---
 
@@ -22,12 +22,12 @@ This document provides persistent state for security audits, enabling incrementa
 | Metric | Value | Notes |
 |--------|-------|-------|
 | Last full mapping | 2026-02-14 | Comprehensive audit completed |
-| Last incremental audit | 2026-03-06 | Incremental - YELLOW - 1 new HIGH finding (#012 Web API) |
-| Commits since last audit | 0 | At 5f79021 (2026-03-06) |
+| Last incremental audit | 2026-10-09 | Incremental - YELLOW - MCP auth FIXED, Finding #011 actionable |
+| Commits since last audit | 0 | At 4aa3678 (2026-10-09) |
 | Open findings | 8 | See [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
-| Open questions | 8 | Q1, Q3, Q4, Q5, Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q14 (3 answered) |
+| Open questions | 6 | Q1, Q4, Q5, Q7, Q8, Q9 (Q10-Q14 answered) |
 
-**Status:** YELLOW - Finding #012 (Web API lacks authentication) needs documentation; Finding #011 risk elevated.
+**Status:** YELLOW - MCP bridge auth FIXED (major improvement); Finding #011 specific lines identified; Finding #012 needs documentation.
 
 ### Finding Breakdown
 
@@ -41,8 +41,8 @@ This document provides persistent state for security audits, enabling incrementa
 ### Question Priorities
 
 - High: 0
-- Medium: 5 (Q1 webhook auth, Q4 log injection, Q5 config merge, Q7 container user, Q8 SDK escaping)
-- Low: 2 (Q3 container name chars, Q9 rate limiting, Q10 MCP security, Q11 GitHub SSRF)
+- Medium: 4 (Q1 webhook auth, Q4 log injection, Q5 config merge, Q8 SDK escaping)
+- Low: 2 (Q7 container user, Q9 rate limiting)
 
 ---
 
@@ -52,12 +52,12 @@ Security coverage by area with staleness tracking.
 
 | Area | Last Checked | Commits Since | Status | Notes |
 |------|--------------|---------------|--------|-------|
-| Attack surface | 2026-03-06 | 0 | ✅ Current | Agent distribution + session discovery analyzed |
-| Data flows | 2026-03-06 | 0 | ✅ Current | Web API flows traced, OAuth paths reviewed |
-| Security controls | 2026-03-06 | 0 | ✅ Current | Path validation + shell escaping verified |
-| Threat vectors | 2026-03-06 | 0 | ✅ Current | SSRF, traversal, unauth access assessed |
-| Hot spots | 2026-03-06 | 0 | ✅ Current | Scanner run complete - 4422ms |
-| Code patterns | 2026-03-06 | 0 | ✅ Current | buildSafeFilePath usage verified |
+| Attack surface | 2026-10-09 | 0 | ✅ Current | Files endpoint added, MCP bridge secured |
+| Data flows | 2026-10-09 | 0 | ✅ Current | OAuth re-injection, session discovery flows |
+| Security controls | 2026-10-09 | 0 | ✅ Current | MCP bearer token auth, path containment |
+| Threat vectors | 2026-10-09 | 0 | ✅ Current | MCP unauth access FIXED |
+| Hot spots | 2026-10-09 | 0 | ✅ Current | Scanner run complete - 95710ms |
+| Code patterns | 2026-10-09 | 0 | ✅ Current | buildSafeFilePath verified in session code |
 
 ### Staleness Thresholds
 
@@ -73,13 +73,11 @@ Active findings and open questions requiring attention.
 
 | ID | Type | Summary | Priority | Status | Source |
 |----|------|---------|----------|--------|--------|
-| #012 | Finding | Web API lacks authentication | **HIGH** | OPEN - Needs documentation | [2026-03-06 Report](intel/2026-03-06.md) |
-| #011 | Finding | OAuth credential management - risk elevated | **MEDIUM** | YELLOW - Session exposure risk | [2026-03-06 Report](intel/2026-03-06.md) |
-| #010 | Finding | bypassPermissions in 22 job files | MEDIUM | YELLOW - Retention policy needed | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
-| #008 | Finding | npm audit - 4 HIGH, 4 MEDIUM vulns | Medium | Manual check needed | Scanner 2026-03-06 |
+| #012 | Finding | Web API lacks authentication | **HIGH** | OPEN - Needs documentation | [2026-10-09 Report](intel/2026-10-09.md) |
+| #011 | Finding | OAuth credential logging | **MEDIUM** | **ACTIONABLE** - Lines 336, 338, 369, 389 identified | [2026-10-09 Report](intel/2026-10-09.md) |
+| #010 | Finding | bypassPermissions in job files | MEDIUM | YELLOW - Retention policy needed | [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
+| #008 | Finding | npm audit parser error | Medium | Manual check needed | Scanner 2026-10-09 |
 | Q1 | Question | Webhook authentication | Medium | Related to #012 - web API has no auth | [2026-03-06 Report](intel/2026-03-06.md) |
-| Q13 | Question | encodedPath path traversal | Medium | Partially answered - indirect validation via groups | [2026-03-06 Report](intel/2026-03-06.md) |
-| Q11 | Question | GitHub SSRF in repo cloning | Medium | Confirmed - no allowlist; mitigations present | [2026-03-06 Report](intel/2026-03-06.md) |
 | Q4 | Question | Log injection via agent output | Medium | Open | [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
 | Q5 | Question | Fleet/agent config merge overrides | Medium | Open | [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
 | Q8 | Question | SDK wrapper prompt escaping | Medium | Open | [CODEBASE-UNDERSTANDING.md](CODEBASE-UNDERSTANDING.md) |
@@ -90,11 +88,11 @@ Active findings and open questions requiring attention.
 Ordered by urgency for next audit session:
 
 1. **HIGH P1:** Document web dashboard as localhost-only, warn against network exposure (#012)
-2. **HIGH P2:** Audit session files for OAuth credential leaks (#011 + #012 combined risk)
-3. **MEDIUM P1:** Add encodedPath explicit validation (Q13)
-4. **MEDIUM P2:** Review OAuth logging for credential leaks (#011)
-5. **MEDIUM P3:** Implement job file retention policy (30 days) to resolve #010
-6. **MEDIUM P4:** Consider GitHub URL allowlist for distribution system (Q11)
+2. **HIGH P2:** Sanitize OAuth error logging - lines 336, 338, 369, 389 (#011)
+3. **HIGH P3:** Enforce credential file permissions 0600 (#011)
+4. **MEDIUM P1:** Audit session files for OAuth credential leaks (#011 + #012 combined risk)
+5. **MEDIUM P2:** Implement job file retention policy (30 days) to resolve #010
+6. **MEDIUM P3:** Review SDK 0.3.283 changelog for security changes
 7. **LOW:** Complete shell escaping verification (#009)
 
 ---
@@ -105,13 +103,16 @@ Ordered by urgency for next audit session:
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
+| 2026-10-09 | **MCP bridge auth FIXED** (bf4995a) | Critical vulnerability closed - bearer token required, constant-time comparison, localhost bind |
+| 2026-10-09 | #011 ACTIONABLE - Specific lines identified | container-manager.ts:336, 338, 369, 389 - error logging may leak OAuth tokens |
+| 2026-10-09 | Files endpoint SAFE | Excellent path traversal protection - double realpath, TOCTOU mitigation, CSP sandbox |
+| 2026-10-09 | Session discovery SAFE | Uses encodePathForCli, buildSafeFilePath - no new path traversal vectors |
+| 2026-10-09 | Q10 ANSWERED - MCP security | NOW AUTHENTICATED - bearer token required (bf4995a) |
+| 2026-10-09 | Q11 ANSWERED - GitHub SSRF | User controls URLs; no allowlist but proper subprocess isolation |
+| 2026-10-09 | Q12 ANSWERED - Web API auth | NO - localhost-only by design; needs documentation |
+| 2026-10-09 | Q13 ANSWERED - encodedPath validation | PARTIAL - indirect via encodePathForCli; recommend explicit validation |
+| 2026-10-09 | Q14 ANSWERED - Agent name validation | SAFE - AGENT_NAME_PATTERN enforced in schema.ts:1053 |
 | 2026-03-06 | #012 HIGH - Web API lacks authentication | New web API routes have no auth; designed for localhost only; needs documentation |
-| 2026-03-06 | #011 risk ELEVATED | Session files exposed via web API may contain OAuth tokens; combined risk with #012 |
-| 2026-03-06 | #009 status updated to PARTIALLY FIXED | Commit a0e7ad8 escapes $ and backtick; full verification still needed |
-| 2026-03-06 | Q14 ANSWERED - Agent name validation SAFE | AGENT_NAME_PATTERN properly enforced before all file operations |
-| 2026-03-06 | Q13 ANSWERED - encodedPath validation PARTIAL | Indirect protection via groups lookup; recommend explicit validation |
-| 2026-03-06 | Q12 ANSWERED - Web API auth status NO | No authentication present; localhost-only design |
-| 2026-03-06 | Q11 CONFIRMED - GitHub SSRF potential | User controls GitHub URLs; mitigations present but no allowlist |
 | 2026-02-20 | #011 MEDIUM - OAuth credential review needed | New credential handling added to container-manager.ts; needs file permission and logging audit |
 | 2026-02-17 | #010 DOWNGRADED to MEDIUM; HALT LIFTED | 2026-02-15 audit correctly identified measurement error: 143 count included JSONL files; correct count is 21 YAML files |
 | 2026-02-14 | Comprehensive security audit completed | Full attack surface mapping, data flow tracing, controls assessment, threat modeling |
@@ -123,22 +124,22 @@ Ordered by urgency for next audit session:
 
 Security capabilities not yet implemented or areas needing investigation:
 
-- **HIGH NEW: Web API has no authentication** - localhost-only by design but needs documentation (#012)
-- **HIGH NEW: Session files exposed via web API** - may contain OAuth tokens from error logs (#011 + #012)
-- **MEDIUM: encodedPath validation is indirect** - should add explicit regex validation (Q13)
+- **HIGH: Web API has no authentication** - localhost-only by design but needs documentation (#012)
+- **MEDIUM: OAuth error logging leaks tokens** - container-manager.ts:336, 338, 369, 389 (#011)
 - **MEDIUM: OAuth credential file permissions not enforced** - writeCredentialsFile() doesn't set 0600 (#011)
-- **MEDIUM: OAuth error logging may leak tokens** - logger.error() calls need review (#011)
-- **MEDIUM: Job file retention policy not implemented** - 22 bypassPermissions files accumulating (#010)
-- **MEDIUM: GitHub SSRF potential** - no URL allowlist for repository cloning (Q11)
+- **MEDIUM: Job file retention policy not implemented** - bypassPermissions files accumulating (#010)
+- **MEDIUM: encodedPath validation is indirect** - should add explicit regex validation for defense-in-depth
+- **MEDIUM: GitHub SSRF potential** - no URL allowlist for repository cloning (mitigations present)
 - No secret detection in logs (output could leak sensitive data) - Q4
 - No rate limiting on triggers (DoS vector for scheduled jobs) - Q9
 
 ### Session Continuity
 
-- **Last session:** 2026-03-06 - Incremental audit covering 71 commits
-- **Completed:** Scanner run (FAIL - no regressions), change analysis (distribution + session discovery), web API auth review, agent name validation, encodedPath analysis, #012 discovery
-- **Resume from:** Normal operations; next scheduled audit ~2026-03-13
-- **Next priority:** Document web dashboard security model (#012), audit session files for credential leaks (#011), encodedPath validation (Q13)
+- **Last session:** 2026-10-09 - Incremental audit covering 172 commits
+- **Completed:** Scanner run (FAIL - expected), change analysis (MCP auth fix, OAuth re-injection, session discovery), hot spot verification (9/9), Finding #011 specifics identified
+- **Major Win:** MCP bridge authentication vulnerability FIXED (bf4995a)
+- **Resume from:** Normal operations; next scheduled audit ~2026-10-16
+- **Next priority:** Sanitize OAuth logging (#011 lines 336, 338, 369, 389), document web security (#012), verify SDK 0.3.283
 
 ---
 
