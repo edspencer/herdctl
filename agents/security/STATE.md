@@ -1,9 +1,9 @@
 ---
-last_updated: 2026-10-09T10:00:00Z
+last_updated: 2026-10-12T12:00:00Z
 last_mapping: 2026-02-14
-last_audit: 2026-10-09
+last_audit: 2026-10-12
 commits_since_audit: 0
-commits_since_mapping: 283
+commits_since_mapping: 305
 open_findings: 8
 open_questions: 6
 status: audit_complete_yellow
@@ -22,12 +22,12 @@ This document provides persistent state for security audits, enabling incrementa
 | Metric | Value | Notes |
 |--------|-------|-------|
 | Last full mapping | 2026-02-14 | Comprehensive audit completed |
-| Last incremental audit | 2026-10-09 | Incremental - YELLOW - MCP auth FIXED, Finding #011 actionable |
-| Commits since last audit | 0 | At 4aa3678 (2026-10-09) |
+| Last incremental audit | 2026-10-12 | Incremental - YELLOW - Settings log redaction added, no regressions |
+| Commits since last audit | 0 | At 7ec2844 (2026-10-12) |
 | Open findings | 8 | See [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
 | Open questions | 6 | Q1, Q4, Q5, Q7, Q8, Q9 (Q10-Q14 answered) |
 
-**Status:** YELLOW - MCP bridge auth FIXED (major improvement); Finding #011 specific lines identified; Finding #012 needs documentation.
+**Status:** YELLOW - Security posture STABLE with improvement (log redaction); Finding #011, #012 remain actionable.
 
 ### Finding Breakdown
 
@@ -52,12 +52,12 @@ Security coverage by area with staleness tracking.
 
 | Area | Last Checked | Commits Since | Status | Notes |
 |------|--------------|---------------|--------|-------|
-| Attack surface | 2026-10-09 | 0 | ✅ Current | Files endpoint added, MCP bridge secured |
-| Data flows | 2026-10-09 | 0 | ✅ Current | OAuth re-injection, session discovery flows |
-| Security controls | 2026-10-09 | 0 | ✅ Current | MCP bearer token auth, path containment |
-| Threat vectors | 2026-10-09 | 0 | ✅ Current | MCP unauth access FIXED |
-| Hot spots | 2026-10-09 | 0 | ✅ Current | Scanner run complete - 95710ms |
-| Code patterns | 2026-10-09 | 0 | ✅ Current | buildSafeFilePath verified in session code |
+| Attack surface | 2026-10-12 | 0 | ✅ Current | Settings field added (validated), log redaction |
+| Data flows | 2026-10-12 | 0 | ✅ Current | Settings passthrough flow reviewed |
+| Security controls | 2026-10-12 | 0 | ✅ Current | Log redaction added, all controls intact |
+| Threat vectors | 2026-10-12 | 0 | ✅ Current | No new vectors, mitigations maintained |
+| Hot spots | 2026-10-12 | 0 | ✅ Current | Scanner run complete - 25.4s, 13/13 verified |
+| Code patterns | 2026-10-12 | 0 | ✅ Current | All path safety patterns intact |
 
 ### Staleness Thresholds
 
@@ -103,6 +103,7 @@ Ordered by urgency for next audit session:
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
+| 2026-10-12 | **Settings log redaction** (2cef420) | Security improvement - prevents secret disclosure in debug logs; adversarial review approach demonstrates security-conscious development |
 | 2026-10-09 | **MCP bridge auth FIXED** (bf4995a) | Critical vulnerability closed - bearer token required, constant-time comparison, localhost bind |
 | 2026-10-09 | #011 ACTIONABLE - Specific lines identified | container-manager.ts:336, 338, 369, 389 - error logging may leak OAuth tokens |
 | 2026-10-09 | Files endpoint SAFE | Excellent path traversal protection - double realpath, TOCTOU mitigation, CSP sandbox |
@@ -135,11 +136,11 @@ Security capabilities not yet implemented or areas needing investigation:
 
 ### Session Continuity
 
-- **Last session:** 2026-10-09 - Incremental audit covering 172 commits
-- **Completed:** Scanner run (FAIL - expected), change analysis (MCP auth fix, OAuth re-injection, session discovery), hot spot verification (9/9), Finding #011 specifics identified
-- **Major Win:** MCP bridge authentication vulnerability FIXED (bf4995a)
-- **Resume from:** Normal operations; next scheduled audit ~2026-10-16
-- **Next priority:** Sanitize OAuth logging (#011 lines 336, 338, 369, 389), document web security (#012), verify SDK 0.3.283
+- **Last session:** 2026-10-12 - Incremental audit covering 22 commits (3 code, 19 housekeeping)
+- **Completed:** Scanner run (FAIL - expected), change analysis (settings feature), hot spot verification (13/13), security improvement identified
+- **Security Improvement:** Settings log redaction prevents secret disclosure (cli-runtime.ts:393-399)
+- **Resume from:** Normal operations; next scheduled audit ~2026-10-19
+- **Next priority:** Sanitize OAuth logging (#011 lines 338, 369, 389), document web security (#012), document settings trust boundary
 
 ---
 
