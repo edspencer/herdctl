@@ -1,0 +1,118 @@
+{
+  "date": "2026-08-22",
+  "commit": "fc73a3a",
+  "branch": "main",
+  "status": "FAIL",
+  "durationMs": 70917,
+  "summary": {
+    "totalChecks": 6,
+    "passed": 3,
+    "warned": 2,
+    "failed": 1
+  },
+  "checks": {
+    "npm-audit": {
+      "status": "PASS",
+      "durationMs": 70463,
+      "findings": 0,
+      "note": "181 vulnerabilities found (17 low, 98 moderate, 65 high, 1 critical) but scanner passed - requires manual review"
+    },
+    "docker-config": {
+      "status": "FAIL",
+      "durationMs": 218,
+      "findings": 3,
+      "items": [
+        {
+          "severity": "HIGH",
+          "message": "hostConfigOverride can bypass Docker security hardening",
+          "location": "packages/core/src/runner/runtime/docker-config.ts:259",
+          "findingId": "002"
+        },
+        {
+          "severity": "HIGH",
+          "message": "hostConfigOverride can bypass Docker security hardening",
+          "location": "packages/core/src/runner/runtime/container-manager.ts:144",
+          "findingId": "002"
+        },
+        {
+          "severity": "HIGH",
+          "message": "hostConfigOverride can bypass Docker security hardening",
+          "location": "packages/core/src/runner/runtime/container-manager.ts:145",
+          "findingId": "002"
+        }
+      ]
+    },
+    "permission-modes": {
+      "status": "WARN",
+      "durationMs": 37,
+      "findings": 2,
+      "items": [
+        {
+          "severity": "LOW",
+          "message": "bypassPermissions used in 1 example config(s)",
+          "location": "examples/bragdoc-developer/agents/developer.yaml:47",
+          "findingId": "005"
+        },
+        {
+          "severity": "MEDIUM",
+          "message": "bypassPermissions referenced in code",
+          "location": "packages/cli/src/index.ts:107",
+          "note": "Schema/type definition only"
+        }
+      ]
+    },
+    "subprocess-patterns": {
+      "status": "WARN",
+      "durationMs": 51,
+      "findings": 7,
+      "items": [
+        {
+          "severity": "LOW",
+          "message": "Direct child_process import - consider using execa",
+          "locations": [
+            "packages/web/test-ui/harness.ts:17",
+            "packages/core/src/hooks/runners/shell.ts:8",
+            "packages/core/src/distribution/repository-fetcher.ts:8",
+            "packages/cli/src/commands/init-agent.ts:12",
+            "packages/cli/src/commands/sessions.ts:12"
+          ]
+        },
+        {
+          "severity": "MEDIUM",
+          "message": "shell: true option enables shell interpretation",
+          "locations": [
+            "packages/core/src/hooks/runners/shell.ts:154",
+            "packages/cli/src/commands/sessions.ts:421"
+          ],
+          "findingId": "006"
+        }
+      ]
+    },
+    "path-safety": {
+      "status": "PASS",
+      "durationMs": 3,
+      "findings": 0
+    },
+    "env-handling": {
+      "status": "PASS",
+      "durationMs": 135,
+      "findings": 0
+    }
+  },
+  "npmAudit": {
+    "executed": true,
+    "summary": {
+      "total": 181,
+      "low": 17,
+      "moderate": 98,
+      "high": 65,
+      "critical": 1
+    },
+    "criticalPackages": [
+      "hono (4.12.31 < 4.12.34) - CVE in MCP SDK dependency",
+      "astro (5.16.11 < 7.0.4) - XSS in docs site",
+      "devalue - Multiple vulnerabilities in Astro dependency"
+    ],
+    "recommendation": "Critical: hono vulnerability affects MCP SDK (runtime dependency). Update recommended."
+  }
+}
