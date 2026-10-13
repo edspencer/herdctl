@@ -7,6 +7,20 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Hardened Session ID Tracking for Co-located Agents
+**August 16, 2026**
+
+When multiple agents share the same working directory and spawn new Claude Code sessions concurrently, herdctl now mints and assigns a unique session ID to each agent instead of inferring ownership by guessing which transcript file is "newest." This prevents agents from trading session IDs—a bug where Agent A could adopt Agent B's transcript and vice versa, causing streamed responses to appear in the wrong chat, history to resume incorrectly, and sessions to vanish from listings. The fix also makes session attribution deterministic when conflicts occur, so outcomes are consistent rather than dependent on file size or machine load.
+
+---
+
+### Dashboard Chat and Session Listing Fixes
+**August 13, 2026** · `@herdctl/web@0.11.1`
+
+The web dashboard's chat interface now times out after 15 seconds when loading messages (previously it could hang forever) and offers a Retry button on failures. Empty sessions show a clear "No messages found" state instead of the misleading "Send a message to start" prompt. The "Show all" button in directory groups actually expands beyond the first 10 sessions and supports paging through large groups. Search results no longer produce empty directory groups with confusing per-group "no sessions" messages—groups that match only by path or agent name now show all their sessions, while non-matching groups are dropped entirely.
+
+---
+
 ### Stop and Force-Close Live Sessions from Your App
 **August 12, 2026** · `@herdctl/core@5.33.0` · `@herdctl/core@5.31.0`
 
