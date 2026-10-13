@@ -7,6 +7,20 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Updated Model IDs in Documentation
+**September 27, 2026**
+
+All documentation, examples, and template configurations now reference current Claude 5 model IDs (claude-sonnet-5 and claude-opus-5) instead of the retired Claude 4 models. The previous examples referenced claude-sonnet-4-20250514 and claude-opus-4-20250514, which reached their retirement date on 2026-06-15 and are no longer served by the API. New users copying configuration from the docs now have working fleets from the start.
+
+---
+
+### CLI Session ID Minting for Multi-Agent Reliability
+**September 26, 2026** · `@herdctl/core@5.33.1`
+
+Agents running in shared working directories can now reliably track their own Claude Code sessions without collision. Previously, when multiple agents spawned simultaneously in the same directory, they could inadvertently swap session IDs, causing chat messages to stream to the wrong agent and corrupting conversation histories. The CLI now accepts a pre-generated session ID, eliminating the race condition that caused these swaps. This particularly impacts fleets where multiple agents work in the same repository.
+
+---
+
 ### Stop and Force-Close Live Sessions from Your App
 **August 12, 2026** · `@herdctl/core@5.33.0` · `@herdctl/core@5.31.0`
 
