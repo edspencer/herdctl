@@ -13,7 +13,7 @@
  */
 
 import { createLogger } from "../utils/logger.js";
-import type { SessionCronSummary, SessionWakeEntry } from "./types.js";
+import type { SessionCronSummary, SessionLifecycleSignal, SessionWakeEntry } from "./types.js";
 
 /** The structural logger returned by {@link createLogger}. */
 type Logger = ReturnType<typeof createLogger>;
@@ -57,6 +57,49 @@ export interface WakeRegistryOptions {
   /** Recurring-wake lifetime; defaults to the 7-day harness parity. */
   maxAgeMs?: number;
   logger?: Logger;
+}
+
+/**
+ * Apply one turn-boundary lifecycle signal to a wake registry: reconcile an
+ * authoritative `turn_end`'s pending crons, or retire the wake(s) a
+ * `cron_deleted` named. `activity` and a non-authoritative `turn_end`
+ * (`hasSnapshot === false`) are no-ops — see {@link SessionLifecycleSignal}'s
+ * own doc for why an unreported snapshot must not be read as "nothing
+ * pending". `background_tasks_changed` never reports `sessionCrons` and is
+ * likewise a no-op here.
+ *
+ * Shared by {@link SessionReaper.processSignal} (streaming sessions) and
+ * {@link SessionLifecycleManager.trackJob} (the job path, vulpes-pack#148) so
+ * both funnel through one reconciliation rule instead of two parallel
+ * readings of the same signal. Errors are logged and swallowed — capture must
+ * never throw out of a caller's hot path.
+ */
+export async function applyWakeSignal(
+  registry: WakeRegistry,
+  agent: string,
+  signal: SessionLifecycleSignal,
+  logger?: Logger,
+): Promise<void> {
+  if (signal.kind === "cron_deleted") {
+    for (const id of signal.deletedCronIds ?? []) {
+      try {
+        await registry.remove(id);
+      } catch (error) {
+        logger?.warn(
+          `Failed to retire wake ${id} after CronDelete in session ${signal.sessionId} (${agent}): ${(error as Error).message}`,
+        );
+      }
+    }
+    return;
+  }
+  if (signal.kind !== "turn_end" || signal.hasSnapshot === false) return;
+  try {
+    await registry.reconcile(agent, signal.sessionId, signal.sessionCrons);
+  } catch (error) {
+    logger?.warn(
+      `Failed to reconcile wakes for session ${signal.sessionId} (${agent}): ${(error as Error).message}`,
+    );
+  }
 }
 
 const DEFAULT_CONCURRENCY = 4;

@@ -61,14 +61,21 @@ export interface RuntimeExecuteOptions {
   includePartialMessages?: boolean;
 
   /**
-   * Streaming sessions only: observe the session's background-work lifecycle.
+   * Observe the run's session-lifecycle signals: turn boundaries (the SDK
+   * main-agent `Stop` hook), live background-task changes
+   * (`background_tasks_changed`), mid-turn activity, and explicit `CronDelete`
+   * retirements — with a snapshot of the session's pending timer-class wakeups
+   * (`sessionCrons`) and continuous-class background work (`backgroundTasks`).
    *
-   * Called at each turn boundary (the SDK main-agent `Stop` hook) and when
-   * the live background-task set changes (`background_tasks_changed`), with a
-   * snapshot of the session's pending timer-class wakeups (`sessionCrons`) and
-   * continuous-class background work (`backgroundTasks`). The session-reaper
-   * uses this to decide when to close an idle session and to capture wakeups for
-   * re-triggering. Ignored by {@link RuntimeInterface.execute}.
+   * Originally streaming-session-only (the session-reaper's own consumer, via
+   * `SessionLifecycleManager.manage`). {@link SDKRuntime.execute} also
+   * supports it now for its one-shot job path: it composes the caller's sink
+   * AFTER its own internal background-task tracking (the #458/#459 bg-wait),
+   * fire-and-forget and swallowing any throw/rejection, so a consumer must not
+   * rely on ordering against the raw message stream or assume its errors
+   * surface anywhere. See `SessionLifecycleManager.trackJob` (vulpes-pack#148)
+   * for the job-path consumer. The CLI and Docker runtimes still ignore this —
+   * neither wires the Stop-hook signals `execute()` needs to populate it.
    */
   onLifecycleSignal?: (
     signal: import("../../session/types.js").SessionLifecycleSignal,

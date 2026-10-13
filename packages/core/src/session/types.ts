@@ -54,6 +54,20 @@ export interface SessionLifecycleSignal {
    * {@link WakeRegistry.remove} so a herdctl-owned recurring wake stops firing.
    */
   deletedCronIds?: string[];
+  /**
+   * `turn_end` only: `false` when the CLI's Stop-hook payload builder omitted
+   * the `background_tasks`/`session_crons` envelope entirely for this turn
+   * (it's built conditionally, independent of the SDK's own per-field
+   * `?`-optionality) — `sessionCrons`/`backgroundTasks` are then just `?? []`
+   * stand-ins, not an authoritative "nothing pending" snapshot. A consumer
+   * must keep its last-known state instead of reading the stand-in as "drained
+   * to empty" (that clobber killed a live background subagent by releasing
+   * `SDKRuntime.execute()`'s held terminal and let `SessionReaper` reap a
+   * session with real background work — see edspencer/herdctl#459 follow-up).
+   * Omitted (`undefined`) means "authoritative", matching every other kind,
+   * whose arrays are always authoritative per their own doc above.
+   */
+  hasSnapshot?: boolean;
 }
 
 /**
