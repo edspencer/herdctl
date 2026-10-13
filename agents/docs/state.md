@@ -1,14 +1,14 @@
 ---
-last_checked_commit: eed88a1
-last_run: "2026-07-10T23:17:20Z"
-docs_gaps_found: 7
-branches_created: ["docs/auto-update-2026-02-21", "docs/auto-update-2026-03-01", "docs/auto-update-2026-03-05", "docs/auto-update-2026-03-07", "docs/auto-update-2026-03-13", "docs/auto-update-2026-06-30", "docs/auto-update-2026-07-10"]
+last_checked_commit: b1b06f2
+last_run: "2026-10-13T00:00:00Z"
+docs_gaps_found: 1
+branches_created: ["docs/auto-update-2026-02-21", "docs/auto-update-2026-03-01", "docs/auto-update-2026-03-05", "docs/auto-update-2026-03-07", "docs/auto-update-2026-03-13", "docs/auto-update-2026-06-30", "docs/auto-update-2026-07-10", "docs/auto-update-2026-10-13"]
 status: completed
 ---
 
 # Documentation Audit State
 
-**Last Updated:** 2026-07-10
+**Last Updated:** 2026-10-13
 
 This document tracks the state of the documentation audit agent, enabling
 incremental reviews that analyze only new commits since the last check.
@@ -19,10 +19,10 @@ incremental reviews that analyze only new commits since the last check.
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Last checked commit | eed88a1 | chore: version packages (#318) |
-| Last run | 2026-07-10T23:17:20Z | Manual invocation |
-| Gaps found (last run) | 7 | openChatSession, session reaper + wakes, trigger fork, cancelJob interrupt, translator attribution, ChatMessage.uuid, stale What's New |
-| Branches created | docs/auto-update-2026-07-10 | Streaming sessions + reaper/wake docs, fork/cancelJob/uuid reference updates, What's New refresh |
+| Last checked commit | b1b06f2 | security: daily audit 2026-10-12 - YELLOW (settings log redaction) |
+| Last run | 2026-10-13T00:00:00Z | Daily automated audit |
+| Gaps found (last run) | 1 | Agent Settings Configuration feature (@herdctl/core@5.34.0) missing from What's New |
+| Branches created | docs/auto-update-2026-10-13 | Added Agent Settings Configuration entry |
 
 ---
 
@@ -30,6 +30,8 @@ incremental reviews that analyze only new commits since the last check.
 
 | Date | Commits Analyzed | Gaps Found | Action | Branch |
 |------|-----------------|------------|--------|--------|
+| 2026-10-13 | 22 | 1 | created-branch | docs/auto-update-2026-10-13 |
+| 2026-10-08 | 92 | 0 | no-changes-needed | (none) |
 | 2026-07-10 | 51 | 7 | created-branch | docs/auto-update-2026-07-10 |
 | 2026-06-30 | 20 | 3 | created-branch | docs/auto-update-2026-06-30 |
 | 2026-03-13 | 3 | 5 | created-branch | docs/auto-update-2026-03-13 |
