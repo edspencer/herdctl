@@ -16,9 +16,9 @@ Run an incremental security audit that delegates deep analysis to specialized su
 
 This orchestrator coordinates:
 1. **scan.ts** - Deterministic vulnerability scanning (npm-audit, docker-config, etc.)
-2. **change-analyzer** - Categorizes code changes since last audit
-3. **hot-spot-verifier** - Verifies security properties of critical files (conditional)
-4. **question-investigator** - Researches open security questions (conditional)
+2. **change-analyzer** - Categorizes code changes since last audit (conditional: only if changes exist)
+3. **hot-spot-verifier** - Verifies security properties of critical files (MANDATORY every audit)
+4. **question-investigator** - Researches open security questions (conditional: only if high-priority questions exist)
 
 Output artifacts:
 - `agents/security/intel/YYYY-MM-DD.md` - Intelligence report with aggregated findings
@@ -156,9 +156,10 @@ IF `COMMITS_SINCE > 0`:
 - Wait for results before proceeding
 
 IF `COMMITS_SINCE == 0`:
-- Skip change analysis
+- Skip change-analyzer (no changes to categorize)
 - Note "No changes since last audit" in report
-- Proceed directly to Phase 4 (aggregation)
+- **STILL proceed to Phase 3** to verify hot spots (mandatory)
+- Proceed to Phase 4 (aggregation) after Phase 3 completes
 
 **Spawning change-analyzer:**
 
@@ -211,15 +212,31 @@ Store these for use in Phase 3 spawn decisions.
 </step>
 
 <step name="phase_3_investigation">
-## Phase 3: Investigation Phase (conditional, parallel)
+## Phase 3: Investigation Phase (hot-spot-verifier mandatory, question-investigator conditional)
+
+**IMPORTANT**: Hot spot verification is MANDATORY regardless of whether code changes were detected.
+
+Even if there were zero code changes, you MUST still verify all critical hot spots. The rationale:
+1. Continuous verification ensures controls haven't degraded
+2. Institutional knowledge stays fresh
+3. Changes in dependencies or tooling might affect security
+4. Regular verification catches subtle issues that accumulate over time
+
+**You may NOT skip hot spot verification.** If there are no code changes, your verification will be quicker (just confirm controls are intact), but you must still perform it.
 
 Based on change-analyzer results and open questions, conditionally spawn investigation agents.
 
-**Decision point 1: Hot-spot-verifier**
+**Decision point 1: Hot-spot-verifier (MANDATORY)**
+
+ALWAYS spawn hot-spot-verifier with appropriate scope:
 
 IF change-analyzer recommends "VERIFY" (Category 1 hot spot touches found):
 - Extract the list of touched hot spot files from change-analyzer results
-- Spawn hot-spot-verifier with that file list
+- Spawn hot-spot-verifier with that focused file list
+
+IF no hot spot changes detected:
+- Spawn hot-spot-verifier to verify ALL critical hot spots from HOT-SPOTS.md
+- This is a "routine verification" pass to ensure controls are intact
 
 Use Task tool with:
 - subagent_type: "hot-spot-verifier"
@@ -717,10 +734,11 @@ If STATE.md doesn't have last_audit or it's null:
 ### No Commits Since Last Audit
 
 If commits_since_audit == 0:
-- Skip change-analyzer
-- Skip Phase 3 entirely (no investigation agents)
+- Skip change-analyzer (no changes to categorize)
+- **DO NOT skip Phase 3** - hot spot verification is mandatory
+- Spawn hot-spot-verifier to verify ALL critical hot spots
 - Still run scanner for baseline check
-- Report "No changes since last audit"
+- Report "No changes since last audit - routine verification performed"
 
 ### No Open Questions
 
@@ -731,8 +749,9 @@ If no High/Medium priority Open/Partial questions:
 ### No Hot Spots Modified
 
 If change-analyzer doesn't recommend VERIFY:
-- Skip hot-spot-verifier
-- Note "Hot spot verification not required" in report
+- **DO NOT skip hot-spot-verifier** - verification is mandatory
+- Spawn hot-spot-verifier to verify ALL critical hot spots (routine verification)
+- Note "Hot spots unchanged - routine verification performed" in report
 
 ### Scanner Fails
 
