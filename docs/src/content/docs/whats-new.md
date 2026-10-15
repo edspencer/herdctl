@@ -7,6 +7,13 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Per-Agent Claude Code Settings
+**October 10, 2026** · `@herdctl/core@5.34.0`
+
+Agents can now configure Claude Code settings directly in their YAML via a new `settings` field. This object is passed to the Agent SDK's `settings` option (or as `--settings <json>` on the CLI runtime), applying at the flag tier — outranking all file sources except managed policy. The primary use case is setting per-agent `autoMemoryDirectory`, which Claude Code ignores in project settings files but honors when passed as a flag. Settings are passed verbatim, and Claude Code silently ignores unknown or invalid keys. Security note: settings reach Claude Code as a command-line argument on both runtimes, so they're visible in process listings — keep credentials out of this field. herdctl redacts the `--settings` value from its own debug log to prevent secrets from leaking through internal logging. [#473](https://github.com/edspencer/herdctl/pull/473)
+
+---
+
 ### Web Chat Resilience and Search Improvements
 **October 3, 2026** · `@herdctl/web@0.13.0`
 
