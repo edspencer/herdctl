@@ -15,7 +15,11 @@ import {
   tool,
 } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import { buildLifecycleHooks, tapLifecycleStream } from "../../session/session-hooks.js";
+import {
+  buildLifecycleHooks,
+  createTurnBoundary,
+  tapLifecycleStream,
+} from "../../session/session-hooks.js";
 import { toSDKOptions } from "../sdk-adapter.js";
 import type { InjectedMcpServerDef, SDKMessage } from "../types.js";
 import { withClaudeConfigDir } from "./claude-config-dir.js";
@@ -212,10 +216,13 @@ export class SDKRuntime implements RuntimeInterface {
     // Install turn-boundary lifecycle hooks when the caller wants to observe the
     // session's background-work lifecycle (the session-reaper). The Stop hook
     // carries the authoritative session_crons/background_tasks snapshot.
+    // The hooks and the stream tap share a turn boundary so a turn that ends
+    // without its Stop hook (a user interrupt) still reaches the reaper.
+    const boundary = createTurnBoundary();
     if (options.onLifecycleSignal) {
       sdkOptions.hooks = {
         ...(sdkOptions.hooks ?? {}),
-        ...buildLifecycleHooks(options.onLifecycleSignal),
+        ...buildLifecycleHooks(options.onLifecycleSignal, boundary),
       };
     }
 
@@ -241,7 +248,7 @@ export class SDKRuntime implements RuntimeInterface {
     // SDKMessage, then tap the stream for mid-turn lifecycle events when needed.
     const rawMessages = q as unknown as AsyncIterable<SDKMessage>;
     const messages = options.onLifecycleSignal
-      ? tapLifecycleStream(rawMessages, options.onLifecycleSignal)
+      ? tapLifecycleStream(rawMessages, options.onLifecycleSignal, boundary)
       : rawMessages;
 
     return {
