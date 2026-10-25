@@ -40,8 +40,12 @@ export interface SessionLifecycleSignal {
    *   `session_crons` snapshot can't convey this on a herdctl-resumed turn (the
    *   session-only cron was never re-armed, so its absence is indistinguishable
    *   from a delete), so the delete must be reported explicitly. See #409.
+   * - `turn_aborted` — a main-agent turn produced its `result` WITHOUT the
+   *   `Stop` hook firing, which is what Claude Code does on a user interrupt
+   *   (and on an API error). `backgroundTasks` is the last set reported on the
+   *   stream; `sessionCrons` is not reported (empty) and must not be reconciled.
    */
-  kind: "turn_end" | "background_tasks_changed" | "activity" | "cron_deleted";
+  kind: "turn_end" | "turn_aborted" | "background_tasks_changed" | "activity" | "cron_deleted";
   /** The resolved session id the wakeups/tasks belong to. */
   sessionId: string;
   /** Pending timer-class wakeups. Empty when none are scheduled. */

@@ -314,6 +314,14 @@ export class SessionReaper {
     // turn_end: the authoritative snapshot supersedes any pending grace reap.
     managed.cancelPendingReap();
 
+    // turn_aborted: the turn ended without its Stop hook (a user interrupt), so
+    // there is no cron snapshot to reconcile — an empty one would retire pending
+    // wakeups. Decide on the background tasks alone.
+    if (signal.kind === "turn_aborted") {
+      this.decideAfterTurn(managed, signal);
+      return;
+    }
+
     // Capture pending crons first so they survive whatever we decide next. A
     // reconcile I/O failure loses that turn's capture but must NOT block the reap
     // — leaving the session alive is the leak this module exists to prevent — so
@@ -326,6 +334,11 @@ export class SessionReaper {
       );
     }
 
+    this.decideAfterTurn(managed, signal);
+  }
+
+  /** Keep the session for its background work, or reap it (after any turn-end grace). */
+  private decideAfterTurn(managed: ManagedSessionImpl, signal: SessionLifecycleSignal): void {
     const decision = decideReap(signal);
     if (decision.action === "keepAlive") {
       this.logger.debug(

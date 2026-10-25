@@ -443,6 +443,60 @@ describe("SessionReaper", () => {
   // `turnEndReapGraceMs` defers the turn_end reap so the queued turn's `activity`
   // can cancel it; a genuinely final turn's grace still elapses and reaps. This
   // mirrors the real-binary before/after proven for #406.
+  describe("turn_aborted (a turn ended by interrupt, no Stop hook)", () => {
+    it("reaps an idle session WITHOUT reconciling crons (an empty report would retire wakes)", async () => {
+      const registry = fakeRegistry();
+      const reaper = new SessionReaper({ registry });
+      const session = fakeSession();
+      const managed = reaper.manage(session, "team/agent");
+
+      await managed.handleSignal(signal({ kind: "turn_aborted" }));
+
+      expect(registry.reconcile).not.toHaveBeenCalled();
+      expect(managed.isLive()).toBe(false);
+      expect(reaper.isSessionLive("sess-1")).toBe(false);
+      await tick();
+      expect(session.close).toHaveBeenCalledTimes(1);
+    });
+
+    it("releases a resume waiting on whenSessionReaped (the 5-minute #403 defer)", async () => {
+      const reaper = new SessionReaper({ registry: fakeRegistry() });
+      const managed = reaper.manage(fakeSession(), "team/agent");
+      await managed.handleSignal(signal({ kind: "activity" }));
+      const released = vi.fn();
+      void reaper.whenSessionReaped("sess-1").then(released);
+
+      await managed.handleSignal(signal({ kind: "turn_aborted" }));
+      await tick();
+      expect(released).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps the session alive for background work, then reaps once it drains", async () => {
+      vi.useFakeTimers();
+      const reaper = new SessionReaper({ registry: fakeRegistry(), reinvocationGraceMs: 1000 });
+      const managed = reaper.manage(fakeSession(), "team/agent");
+
+      await managed.handleSignal(signal({ kind: "turn_aborted", backgroundTasks: [TASK] }));
+      expect(managed.isLive()).toBe(true);
+
+      // Awaiting-tasks is armed, so the drain to empty now reaps (after the grace).
+      await managed.handleSignal(signal({ kind: "background_tasks_changed", backgroundTasks: [] }));
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(managed.isLive()).toBe(false);
+    });
+
+    it("honours turnEndReapGraceMs like a turn_end", async () => {
+      vi.useFakeTimers();
+      const reaper = new SessionReaper({ registry: fakeRegistry() });
+      const managed = reaper.manage(fakeSession(), "team/agent", { turnEndReapGraceMs: 500 });
+
+      await managed.handleSignal(signal({ kind: "turn_aborted" }));
+      expect(managed.isLive()).toBe(true);
+      await vi.advanceTimersByTimeAsync(500);
+      expect(managed.isLive()).toBe(false);
+    });
+  });
+
   describe("turnEndReapGraceMs (resume-backlog reap grace, #406)", () => {
     it("reaps a turn_end synchronously when the grace is 0 (default, unchanged)", async () => {
       const onReap = vi.fn();

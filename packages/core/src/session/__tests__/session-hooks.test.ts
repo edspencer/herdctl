@@ -1,7 +1,7 @@
 import type { HookInput } from "@anthropic-ai/claude-agent-sdk";
 import { describe, expect, it, vi } from "vitest";
 import type { SDKMessage } from "../../runner/types.js";
-import { buildLifecycleHooks, tapLifecycleStream } from "../session-hooks.js";
+import { buildLifecycleHooks, createTurnBoundary, tapLifecycleStream } from "../session-hooks.js";
 import type { SessionLifecycleSignal } from "../types.js";
 
 function stopInput(overrides: Partial<HookInput> = {}): HookInput {
@@ -16,6 +16,8 @@ function stopInput(overrides: Partial<HookInput> = {}): HookInput {
     ...overrides,
   } as HookInput;
 }
+
+const tick = () => new Promise((r) => setTimeout(r, 5));
 
 async function* stream(messages: SDKMessage[]): AsyncGenerator<SDKMessage> {
   for (const m of messages) yield m;
@@ -223,5 +225,110 @@ describe("tapLifecycleStream", () => {
       .map((c) => c[0] as SessionLifecycleSignal)
       .filter((s) => s.kind === "activity");
     expect(activity).toHaveLength(2);
+  });
+
+  describe("turn_aborted (a turn that ends without its Stop hook)", () => {
+    const signals = (sink: ReturnType<typeof vi.fn>) =>
+      sink.mock.calls.map((c) => c[0] as SessionLifecycleSignal);
+    const ctx = { signal: new AbortController().signal };
+
+    it("emits turn_aborted on a result whose turn never fired Stop (a user interrupt)", async () => {
+      const sink = vi.fn();
+      const boundary = createTurnBoundary();
+      const messages: SDKMessage[] = [
+        { type: "assistant", session_id: "s" },
+        { type: "result", subtype: "error_during_execution", session_id: "s" } as SDKMessage,
+      ];
+      for await (const _ of tapLifecycleStream(stream(messages), sink, boundary)) {
+        /* drain */
+      }
+      await tick();
+      const aborted = signals(sink).filter((s) => s.kind === "turn_aborted");
+      expect(aborted).toEqual([
+        { kind: "turn_aborted", sessionId: "s", sessionCrons: [], backgroundTasks: [] },
+      ]);
+    });
+
+    it("does NOT emit turn_aborted when the turn's Stop hook fired first", async () => {
+      const sink = vi.fn();
+      const boundary = createTurnBoundary();
+      const stopCb = buildLifecycleHooks(sink, boundary)!.Stop![0].hooks[0];
+      async function* turn(): AsyncGenerator<SDKMessage> {
+        yield { type: "assistant", session_id: "sess-1" };
+        // The CLI awaits the Stop hook's response before it emits `result`.
+        await stopCb(stopInput(), undefined, ctx);
+        yield { type: "result", subtype: "success", session_id: "sess-1" } as SDKMessage;
+      }
+      for await (const _ of tapLifecycleStream(turn(), sink, boundary)) {
+        /* drain */
+      }
+      await tick();
+      expect(signals(sink).map((s) => s.kind)).toEqual(["activity", "turn_end"]);
+    });
+
+    it("resets per turn: a Stop on turn 1 does not cover an interrupted turn 2", async () => {
+      const sink = vi.fn();
+      const boundary = createTurnBoundary();
+      const stopCb = buildLifecycleHooks(sink, boundary)!.Stop![0].hooks[0];
+      async function* turns(): AsyncGenerator<SDKMessage> {
+        yield { type: "assistant", session_id: "sess-1" };
+        await stopCb(stopInput(), undefined, ctx);
+        yield { type: "result", session_id: "sess-1" };
+        yield { type: "assistant", session_id: "sess-1" };
+        yield { type: "result", session_id: "sess-1" };
+      }
+      for await (const _ of tapLifecycleStream(turns(), sink, boundary)) {
+        /* drain */
+      }
+      await tick();
+      expect(signals(sink).map((s) => s.kind)).toEqual([
+        "activity",
+        "turn_end",
+        "activity",
+        "turn_aborted",
+      ]);
+    });
+
+    it("carries the latest background-task set seen on the stream", async () => {
+      const sink = vi.fn();
+      const boundary = createTurnBoundary();
+      const changed = (tasks: unknown[]) =>
+        ({
+          type: "system",
+          subtype: "background_tasks_changed",
+          session_id: "s",
+          tasks,
+        }) as unknown as SDKMessage;
+      const messages: SDKMessage[] = [
+        changed([{ task_id: "t1", task_type: "local_bash", description: "a" }]),
+        changed([
+          { task_id: "t1", task_type: "local_bash", description: "a" },
+          { task_id: "t2", task_type: "local_agent", description: "b" },
+        ]),
+        changed([{ task_id: "t2", task_type: "local_agent", description: "b" }]),
+        { type: "result", session_id: "s" },
+      ];
+      for await (const _ of tapLifecycleStream(stream(messages), sink, boundary)) {
+        /* drain */
+      }
+      await tick();
+      const aborted = signals(sink).find((s) => s.kind === "turn_aborted");
+      expect(aborted?.backgroundTasks).toEqual([
+        { id: "t2", type: "local_agent", status: "running", description: "b" },
+      ]);
+    });
+
+    it("emits nothing extra without a boundary (callers that don't share one are unchanged)", async () => {
+      const sink = vi.fn();
+      const messages: SDKMessage[] = [
+        { type: "assistant", session_id: "s" },
+        { type: "result", session_id: "s" },
+      ];
+      for await (const _ of tapLifecycleStream(stream(messages), sink)) {
+        /* drain */
+      }
+      await tick();
+      expect(signals(sink).map((s) => s.kind)).toEqual(["activity"]);
+    });
   });
 });

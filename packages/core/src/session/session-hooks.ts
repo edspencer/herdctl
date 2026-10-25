@@ -79,6 +79,27 @@ function deletedCronId(input: PostToolUseHookInput): string | null {
 }
 
 /**
+ * Per-session state shared between {@link buildLifecycleHooks} and
+ * {@link tapLifecycleStream}, so the stream tap can tell whether the turn whose
+ * `result` it just saw got its main-agent `Stop` hook.
+ *
+ * Claude Code skips `Stop` when a turn ends by user interrupt (and on an API
+ * error, which fires `StopFailure` instead). Without a boundary the reaper never
+ * hears that the turn ended, so the session stays live indefinitely: the
+ * subprocess leaks, and every resume of that session waits out the full
+ * 5-minute resume-defer ceiling in `openChatSession`'s #403
+ * guard before spawning anyway.
+ */
+export interface TurnBoundary {
+  stopFired: boolean;
+}
+
+/** A fresh {@link TurnBoundary} — one per session, shared by the hooks and the tap. */
+export function createTurnBoundary(): TurnBoundary {
+  return { stopFired: false };
+}
+
+/**
  * Build the SDK hooks that feed the session-reaper:
  * - `Stop` — the main-agent turn boundary carrying the authoritative
  *   `session_crons`/`background_tasks` snapshot (a `turn_end` signal).
@@ -92,9 +113,16 @@ function deletedCronId(input: PostToolUseHookInput): string | null {
  * Both hooks return `{ continue: true }` and forward via `emit`, so a sink
  * failure never rejects the hook (which would disrupt turn flow).
  */
-export function buildLifecycleHooks(sink: LifecycleSignalSink): Options["hooks"] {
+export function buildLifecycleHooks(
+  sink: LifecycleSignalSink,
+  boundary?: TurnBoundary,
+): Options["hooks"] {
   const stopCallback = async (input: HookInput) => {
     if (isMainAgentStop(input)) {
+      // Set synchronously, before the hook returns: the CLI waits for this
+      // response before it ends the turn, so the flag is always visible by the
+      // time the turn's `result` reaches {@link tapLifecycleStream}.
+      if (boundary) boundary.stopFired = true;
       const sessionCrons: SessionCronSummary[] = input.session_crons ?? [];
       const backgroundTasks: BackgroundTaskSummary[] = input.background_tasks ?? [];
       // Never let a sink failure reject the hook (which would disrupt turn flow);
@@ -157,23 +185,33 @@ function toBackgroundTaskSummaries(tasks: BackgroundTasksChangedEntry[]): Backgr
  * - the first `assistant` message after a turn boundary → one `activity` signal
  *   (a new turn is underway), reset on each `result` message.
  *
+ * - a `result` whose turn never fired `Stop` (given a shared `boundary`) → a
+ *   `turn_aborted` signal carrying the last background-task set seen on the
+ *   stream, so an interrupted or failed turn still reaches the reaper.
+ *
  * Signals are fire-and-forget; the reaper serializes them internally, preserving
  * stream order, so yielding to the consumer is never blocked.
  */
 export async function* tapLifecycleStream(
   source: AsyncIterable<SDKMessage>,
   sink: LifecycleSignalSink,
+  boundary?: TurnBoundary,
 ): AsyncGenerator<SDKMessage> {
   let activityForwarded = false;
+  // The live background-task set as of the latest `background_tasks_changed`.
+  // `background_tasks_changed` carries the full set each time, so the latest one
+  // is current. It stands in for the Stop hook's snapshot on a `turn_aborted`.
+  let backgroundTasks: BackgroundTaskSummary[] = [];
 
   for await (const message of source) {
     if (message.type === "system" && message.subtype === "background_tasks_changed") {
       const rawTasks = (message.tasks as BackgroundTasksChangedEntry[] | undefined) ?? [];
+      backgroundTasks = toBackgroundTaskSummaries(rawTasks);
       emit(sink, {
         kind: "background_tasks_changed",
         sessionId: message.session_id ?? "",
         sessionCrons: [],
-        backgroundTasks: toBackgroundTaskSummaries(rawTasks),
+        backgroundTasks,
       });
     } else if (message.type === "assistant") {
       if (!activityForwarded) {
@@ -187,6 +225,17 @@ export async function* tapLifecycleStream(
       }
     } else if (message.type === "result") {
       activityForwarded = false;
+      if (boundary) {
+        if (!boundary.stopFired) {
+          emit(sink, {
+            kind: "turn_aborted",
+            sessionId: message.session_id ?? "",
+            sessionCrons: [],
+            backgroundTasks,
+          });
+        }
+        boundary.stopFired = false;
+      }
     }
 
     yield message;
