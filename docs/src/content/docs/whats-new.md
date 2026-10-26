@@ -7,6 +7,41 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Agent-Level Claude Code Settings
+**October 9, 2026** · `@herdctl/core@5.34.0`
+
+Agents now support a `settings` field to pass Claude Code settings at the flag tier. This allows setting per-agent configuration keys (like `autoMemoryDirectory`) that a project's checked-in `.claude/settings.json` cannot control. Settings are passed to the Agent SDK's `settings` option or as `--settings <json>` on the CLI runtime, outranking all settings files except managed policy.
+
+---
+
+### Claude Opus 5.5 Support
+**September 27, 2026** · `@herdctl/core@5.33.3`
+
+The claude-agent-sdk dependency floor is now `^0.3.283`, ensuring the SDK runtime bundles Claude Code 2.1.283 or newer. This fixes compatibility with Claude Opus 5.5, which requires Claude Code 2.1.280+. Previously, users could resolve SDK 0.3.215, causing all Opus 5.5 turns to fail with an API error.
+
+---
+
+### MCP HTTP Bridge Security
+**September 27, 2026** · `@herdctl/core@5.33.2`
+
+The MCP HTTP bridge now requires authentication via a random 256-bit bearer token generated per bridge, protecting injected MCP servers from unauthorized access. The CLI runtime binds bridges to 127.0.0.1 by default (Docker runtime uses 0.0.0.0 with token protection). The CLI runtime also writes MCP configs to an owner-only temp file instead of exposing them in command-line arguments, keeping server credentials out of process listings.
+
+---
+
+### Reliable Session ID Assignment
+**August 16, 2026** · `@herdctl/core@5.33.1`
+
+The CLI runtime now mints session IDs upfront and passes them to Claude Code via `--session-id`, eliminating a race condition where two agents sharing a working directory could trade session IDs when spawning concurrently. Previously, herdctl inferred which transcript belonged to which agent by examining the session directory, but the "newest file is ours" heuristic failed when multiple agents spawned simultaneously. Session attribution is also now deterministic when conflicts occur.
+
+---
+
+### Web Dashboard Improvements
+**August 13, 2026** · `@herdctl/web@0.11.1`
+
+The web dashboard's chat and session browsing experience is significantly improved. Chat message loading now times out after 15 seconds with a retry option (previously hung indefinitely). Directory groups can now expand beyond 10 sessions. Search results no longer leave empty directory groups behind. WebSocket messages sent immediately on connection are no longer dropped on cold servers. The All Chats page behaves consistently across environments.
+
+---
+
 ### Stop and Force-Close Live Sessions from Your App
 **August 12, 2026** · `@herdctl/core@5.33.0` · `@herdctl/core@5.31.0`
 
