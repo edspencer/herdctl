@@ -163,6 +163,27 @@ The chat feature lets you send messages to any agent directly from the dashboard
 
 Chat messages are sent via WebSocket for low-latency streaming, with the full response appearing incrementally as the agent generates it. Tool calls appear as collapsible UI components in the message feed, allowing you to inspect what the agent did and the results it received.
 
+#### Inline Images
+
+Agents can emit inline images in their chat responses, and those images are displayed directly in the conversation feed:
+
+- **Agent-generated images**: When an agent writes an image file to its workspace and references it using markdown syntax (e.g., `![Description](/files/<agent-name>/<path>)`), the dashboard serves the file via a protected route and renders it inline.
+- **MCP tool images**: MCP tools can return image content (for example, a Playwright screenshot tool). These images are extracted from the tool result and displayed inline in the chat.
+
+The dashboard serves workspace files through `GET /files/:agentName/*` with path-traversal guards, ensuring agents can only access files within their own workspace directory. This allows agents to generate diagrams, charts, screenshots, or other visual content and have them appear seamlessly in the conversation.
+
+**Example agent workflow:**
+
+```markdown
+Let me create a diagram showing the architecture.
+
+![Architecture diagram](/files/my-agent/diagrams/architecture.png)
+
+As you can see in the diagram above, the system has three layers...
+```
+
+The image is rendered inline, making it easy to discuss visual content with your agents.
+
 #### Session Names
 
 Sessions display an auto-generated name extracted from Claude Code's conversation summary. The display priority is:
