@@ -465,9 +465,90 @@ Every discovered session is attributed to an **origin** that describes how it wa
 | `discord` | Started by the agent's Discord bot |
 | `slack` | Started by the agent's Slack bot |
 | `schedule` | Started by a scheduled job (`trigger_type: schedule`) |
+| `adopted` | Pre-existing session explicitly claimed via the adoption API |
 | `native` | Started by running `claude` directly in the terminal, in a working directory that an herdctl agent also uses. Jobs with other trigger types (manual, webhook, chat, fork) are also grouped here. These sessions are discovered and displayed but not managed by herdctl. |
 
 Attribution is determined by cross-referencing herdctl's job metadata files and the platform session records under `.herdctl/`. A native session can also be continued interactively from the web dashboard ("ad hoc" continuation) — herdctl then creates a new interactive session that picks up the conversation.
+
+## Session Adoption
+
+The session adoption API allows you to claim pre-existing Claude Code sessions—conversations started outside herdctl—and make them discoverable, attributed, and resumable under a specific agent. This is useful when you have existing Claude Code terminal sessions for a project and want to bring them into herdctl for visibility and management.
+
+:::note[Library API Only]
+Session adoption is currently a **library API only** — there is no `herdctl sessions adopt` CLI command. Use `FleetManager.adoptSession()`, `adoptSessionsFrom()`, or `listAdoptableSessions()` programmatically.
+:::
+
+### Why Adopt Sessions?
+
+When you run `claude` directly in your terminal before setting up herdctl, those sessions are stored in `~/.claude/projects/` but have no association with any herdctl agent. Session adoption:
+
+- Makes those conversations **visible** in the web dashboard under the agent
+- Preserves full **conversation history** for future reference
+- Enables **resuming** those sessions as if they were started by herdctl
+- Provides **proper attribution** (origin: `adopted`) so you can distinguish imported vs. new sessions
+
+### Listing Adoptable Sessions
+
+The `listAdoptableSessions()` method scans a working directory's Claude Code transcript folder to find sessions that can be adopted:
+
+```typescript
+const adoptable = await manager.listAdoptableSessions('my-agent');
+
+for (const session of adoptable) {
+  console.log(session.sessionId);
+  console.log(`  Auto-name: ${session.autoName}`);
+  console.log(`  Modified: ${session.mtime}`);
+}
+```
+
+This returns only **adoptable** sessions — native, non-sidechain transcripts that are not already adopted and not attributed to a real run. See [`listAdoptableSessions()` in the FleetManager reference](/library-reference/fleet-manager/#listadoptablesessionsname-fromworkingdir) for details.
+
+### Adopting a Single Session
+
+Use `adoptSession()` to claim one session by ID:
+
+```typescript
+await manager.adoptSession('my-agent', '0f3c8b2a-...');
+```
+
+This records an adoption claim in `.herdctl/adopted-sessions/` and makes the session appear under the agent with `origin: "adopted"`. **No files are moved** — the transcript stays where it is.
+
+### Bulk Adoption
+
+The `adoptSessionsFrom()` method adopts every adoptable session found in a directory, optionally moving or linking the transcript files into the agent's own folder:
+
+```typescript
+const result = await manager.adoptSessionsFrom('my-agent', {
+  fromWorkingDir: '/Users/ed/Code/myproject',
+  mode: 'copy',  // 'copy' | 'move' | 'link'
+  dryRun: false,
+});
+
+console.log(`Adopted ${result.adopted.length} sessions`);
+for (const skip of result.skipped) {
+  console.warn(`Skipped ${skip.sessionId}: ${skip.reason}`);
+}
+```
+
+Placement modes:
+
+| Mode | Effect |
+|------|--------|
+| `copy` (default) | Duplicate the transcript file, preserving the original |
+| `move` | Relocate the file (disappears from the user's terminal history) |
+| `link` | Hard-link (same inode, so resumes append to the original too) |
+
+See [`adoptSessionsFrom()` in the FleetManager reference](/library-reference/fleet-manager/#adoptsessionsfromname-opts) for full details.
+
+### Releasing an Adoption
+
+The `unadoptSession()` method releases a session this agent had adopted:
+
+```typescript
+const released = await manager.unadoptSession('my-agent', '0f3c8b2a-...');
+```
+
+This removes the adoption record only — **the transcript stays on disk**. The session reverts to an ordinary unattributed native session: visible in all-sessions views, invisible under the agent.
 
 Attribution matters because it tells you at a glance whether a session is something herdctl is responsible for or something a developer started independently. In the dashboard, sessions are labeled with their origin so you can filter and distinguish between managed and unmanaged activity.
 

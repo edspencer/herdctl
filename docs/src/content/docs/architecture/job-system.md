@@ -95,6 +95,7 @@ output_file: job-2024-01-19-abc123.jsonl
 | `prompt` | `string?` | The prompt given to the agent |
 | `summary` | `string?` | Brief summary of job results (extracted from the final assistant message) |
 | `output_file` | `string?` | Filename of the JSONL output log |
+| `usage` | `object?` | Token usage and cost data (see [Usage and Cost Tracking](#usage-and-cost-tracking)) |
 
 ### Immutable Fields
 
@@ -374,6 +375,79 @@ Two consequences worth knowing:
 The cache needs no explicit invalidation — it revalidates against the filesystem on every call. `clearJobIndexCache(jobsDir?)` exists for tests and for releasing the memory.
 
 This mirrors the incremental `AttributionIndexBuilder` used by session discovery, with one difference: the attribution index is TTL-based, while the job index is validated against file mtime and size.
+
+## Usage and Cost Tracking
+
+Every completed job now persists detailed token usage data in the `usage` field of its metadata file. This field captures per-model token counts, turn count, and the SDK's authoritative cost estimate, providing complete visibility into resource consumption for every agent run.
+
+### What's Tracked
+
+The `usage` field contains:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `per_model` | `Record<string, ModelTokenUsage>` | Token counts broken down by model (e.g., `claude-opus-4-8`, `claude-haiku-4`) |
+| `num_turns` | `number?` | Total agentic turns reported by the runtime |
+| `total_cost_usd` | `number?` | SDK-authoritative run cost in USD (absent for CLI/Max-plan runs) |
+
+Each `ModelTokenUsage` entry contains four token classes:
+
+| Token Class | Description |
+|-------------|-------------|
+| `input_tokens` | Fresh (non-cached) input tokens |
+| `output_tokens` | Generated output tokens |
+| `cache_creation_input_tokens` | Tokens written to the prompt cache |
+| `cache_read_input_tokens` | Tokens read from the prompt cache |
+
+### Why Per-Model?
+
+A single job can use multiple models — for example, an Opus agent delegating to Haiku sub-agents via the Task tool. The `per_model` breakdown ensures you can track which model consumed which tokens, enabling accurate cost attribution even when runs span multiple models.
+
+### Example Usage Data
+
+```yaml
+usage:
+  per_model:
+    claude-opus-4-8:
+      input_tokens: 12543
+      output_tokens: 3421
+      cache_creation_input_tokens: 45023
+      cache_read_input_tokens: 38201
+    claude-haiku-4:
+      input_tokens: 2341
+      output_tokens: 892
+      cache_creation_input_tokens: 0
+      cache_read_input_tokens: 0
+  num_turns: 14
+  total_cost_usd: 0.234
+```
+
+### Accessing Usage Data
+
+The usage field is available on every `JobMetadata` object returned by:
+
+- `FleetManager.getJob(jobId)`
+- `FleetManager.getJobs(filters)`
+- `JobManager.getJob(jobsDir, jobId)`
+- `JobManager.listJobs(jobsDir, filters)`
+
+```typescript
+const job = await manager.getJob('job-2024-01-19-abc123');
+if (job.usage) {
+  console.log(`Total turns: ${job.usage.num_turns}`);
+  console.log(`Total cost: $${job.usage.total_cost_usd}`);
+
+  for (const [model, tokens] of Object.entries(job.usage.per_model)) {
+    console.log(`${model}: ${tokens.input_tokens} input, ${tokens.output_tokens} output`);
+  }
+}
+```
+
+### Backward Compatibility
+
+The `usage` field is **backward-compatible** — job records written before this field existed will have `usage: null` or `undefined`. Always check for the field's presence before accessing its contents.
+
+herdctl deliberately **does not persist a $/token price table** — prices drift over time, and Max/CLI plan users have no real per-token spend. The consuming application should apply its own pricing logic if needed. The `total_cost_usd` field is the SDK's own reported figure, not a herdctl-computed price.
 
 ## Job Events
 

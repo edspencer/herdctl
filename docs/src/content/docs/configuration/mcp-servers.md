@@ -87,6 +87,20 @@ Claude Code files a remote server's stored OAuth token under a key derived from 
 
 ---
 
+## Inline Images from MCP Tools
+
+MCP tools can return image content as part of their results. When a tool returns an image (for example, a Playwright screenshot or a generated diagram), herdctl extracts the image and makes it available to the agent. In the web dashboard, these images are displayed inline in the chat conversation, providing visual context directly in the message feed.
+
+**Example use cases:**
+
+- **Screenshot tools**: A Playwright-based MCP server captures a screenshot of a web page and returns it as an image
+- **Diagram generators**: A tool that creates architecture diagrams, charts, or graphs
+- **Computer vision**: Tools that process images and return annotated versions
+
+The agent sees the image content as part of the tool result and can reference it in its response. The web dashboard automatically renders these images inline, making visual information immediately accessible.
+
+For more details on inline image display, see the [Web Dashboard: Inline Images](/integrations/web-dashboard/#inline-images) section.
+
 ## Tool Naming Convention
 
 MCP tools are namespaced using the `mcp__<server>__<tool>` pattern:

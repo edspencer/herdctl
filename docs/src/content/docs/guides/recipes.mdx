@@ -1178,6 +1178,197 @@ schedules:
 For integration tests, always use a temporary directory and clean up after tests to avoid polluting your workspace.
 </Aside>
 
+## Programmatic Schedule Management
+
+Manage agent schedules at runtime without rewriting `herdctl.yaml`. This is useful for building dynamic UIs or admin panels where users can create, modify, or remove schedules on the fly.
+
+### Enabling Schedule Mutation
+
+Schedule mutation must be explicitly enabled when constructing the FleetManager:
+
+```typescript title="dynamic-schedules.ts"
+import { FleetManager } from "@herdctl/core";
+
+const manager = new FleetManager({
+  configPath: "./herdctl.yaml",
+  stateDir: "./.herdctl",
+  allowScheduleMutation: true,  // Required for runtime schedule changes
+});
+
+await manager.initialize();
+await manager.start();
+```
+
+### Adding a Schedule at Runtime
+
+Use `setAgentSchedule()` to add a new schedule or replace an existing one:
+
+```typescript
+// Add a new interval schedule
+await manager.setAgentSchedule("my-agent", "hourly-check", {
+  type: "interval",
+  interval: "1h",
+  prompt: "Check for updates every hour",
+});
+
+// Add a cron schedule
+await manager.setAgentSchedule("my-agent", "daily-report", {
+  type: "cron",
+  cron: "0 9 * * *",
+  prompt: "Generate the daily report at 9am",
+});
+```
+
+The schedule starts immediately — no restart required.
+
+### Replacing a Schedule
+
+Calling `setAgentSchedule()` with an existing schedule name replaces it:
+
+```typescript
+// Original schedule
+await manager.setAgentSchedule("my-agent", "check", {
+  type: "interval",
+  interval: "5m",
+  prompt: "Check for new issues",
+});
+
+// Update the interval and prompt
+await manager.setAgentSchedule("my-agent", "check", {
+  type: "interval",
+  interval: "10m",
+  prompt: "Check for high-priority issues only",
+});
+```
+
+The old schedule is removed and the new one is activated.
+
+### Removing a Schedule
+
+Use `removeAgentSchedule()` to delete a schedule by name:
+
+```typescript
+const removed = await manager.removeAgentSchedule("my-agent", "hourly-check");
+if (removed) {
+  console.log("Schedule removed successfully");
+}
+```
+
+Returns `true` if the schedule existed and was removed, `false` if the schedule was not found.
+
+### When to Use Runtime Mutation
+
+**Use runtime schedule mutation when:**
+
+- Building admin dashboards where users manage agent schedules via UI
+- Implementing dynamic scheduling based on external events
+- Creating self-modifying agents that adjust their own schedules
+- Prototyping schedules before committing them to config files
+
+**Use config-file schedules when:**
+
+- Schedules are part of the agent's core definition
+- You want version control and GitOps-style deployments
+- Schedules are static and don't need runtime changes
+- You need schedules to survive fleet restarts without persistence logic
+
+Runtime schedules exist only in memory — they are not written back to `herdctl.yaml`. If you restart the fleet without re-creating them programmatically, they disappear. For persistent runtime schedules, you need to store them externally (e.g., in a database) and re-apply them on fleet startup.
+
+### Complete Example: Dynamic Schedule Manager
+
+```typescript title="schedule-manager.ts"
+import { FleetManager } from "@herdctl/core";
+
+class ScheduleManager {
+  private manager: FleetManager;
+
+  constructor() {
+    this.manager = new FleetManager({
+      configPath: "./herdctl.yaml",
+      stateDir: "./.herdctl",
+      allowScheduleMutation: true,
+    });
+  }
+
+  async start() {
+    await this.manager.initialize();
+    await this.manager.start();
+  }
+
+  async addIntervalSchedule(
+    agent: string,
+    name: string,
+    interval: string,
+    prompt: string
+  ) {
+    await this.manager.setAgentSchedule(agent, name, {
+      type: "interval",
+      interval,
+      prompt,
+    });
+    console.log(`Added interval schedule "${name}" for ${agent}`);
+  }
+
+  async addCronSchedule(
+    agent: string,
+    name: string,
+    cron: string,
+    prompt: string
+  ) {
+    await this.manager.setAgentSchedule(agent, name, {
+      type: "cron",
+      cron,
+      prompt,
+    });
+    console.log(`Added cron schedule "${name}" for ${agent}`);
+  }
+
+  async removeSchedule(agent: string, name: string) {
+    const removed = await this.manager.removeAgentSchedule(agent, name);
+    if (removed) {
+      console.log(`Removed schedule "${name}" from ${agent}`);
+    } else {
+      console.warn(`Schedule "${name}" not found for ${agent}`);
+    }
+  }
+
+  async listSchedules(agent: string) {
+    const agentInfo = await this.manager.getAgentInfo(agent);
+    return agentInfo.schedules;
+  }
+}
+
+// Usage
+const scheduleManager = new ScheduleManager();
+await scheduleManager.start();
+
+// Add dynamic schedules
+await scheduleManager.addIntervalSchedule(
+  "my-agent",
+  "check-every-30m",
+  "30m",
+  "Check for new work"
+);
+
+await scheduleManager.addCronSchedule(
+  "my-agent",
+  "daily-summary",
+  "0 17 * * *",
+  "Generate daily summary at 5pm"
+);
+
+// List all schedules for the agent
+const schedules = await scheduleManager.listSchedules("my-agent");
+console.log(schedules);
+
+// Remove a schedule
+await scheduleManager.removeSchedule("my-agent", "check-every-30m");
+```
+
+<Aside type="note">
+For more details on the schedule mutation API, see the [setAgentSchedule()](/library-reference/fleet-manager/#setagentschedulename-schedulename-scheduleconfig) and [removeAgentSchedule()](/library-reference/fleet-manager/#removeagentschedulename-schedulename) reference documentation.
+</Aside>
+
 ## Next Steps
 
 - Check out the [FleetManager API Reference](/library-reference/fleet-manager) for complete method documentation
