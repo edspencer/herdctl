@@ -7,6 +7,41 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Agent Settings Passthrough
+**October 9, 2026** · `@herdctl/core@5.34.0`
+
+Agent configurations can now include a `settings` field to pass Claude Code settings at the flag tier. This enables fleet operators to control per-agent settings that shouldn't be trusted to a project's checked-in `.claude/settings.json`, such as `autoMemoryDirectory`. Settings are passed through both the SDK runtime and CLI runtime, with proper redaction in debug logs to avoid leaking secrets.
+
+---
+
+### MCP HTTP Bridge Security Enhancement
+**September 27, 2026** · `@herdctl/core@5.33.2`
+
+The MCP HTTP bridge now requires bearer token authentication, closing a security gap where injected MCP servers were accessible without authentication. Each bridge generates a random 256-bit token, and the CLI runtime binds to localhost by default while keeping tokens out of process arguments by writing MCP config to owner-only temp files. This fixes issue #54.
+
+---
+
+### Claude Opus 5.5 Support
+**September 27, 2026** · `@herdctl/core@5.33.3`
+
+The Claude Agent SDK dependency floor is now `^0.3.283`, ensuring the bundled Claude Code binary supports Claude Opus 5.5. Previously, the SDK could resolve version 0.3.215, which bundled Claude Code 2.1.215 that predates Opus 5.5 and would fail with API errors when trying to use the new model.
+
+---
+
+### Web Dashboard Improvements
+**August 13, 2026** · `@herdctl/web@0.11.1`
+
+The web dashboard received several reliability and usability improvements. Chat message loading now times out after 15 seconds with a retry option instead of hanging forever. Directory groups in All Chats can now expand beyond the first 10 sessions. Search results no longer leave empty directory groups behind. WebSocket messages sent immediately on connection are no longer dropped on cold servers. These fixes address issues #170, #150, #145, and #275.
+
+---
+
+### Session Management Reliability Improvements
+**August 16, 2026** · `@herdctl/core@5.33.1` · `@herdctl/core@5.34.1`
+
+Two critical fixes improve session reliability for concurrent agent fleets. The CLI runtime now mints session IDs and passes them to Claude Code instead of inferring which transcript belongs to which agent, preventing session ID collisions when multiple co-located agents spawn simultaneously. Additionally, interrupted agent turns (via user interrupt or API error) now properly clean up their Claude subprocess instead of leaking processes, reducing resume latency from over 60 seconds to under 0.3 seconds.
+
+---
+
 ### Stop and Force-Close Live Sessions from Your App
 **August 12, 2026** · `@herdctl/core@5.33.0` · `@herdctl/core@5.31.0`
 
