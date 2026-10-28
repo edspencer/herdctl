@@ -7,6 +7,48 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Dashboard Chat Fixes: Timeouts, Retry, and Better Search
+**October 28, 2026** · `@herdctl/web@0.11.1`
+
+The web dashboard's chat experience is now far more resilient. Chat messages time out after 15 seconds and can be retried with a single click, so a hung API call no longer leaves you stuck on "Loading messages..." forever. Directory groups in All Chats now actually expand when you click "Show all" — previously they were hardcoded to show only the first 10 sessions. Search results are deterministic: groups that match only by path or agent name now show all their sessions instead of rendering confusing empty states, and the WebSocket message listener is attached synchronously so early frames (like the dashboard's keepalive ping) can never be dropped on a cold server. [#455](https://github.com/edspencer/herdctl/pull/455)
+
+---
+
+### Agent Settings Passthrough for Custom Claude Code Config
+**October 28, 2026** · `@herdctl/core@5.34.0`
+
+New optional `settings` field on agents lets you pass Claude Code settings at the flag tier — the SDK runtime's `settings` option or `--settings <json>` on the CLI. This is the channel for keys a project's checked-in `.claude/settings.json` is not trusted to set, like `autoMemoryDirectory` (which Claude Code ignores in `projectSettings`). The value is an object of Claude Code settings that outrank file sources but respect managed policy. Settings travel as argv on both runtimes, so they're visible in process listings — avoid embedding secrets directly. [#473](https://github.com/edspencer/herdctl/pull/473)
+
+---
+
+### MCP Bridge Security: Bearer Auth and Loopback Binding
+**October 28, 2026** · `@herdctl/core@5.33.2`
+
+The MCP HTTP bridge that exposes injected MCP servers (like Discord and Slack file senders) was listening on `0.0.0.0` with no authentication, so anything that could reach the port could call your tools. Every bridge now generates a random 256-bit bearer token per bridge and rejects unauthenticated requests before routing. The CLI runtime binds bridges to `127.0.0.1` by default (Docker still uses `0.0.0.0` but relies on the token). MCP config is written to an owner-only temp file and passed to `--mcp-config` instead of traveling on the command line, keeping tokens and declared servers' `env`/`headers` out of argv. Consumers passing `injectedMcpServers` need no changes — the token is passed automatically via MCP config `headers`. [#467](https://github.com/edspencer/herdctl/pull/467)
+
+---
+
+### Interrupted Sessions Now Clean Up Correctly
+**October 28, 2026** · `@herdctl/core@5.34.1`
+
+When you interrupt a running Claude Code turn (Ctrl+C), the agent no longer leaks its subprocess and the next resume no longer waits out the full 5-minute defer ceiling before spawning a competing process. Claude Code skips the `Stop` hook on user interrupts, so the session reaper never learned the turn had ended. A new `turn_aborted` signal fires when a `result` arrives without its `Stop` hook, carrying the last background-task set seen on the stream, and the reaper keeps or reaps the session on it exactly as for a clean turn end (but doesn't reconcile crons, since there's no snapshot). Measured through real binary against a stub API: stop-then-send went from >60s to 0.3s. [#477](https://github.com/edspencer/herdctl/pull/477)
+
+---
+
+### Claude Code Floor Bumped for Opus 5.5 Support
+**October 28, 2026** · `@herdctl/core@5.33.3`
+
+The `@anthropic-ai/claude-agent-sdk` floor is now `^0.3.283` (up from `^0.3.215`), ensuring every SDK runtime ships with Claude Code 2.1.283 or newer — the minimum needed for `claude-opus-5-5`. The old floor let consumers resolve SDK 0.3.215 (bundled Claude Code 2.1.215), which predates Opus 5.5 and rejects it with `API Error: 400 Claude Code 2.1.216 does not support this model`. Consumers already locking a newer SDK version are unaffected. [#469](https://github.com/edspencer/herdctl/pull/469)
+
+---
+
+### CLI Session IDs No Longer Inferred — They're Minted
+**October 28, 2026** · `@herdctl/core@5.33.1`
+
+A new-session turn now mints its own UUID and passes `--session-id <uuid>` to Claude Code instead of guessing which transcript file is ours by inspecting the directory. The old inference worked most of the time but broke when two agents sharing a working directory spawned new sessions concurrently — they'd trade session IDs, decided by whichever spawned last. The file is now known by name before polling starts. If the deadline passes without our file appearing (a CLI that ignores the flag), we warn and fall back. Session attribution conflicts are now resolved deterministically: newest `started_at` wins, ties broken on job ID, so a session that's been adopted/promoted keeps the correct owner. [#431](https://github.com/edspencer/herdctl/pull/431)
+
+---
+
 ### Stop and Force-Close Live Sessions from Your App
 **August 12, 2026** · `@herdctl/core@5.33.0` · `@herdctl/core@5.31.0`
 
