@@ -1,14 +1,14 @@
 ---
-last_checked_commit: eed88a1
-last_run: "2026-07-10T23:17:20Z"
-docs_gaps_found: 7
-branches_created: ["docs/auto-update-2026-02-21", "docs/auto-update-2026-03-01", "docs/auto-update-2026-03-05", "docs/auto-update-2026-03-07", "docs/auto-update-2026-03-13", "docs/auto-update-2026-06-30", "docs/auto-update-2026-07-10"]
+last_checked_commit: 5a517b7
+last_run: "2026-10-29T05:23:00Z"
+docs_gaps_found: 0
+branches_created: ["docs/auto-update-2026-02-21", "docs/auto-update-2026-03-01", "docs/auto-update-2026-03-05", "docs/auto-update-2026-03-07", "docs/auto-update-2026-03-13", "docs/auto-update-2026-06-30", "docs/auto-update-2026-07-10", "docs/auto-update-2026-10-29"]
 status: completed
 ---
 
 # Documentation Audit State
 
-**Last Updated:** 2026-07-10
+**Last Updated:** 2026-10-29
 
 This document tracks the state of the documentation audit agent, enabling
 incremental reviews that analyze only new commits since the last check.
@@ -19,10 +19,10 @@ incremental reviews that analyze only new commits since the last check.
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Last checked commit | eed88a1 | chore: version packages (#318) |
-| Last run | 2026-07-10T23:17:20Z | Manual invocation |
-| Gaps found (last run) | 7 | openChatSession, session reaper + wakes, trigger fork, cancelJob interrupt, translator attribution, ChatMessage.uuid, stale What's New |
-| Branches created | docs/auto-update-2026-07-10 | Streaming sessions + reaper/wake docs, fork/cancelJob/uuid reference updates, What's New refresh |
+| Last checked commit | 5a517b7 | docs: auto-update documentation (2026-07-10) (#319) |
+| Last run | 2026-10-29T05:23:00Z | Scheduled execution |
+| Gaps found (last run) | 0 | All commits already documented or don't require documentation |
+| Branches created | docs/auto-update-2026-10-29 | State-only update (no gaps found) |
 
 ---
 
@@ -30,6 +30,7 @@ incremental reviews that analyze only new commits since the last check.
 
 | Date | Commits Analyzed | Gaps Found | Action | Branch |
 |------|-----------------|------------|--------|--------|
+| 2026-10-29 | 85 | 0 | no-gaps | docs/auto-update-2026-10-29 |
 | 2026-07-10 | 51 | 7 | created-branch | docs/auto-update-2026-07-10 |
 | 2026-06-30 | 20 | 3 | created-branch | docs/auto-update-2026-06-30 |
 | 2026-03-13 | 3 | 5 | created-branch | docs/auto-update-2026-03-13 |
