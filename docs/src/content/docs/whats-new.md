@@ -7,6 +7,76 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Session Reaper Fix for Interrupted Turns
+**October 25, 2026** · `@herdctl/core@5.34.1`
+
+Fixed managed sessions leaking when a turn is interrupted (user interrupt or API error). Previously, the session reaper only cleaned up when Claude Code fired its `Stop` hook, but interrupts skip that hook. The reaper now listens for `turn_aborted` signals and correctly reaps interrupted sessions, preventing subprocess leaks and eliminating the 5-minute wait before resuming. [#477](https://github.com/edspencer/herdctl/pull/477)
+
+---
+
+### Agent-Level Settings Passthrough
+**October 23, 2026** · `@herdctl/core@5.34.0`
+
+New optional `settings` field on agent configs allows passing Claude Code settings (e.g., `autoMemoryDirectory`) that override project `.claude/settings.json`. This enables per-agent control of settings that shouldn't be in checked-in files. Settings are passed as `--settings <json>` on CLI runtime or via SDK options. The value is redacted from debug logs to protect secrets. [#473](https://github.com/edspencer/herdctl/pull/473)
+
+---
+
+### Claude Opus 5.5 Support
+**October 22, 2026** · `@herdctl/core@5.33.3`
+
+Raised the minimum `claude-agent-sdk` version from ^0.3.215 to ^0.3.283 (bundling Claude Code 2.1.283+), ensuring that agents using `claude-opus-5-5` model don't fail with "Claude Code 2.1.216 does not support this model" errors. This fixes SDK runtime and streaming chat sessions for Opus 5.5. [#469](https://github.com/edspencer/herdctl/pull/469)
+
+---
+
+### MCP Bridge Security: Authentication + Loopback Binding
+**October 22, 2026** · `@herdctl/core@5.33.2`
+
+The MCP HTTP bridge (used for injected MCP servers like Discord/Slack file senders) now requires a per-bridge bearer token and binds to loopback (127.0.0.1) by default on CLI runtime. Previously, the bridge listened on 0.0.0.0 with no authentication, exposing injected tools to any local process that could reach the port. The CLI runtime also now writes MCP config to an owner-only temp file instead of passing it on the command line, keeping tokens and secrets out of process arguments. [#467](https://github.com/edspencer/herdctl/pull/467)
+
+---
+
+### CLI Session ID Minting for Better Concurrency
+**October 20, 2026** · `@herdctl/core@5.33.1`
+
+Fixed session ID collisions when multiple agents sharing a working directory spawn new sessions concurrently. herdctl now mints the session ID upfront and passes it to Claude Code via `--session-id`, eliminating the race condition where agents could swap session IDs. This makes multi-agent fleets with shared workspaces far more reliable. [#431](https://github.com/edspencer/herdctl/pull/431)
+
+---
+
+### Deprecated Claude 4 Model IDs Replaced
+**October 18, 2026** · Documentation only
+
+Replaced retired Claude 4 model IDs (`claude-sonnet-4-20250514`, `claude-opus-4-20250514`) with `claude-sonnet-5` and `claude-opus-5` in documentation, README files, examples, and the init-fleet template. The old model IDs reached their retirement date (2026-06-15) and are no longer served by the API. [#465](https://github.com/edspencer/herdctl/pull/465)
+
+---
+
+### Web Dashboard: Chat Load Timeouts, Retry, and Search Fixes
+**October 16, 2026** · `@herdctl/web@0.11.1`
+
+Chat messages now time out after 15s with a clear error and Retry button (fixes #170). Existing sessions that load zero messages show "No messages found" instead of misleading "Send a message to start". "Show all" in directory groups actually expands beyond first 10 sessions (fixes #150). Search no longer leaves empty directory groups behind (fixes #275). WebSocket messages sent immediately on connect are no longer dropped on cold servers (fixes #275). [#455](https://github.com/edspencer/herdctl/pull/455)
+
+---
+
+### Changelog Skill Path and Hook Fixes
+**October 16, 2026** · Changelog skill
+
+Fixed the automated changelog updater skill: corrected the What's New page path, avoided pre-commit hooks during unattended commits (`--no-verify`), and added a guard to reset stale `last_checked_commit` state that has drifted far behind the page. [#454](https://github.com/edspencer/herdctl/pull/454)
+
+---
+
+### Full Plugin and MCP Server Configuration
+**August 5, 2026** · `@herdctl/core@5.32.0`
+
+Agents can now load Claude Code plugins via a new `plugins` field on an agent or on fleet `defaults`, honored by both the SDK and CLI runtimes. MCP server config is no longer narrowed to `{command, args, env, url}` — it now accepts `headers`, explicit transport `type` (`stdio`/`sse`/`http`), `timeout`, and `alwaysLoad`, so authenticated remote servers keep their bearer token and SSE servers connect correctly instead of being forced to HTTP. Backwards compatible: a bare `url` with no `type` still resolves to HTTP. [#446](https://github.com/edspencer/herdctl/pull/446)
+
+---
+
+### Stop Individual Background Tasks in Live Sessions
+**August 12, 2026** · `@herdctl/core@5.33.0`
+
+New `FleetManager.stopTaskInSession(sessionId, taskId)` API allows stopping a single background task (shell, subagent, monitor) in a live session by session ID, without needing to hold the original `RuntimeSession` handle. This enables UI "Stop" buttons to actually stop work that outlives the turn that started it. Paired with `RuntimeSession.stopTask(taskId)` for handle-based stops. [#450](https://github.com/edspencer/herdctl/pull/450)
+
+---
+
 ### Stop and Force-Close Live Sessions from Your App
 **August 12, 2026** · `@herdctl/core@5.33.0` · `@herdctl/core@5.31.0`
 
