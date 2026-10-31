@@ -158,7 +158,37 @@ IF `COMMITS_SINCE > 0`:
 IF `COMMITS_SINCE == 0`:
 - Skip change analysis
 - Note "No changes since last audit" in report
-- Proceed directly to Phase 4 (aggregation)
+- **IMPORTANT:** Use freed-up time for proactive security activities (see Metadata-Only Audit Guidelines below)
+- Proceed to Phase 4 (aggregation) after proactive work
+
+**Metadata-Only Audit Guidelines:**
+
+When no commits have occurred since the last audit, use the freed-up time for proactive security investigation:
+
+1. **Quick hot spot baseline verification** (5 minutes):
+   ```bash
+   # Verify critical files haven't changed in last 10 commits
+   git diff HEAD~10 packages/core/src/runner/runtime/container-manager.ts
+   git diff HEAD~10 packages/core/src/config/schema.ts
+   git diff HEAD~10 packages/core/src/state/utils/path-safety.ts
+   ```
+
+2. **Pick one open question to investigate** (15-20 minutes):
+   - Read CODEBASE-UNDERSTANDING.md for HIGH priority open questions
+   - Select one question (prioritize: Q13, Q12, Q8, Q7)
+   - Conduct focused investigation with file references
+   - Document findings even if partial
+
+3. **Manual verification of long-standing findings** (10 minutes):
+   - Finding #008: Run `pnpm audit` and document results
+   - Finding #013: Check if credentials file permissions are enforced
+   - Finding #011: Sample 10 random session files for credential leaks
+
+4. **Scanner validation** (5 minutes):
+   - Verify scanner findings count matches previous audit
+   - Check if any findings should be closed or downgraded
+
+**Do NOT skip the entire audit when no code changes occur.** Metadata-only audits are opportunities for deeper investigation, not reasons to skip security work.
 
 **Spawning change-analyzer:**
 
