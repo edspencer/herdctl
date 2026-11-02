@@ -7,6 +7,55 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Agent Settings Passthrough
+**November 2, 2026** · `@herdctl/core@5.40.0`
+
+Agents can now set Claude Code [settings](https://docs.claude.com/en/docs/claude-code/settings) via a new optional `settings` field applied at the flag tier (the Agent SDK's `settings` option, or `--settings <json>` on the CLI runtime). Flag-tier settings outrank every file source except managed policy, making them the correct channel for keys a project's checked-in `.claude/settings.json` is not trusted to set — like `autoMemoryDirectory`, which Claude Code ignores in project settings. Settings are passed through verbatim, so any SDK-supported key works. The object reaches Claude Code as a command-line argument on both runtimes, so keep credentials out of it; herdctl redacts the value from its own debug log, but it can't hide the argv. YAML interpolation applies (`${VAR}` is resolved), and there is no escape syntax, so values that must carry their own `${...}` intact belong in a file instead. [#473](https://github.com/edspencer/herdctl/pull/473)
+
+---
+
+### Session Reaping Fix for Interrupted Turns
+**November 2, 2026** · `@herdctl/core@5.39.0`
+
+Fixed a session leak where an interrupted turn (user interrupt or API error) never fired the Stop hook, leaving the managed session alive forever and accumulating leaked `claude` subprocesses. The session reaper now detects when a turn ends without Stop and emits a new `turn_aborted` signal carrying the last background-task set seen on the stream, so managed sessions are reaped correctly even when the turn is cut short. Managed sessions that resume now wait under a tenth of the previous timeout, going from 60+ seconds to under a second when re-invoked. [#477](https://github.com/edspencer/herdctl/pull/477)
+
+---
+
+### Claude Opus 5.5 Support
+**October 31, 2026** · `@herdctl/core@5.38.0`
+
+Raised the `@anthropic-ai/claude-agent-sdk` floor from `^0.3.215` to `^0.3.283` so consumers can run Claude Opus 5.5. The SDK runtime executes the Claude Code binary bundled with the SDK package, not the one on PATH, and SDK 0.3.215 carried Claude Code 2.1.215, which rejects `claude-opus-5-5` (requires >= 2.1.280). The lockfile now resolves SDK 0.3.283 (bundling Claude Code 2.1.283), so Opus 5.5 runs correctly. Peer dependencies unchanged; this only affects the transitive binary version. [#469](https://github.com/edspencer/herdctl/pull/469)
+
+---
+
+### MCP HTTP Bridge Authentication and Loopback Bind
+**October 28, 2026** · `@herdctl/core@5.37.0`
+
+The MCP HTTP bridge that exposes injected MCP servers to the CLI runtime and Docker agents now requires bearer token authentication. Previously it listened on `0.0.0.0` with no auth, so anything that could reach the port during a run could call the injected tools. The bridge now generates a random 256-bit token per bridge, rejects any request without `Authorization: Bearer <token>` (401, constant-time comparison), and binds `127.0.0.1` by default. ContainerRunner's SDK path opts into `0.0.0.0` (the container must reach it) and relies on the token. Both paths pass the token to the agent via the MCP config's `headers`, so consumers of `injectedMcpServers` need no changes. The CLI runtime writes the MCP config to an owner-only temp file and passes `--mcp-config <path>`, keeping tokens and declared servers' env/headers out of argv. Closes #54. [#467](https://github.com/edspencer/herdctl/pull/467)
+
+---
+
+### Retired Claude 4 Model IDs Updated
+**October 24, 2026**
+
+Documentation and examples updated to replace retired Claude 4 model IDs (`claude-sonnet-4-20250514`, `claude-opus-4-20250514`, retired 2026-06-15) with `claude-sonnet-5` and `claude-opus-5`. Configuration examples, package READMEs, runtime-showcase, and the init-fleet template all now reference supported model IDs, so fleets copied from docs work at first run. [#465](https://github.com/edspencer/herdctl/pull/465)
+
+---
+
+### CLI Session ID Minting
+**October 10, 2026** · `@herdctl/core@5.35.0`
+
+Fixed session ID collisions when two agents sharing a working directory spawned resume-less turns concurrently. The old inference-based `waitForNewSessionFile` relied on "the newest transcript is ours," which is wrong — it's whoever spawned last. Claude Code accepts `--session-id <uuid>`, so a new-session turn now mints its own ID and passes it; the file is known by name. While the process is alive, inference is disabled (the guarantee that matters: a co-located agent's brand-new file must not be claimed). Once the CLI exits without writing the expected file, herdctl falls back immediately (after 500ms grace) instead of waiting the full 60s timeout, so fake-CLI test harnesses work unmodified. Closes #357. [#431](https://github.com/edspencer/herdctl/pull/431)
+
+---
+
+### Web Dashboard Chat UI Improvements
+**October 9, 2026** · `@herdctl/web@0.12.0`
+
+Four fixes to the web dashboard's chat interface. Chat loads now timeout after 15s with a clear error and a Retry button, instead of hanging forever on proxy timeouts or huge transcripts. An existing session that loads zero messages shows "No messages found for this session" instead of "Send a message to start" (which reads as "new chat"). Directory groups in All Chats now expand beyond the first 10 sessions when "Show all" is clicked, and the button stays visible (as "Load more (N remaining)") while the server has more to fetch. Collapsing a directory group while a search is active now keeps it collapsed (a regression guard test was added). The All Chats no-results state is now deterministic — searching for a directory name shows its sessions instead of rendering an empty group, and the single top-level "No matching sessions" message is the only no-results state users see. WebSocket listeners are attached before awaiting fleet status, so early client frames (ping, subscribe, chat:send) are never dropped on a cold or loaded server. UI test agents moved out of tmpRoot into non-temp directories, so their sessions appear in machine-wide All Chats (core deliberately skips temp paths). Closes #170, #150, #145, refs #275. [#455](https://github.com/edspencer/herdctl/pull/455)
+
+---
+
 ### Stop and Force-Close Live Sessions from Your App
 **August 12, 2026** · `@herdctl/core@5.33.0` · `@herdctl/core@5.31.0`
 
