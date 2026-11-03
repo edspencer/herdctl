@@ -14,7 +14,7 @@ Each job is stored as a YAML metadata file with these fields:
 | `id` | string | Unique job identifier, format `job-YYYY-MM-DD-<random6>` (e.g., `job-2025-01-15-k2x9qa`) |
 | `agent` | string | Name of the agent executing this job |
 | `schedule` | string \| null | Schedule that triggered this job (if scheduled) |
-| `trigger_type` | enum | How the job was triggered: `manual`, `schedule`, `webhook`, `chat`, `discord`, `slack`, `web`, or `fork` |
+| `trigger_type` | enum | How the job was triggered: `manual`, `schedule`, `webhook`, `chat`, `discord`, `slack`, `web`, `fork`, or `spawned` |
 | `status` | enum | Current job status |
 | `exit_reason` | enum \| null | Why the job ended (set on completion) |
 | `session_id` | string \| null | Claude session ID for resume capability |
@@ -123,6 +123,24 @@ The key participants in this flow are:
 | `completed` | Job finished successfully |
 | `failed` | Job terminated due to an error |
 | `cancelled` | Job was manually stopped |
+
+## Trigger Types
+
+Each job records how it was initiated via the `trigger_type` field:
+
+| Trigger Type | Description |
+|--------------|-------------|
+| `manual` | Job started via `herdctl trigger` command |
+| `schedule` | Job triggered by a schedule (cron or interval) |
+| `webhook` | Job triggered by an incoming webhook |
+| `chat` | Job started via the shared chat infrastructure |
+| `discord` | Job triggered from Discord integration |
+| `slack` | Job triggered from Slack integration |
+| `web` | Job started from the web dashboard |
+| `fork` | Job forked from another job (see `forked_from` field) |
+| `spawned` | Job created by another agent using sub-agent invocation |
+
+The `spawned` trigger type indicates that the job was created programmatically by another running agent (for example, when an agent uses the Task tool to delegate work to a sub-agent). This allows hosts to persist provenance for agent-spawned jobs as a first-class value rather than inferring the relationship.
 
 ## Exit Reasons
 
