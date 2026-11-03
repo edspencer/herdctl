@@ -7,14 +7,17 @@ and manual review. Updated after each security review.
 
 | ID | Severity | Title | First Seen | Status | Location |
 |----|----------|-------|------------|--------|----------|
-| 012 | **HIGH** | **Web API lacks authentication** | 2026-03-06 | 🔴 OPEN - Document localhost-only | packages/web/src/server/routes/chat.ts |
+| 012 | **HIGH** | **Web API lacks authentication** | 2026-03-06 | 🔴 OPEN - Document localhost-only | packages/web/src/server/routes/chat.ts + files.ts |
+| 013 | **MEDIUM** | **OAuth credential file permissions not enforced** | 2026-10-26 | 🔴 OPEN - Regression check | container-manager.ts:336 |
+| 014 | **MEDIUM** | **Unvalidated `settings` config field** | 2026-10-26 | 🔴 OPEN - SDK validation needed | config/schema.ts:1088 |
 | 011 | **MEDIUM** | **OAuth credential management - risk elevated** | 2026-02-20 | 🟡 YELLOW - Session exposure risk | container-manager.ts + session files |
 | 010 | Medium | bypassPermissions in job files (22 files) | 2026-02-12 | 🟡 YELLOW - Retention needed | .herdctl/jobs/*.yaml |
+| 015 | Low | OAuth error logging may leak tokens | 2026-10-26 | 🔴 OPEN - Sanitize errors | container-manager.ts:369,389 |
+| 009 | Low | Incomplete shell escaping in Docker prompts | 2026-02-05 | 🔧 Partially Fixed | container-runner.ts:166-170 |
+| 008 | Medium | npm audit - devalue vulnerabilities | 2026-02-05 | 📋 Update to 5.9.4 | docs>astro>devalue |
 | 002 | High | hostConfigOverride can bypass Docker security | 2026-02-05 | ⚠️ Accepted Risk | container-manager.ts |
 | 005 | Medium | bypassPermissions in example config | 2026-02-05 | ℹ️ Intentional | examples/bragdoc-developer/ |
 | 006 | Medium | shell:true in hook runner | 2026-02-05 | ⚠️ Accepted Risk | hooks/runners/shell.ts |
-| 008 | Medium | npm audit parser error | 2026-02-05 | 📋 Manual Check Needed | dependencies |
-| 009 | Low | Incomplete shell escaping in Docker prompts | 2026-02-05 | 🔧 Partially Fixed | container-runner.ts (commit a0e7ad8) |
 
 ## Resolved Findings
 
@@ -269,20 +272,98 @@ The web dashboard added four new REST API endpoints in commit 01274a8 (PR #144) 
 - Q1 (webhook authentication)
 
 **Introduced In**: Commit 01274a8 (PR #144, 2026-03-06)
+**Updated**: 2026-10-26 - File serving route added (`/files/:agentName/*`)
+
+---
+
+### ID 013: OAuth Credential File Permissions Not Enforced 🔴 NEW
+
+**Severity**: MEDIUM
+**First Seen**: 2026-10-26 (regression check confirming #011)
+**Status**: 🔴 OPEN - Requires code fix
+
+`writeCredentialsFile()` in `container-manager.ts` does not set file mode to `0600` when writing `~/.claude/.credentials.json`. On multi-user systems, this may expose OAuth tokens to other users.
+
+**Evidence**:
+```typescript
+// Line 336 - NO file permission enforcement
+fs.writeFileSync(credsPath, JSON.stringify(creds, null, 2));
+```
+
+**Recommended Fix**:
+```typescript
+fs.writeFileSync(credsPath, JSON.stringify(creds, null, 2), { mode: 0o600 });
+```
+
+**Related**: Finding #011 (OAuth credential management)
+
+---
+
+### ID 014: Unvalidated `settings` Config Field 🔴 NEW
+
+**Severity**: MEDIUM
+**First Seen**: 2026-10-26
+**Status**: 🔴 OPEN - SDK validation review needed
+
+New `settings` field in agent config uses `z.unknown()` which accepts arbitrary data structures without validation. Unknown what SDK settings are security-sensitive.
+
+**Evidence**:
+```typescript
+// schema.ts:1088
+settings: z.record(z.string(), z.unknown()).optional(),
+```
+
+**Risk Assessment**:
+- Design decision for flexibility vs. defense-in-depth
+- Untrusted input may reach security-sensitive SDK settings
+- Fleet config authors are trusted (not user-facing)
+
+**Recommendations**:
+1. Review SDK documentation for security-sensitive settings
+2. Consider allowlist validation for known-safe settings
+3. Document accepted risk if flexibility is required
+
+---
+
+### ID 015: OAuth Error Logging May Leak Tokens 🔴 NEW
+
+**Severity**: LOW
+**First Seen**: 2026-10-26
+**Status**: 🔴 OPEN - Sanitize error messages
+
+OAuth token refresh error handling logs HTTP response bodies and error objects which may contain token data.
+
+**Evidence**:
+```typescript
+// container-manager.ts:369
+logger.error(`Token refresh failed: HTTP ${response.status}${body ? ` — ${body}` : ""}`);
+
+// container-manager.ts:389
+logger.error(`Token refresh error: ${err}`);
+```
+
+**Recommendations**:
+1. Redact OAuth tokens from error messages before logging
+2. Log only status codes and sanitized error messages
+3. Audit existing logs for leaked credentials
+
+**Related**: Finding #011 (OAuth credential management)
 
 ---
 
 ## Statistics
 
-- **Total Findings**: 12
+- **Total Findings**: 15
 - **Resolved**: 2
 - **False Positives**: 2
-- **Active**: 8
+- **Active**: 11
   - Critical: 0
-  - **High: 1 (NEW - web API auth)**
-  - High: 1 (accepted - hostConfigOverride)
-  - **Medium: 4 (1 elevated, 1 retention, 1 accepted, 1 npm audit)**
-  - Low: 1 (partially fixed - shell escaping)
+  - **High: 1** (#012 web API auth)
+  - High: 1 (accepted - #002 hostConfigOverride)
+  - **Medium: 5** (#013 OAuth perms NEW, #014 settings validation NEW, #011 OAuth elevated, #010 job retention, #008 npm audit)
+  - **Low: 2** (#015 OAuth logging NEW, #009 shell escaping partial fix)
+  - Intentional: 1 (#005 example config)
+  - Accepted: 1 (#006 shell:true)
 
 ---
 
@@ -311,9 +392,10 @@ Based on false positives identified:
 | 2026-02-17 | /security-audit | 0 | 0 | **#010 DOWNGRADED** - corrected count: 21 files |
 | 2026-02-20 | /security-audit | 1 | 0 | **#011 NEW** - OAuth credential management |
 | 2026-03-06 | /security-audit | 1 | 0 | **#012 NEW** - Web API lacks auth; #011 risk elevated; 71 commits |
+| 2026-10-26 | /security-audit-daily | 3 | 0 | **#013, #014, #015 NEW** - OAuth perms, settings validation, error logging; 144 commits |
 
 ---
 
-**Last Updated:** 2026-03-06
-**Status:** 🟡 YELLOW - 1 HIGH finding needs documentation, 1 MEDIUM risk elevated
+**Last Updated:** 2026-10-26
+**Status:** 🟡 YELLOW - 1 HIGH finding needs documentation, 3 MEDIUM findings, file serving route added
 

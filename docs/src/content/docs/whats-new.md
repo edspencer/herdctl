@@ -7,6 +7,41 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Web Dashboard Reliability Improvements
+**November 3, 2026** · `@herdctl/web@0.11.5` · `@herdctl/core@5.34.1`
+
+The web dashboard's All Chats view is now more reliable with better session loading, retry logic, and deterministic search ordering. Chat load timeouts have been extended to handle large sessions, and failed loads now retry automatically before showing errors. The "Show all sessions" toggle correctly displays every session including those with null working directories, and the All Chats page now maintains deterministic ordering across page loads so sessions don't randomly shuffle positions. Additionally, interrupted agent turns (user stops via Ctrl+C) now correctly reap their `claude` subprocess instead of leaking it, fixing a 5-minute delay on the next session resume. [#455](https://github.com/edspencer/herdctl/pull/455), [#477](https://github.com/edspencer/herdctl/pull/477)
+
+---
+
+### Custom Agent Settings Passthrough
+**November 3, 2026** · `@herdctl/core@5.34.0`
+
+Agents now support a `settings` field that passes Claude Code settings at the flag tier, as the Agent SDK's `settings` option or `--settings <json>` on the CLI runtime. This lets embedders set keys per agent that a project's checked-in `.claude/settings.json` isn't trusted to set, such as `autoMemoryDirectory`. Useful for multi-tenant or sandboxed environments where different agents need different Claude Code behaviors. [#473](https://github.com/edspencer/herdctl/pull/473)
+
+---
+
+### Secure MCP HTTP Bridge with Bearer Tokens
+**November 3, 2026** · `@herdctl/core@5.33.2`
+
+The MCP HTTP bridge (used for injected MCP servers on Discord and Slack file uploads) now requires a per-bridge bearer token instead of accepting unauthenticated requests. Previously, on `runtime: cli`, bridges listened on `0.0.0.0` with no authentication, so anything that could reach the port during a run could call the injected tools. Every bridge now generates a random 256-bit token and rejects requests without `Authorization: Bearer <token>`. The CLI runtime also binds bridges to `127.0.0.1` and writes the MCP config to an owner-only temp file (passed via `--mcp-config`) instead of exposing it on the command line where any local user can read it. Fixes security issue #54. [#467](https://github.com/edspencer/herdctl/pull/467)
+
+---
+
+### Claude Opus 5.5 Support
+**November 3, 2026** · `@herdctl/core@5.33.3`
+
+The minimum `@anthropic-ai/claude-agent-sdk` version is now `^0.3.283` (up from `^0.3.215`), ensuring every streaming chat session runs with Claude Code 2.1.283 or newer. This is required for Claude Opus 5.5 support — older SDK versions shipped with Claude Code 2.1.215, which predates the model and fails every turn with `API Error: 400 Claude Code 2.1.216 does not support this model`. Consumers that already lock a newer SDK are unaffected. [#469](https://github.com/edspencer/herdctl/pull/469)
+
+---
+
+### Reliable CLI Session IDs
+**November 3, 2026** · `@herdctl/core@5.33.1`
+
+The CLI runtime now mints a new session ID and tells `claude` to use it (`--session-id`) instead of inferring which transcript belongs to the agent by scanning the session directory. This fixes a race condition where co-located agents spawning at the same time could mistake each other's sessions, and eliminates the "Normally exactly one; if several appeared, the newest is ours" guess that could fail when multiple spawns raced. Session attribution is now deterministic and safe for parallel agent execution. [#431](https://github.com/edspencer/herdctl/pull/431)
+
+---
+
 ### Stop and Force-Close Live Sessions from Your App
 **August 12, 2026** · `@herdctl/core@5.33.0` · `@herdctl/core@5.31.0`
 
