@@ -7,6 +7,48 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Interrupted Sessions No Longer Leak Processes
+**October 25, 2026** · `@herdctl/core@5.34.1`
+
+Fixed a critical bug where pressing Stop in a chat session would leave the Claude Code process running forever and cause the next message to hang for exactly 5 minutes. When a user interrupted a turn, Claude Code never fired its Stop hook, so herdctl's session reaper never learned the turn had ended. The reaper now emits a new `turn_aborted` signal when a turn completes without the Stop hook firing, properly cleaning up interrupted sessions while preserving any background tasks the turn started. [#477](https://github.com/edspencer/herdctl/pull/477)
+
+---
+
+### Agent-Level Claude Code Settings
+**October 9, 2026** · `@herdctl/core@5.34.0`
+
+Agents can now pass Claude Code settings through at the flag tier via a new `settings` field in agent config. This enables setting keys like `autoMemoryDirectory` or `effortLevel` on a per-agent basis, which is essential when a project's checked-in `.claude/settings.json` shouldn't be trusted to set certain values. Settings work on both SDK and CLI runtimes and take precedence over settings files (except managed policy). [#473](https://github.com/edspencer/herdctl/pull/473)
+
+---
+
+### Claude Opus 5.5 Support
+**September 27, 2026** · `@herdctl/core@5.33.3`
+
+The SDK runtime now supports Claude Opus 5.5 by raising the `@anthropic-ai/claude-agent-sdk` dependency floor from 0.3.215 to 0.3.283. The old SDK version bundled Claude Code 2.1.215, which predated Opus 5.5 and failed every turn with `API Error: 400 Claude Code 2.1.216 does not support this model`. Since the SDK runtime uses its own bundled `claude` binary (not the one on PATH), this ensures every session can run the latest models. [#469](https://github.com/edspencer/herdctl/pull/469)
+
+---
+
+### MCP HTTP Bridge Security Hardening
+**September 27, 2026** · `@herdctl/core@5.33.2`
+
+Injected MCP servers (like Discord/Slack file senders) now require a per-bridge bearer token, closing a security hole where unauthenticated users could call injected tools by reaching the bridge port. Every bridge generates a random 256-bit token and rejects requests without valid authorization before routing. On the CLI runtime, bridges now bind to loopback only (127.0.0.1) instead of all interfaces, and MCP config is written to an owner-only temp file instead of passed on the command line where any local user could read secrets via `ps`. Docker agents still bind 0.0.0.0 (the container must reach the bridge) but rely on the token for protection. [#467](https://github.com/edspencer/herdctl/pull/467)
+
+---
+
+### Reliable CLI Session IDs for Co-Located Agents
+**August 16, 2026** · `@herdctl/core@5.33.1`
+
+Fixed a race condition where two agents sharing a working directory would trade session IDs when starting new chats concurrently. herdctl used to infer a new CLI session's ID by guessing which transcript file was "ours" based on mtime, but two spawns racing produced two indistinguishable files — each agent adopted the other's transcript. The CLI runtime now mints a session ID and passes it via `--session-id`, so the transcript is known by name with no guessing. Also made session attribution deterministic: when two job records claim one session ID, the newest `started_at` wins instead of whichever file parsed last. [#431](https://github.com/edspencer/herdctl/pull/431)
+
+---
+
+### Web Dashboard Chat Improvements
+**August 13, 2026** · `@herdctl/web@0.11.1`
+
+Fixed five dashboard bugs in one release. Chat messages now time out after 15 seconds with a clear error and retry option instead of hanging forever. Existing sessions with zero messages show "No messages found for this session" instead of the misleading "Send a message to start" prompt. The "Show all" button in directory groups actually expands beyond the first 10 sessions and keeps paging from the server. Search no longer leaves empty directory groups behind when only the path matched. And WebSocket messages sent immediately on connect are no longer dropped on a cold server. [#455](https://github.com/edspencer/herdctl/pull/455)
+
+---
+
 ### Stop and Force-Close Live Sessions from Your App
 **August 12, 2026** · `@herdctl/core@5.33.0` · `@herdctl/core@5.31.0`
 
