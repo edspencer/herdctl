@@ -208,6 +208,7 @@ These questions should be systematically investigated during audits. Each audit 
 | Q12 | Are OAuth access_token and refresh_token properly sanitized from error messages? | High | Open | - | - | container-manager.ts logger.error() calls in OAuth functions - check for credential leaks |
 | Q13 | Does credentials file (~/.claude/.credentials.json) have 0600 permissions enforced? | High | Open | - | - | writeCredentialsFile() should enforce permissions - verify with fs.chmodSync() |
 | Q14 | Can token refresh handle network failures without leaking credentials in stack traces? | Medium | Open | - | - | refreshClaudeOAuthToken() error handling - verify no token data in Error objects |
+| Q16 | Are agent state files security-relevant? Could malicious modifications affect agents? | Low | Open | - | - | agents/*/state.md, conversations.md - 2026-11-13 audit processed 12 commits of pure state updates without considering security implications |
 
 ### Question Guidelines
 
