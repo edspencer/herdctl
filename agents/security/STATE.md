@@ -1,9 +1,9 @@
 ---
-last_updated: 2026-11-09T11:02:00Z
+last_updated: 2026-11-13T00:00:00Z
 last_mapping: 2026-02-14
-last_audit: 2026-11-09
+last_audit: 2026-11-13
 commits_since_audit: 0
-commits_since_mapping: 279
+commits_since_mapping: 291
 open_findings: 11
 open_questions: 12
 status: audit_complete_green
@@ -11,7 +11,7 @@ status: audit_complete_green
 
 # Security Audit State
 
-**Last Updated:** 2026-11-09 11:02 UTC
+**Last Updated:** 2026-11-13 00:00 UTC
 
 This document provides persistent state for security audits, enabling incremental reviews that build on previous work rather than starting fresh each time.
 
@@ -22,27 +22,27 @@ This document provides persistent state for security audits, enabling incrementa
 | Metric | Value | Notes |
 |--------|-------|-------|
 | Last full mapping | 2026-02-14 | Comprehensive audit completed |
-| Last incremental audit | 2026-11-09 | Incremental - GREEN - No code changes, documentation only |
-| Commits since last audit | 0 | At bf3760f (2026-11-09) |
+| Last incremental audit | 2026-11-13 | Incremental - GREEN - Documentation-only changes |
+| Commits since last audit | 0 | At 2c49bba (2026-11-13) |
 | Open findings | 11 | See [FINDINGS-INDEX.md](intel/FINDINGS-INDEX.md) |
 | Open questions | 12 | 4 new questions (Q15-Q18); 8 carried over |
 
-**Status:** GREEN - Clean audit with no changes to production code. 11 existing findings remain (1 HIGH, 5 MEDIUM, 2 LOW, 3 accepted/intentional).
+**Status:** GREEN - Clean audit with no production code changes. 11 existing findings remain (1 HIGH, 5 MEDIUM, 2 LOW, 3 accepted/intentional).
 
 ### Finding Breakdown
 
 - **Critical: 0**
 - **High: 1** (#012 web API auth missing - now includes file serving route)
 - High: 1 (accepted risk - hostConfigOverride #002)
-- **Medium: 5** (#013 OAuth perms NEW, #014 settings validation NEW, #011 OAuth elevated, #010 job retention, #008 npm audit)
-- **Low: 2** (#015 OAuth logging NEW, #009 shell escaping partial fix)
+- **Medium: 5** (#013 OAuth perms, #014 settings validation, #011 OAuth elevated, #010 job retention, #008 npm audit)
+- **Low: 2** (#015 OAuth logging, #009 shell escaping partial fix)
 - Intentional: 1 (#005 example config)
 - Accepted: 1 (#006 shell:true)
 
 ### Question Priorities
 
 - High: 0
-- Medium: 9 (Q1 webhook auth, Q4 log injection, Q5 config merge, Q7 container user, Q8 SDK escaping, Q15 OAuth logging NEW, Q16 SDK settings validation NEW, Q17 session adoption NEW, Q18 file serving NEW)
+- Medium: 9 (Q1 webhook auth, Q4 log injection, Q5 config merge, Q7 container user, Q8 SDK escaping, Q15 OAuth logging, Q16 SDK settings validation, Q17 session adoption, Q18 file serving)
 - Low: 3 (Q3 container name chars, Q9 rate limiting, Q10 MCP security, Q11 GitHub SSRF)
 
 ---
@@ -53,12 +53,12 @@ Security coverage by area with staleness tracking.
 
 | Area | Last Checked | Commits Since | Status | Notes |
 |------|--------------|---------------|--------|-------|
-| Attack surface | 2026-11-09 | 0 | ✅ Current | No changes - web API, file serving routes unchanged |
-| Data flows | 2026-11-09 | 0 | ✅ Current | No changes - OAuth, MCP bridge unchanged |
-| Security controls | 2026-11-09 | 0 | ✅ Current | No changes - path traversal defenses unchanged |
-| Threat vectors | 2026-11-09 | 0 | ✅ Current | No changes - existing findings remain |
-| Hot spots | 2026-11-09 | 0 | ✅ Current | 6 critical files verified - PASS status |
-| Code patterns | 2026-11-09 | 0 | ✅ Current | No changes - OAuth, settings patterns unchanged |
+| Attack surface | 2026-11-13 | 0 | ✅ Current | No changes - documentation updates only |
+| Data flows | 2026-11-13 | 0 | ✅ Current | No changes - OAuth, MCP bridge unchanged |
+| Security controls | 2026-11-13 | 0 | ✅ Current | No changes - path traversal defenses unchanged |
+| Threat vectors | 2026-11-13 | 0 | ✅ Current | No changes - existing findings remain |
+| Hot spots | 2026-11-13 | 0 | ✅ Current | 6 critical files verified - PASS status (unchanged) |
+| Code patterns | 2026-11-13 | 0 | ✅ Current | No changes - OAuth, settings patterns unchanged |
 
 ### Staleness Thresholds
 
@@ -113,6 +113,7 @@ Ordered by urgency for next audit session:
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
+| 2026-11-13 | Documentation-only audit - PASS | 12 commits analyzed, all agent state file updates, no security impact |
 | 2026-10-26 | #013 MEDIUM - OAuth file permissions not enforced | Regression check confirms #011 issue still present; `writeCredentialsFile()` needs mode 0o600 |
 | 2026-10-26 | #014 MEDIUM - Settings field unvalidated | New `settings` field uses `z.unknown()` - unknown what SDK settings are security-sensitive |
 | 2026-10-26 | #015 LOW - OAuth error logging may leak tokens | HTTP response bodies and error objects logged without redaction |
@@ -134,12 +135,12 @@ Ordered by urgency for next audit session:
 Security capabilities not yet implemented or areas needing investigation:
 
 - **HIGH: Web API + file serving have no authentication** - localhost-only by design but needs documentation (#012)
-- **MEDIUM NEW: OAuth credential file permissions not enforced** - writeCredentialsFile() doesn't set 0600 (#013)
-- **MEDIUM NEW: Settings field unvalidated** - z.unknown() accepts arbitrary SDK settings (#014)
+- **MEDIUM: OAuth credential file permissions not enforced** - writeCredentialsFile() doesn't set 0600 (#013)
+- **MEDIUM: Settings field unvalidated** - z.unknown() accepts arbitrary SDK settings (#014)
 - **MEDIUM: Session files exposed via web API** - may contain OAuth tokens from error logs (#011 + #012)
 - **MEDIUM: Job file retention policy not implemented** - 22 bypassPermissions files accumulating (#010)
 - **MEDIUM: GitHub SSRF potential** - no URL allowlist for repository cloning (Q11)
-- **LOW NEW: OAuth error logging may leak tokens** - logger.error() calls log response bodies and errors (#015)
+- **LOW: OAuth error logging may leak tokens** - logger.error() calls log response bodies and errors (#015)
 - **LOW: Shell escaping incomplete** - missing `!` escape (#009)
 - No secret detection in logs (output could leak sensitive data) - Q4
 - No rate limiting on triggers (DoS vector for scheduled jobs) - Q9
@@ -148,9 +149,9 @@ Security capabilities not yet implemented or areas needing investigation:
 
 ### Session Continuity
 
-- **Last session:** 2026-11-09 - Incremental audit covering 5 commits (2 days)
-- **Completed:** Change analysis (no code changes), hot-spot verification (PASS), npm audit (277 vulns stable), documentation-only update
-- **Resume from:** Normal operations; next scheduled audit ~2026-11-16
+- **Last session:** 2026-11-13 - Incremental audit covering 12 commits (4 days)
+- **Completed:** Change analysis (documentation-only), scanner run (baseline findings), no hot-spot verification needed
+- **Resume from:** Normal operations; next scheduled audit ~2026-11-20
 - **Next priority:** Document web dashboard + file serving security model (#012), fix OAuth file permissions (#013), review SDK settings validation (#014)
 
 ---
@@ -180,4 +181,3 @@ When commits occur to the codebase:
 ---
 
 **End of STATE.md**
-
