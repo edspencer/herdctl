@@ -262,7 +262,11 @@ describeDocker("Docker Security Hardening", () => {
     });
   });
 
-  describe("Container Configuration", () => {
+  // These tests shell out to the real Docker daemon (`docker create` / `inspect`
+  // / `rm`). On a cold or busy CI runner one `docker create` alone can take
+  // longer than vitest's 5s default, and two tests here timed out that way on
+  // #492 with nothing wrong. Give each one a budget sized for real Docker.
+  describe("Container Configuration", { timeout: 30_000 }, () => {
     it("applies no-new-privileges security option", async () => {
       // Create a container to inspect (don't start it)
       const { stdout } = await execAsync(
