@@ -15,6 +15,7 @@ Every schedule needs a trigger to determine when it runs. The trigger type you c
 | **Cron** | Precise timing (daily reports, scheduled maintenance) | Available |
 | **Webhook** | Event-driven automation (deployments, external events) | Future |
 | **Chat** | Interactive responses (support, commands) | Available |
+| **Spawned** | Sub-agent jobs created via the Task tool | System-generated |
 
 ## Interval Triggers
 
@@ -455,6 +456,31 @@ Users can ask the bot questions like "What's the current price?" between schedul
 ❌ **Not ideal for:**
 - Background automation (use cron or interval)
 - Event-driven workflows (use webhook when available)
+
+## Spawned Trigger Type
+
+The `spawned` trigger type is a system-generated marker for jobs created by sub-agents via the Task tool. You cannot create a schedule with `type: spawned` — this trigger type exists only as job metadata to record provenance.
+
+When an agent uses the Task tool to spawn a sub-agent, herdctl creates a job with `trigger_type: spawned`. This allows you to:
+
+- **Filter jobs** by spawn origin in job listings
+- **Track delegation** patterns — which agents spawn sub-agents and how often
+- **Distinguish** between user-initiated and agent-initiated work
+
+The `spawned` type is an enum value in the job metadata schema, ensuring type safety and enabling downstream consumers (like dashboards or analytics tools) to distinguish spawned jobs from scheduled, manual, or chat-triggered runs.
+
+### Example Job Metadata
+
+```yaml
+id: job-2024-01-19-xyz789
+agent: my-subagent
+trigger_type: spawned  # Set by the Task tool
+status: completed
+started_at: "2024-01-19T10:30:00Z"
+finished_at: "2024-01-19T10:32:15Z"
+```
+
+This trigger type is purely informational — it has no scheduling logic of its own.
 
 ## Choosing the Right Trigger
 
