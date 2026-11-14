@@ -62,6 +62,37 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Poll until `predicate` holds, failing only after a generous deadline.
+ *
+ * Prefer this to a fixed `wait(n)` wherever a test is waiting for the scheduler
+ * to get somewhere — check, trigger, run, write `state.yaml`. A fixed sleep
+ * encodes a guess about how fast a CI runner is, and on a loaded one the guess
+ * is wrong: these tests failed on CI with `wait(300)` / `wait(50)` while the
+ * behaviour under test was fine. Polling waits exactly as long as needed.
+ *
+ * The deadline is measured with `performance.now()`, NOT `Date.now()`, because
+ * several tests here freeze `Date.now` to pin the cron clock — a `Date.now`
+ * deadline would never expire. It defaults below vitest's 5s test timeout so a
+ * genuine failure reports this helper's message, not a bare "Test timed out".
+ *
+ * Only for waiting on something to HAPPEN. Assertions that something did NOT
+ * happen ("triggers only once", "no trigger after stop") still need a fixed
+ * wait — you cannot poll for an absence.
+ */
+async function waitUntil(
+  predicate: () => boolean | Promise<boolean>,
+  { timeoutMs = 4000, intervalMs = 10 }: { timeoutMs?: number; intervalMs?: number } = {},
+): Promise<void> {
+  const deadline = performance.now() + timeoutMs;
+  while (!(await predicate())) {
+    if (performance.now() > deadline) {
+      throw new Error(`waitUntil: condition not met within ${timeoutMs}ms`);
+    }
+    await wait(intervalMs);
+  }
+}
+
 describe("Scheduler", () => {
   let tempDir: string;
   let mockLogger: ReturnType<typeof createMockLogger>;
@@ -215,8 +246,8 @@ describe("Scheduler", () => {
 
       const startPromise = scheduler.start([]);
 
-      // Wait for a few checks
-      await wait(180);
+      // Wait for at least one check
+      await waitUntil(() => scheduler.getState().checkCount > 0);
 
       const state = scheduler.getState();
       expect(state.checkCount).toBeGreaterThan(0);
@@ -343,7 +374,7 @@ describe("Scheduler", () => {
       const agents = [createTestAgent("no-schedules-agent")];
 
       const startPromise = scheduler.start(agents);
-      await wait(100);
+      await waitUntil(() => scheduler.getState().checkCount > 0);
 
       // Should complete check without errors
       const state = scheduler.getState();
@@ -410,9 +441,9 @@ describe("Scheduler", () => {
 
         const startPromise = scheduler.start(agents);
 
-        // Wait for the scheduler to check (using real setTimeout)
-        // 500ms gives ample headroom for slow CI runners doing async file I/O
-        await wait(500);
+        // Wait for the scheduler to check and trigger. A fixed wait(500) here
+        // still flaked on CI, so poll rather than guess at runner speed.
+        await waitUntil(() => triggers.length > 0);
 
         // Should have triggered since we're 5s past a minute boundary (within 30s trigger window)
         expect(triggers.length).toBeGreaterThan(0);
@@ -440,7 +471,7 @@ describe("Scheduler", () => {
       ];
 
       const startPromise = scheduler.start(agents);
-      await wait(100);
+      await waitUntil(() => mockLogger.warnings.some((m) => m.includes("missing cron expression")));
 
       expect(mockLogger.warnings.some((m) => m.includes("missing cron expression"))).toBe(true);
       expect(scheduler.getState().triggerCount).toBe(0);
@@ -463,7 +494,7 @@ describe("Scheduler", () => {
       ];
 
       const startPromise = scheduler.start(agents);
-      await wait(100);
+      await waitUntil(() => mockLogger.warnings.some((m) => m.includes("invalid cron expression")));
 
       expect(mockLogger.warnings.some((m) => m.includes("invalid cron expression"))).toBe(true);
       expect(scheduler.getState().triggerCount).toBe(0);
@@ -498,11 +529,15 @@ describe("Scheduler", () => {
 
         const startPromise = scheduler.start(agents);
 
-        // Wait for the scheduler to check, trigger, and complete
-        await wait(300);
+        // Wait for the scheduler to check, trigger, complete, and persist the
+        // completed run — i.e. until state.yaml carries a next_run_at.
+        const stateFile = join(tempDir, "state.yaml");
+        await waitUntil(async () => {
+          const s = (await readFleetState(stateFile)).agents["test-agent"]?.schedules?.everyMinute;
+          return !!s?.next_run_at && s.status === "idle";
+        });
 
         // Check state was updated with next_run_at for cron
-        const stateFile = join(tempDir, "state.yaml");
         const fleetState = await readFleetState(stateFile);
         const scheduleState = fleetState.agents["test-agent"]?.schedules?.everyMinute;
 
@@ -567,6 +602,9 @@ describe("Scheduler", () => {
       ];
 
       const startPromise = scheduler.start(agents);
+      // Wait for the catch-up trigger, then give the scheduler several more
+      // check cycles in which a (wrong) second trigger could fire.
+      await waitUntil(() => triggers.length > 0);
       await wait(200);
 
       // The schedule SHOULD trigger once to catch up for the missed window.
@@ -632,7 +670,7 @@ describe("Scheduler", () => {
         ];
 
         const startPromise = scheduler.start(agents);
-        await wait(300);
+        await waitUntil(() => triggers.length > 0);
 
         // The cron should trigger because the next occurrence after 10:00:00
         // is 10:01:00, which is exactly now.
@@ -732,7 +770,7 @@ describe("Scheduler", () => {
       ];
 
       const startPromise = scheduler.start(agents);
-      await wait(100);
+      await waitUntil(() => mockLogger.debugs.some((m) => m.includes("disabled")));
 
       expect(mockLogger.debugs.some((m) => m.includes("disabled"))).toBe(true);
       expect(scheduler.getState().triggerCount).toBe(0);
@@ -755,7 +793,7 @@ describe("Scheduler", () => {
       ];
 
       const startPromise = scheduler.start(agents);
-      await wait(100);
+      await waitUntil(() => mockLogger.warnings.some((m) => m.includes("missing interval value")));
 
       expect(mockLogger.warnings.some((m) => m.includes("missing interval value"))).toBe(true);
       expect(scheduler.getState().triggerCount).toBe(0);
@@ -783,7 +821,7 @@ describe("Scheduler", () => {
       ];
 
       const startPromise = scheduler.start(agents);
-      await wait(150);
+      await waitUntil(() => triggers.length > 0);
 
       // First run should trigger immediately (no last_run_at)
       expect(triggers.length).toBeGreaterThan(0);
@@ -812,10 +850,15 @@ describe("Scheduler", () => {
       ];
 
       const startPromise = scheduler.start(agents);
-      await wait(150);
+
+      // Wait until the completed run is persisted
+      const stateFile = join(tempDir, "state.yaml");
+      await waitUntil(async () => {
+        const s = (await readFleetState(stateFile)).agents["test-agent"]?.schedules?.hourly;
+        return !!s?.last_run_at && s.status === "idle";
+      });
 
       // Check state was updated
-      const stateFile = join(tempDir, "state.yaml");
       const fleetState = await readFleetState(stateFile);
       const scheduleState = fleetState.agents["test-agent"]?.schedules?.hourly;
 
@@ -844,10 +887,16 @@ describe("Scheduler", () => {
       ];
 
       const startPromise = scheduler.start(agents);
-      await wait(150);
+
+      // Wait until the failure is persisted
+      const stateFile = join(tempDir, "state.yaml");
+      await waitUntil(
+        async () =>
+          (await readFleetState(stateFile)).agents["test-agent"]?.schedules?.hourly?.last_error ===
+          "Trigger failed!",
+      );
 
       // Check error was recorded
-      const stateFile = join(tempDir, "state.yaml");
       const fleetState = await readFleetState(stateFile);
       const scheduleState = fleetState.agents["test-agent"]?.schedules?.hourly;
 
@@ -886,8 +935,10 @@ describe("Scheduler", () => {
 
       const startPromise = scheduler.start(agents);
 
-      // Wait long enough for multiple checks but only one trigger should complete
-      await wait(150);
+      // Wait for the first trigger, then for several 30ms check cycles while the
+      // 100ms job is still running — none of them may trigger it again.
+      await waitUntil(() => triggerCount > 0);
+      await wait(100);
 
       // Should only have triggered once due to running check
       expect(triggerCount).toBe(1);
@@ -914,7 +965,7 @@ describe("Scheduler", () => {
       ];
 
       const startPromise = scheduler.start(agents);
-      await wait(150);
+      await waitUntil(() => scheduler.getState().checkCount > 0);
 
       // Should have logged errors but kept running
       expect(scheduler.isRunning()).toBe(true);
@@ -968,7 +1019,8 @@ describe("Scheduler", () => {
 
       const startPromise = scheduler.start(agents);
 
-      // Wait for both to have started running
+      // Wait for at least one trigger, then (briefly) for both to have started
+      await waitUntil(() => maxConcurrent >= 1);
       await Promise.race([bothStarted, wait(300)]);
 
       // Check max concurrent - may be 1 or 2 depending on timing
@@ -1100,7 +1152,7 @@ describe("Scheduler", () => {
       const startPromise = scheduler.start([agent]);
 
       // Wait for first trigger to happen and start running
-      await wait(100);
+      await waitUntil(() => triggerCount > 0);
 
       // With 1 schedule, it should trigger once initially
       // Then subsequent checks should show "already_running" until it completes
@@ -1108,7 +1160,7 @@ describe("Scheduler", () => {
       expect(scheduler.getRunningJobCount("test-agent")).toBe(1);
 
       // Wait for the job to complete
-      await wait(200);
+      await waitUntil(() => scheduler.getRunningJobCount("test-agent") === 0);
 
       // After completion, running count should be 0
       expect(scheduler.getRunningJobCount("test-agent")).toBe(0);
@@ -1148,7 +1200,7 @@ describe("Scheduler", () => {
 
       const startPromise = scheduler.start([agent]);
 
-      await wait(100);
+      await waitUntil(() => runningCountDuringExecution !== -1);
 
       // Count should have been 1 during execution
       expect(runningCountDuringExecution).toBe(1);
@@ -1209,7 +1261,7 @@ describe("Scheduler", () => {
 
       const startPromise = scheduler.start([agent]);
 
-      await wait(150);
+      await waitUntil(() => maxCount >= 1);
 
       // Should have tracked multiple concurrent jobs
       expect(maxCount).toBeGreaterThanOrEqual(1);
@@ -1274,7 +1326,7 @@ describe("Scheduler", () => {
       });
 
       const startPromise = scheduler.start([agent]);
-      await wait(100);
+      await waitUntil(() => jobStarted);
 
       // Job should be running
       expect(jobStarted).toBe(true);
@@ -1321,7 +1373,7 @@ describe("Scheduler", () => {
       });
 
       const startPromise = scheduler.start([agent]);
-      await wait(100);
+      await waitUntil(() => jobStarted);
 
       // Job should be running
       expect(jobStarted).toBe(true);
@@ -1358,7 +1410,7 @@ describe("Scheduler", () => {
       });
 
       const startPromise = scheduler.start([agent]);
-      await wait(100);
+      await waitUntil(() => scheduler.getTotalRunningJobCount() === 1);
 
       // Stop with a short timeout
       let shutdownError: SchedulerShutdownError | null = null;
@@ -1399,7 +1451,7 @@ describe("Scheduler", () => {
       });
 
       const startPromise = scheduler.start([agent]);
-      await wait(50);
+      await waitUntil(() => triggerCount > 0);
 
       // First trigger should start
       const countAtStop = triggerCount;
@@ -1447,7 +1499,7 @@ describe("Scheduler", () => {
       } as ResolvedAgent;
 
       const startPromise = scheduler.start([agent]);
-      await wait(100);
+      await waitUntil(() => runningCount >= 1);
 
       // Multiple jobs should be running
       expect(runningCount).toBeGreaterThanOrEqual(1);
@@ -1504,10 +1556,13 @@ describe("Scheduler", () => {
       });
 
       const startPromise = scheduler.start([agent]);
-      await wait(150);
 
       // Trigger should have completed and updated state
       const stateFile = join(tempDir, "state.yaml");
+      await waitUntil(async () => {
+        const s = (await readFleetState(stateFile)).agents["test-agent"]?.schedules?.hourly;
+        return !!s?.last_run_at && s.status === "idle";
+      });
       let fleetState = await readFleetState(stateFile);
       const scheduleState = fleetState.agents["test-agent"]?.schedules?.hourly;
 
@@ -1545,13 +1600,13 @@ describe("Scheduler", () => {
       });
 
       const startPromise = scheduler.start([agent]);
-      await wait(100);
+      await waitUntil(() => scheduler.getTotalRunningJobCount() > 0);
 
-      // Should have 1 running job
+      // Should have 1 running job (the job is held open by jobPromise)
       expect(scheduler.getTotalRunningJobCount()).toBe(1);
 
       resolveJob!();
-      await wait(50);
+      await waitUntil(() => scheduler.getTotalRunningJobCount() === 0);
 
       // Should be back to 0
       expect(scheduler.getTotalRunningJobCount()).toBe(0);
@@ -1572,7 +1627,7 @@ describe("Scheduler", () => {
       });
 
       const startPromise = scheduler.start([]);
-      await wait(70);
+      await waitUntil(() => onTick.mock.calls.length >= 2);
       await scheduler.stop();
       await startPromise;
 
@@ -1593,7 +1648,7 @@ describe("Scheduler", () => {
       });
 
       const startPromise = scheduler.start([]);
-      await wait(70);
+      await waitUntil(() => calls >= 2);
       await scheduler.stop();
       await startPromise;
 
