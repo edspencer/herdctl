@@ -25,6 +25,7 @@ Each job is stored as a YAML metadata file with these fields:
 | `prompt` | string \| null | The prompt given to the agent |
 | `summary` | string \| null | Brief summary of what the job accomplished |
 | `output_file` | string \| null | Path to the JSONL output file |
+| `usage` | object \| null | Token usage and cost data (see [Token Usage Tracking](#token-usage-tracking)) |
 
 ## Job Lifecycle
 
@@ -155,6 +156,105 @@ duration_seconds: 932
 prompt: "Check for ready issues and implement the oldest one."
 summary: "Implemented issue #42: fixed authentication timeout."
 output_file: .herdctl/jobs/job-2025-01-15-k2x9qa.jsonl
+usage:
+  per_model:
+    claude-opus-4-8:
+      input_tokens: 12450
+      output_tokens: 3821
+      cache_creation_input_tokens: 8934
+      cache_read_input_tokens: 45230
+  num_turns: 8
+  total_cost_usd: 0.42
+```
+
+## Token Usage Tracking
+
+Every completed job records token usage and cost data in the `usage` field. This enables cost tracking, usage analytics, and understanding how your agents consume resources.
+
+### Usage Data Structure
+
+The `usage` field contains three components:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `per_model` | object | Token counts broken down by model ID |
+| `num_turns` | number \| null | Total agentic turns in this run |
+| `total_cost_usd` | number \| null | SDK-reported cost in USD (SDK runtime only) |
+
+### Per-Model Token Breakdown
+
+Token counts are tracked **per model** because a single run can use multiple models. For example, an Opus main agent delegating to Haiku subagents will show token counts for both models.
+
+Each model's usage includes four token classes:
+
+| Token Class | Description |
+|-------------|-------------|
+| `input_tokens` | Fresh (non-cached) input tokens |
+| `output_tokens` | Generated output tokens |
+| `cache_creation_input_tokens` | Tokens written to the prompt cache |
+| `cache_read_input_tokens` | Tokens read from the prompt cache |
+
+### Example Usage Data
+
+```yaml
+usage:
+  per_model:
+    claude-opus-4-8:
+      input_tokens: 12450
+      output_tokens: 3821
+      cache_creation_input_tokens: 8934
+      cache_read_input_tokens: 45230
+    claude-haiku-4:
+      input_tokens: 2340
+      output_tokens: 891
+      cache_creation_input_tokens: 0
+      cache_read_input_tokens: 8934
+  num_turns: 8
+  total_cost_usd: 0.42
+```
+
+This example shows a run that used both Opus (main agent) and Haiku (subagent), consumed 8 agentic turns, and cost $0.42 according to the SDK.
+
+### Cost Calculation Notes
+
+- **Token counts are authoritative**: herdctl records raw token counts from the runtime. These are always present for completed jobs.
+- **Cost is SDK-reported**: The `total_cost_usd` field is only present when using the SDK runtime (not CLI) and represents the SDK's own cost calculation.
+- **No pricing table**: herdctl deliberately does not maintain a $/token pricing table. Consuming applications should apply their own pricing logic based on the per-model token counts.
+- **CLI and Max plan**: For CLI runtime or Anthropic Max plan users, `total_cost_usd` will be null since there's no real per-token spend to track.
+
+### Accessing Usage Data
+
+Usage data is available in:
+
+1. **Job metadata files**: Read `.herdctl/jobs/job-<id>.yaml` directly
+2. **FleetManager API**: The `getJob(jobId)` method returns job metadata including usage
+3. **Web Dashboard**: Job detail views display token and cost information
+
+### Building Cost Reports
+
+Use the per-model token data to build custom cost reporting:
+
+```typescript
+import { readFile } from "fs/promises";
+import { parse } from "yaml";
+
+const jobMetadata = parse(await readFile(".herdctl/jobs/job-2025-01-15-k2x9qa.yaml", "utf-8"));
+
+if (jobMetadata.usage) {
+  for (const [modelId, tokens] of Object.entries(jobMetadata.usage.per_model)) {
+    const totalInput =
+      tokens.input_tokens +
+      tokens.cache_creation_input_tokens +
+      tokens.cache_read_input_tokens;
+    const totalOutput = tokens.output_tokens;
+
+    console.log(`${modelId}: ${totalInput} input + ${totalOutput} output`);
+  }
+
+  if (jobMetadata.usage.total_cost_usd !== null) {
+    console.log(`SDK cost: $${jobMetadata.usage.total_cost_usd.toFixed(4)}`);
+  }
+}
 ```
 
 ## Job Output Format

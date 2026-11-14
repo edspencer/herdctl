@@ -532,6 +532,26 @@ schedules:
     prompt: "Run maintenance tasks."
 ```
 
+## Trigger Provenance
+
+When jobs are created, herdctl records how they were triggered using the `trigger_type` field. Most trigger types (`interval`, `cron`, `webhook`, `chat`) correspond to user-configured triggers, but one special type exists for provenance tracking:
+
+### The `spawned` Trigger Type
+
+The `spawned` trigger type indicates that a job was started programmatically by another agent, rather than by a user-configured trigger. This occurs when:
+
+- One agent uses the Task tool to spawn a sub-agent
+- An agent delegates work to another agent
+- A host application programmatically triggers an agent via the FleetManager API
+
+The `spawned` type is **not** something you configure in your agent's YAML file. It's set automatically by herdctl when one agent initiates another's execution. You'll see it in:
+
+- Job metadata files (`.herdctl/jobs/job-*.yaml`)
+- The web dashboard's job history table (displayed with a Bot icon)
+- Job listings from `herdctl jobs` commands
+
+This distinction helps you understand whether a job ran because of a schedule you configured, a chat message from a user, or because another agent spawned it as part of a larger workflow.
+
 ## Related Concepts
 
 - [Schedules](/concepts/schedules/) - Combine triggers with prompts
