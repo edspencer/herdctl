@@ -62,6 +62,32 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Poll until `predicate` holds, failing only after a generous deadline.
+ *
+ * Prefer this to a fixed `wait(n)` wherever a test is waiting for the scheduler
+ * to get somewhere — check, trigger, run, write `state.yaml`. A fixed sleep
+ * encodes a guess about how fast a CI runner is, and on a loaded one the guess
+ * is wrong: these tests failed on CI with `wait(300)` / `wait(50)` while the
+ * behaviour under test was fine. Polling waits exactly as long as needed.
+ *
+ * The deadline is measured with `performance.now()`, NOT `Date.now()`, because
+ * several tests here freeze `Date.now` to pin the cron clock — a `Date.now`
+ * deadline would never expire.
+ */
+async function waitUntil(
+  predicate: () => boolean | Promise<boolean>,
+  { timeoutMs = 5000, intervalMs = 10 }: { timeoutMs?: number; intervalMs?: number } = {},
+): Promise<void> {
+  const deadline = performance.now() + timeoutMs;
+  while (!(await predicate())) {
+    if (performance.now() > deadline) {
+      throw new Error(`waitUntil: condition not met within ${timeoutMs}ms`);
+    }
+    await wait(intervalMs);
+  }
+}
+
 describe("Scheduler", () => {
   let tempDir: string;
   let mockLogger: ReturnType<typeof createMockLogger>;
@@ -498,11 +524,15 @@ describe("Scheduler", () => {
 
         const startPromise = scheduler.start(agents);
 
-        // Wait for the scheduler to check, trigger, and complete
-        await wait(300);
+        // Wait for the scheduler to check, trigger, complete, and persist the
+        // completed run — i.e. until state.yaml carries a next_run_at.
+        const stateFile = join(tempDir, "state.yaml");
+        await waitUntil(async () => {
+          const s = (await readFleetState(stateFile)).agents["test-agent"]?.schedules?.everyMinute;
+          return !!s?.next_run_at && s.status === "idle";
+        });
 
         // Check state was updated with next_run_at for cron
-        const stateFile = join(tempDir, "state.yaml");
         const fleetState = await readFleetState(stateFile);
         const scheduleState = fleetState.agents["test-agent"]?.schedules?.everyMinute;
 
@@ -632,7 +662,7 @@ describe("Scheduler", () => {
         ];
 
         const startPromise = scheduler.start(agents);
-        await wait(300);
+        await waitUntil(() => triggers.length > 0);
 
         // The cron should trigger because the next occurrence after 10:00:00
         // is 10:01:00, which is exactly now.
@@ -1545,13 +1575,13 @@ describe("Scheduler", () => {
       });
 
       const startPromise = scheduler.start([agent]);
-      await wait(100);
+      await waitUntil(() => scheduler.getTotalRunningJobCount() > 0);
 
-      // Should have 1 running job
+      // Should have 1 running job (the job is held open by jobPromise)
       expect(scheduler.getTotalRunningJobCount()).toBe(1);
 
       resolveJob!();
-      await wait(50);
+      await waitUntil(() => scheduler.getTotalRunningJobCount() === 0);
 
       // Should be back to 0
       expect(scheduler.getTotalRunningJobCount()).toBe(0);
