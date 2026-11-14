@@ -1,5 +1,27 @@
 # @herdctl/core
 
+## 5.34.2
+
+### Patch Changes
+
+- [#472](https://github.com/edspencer/herdctl/pull/472) [`e852a99`](https://github.com/edspencer/herdctl/commit/e852a99ed89fe177e998cf313119d240b677cd0e) Thanks [@edspencer](https://github.com/edspencer)! - Raise the `@anthropic-ai/claude-agent-sdk` floor to `^0.3.302` (current npm `latest`).
+
+  Picks up upstream fixes across 0.3.284–0.3.302, including: foreground subagents missing task-tracking tools, SDK MCP tool schema conversion, `toggleMcpServer()` leaving in-process tool calls hung, `forkSession()` history reading, `getSessionMessages()` message inclusion, `importSessionToStore` dropping transcript rows containing U+2028/U+2029, assistant text blocks losing `citations` in streamed responses, and `includePartialMessages` streams never emitting `message_stop` on a cut stream.
+
+  No code adaptation was needed. The API surface is additive over this range — the only new exports are `BUILTIN_TOOL_NAMES` and `LEGACY_TOOL_NAME_ALIASES`, and nothing was removed or renamed. Two upstream `permissionMode` default changes (0.3.286 and 0.3.302) do not reach herdctl, which always sets `permissionMode` explicitly (`agent.permission_mode ?? "acceptEdits"`) and always passes `--permission-mode` on the CLI runtime.
+
+  Note one runtime behaviour change inherited from 0.3.302: fork subagents (`subagent_type: "fork"`) are now on by default in SDK sessions, matching the terminal. Set `CLAUDE_CODE_FORK_SUBAGENT=0` to opt out.
+
+- [#493](https://github.com/edspencer/herdctl/pull/493) [`82a4997`](https://github.com/edspencer/herdctl/commit/82a49970110e58a0a523a52b7790c28a543b7f36) Thanks [@edspencer](https://github.com/edspencer)! - Raise the `@anthropic-ai/claude-agent-sdk` floor to `^0.3.325` (current npm `latest`, bundling Claude Code 2.1.325).
+
+  The bundled Claude Code version is what gates new models: the API refuses a model whose minimum client version is newer than the CLI making the request, answering `400 claude_code_version_too_old` (Claude Fable 5.2 needs 2.1.290 or newer). On the SDK runtime the CLI is the SDK's own bundled binary, not the `claude` on `PATH`, so a consumer cannot fix this by upgrading Claude Code — only by resolving a newer SDK. Raising the floor makes every consumer that installs this release resolve a binary new enough for the current model lineup.
+
+  No code adaptation was needed: none of the APIs changed across 0.3.303–0.3.325 are used by herdctl. Behaviour changes worth knowing about if you configure permissions yourself:
+
+  - **0.3.325:** read-only `git` commands now go through the permission flow instead of being auto-approved, and sandboxed Bash commands are no longer auto-approved unless `autoAllowBashIfSandboxed: true`. An agent whose `allowed_tools` includes `Bash` is unaffected. Deny rules now also remove in-process SDK MCP tools from Claude's tool list, as they always should have.
+  - **0.3.317:** the `file_unchanged` variant of `FileReadOutput` was removed.
+  - **0.3.311:** minimum Node.js raised to 18.14.0.
+
 ## 5.34.1
 
 ### Patch Changes
