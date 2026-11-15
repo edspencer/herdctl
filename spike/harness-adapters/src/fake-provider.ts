@@ -201,7 +201,23 @@ export function decide(h: HistoryView): Decision {
         };
       }
       if (directive === "mcp") {
-        return { kind: "tool", tool: { name: tool.name, args: { message: "spike" } } };
+        // Codex nests MCP tools in a namespace entry and REJECTS the bare
+        // nested name ("unsupported call: spike_ping"), so the wire name has
+        // to be a joined form. Which join is not documented anywhere we
+        // found, hence the env-selectable probe.
+        const fmt = process.env.SPIKE_MCP_NAME_FORMAT ?? "bare";
+        const ns = tool.namespace;
+        const name =
+          !ns || fmt === "bare"
+            ? tool.name
+            : fmt === "dunder"
+              ? `${ns}__${tool.name}`
+              : fmt === "dot"
+                ? `${ns}.${tool.name}`
+                : fmt === "slash"
+                  ? `${ns}/${tool.name}`
+                  : tool.name;
+        return { kind: "tool", tool: { name, args: { message: "spike" } } };
       }
       // Stable-ish filename so the recall oracle has something to find.
       const fn = `spike-${process.env.SPIKE_FILE_TAG ?? "alpha"}.txt`;

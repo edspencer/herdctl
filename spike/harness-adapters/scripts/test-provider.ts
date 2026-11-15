@@ -1,5 +1,5 @@
 import { startFakeProvider } from "../src/fake-provider.ts";
-const { url, close } = await startFakeProvider(8099);
+const { url, close } = await startFakeProvider(Number(process.env.SPIKE_TEST_PORT ?? 8099));
 const post = async (path, body) => {
   const r = await fetch(url + path, { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer x" }, body: JSON.stringify(body) });
   const ct = r.headers.get("content-type") || "";

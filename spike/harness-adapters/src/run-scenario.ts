@@ -115,7 +115,10 @@ const harnessName = process.argv[2];
 const phase = process.argv[3] ?? "all";
 
 if (!harnessName) {
-  console.error("usage: tsx src/run-scenario.ts <pi|codex> <phase1|phase2|rest|all>");
+  console.error(
+    "usage: tsx src/run-scenario.ts <pi|codex> " +
+      "<phase1|phase2|interrupt|mcp|approval|rest|all>",
+  );
   process.exit(2);
 }
 
@@ -165,13 +168,19 @@ try {
     }
   }
 
-  if (phase === "rest" || phase === "all") {
+  // Individually runnable so a slow harness can be given its own timeout
+  // budget per scenario instead of one shared one.
+  if (phase === "interrupt" || phase === "rest" || phase === "all") {
     console.log("\n=== S4: interrupt a long turn ===");
     all.push(...(await scenarioInterrupt(adapter, WORK_ROOT, baseOpts)));
+  }
 
+  if (phase === "mcp" || phase === "rest" || phase === "all") {
     console.log("\n=== S5: injected MCP tool via herdctl's HTTP bridge ===");
     all.push(...(await scenarioMcp(adapter, WORK_ROOT, baseOpts, { spike: spikeMcpDef as never })));
+  }
 
+  if (phase === "approval" || phase === "rest" || phase === "all") {
     console.log("\n=== S6: approval round-trip ===");
     all.push(...(await scenarioApproval(adapter, WORK_ROOT, baseOpts)));
   }
