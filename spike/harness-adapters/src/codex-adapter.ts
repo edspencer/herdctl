@@ -280,6 +280,13 @@ class CodexSession implements HarnessSession {
     const push = (e: Omit<HarnessEvent, "timestamp" | "raw">) =>
       this.queue.push({ ...(e as HarnessEvent), timestamp: ts, raw });
 
+    // Learning aid: Codex has 18 ThreadItem variants and the only reliable way
+    // to find out which ones a given turn really emits is to watch.
+    if (process.env.SPIKE_DUMP_RAW) {
+      const item = (params.item as Record<string, unknown> | undefined)?.type;
+      process.stderr.write(`[codex notif] ${method}${item ? ` item.type=${item}` : ""}\n`);
+    }
+
     switch (method) {
       case "thread/started": {
         const thread = params.thread as Record<string, unknown> | undefined;
@@ -475,7 +482,14 @@ class CodexSession implements HarnessSession {
       // callback is the best this interface allows, and it is lossy.
       approvalPolicy: opts.onApproval ? "untrusted" : "never",
       approvalsReviewer: "user",
-      sandbox: "workspace-write",
+      // FINDING, observed live: Codex's own sandbox is bubblewrap-based and
+      // needs unprivileged user namespaces. In this LXC container bwrap fails
+      // with "No permissions to create a new namespace", and every tool call
+      // comes back as a failed commandExecution -- the protocol looks healthy
+      // while nothing actually runs. That matters for herdctl because Paddock
+      // runs containerised. Overridable so the degradation is explicit rather
+      // than silent.
+      sandbox: process.env.SPIKE_CODEX_SANDBOX ?? "danger-full-access",
     };
 
     if (opts.resumeSessionId) {
@@ -593,7 +607,7 @@ export class CodexAdapter implements HarnessAdapter {
       `model = "${opts.model ?? "spike-fake-1"}"`,
       `model_provider = "spikefake"`,
       `approval_policy = "${opts.onApproval ? "untrusted" : "never"}"`,
-      `sandbox_mode = "workspace-write"`,
+      `sandbox_mode = "${process.env.SPIKE_CODEX_SANDBOX ?? "danger-full-access"}"`,
       ``,
       `[model_providers.spikefake]`,
       `name = "Spike Fake"`,

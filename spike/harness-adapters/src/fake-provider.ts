@@ -97,9 +97,14 @@ function pickTool(tools: ToolSpec[], want: "write" | "read" | "mcp"): ToolSpec |
     // edit-shaped tool.
     return (
       byName(/^(write|write_file|create_file|create)$/i) ??
-      byName(/^(bash|shell|exec|run_command|local_shell|powershell)$/i) ??
-      byName(/^write/i) ??
-      byName(/bash|shell|exec/i) ??
+      // Codex 0.169.0's real shell tool is `exec_command`, and it also offers
+      // `write_stdin` -- which writes to a running process's stdin, NOT a file.
+      // A naive /write/ match picks write_stdin and the turn silently does
+      // nothing useful, so shells are matched before any write-ish regex and
+      // write_stdin is excluded explicitly.
+      byName(/^(exec_command|bash|shell|exec|run_command|local_shell|powershell)$/i) ??
+      byName(/^write(?!_stdin)/i) ??
+      byName(/^(?!write_stdin)(?=.*(bash|shell|exec)).*/i) ??
       byName(/^(edit|str_replace_editor|apply_patch)$/i)
     );
   }
@@ -276,8 +281,31 @@ function historyFromResponses(body: any): HistoryView {
   const after = lastUserIdx >= 0 ? input.slice(lastUserIdx + 1) : [];
   const instructions =
     typeof body?.instructions === "string" ? body.instructions : "";
+
+  /**
+   * History scanning MUST include function_call.arguments.
+   *
+   * This was a bug in the oracle, not in a harness, and it nearly produced a
+   * false finding. In the Responses shape the filename the oracle looks for
+   * lives in a `function_call` item's `arguments` JSON -- not in any
+   * content/text/output field. Scanning only message content made Codex look
+   * like it had replayed no history on resume, when the real cause was that
+   * the oracle could not see the one field the filename was in. Pi's
+   * chat/completions shape hid the same bug because its tool RESULT text
+   * happens to contain the filename too.
+   */
+  const scanText = (i: any): string =>
+    [
+      textOf(i),
+      typeof i?.arguments === "string" ? i.arguments : "",
+      typeof i?.output === "string" ? i.output : "",
+      i?.name ?? "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
   return {
-    allText: [instructions, ...input.map((i: any) => `${i?.role ?? i?.type}: ${textOf(i)}`)].join(
+    allText: [instructions, ...input.map((i: any) => `${i?.role ?? i?.type}: ${scanText(i)}`)].join(
       "\n",
     ),
     lastUserText: lastUserIdx >= 0 ? textOf(input[lastUserIdx]) : "",
