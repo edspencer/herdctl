@@ -80,13 +80,21 @@ interface ToolSpec {
   name: string;
   /** JSON-schema-ish parameter object, if the harness supplied one. */
   params?: Record<string, unknown>;
+  /** Set when the tool came from inside a namespace-typed entry (Codex MCP). */
+  namespace?: string;
 }
 
 function pickTool(tools: ToolSpec[], want: "write" | "read" | "mcp"): ToolSpec | undefined {
   const byName = (re: RegExp) => tools.find((t) => re.test(t.name));
   if (want === "mcp") {
-    // herdctl's bridge namespaces injected tools; also match a bare spike name.
-    return byName(/^mcp__/i) ?? byName(/spike[_-]?(ping|echo)/i) ?? byName(/ping/i);
+    // Prefer a tool that arrived from inside an mcp__ namespace (Codex), then
+    // an mcp__-prefixed flat name (Pi), then a bare spike/ping name.
+    return (
+      tools.find((t) => /^mcp__/i.test(t.namespace ?? "")) ??
+      byName(/^mcp__.+__/i) ??
+      byName(/spike[_-]?(ping|echo)/i) ??
+      byName(/ping/i)
+    );
   }
   if (want === "write") {
     // Priority order matters. Tried in strict preference, because several
@@ -315,11 +323,39 @@ function historyFromResponses(body: any): HistoryView {
         i?.type === "local_shell_call_output" ||
         i?.type === "custom_tool_call_output",
     ),
-    tools: (Array.isArray(body?.tools) ? body.tools : []).map((t: any) => ({
+    tools: flattenResponsesTools(Array.isArray(body?.tools) ? body.tools : []),
+  };
+}
+
+/**
+ * Codex nests tools inside `type: "namespace"` entries -- an injected MCP
+ * server arrives as `{type:"namespace", name:"mcp__spike", tools:[{name:
+ * "spike_ping", ...}]}`, and the callable function is the NESTED one. Calling
+ * the namespace itself does nothing useful.
+ *
+ * So a harness's advertised tool list is not necessarily flat. Found by
+ * logging what Codex actually sent, after the MCP scenario quietly failed to
+ * invoke anything.
+ */
+function flattenResponsesTools(tools: any[]): ToolSpec[] {
+  const out: ToolSpec[] = [];
+  for (const t of tools) {
+    if (t?.type === "namespace" && Array.isArray(t.tools)) {
+      for (const sub of t.tools) {
+        out.push({
+          name: sub?.name ?? "",
+          params: sub?.parameters ?? sub?.function?.parameters,
+          namespace: t?.name ?? undefined,
+        });
+      }
+      continue;
+    }
+    out.push({
       name: t?.name ?? t?.function?.name ?? t?.type ?? "",
       params: t?.parameters ?? t?.function?.parameters,
-    })),
-  };
+    });
+  }
+  return out;
 }
 
 // =============================================================================

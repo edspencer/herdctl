@@ -18,7 +18,7 @@
  * already run out of vocabulary, which is part of the case for a real union.
  */
 
-import type { HarnessEvent } from "./harness.ts";
+import type { HarnessCapabilities, HarnessEvent } from "./harness.ts";
 
 /** Minimal structural view of the Claude SDK messages we translate. */
 interface ClaudeSdkMessage {
@@ -196,18 +196,24 @@ export async function* translateClaudeStream(
  * What the Claude runtime can do, in the normalised vocabulary.
  * Values reflect herdctl's existing SDK runtime, not aspiration.
  */
-export const claudeCapabilities = {
-  resume: true,
-  fork: true,
-  interrupt: true,
-  approvals: true, // canUseTool / permission modes
-  streamingDeltas: true, // includePartialMessages
-  thinking: true,
-  mcpStdio: true,
-  mcpHttp: true,
-  costUsd: true, // total_cost_usd on the result message
-  tokenUsage: true,
-  setModelMidSession: true, // RuntimeSession.setModel
-  listCommands: true, // RuntimeSession.listCommands
-  sandbox: false, // permission prompts, not an enforced sandbox
-} as const;
+export const claudeCapabilities: HarnessCapabilities = {
+  resume: "yes",
+  fork: "yes",
+  interrupt: "yes",
+  approvals: "yes", // canUseTool / permission modes
+  streamingDeltas: "yes", // includePartialMessages
+  thinking: "yes",
+  toolOutputDeltas: "yes", // tool_progress messages
+  mcpStdio: "yes",
+  mcpHttp: "yes",
+  transcriptRead: "yes", // the transcript store (out of scope for this spike)
+  tokenUsage: "yes",
+  costUsd: "yes", // total_cost_usd on the result message
+  setModelMidSession: "yes", // RuntimeSession.setModel
+  listCommands: "yes", // RuntimeSession.listCommands
+  sandbox: "no", // permission prompts, not an enforced sandbox
+  mcpInjection: "per-session",
+  via: {
+    sandbox: "permission modes gate tool use; they do not confine side effects",
+  },
+};

@@ -32,6 +32,7 @@ import { randomUUID } from "node:crypto";
 import { readJsonLines, writeJsonLine } from "./jsonl.ts";
 import type {
   ApprovalDecision,
+  ToolKind,
   ApprovalRequest,
   HarnessAdapter,
   HarnessCapabilities,
@@ -84,6 +85,17 @@ export default function gate(pi) {
   });
 }
 `;
+
+
+/** Map Pi's tool names onto the normalised ToolKind (BEND B1). */
+function piToolKind(name: string): ToolKind {
+  if (name.startsWith("mcp__")) return "mcp";
+  if (/^(bash|powershell)$/.test(name)) return "command";
+  if (/^(write|edit)$/.test(name)) return "file_edit";
+  if (/^(read|ls)$/.test(name)) return "file_read";
+  if (/^(grep|find)$/.test(name)) return "search";
+  return "other";
+}
 
 // =============================================================================
 // Event queue (same shape as the Codex adapter's)
@@ -272,10 +284,18 @@ class PiSession implements HarnessSession {
 
     switch (type) {
       case "agent_start":
-        // Pi has no session_started event at all: in RPC mode no header is
-        // emitted. We synthesise one from the caller-supplied id so consumers
-        // see a uniform stream. (BEND B7.)
-        push({ type: "session_started", sessionId: this.sid } as never);
+        // BEND B6: Pi has NO session-started event -- in RPC mode no header is
+        // emitted at all. The adapter SYNTHESISES one from the caller-supplied
+        // id, so this normalised event corresponds to no native event. Flagged
+        // synthetic so a consumer can tell an inferred fact from a reported
+        // one, which is why `raw` had to become nullable.
+        this.queue.push({
+          type: "session_started",
+          sessionId: this.sid,
+          timestamp: ts,
+          raw: null,
+          synthetic: true,
+        } as HarnessEvent);
         return;
 
       case "message_update": {
@@ -284,7 +304,7 @@ class PiSession implements HarnessSession {
         if (k === "text_delta") {
           push({ type: "assistant_delta", text: String(ame?.delta ?? "") } as never);
         } else if (k === "thinking_delta") {
-          push({ type: "thinking", text: String(ame?.delta ?? "") } as never);
+          push({ type: "thinking", text: String(ame?.delta ?? ""), partial: true } as never);
         }
         // The WIRE shape lifts cumulative usage to the top level of
         // message_update (the SDK shape does not). Cumulative, so we only
@@ -321,15 +341,19 @@ class PiSession implements HarnessSession {
         const u = m?.usage as Record<string, unknown> | undefined;
         if (u) {
           const cost = u.cost as Record<string, number> | undefined;
+          // BEND B4: Pi reports a dollar figure AND tells you whether it is
+          // real. cost.totalFromProvider present => provider-billed; absent
+          // => a local catalog ESTIMATE. draft0's bare `costUsd?: number`
+          // would have let a consumer add estimates to real spend, so the
+          // union now carries costBasis.
+          const provided = cost && typeof cost.totalFromProvider === "number";
           push({
             type: "usage",
             inputTokens: Number(u.input ?? 0),
             outputTokens: Number(u.output ?? 0),
-            // Pi DOES report a dollar figure. cost.total is provider-billed
-            // when available, else a catalog estimate -- totalFromProvider
-            // says which, a distinction the normalised union cannot express
-            // (BEND B8).
             ...(cost && typeof cost.total === "number" ? { costUsd: cost.total } : {}),
+            costBasis: provided ? "provider-billed" : "estimated",
+            cumulative: false,
           } as never);
         }
 
@@ -337,10 +361,15 @@ class PiSession implements HarnessSession {
         // visible as stopReason === "error" on the message, so the adapter has
         // to synthesise the normalised error event here.
         if (this.lastStopReason === "error") {
-          push({
+          // BEND B6 again: synthesised, because Pi has no error event.
+          this.queue.push({
             type: "error",
             message: this.lastErrorMessage ?? "pi turn ended with stopReason=error",
-          } as never);
+            terminal: true,
+            timestamp: ts,
+            raw: null,
+            synthetic: true,
+          } as HarnessEvent);
         }
         return;
       }
@@ -351,6 +380,7 @@ class PiSession implements HarnessSession {
           callId: String(msg.toolCallId ?? ""),
           name: String(msg.toolName ?? ""),
           input: msg.args,
+          kind: piToolKind(String(msg.toolName ?? "")),
         } as never);
         return;
 
@@ -360,6 +390,7 @@ class PiSession implements HarnessSession {
           callId: String(msg.toolCallId ?? ""),
           ok: msg.isError !== true,
           output: msg.result,
+          kind: piToolKind(String(msg.toolName ?? "")),
         } as never);
         return;
 
@@ -374,17 +405,29 @@ class PiSession implements HarnessSession {
             : this.lastStopReason === "error"
               ? "error"
               : this.lastStopReason === "length"
-                ? "max_turns"
-                : "ok",
+                ? "context_exceeded"
+                : this.lastStopReason === "stop" || this.lastStopReason === undefined
+                  ? "ok"
+                  : "unknown",
+          // BEND B3/P6: agent_settled carries ONLY {aborted} -- no status and
+          // no stop reason -- so the real reason has to be remembered from the
+          // preceding message_end. Pi's stopReason vocabulary (pending, stop,
+          // length, toolUse, error, aborted, deferred) does not map onto
+          // draft0's four statuses, hence nativeStatus.
+          nativeStatus: this.lastStopReason ?? (aborted ? "aborted" : undefined),
         } as never);
         return;
       }
 
       case "auto_retry_start":
+        // BEND B3: a NON-terminal error. Pi will retry on its own; a consumer
+        // that tears down here would kill a recovering turn.
         push({
           type: "error",
           message: `pi auto-retry: ${String(msg.errorMessage ?? "")}`,
           code: "auto_retry",
+          terminal: false,
+          willRetry: true,
         } as never);
         return;
 
@@ -393,12 +436,22 @@ class PiSession implements HarnessSession {
           type: "error",
           message: `pi extension error (${String(msg.event ?? "")}): ${String(msg.error ?? "")}`,
           code: "extension_error",
+          terminal: false,
+        } as never);
+        return;
+
+      case "bash_execution_update":
+        // BEND B7: previously dropped for want of an event type.
+        push({
+          type: "tool_output_delta",
+          callId: String(msg.id ?? ""),
+          text: String(msg.delta ?? ""),
         } as never);
         return;
 
       default:
         // agent_end, turn_start, queue_update, entry_appended, compaction_*,
-        // bash_execution_update, ... no normalised equivalent; raw is available.
+        // ... no normalised equivalent; raw is available to consumers.
         return;
     }
   }
@@ -438,22 +491,32 @@ export class PiAdapter implements HarnessAdapter {
   readonly name = "pi";
 
   readonly capabilities: HarnessCapabilities = {
-    resume: true, // --session-id, idempotent, caller-supplied
-    fork: true, // fork {entryId} / --fork
-    interrupt: true, // abort
-    // True only because we ship an extension to provide it. Pi itself has no
-    // approval concept -- see BEND B10 on capabilities being a property of
-    // "adapter + harness", not of the harness alone.
-    approvals: true,
-    streamingDeltas: true,
-    thinking: true,
-    mcpStdio: true,
-    mcpHttp: true, // streamable HTTP; legacy SSE explicitly unsupported
-    costUsd: true, // usage.cost.total
-    tokenUsage: true,
-    setModelMidSession: true, // set_model {provider, modelId}
-    listCommands: true, // get_commands
-    sandbox: false, // none by design
+    resume: "yes", // --session-id, idempotent, caller-supplied
+    fork: "yes", // fork {entryId} / --fork  (NOT exercised by this spike)
+    interrupt: "yes", // abort
+    // BEND B10: Pi itself has NO approval mechanism. This says "emulated"
+    // because the ADAPTER writes a Pi extension whose tool_call handler calls
+    // ctx.ui.confirm, which round-trips over the extension-UI subprotocol.
+    // The capability is manufactured by adapter code, not a fact about Pi.
+    approvals: "emulated",
+    streamingDeltas: "yes",
+    thinking: "yes",
+    toolOutputDeltas: "yes", // bash_execution_update (not exercised here)
+    mcpStdio: "yes",
+    mcpHttp: "yes", // streamable HTTP; legacy SSE explicitly unsupported
+    transcriptRead: "yes", // get_entries / get_messages / session JSONL
+    tokenUsage: "yes",
+    costUsd: "yes", // usage.cost.total
+    setModelMidSession: "yes", // set_model {provider, modelId}
+    listCommands: "yes", // get_commands
+    sandbox: "no", // none by design; isolation expected from outside
+    mcpInjection: "per-session",
+    via: {
+      approvals:
+        "adapter ships a Pi extension whose tool_call handler calls ctx.ui.confirm; " +
+        "Pi has no native approval prompts",
+      sandbox: "Pi documents no sandbox by design",
+    },
   };
 
   async startSession(opts: StartSessionOptions): Promise<HarnessSession> {

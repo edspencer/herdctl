@@ -243,9 +243,9 @@ export async function scenarioResume(
   baseOpts: Omit<StartSessionOptions, "cwd">,
 ): Promise<ScenarioResult[]> {
   const results: ScenarioResult[] = [];
-  if (!adapter.capabilities.resume) {
+  if (adapter.capabilities.resume === "no") {
     return [
-      { name: "S3 resume by id in a new process", verdict: "ABSENT", detail: "adapter declares resume:false" },
+      { name: "S3 resume by id in a new process", verdict: "ABSENT", detail: "adapter declares resume: no" },
     ];
   }
 
@@ -296,8 +296,8 @@ export async function scenarioInterrupt(
   workRoot: string,
   baseOpts: Omit<StartSessionOptions, "cwd">,
 ): Promise<ScenarioResult[]> {
-  if (!adapter.capabilities.interrupt) {
-    return [{ name: "S4 interrupt a long turn", verdict: "ABSENT", detail: "adapter declares interrupt:false" }];
+  if (adapter.capabilities.interrupt === "no") {
+    return [{ name: "S4 interrupt a long turn", verdict: "ABSENT", detail: "adapter declares interrupt: no" }];
   }
   const cwd = freshWorkdir(workRoot, "s4-interrupt");
   let session: HarnessSession;
@@ -365,7 +365,7 @@ export async function scenarioMcp(
   baseOpts: Omit<StartSessionOptions, "cwd">,
   mcpServers: StartSessionOptions["injectedMcpServers"],
 ): Promise<ScenarioResult[]> {
-  if (!adapter.capabilities.mcpHttp && !adapter.capabilities.mcpStdio) {
+  if (adapter.capabilities.mcpHttp === "no" && adapter.capabilities.mcpStdio === "no") {
     return [{ name: "S5 injected MCP tool call", verdict: "ABSENT", detail: "adapter declares no MCP transport" }];
   }
   const cwd = freshWorkdir(workRoot, "s5-mcp");
@@ -424,12 +424,12 @@ export async function scenarioApproval(
   workRoot: string,
   baseOpts: Omit<StartSessionOptions, "cwd">,
 ): Promise<ScenarioResult[]> {
-  if (!adapter.capabilities.approvals) {
+  if (adapter.capabilities.approvals === "no") {
     return [
       {
         name: "S6 approval round-trip",
         verdict: "ABSENT",
-        detail: "adapter declares approvals:false (harness has no approval concept)",
+        detail: "adapter declares approvals: no (harness has no approval concept)",
       },
     ];
   }

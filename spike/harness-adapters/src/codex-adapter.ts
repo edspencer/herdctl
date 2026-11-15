@@ -31,6 +31,7 @@ import type {
   HarnessEvent,
   HarnessSession,
   StartSessionOptions,
+  ToolKind,
 } from "./harness.ts";
 import { startMcpHttpBridge } from "../../../packages/core/src/runner/runtime/mcp-http-bridge.ts";
 
@@ -315,12 +316,19 @@ class CodexSession implements HarnessSession {
 
       case "item/reasoning/textDelta":
       case "item/reasoning/summaryTextDelta":
-        push({ type: "thinking", text: String(params.delta ?? "") } as never);
+        // BEND B7: incremental, flagged as such so a consumer can distinguish
+        // a streaming chunk from a completed reasoning block.
+        push({ type: "thinking", text: String(params.delta ?? ""), partial: true } as never);
         return;
 
       case "item/commandExecution/outputDelta":
-        // No normalised home: this is incremental output of an in-flight tool.
-        // See BEND B1 -- the union has no tool_progress/tool_output_delta.
+        // BEND B7: draft0 had nowhere to put this and it was dropped. The
+        // union now has tool_output_delta.
+        push({
+          type: "tool_output_delta",
+          callId: String(params.itemId ?? ""),
+          text: String(params.delta ?? ""),
+        } as never);
         return;
 
       case "item/started": {
@@ -344,9 +352,15 @@ class CodexSession implements HarnessSession {
           type: "usage",
           inputTokens: last.inputTokens ?? 0,
           outputTokens: last.outputTokens ?? 0,
-          // BEND B4: no costUsd. Codex exposes dollars only at account level
-          // (account/usage/read), behind OpenAI auth -- so a custom-provider
-          // deployment can never report cost.
+          // BEND B4: no costUsd at all on the turn stream. Dollars exist only
+          // at account level (account/usage/read) behind OpenAI auth, so a
+          // custom-provider deployment can never have them.
+          costBasis: "unavailable",
+          // `last` is the most recent breakdown and `total` is the session
+          // roll-up; we report `last`, so this is NOT cumulative. Stated
+          // explicitly because picking `total` here would silently
+          // double-count for any consumer that sums usage events.
+          cumulative: false,
         } as never);
         return;
       }
@@ -361,20 +375,28 @@ class CodexSession implements HarnessSession {
               ? "interrupted"
               : status === "failed"
                 ? "error"
-                : "ok",
+                : status === "completed"
+                  ? "ok"
+                  : "unknown",
+          ...(turn?.id ? { turnId: String(turn.id) } : {}),
+          nativeStatus: status,
         } as never);
         return;
       }
 
       case "error": {
         const err = params.error as Record<string, unknown> | undefined;
+        // BEND B3: this is the case draft0 missed. `willRetry` means Codex
+        // intends to continue; a consumer that tears down on `error` would
+        // kill a turn that was about to recover. Only turn/completed ends it.
+        const willRetry = params.willRetry === true;
         push({
           type: "error",
           message: String(err?.message ?? "codex turn error"),
           ...(err?.codexErrorInfo ? { code: JSON.stringify(err.codexErrorInfo) } : {}),
+          terminal: !willRetry,
+          willRetry,
         } as never);
-        // An error notification does not imply the turn ended; Codex may retry
-        // (`willRetry`). Only turn/completed ends a turn.
         return;
       }
 
@@ -419,32 +441,40 @@ class CodexSession implements HarnessSession {
       return parts.length ? ({ type: "thinking", text: parts.join("\n") } as never) : undefined;
     }
 
-    const toolish: Record<string, { name: string; input: unknown; output: unknown; ok: boolean }> = {
+    const toolish: Record<
+      string,
+      { name: string; input: unknown; output: unknown; ok: boolean; kind: ToolKind }
+    > = {
       commandExecution: {
+        kind: "command",
         name: "shell",
         input: { command: item.command, cwd: item.cwd },
         output: item.aggregatedOutput,
         ok: item.status === "completed" && (item.exitCode ?? 0) === 0,
       },
       fileChange: {
+        kind: "file_edit",
         name: "apply_patch",
         input: { changes: item.changes },
         output: item.changes,
         ok: item.status === "completed",
       },
       mcpToolCall: {
+        kind: "mcp",
         name: `mcp__${String(item.server ?? "")}__${String(item.tool ?? "")}`,
         input: item.arguments,
         output: item.result ?? item.error,
         ok: item.status === "completed",
       },
       dynamicToolCall: {
+        kind: "other",
         name: `${String(item.namespace ?? "")}/${String(item.tool ?? "")}`,
         input: item.arguments,
         output: item.contentItems,
         ok: item.success === true,
       },
       functionCallOutput: {
+        kind: "other",
         name: String(item.name ?? "function"),
         input: undefined,
         output: item.output,
@@ -456,9 +486,9 @@ class CodexSession implements HarnessSession {
     if (!t) return undefined;
 
     if (phase === "started") {
-      return { type: "tool_call", callId: id, name: t.name, input: t.input } as never;
+      return { type: "tool_call", callId: id, name: t.name, input: t.input, kind: t.kind } as never;
     }
-    return { type: "tool_result", callId: id, ok: t.ok, output: t.output } as never;
+    return { type: "tool_result", callId: id, ok: t.ok, output: t.output, kind: t.kind } as never;
   }
 
   // --- control --------------------------------------------------------------
@@ -553,19 +583,34 @@ export class CodexAdapter implements HarnessAdapter {
   readonly name = "codex";
 
   readonly capabilities: HarnessCapabilities = {
-    resume: true,
-    fork: true,
-    interrupt: true,
-    approvals: true,
-    streamingDeltas: true,
-    thinking: true,
-    mcpStdio: true,
-    mcpHttp: true,
-    costUsd: false, // account-level only, behind OpenAI auth
-    tokenUsage: true,
-    setModelMidSession: true, // per-turn model override on turn/start
-    listCommands: false, // no slash-command enumeration in app-server
-    sandbox: true, // read-only / workspace-write / danger-full-access
+    resume: "yes", // thread/resume -- verified live to replay history
+    fork: "yes", // thread/fork (NOT exercised by this spike)
+    interrupt: "yes", // turn/interrupt {threadId, turnId}
+    approvals: "yes", // native server->client requests, rich decision set
+    streamingDeltas: "yes",
+    thinking: "yes", // item/reasoning/*
+    toolOutputDeltas: "yes", // item/commandExecution/outputDelta
+    mcpStdio: "yes",
+    mcpHttp: "yes", // url + bearer_token_env_var / http_headers
+    // BEND B12: thread/items/list and thread/turns/list are in the STABLE,
+    // fully-typed surface and return -32601 "not supported yet" at runtime.
+    transcriptRead: "declared-unimplemented",
+    tokenUsage: "yes", // thread/tokenUsage/updated (cumulative)
+    // BEND B4: no cost on the turn stream. Dollars exist only at account level
+    // (account/usage/read) behind OpenAI auth, so a custom-provider deployment
+    // can never report cost at all.
+    costUsd: "no",
+    setModelMidSession: "yes", // per-turn model override on turn/start
+    listCommands: "no", // no slash-command enumeration in app-server
+    sandbox: "yes", // read-only / workspace-write / danger-full-access
+    // BEND B8: no app-server method to ADD an MCP server. It is config.toml
+    // read at startup, so servers cannot vary per session in one process.
+    mcpInjection: "per-process",
+    via: {
+      transcriptRead: "typed and stable in the protocol, but -32601 at runtime in 0.169.0",
+      costUsd: "token counts only; USD is account-level and requires OpenAI auth",
+      sandbox: "bubblewrap-based; needs unprivileged user namespaces (unavailable in LXC here)",
+    },
   };
 
   async startSession(opts: StartSessionOptions): Promise<HarnessSession> {
