@@ -122,6 +122,9 @@ if (!harnessName) {
 mkdirSync(WORK_ROOT, { recursive: true });
 mkdirSync(join(SPIKE_ROOT, "logs"), { recursive: true });
 
+// Log every provider request verbatim: it records exactly what each harness
+// sends, which is itself spike evidence (tool vocabularies, history replay).
+process.env.SPIKE_PROVIDER_LOG ??= join(SPIKE_ROOT, "logs", `provider-${harnessName}.jsonl`);
 const provider = await startFakeProvider(PROVIDER_PORT);
 console.log(`fake provider: ${provider.url}`);
 

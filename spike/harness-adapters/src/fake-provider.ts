@@ -89,11 +89,18 @@ function pickTool(tools: ToolSpec[], want: "write" | "read" | "mcp"): ToolSpec |
     return byName(/^mcp__/i) ?? byName(/spike[_-]?(ping|echo)/i) ?? byName(/ping/i);
   }
   if (want === "write") {
+    // Priority order matters. Tried in strict preference, because several
+    // harnesses offer BOTH a simple whole-file write and a structured
+    // edit/patch tool whose schema is much fussier (Pi's `edit` demands an
+    // `edits` array and rejects {path,content}; Codex's apply_patch wants a
+    // diff). Always prefer the simple one, then a shell, and only then an
+    // edit-shaped tool.
     return (
-      byName(/^(write|write_file|create_file|str_replace_editor|edit)$/i) ??
-      byName(/write/i) ??
-      byName(/^(bash|shell|exec|run_command|local_shell)$/i) ??
-      byName(/bash|shell|exec/i)
+      byName(/^(write|write_file|create_file|create)$/i) ??
+      byName(/^(bash|shell|exec|run_command|local_shell|powershell)$/i) ??
+      byName(/^write/i) ??
+      byName(/bash|shell|exec/i) ??
+      byName(/^(edit|str_replace_editor|apply_patch)$/i)
     );
   }
   return (
@@ -204,9 +211,11 @@ export function decide(h: HistoryView): Decision {
 // Request logging
 // =============================================================================
 
-const LOG = process.env.SPIKE_PROVIDER_LOG;
-
 function log(kind: string, payload: unknown): void {
+  // Read lazily, NOT at module scope: ESM imports are evaluated before the
+  // importing module's body, so a module-scope capture would always see the
+  // value as unset when the runner assigns it after importing.
+  const LOG = process.env.SPIKE_PROVIDER_LOG;
   if (!LOG) return;
   try {
     appendFileSync(
