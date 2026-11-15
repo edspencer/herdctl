@@ -1,0 +1,16 @@
+{
+  "name": "harness-adapter-spike",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Throwaway spike: does one adapter interface fit Claude, Pi and Codex?",
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "^1.5.2",
+    "@openai/codex": "^0.169.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "@types/node": "^22.10.2"
+  }
+}
