@@ -108,6 +108,7 @@ class CodexSession implements HarnessSession {
   private closed = false;
   private onApproval?: (r: ApprovalRequest) => Promise<ApprovalDecision>;
   private bridges: { close: () => Promise<void> }[] = [];
+  private lastStderr?: string;
 
   constructor(child: ChildProcessWithoutNullStreams, opts: StartSessionOptions) {
     this.child = child;
@@ -127,15 +128,38 @@ class CodexSession implements HarnessSession {
       },
     );
 
+    child.stderr.on("data", (d) => {
+      const line = String(d);
+      // Keep the last stderr so a boot failure can be reported usefully rather
+      // than as an opaque timeout.
+      if (line.trim()) this.lastStderr = line.trim().slice(0, 400);
+    });
+
     child.on("exit", (code, signal) => {
       if (!this.closed) {
         this.queue.push({
           type: "error",
           timestamp: new Date().toISOString(),
-          raw: { code, signal },
-          message: `codex app-server exited unexpectedly (code=${code} signal=${signal})`,
-        });
+          raw: { code, signal, stderr: this.lastStderr },
+          message:
+            `codex app-server exited unexpectedly (code=${code} signal=${signal})` +
+            (this.lastStderr ? `: ${this.lastStderr}` : ""),
+          terminal: true,
+        } as HarnessEvent);
       }
+      // ADAPTER ROBUSTNESS LESSON, found the hard way. Without this, a harness
+      // that refuses to BOOT leaves every in-flight request pending forever:
+      // startSession()'s `initialize` never resolves and never rejects, so the
+      // caller hangs with no diagnostic. That is exactly what happened when
+      // Codex rejected approval_policy="untrusted" at config load. Any
+      // request/response adapter needs this, so it belongs in shared herdctl
+      // transport code rather than being rediscovered per adapter.
+      const err = new Error(
+        `codex app-server exited (code=${code} signal=${signal})` +
+          (this.lastStderr ? `: ${this.lastStderr}` : ""),
+      );
+      for (const [, p] of this.pending) p.reject(err);
+      this.pending.clear();
       this.queue.end();
     });
   }
@@ -161,7 +185,26 @@ class CodexSession implements HarnessSession {
     if (params !== undefined) payload.params = params;
     writeJsonLine(this.child.stdin, payload);
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        if (this.pending.delete(id)) {
+          reject(
+            new Error(
+              `codex request "${method}" timed out after 30s` +
+                (this.lastStderr ? ` (last stderr: ${this.lastStderr})` : ""),
+            ),
+          );
+        }
+      }, 30_000);
+      this.pending.set(id, {
+        resolve: (v) => {
+          clearTimeout(timer);
+          resolve(v);
+        },
+        reject: (e) => {
+          clearTimeout(timer);
+          reject(e);
+        },
+      });
     });
   }
 
@@ -510,7 +553,12 @@ class CodexSession implements HarnessSession {
       // not an approval POLICY. Codex has five policy values plus a granular
       // per-category object. Inferring the policy from the presence of a
       // callback is the best this interface allows, and it is lossy.
-      approvalPolicy: opts.onApproval ? "untrusted" : "never",
+      // FINDING: Codex 0.169.0 REJECTS approval_policy="untrusted" outright --
+      // "no longer supported; remove this setting" -- at config load, even
+      // though a serde variant-enumeration probe lists it as accepted. The
+      // enumeration names parseable variants; a later validation step rejects
+      // this one. Use on-request.
+      approvalPolicy: opts.onApproval ? "on-request" : "never",
       approvalsReviewer: "user",
       // FINDING, observed live: Codex's own sandbox is bubblewrap-based and
       // needs unprivileged user namespaces. In this LXC container bwrap fails
@@ -651,7 +699,7 @@ export class CodexAdapter implements HarnessAdapter {
     const config = [
       `model = "${opts.model ?? "spike-fake-1"}"`,
       `model_provider = "spikefake"`,
-      `approval_policy = "${opts.onApproval ? "untrusted" : "never"}"`,
+      `approval_policy = "${opts.onApproval ? "on-request" : "never"}"`,
       `sandbox_mode = "${process.env.SPIKE_CODEX_SANDBOX ?? "danger-full-access"}"`,
       ``,
       `[model_providers.spikefake]`,
