@@ -204,7 +204,7 @@ denied_tools:
 | `Glob` | Find files by pattern | Low |
 | `Grep` | Search file contents | Low |
 | `Bash` | Execute shell commands (use patterns) | High |
-| `Task` | Launch subagents | Medium |
+| `Task` | Launch subagents (see [fork subagents](/configuration/environment/#fork-subagents)) | Medium |
 | `WebFetch` | Fetch web content | Medium |
 | `WebSearch` | Search the web | Medium |
 | `TodoWrite` | Manage task lists | Low |
@@ -225,6 +225,10 @@ allowed_tools:
   - "Bash(node scripts/*)"  # Node scripts in scripts/
   - "Bash(make build)"      # Specific make target
 ```
+
+:::note[Git Commands and Permission Flow]
+As of Claude Agent SDK 0.3.325, read-only git commands (like `git status`, `git diff`, `git log`) go through the permission flow instead of being auto-approved. If you want to pre-approve these commands, include `Bash(git *)` in `allowed_tools`. Agents with `Bash` already in `allowed_tools` are unaffected.
+:::
 
 **Deny dangerous patterns:**
 
