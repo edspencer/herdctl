@@ -1,14 +1,14 @@
 ---
-last_checked_commit: a86269e
-last_run: "2026-11-10T09:02:37Z"
-entries_added: 0
-branches_created: ["docs/changelog-update-2026-02-22", "docs/changelog-update-2026-02-23-manual", "changelog/auto-update-2026-02-25", "changelog/auto-update-2026-02-26", "changelog/auto-update-2026-03-01", "changelog/auto-update-2026-03-06", "changelog/auto-update-2026-03-13", "docs/whats-new-catchup-2026-08-13", "changelog/auto-update-2026-11-10"]
+last_checked_commit: e9cb5d7
+last_run: "2026-11-16T09:04:11Z"
+entries_added: 1
+branches_created: ["docs/changelog-update-2026-02-22", "docs/changelog-update-2026-02-23-manual", "changelog/auto-update-2026-02-25", "changelog/auto-update-2026-02-26", "changelog/auto-update-2026-03-01", "changelog/auto-update-2026-03-06", "changelog/auto-update-2026-03-13", "docs/whats-new-catchup-2026-08-13", "changelog/auto-update-2026-11-10", "changelog/auto-update-2026-11-16"]
 status: completed
 ---
 
 # Changelog Update State
 
-**Last Updated:** 2026-11-10T09:02:37Z
+**Last Updated:** 2026-11-16T09:04:11Z
 
 This document tracks the state of the changelog updater agent, enabling
 incremental reviews that analyze only new commits since the last check.
@@ -19,10 +19,10 @@ incremental reviews that analyze only new commits since the last check.
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Last checked commit | a86269e | docs: update docs audit state from 2026-11-10 run |
-| Last run | 2026-11-10T09:02:37Z | Manual run via /changelog-update-daily |
-| Entries added (last run) | 0 | All commits were agent housekeeping |
-| Branches created | changelog/auto-update-2026-11-10 | State-only update |
+| Last checked commit | e9cb5d7 | chore: version packages (#492) |
+| Last run | 2026-11-16T09:04:11Z | Manual run via /changelog-update-daily |
+| Entries added (last run) | 1 | SDK update with Fable 5.2 support |
+| Branches created | changelog/auto-update-2026-11-16 | PR #496 |
 
 ---
 
@@ -30,6 +30,7 @@ incremental reviews that analyze only new commits since the last check.
 
 | Date | Commits Analyzed | Entries Added | Action | Branch |
 |------|-----------------|---------------|--------|--------|
+| 2026-11-16 | 6 | 1 | created-branch | changelog/auto-update-2026-11-16 |
 | 2026-11-10 | 29 | 0 | no-entries | changelog/auto-update-2026-11-10 |
 | 2026-11-09 | 7 | 6 | Manual run | n/a |
 | 2026-11-07 | 2 | 0 | No changes | n/a |
