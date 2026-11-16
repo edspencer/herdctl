@@ -208,6 +208,12 @@ These questions should be systematically investigated during audits. Each audit 
 | Q12 | Are OAuth access_token and refresh_token properly sanitized from error messages? | High | Open | - | - | container-manager.ts logger.error() calls in OAuth functions - check for credential leaks |
 | Q13 | Does credentials file (~/.claude/.credentials.json) have 0600 permissions enforced? | High | Open | - | - | writeCredentialsFile() should enforce permissions - verify with fs.chmodSync() |
 | Q14 | Can token refresh handle network failures without leaking credentials in stack traces? | Medium | Open | - | - | refreshClaudeOAuthToken() error handling - verify no token data in Error objects |
+| Q15 | Are OAuth tokens logged during refresh or injection to containers? | Medium | Open | - | 2026-11-16 | Related to Finding #015 - audit session files and logs for token exposure |
+| Q16 | What SDK settings are security-sensitive and should be validated? | Medium | Open | - | 2026-11-16 | Related to Finding #014 - schema.ts uses z.unknown() for settings field |
+| Q17 | What are the privilege boundaries when adopting an existing session? | Medium | Open | - | - | Session adoption may grant access to files/state from previous agent runs |
+| Q18 | Can agents access each other's session files via the web API route? | Medium | Open | - | - | Related to Finding #012 - `/api/chat/session/:encodedPath/:sessionId` path validation |
+| Q19 | Does herdctl use read-only git commands affected by SDK 0.3.325 permission flow changes? | Medium | Open | - | 2026-11-16 | SDK 0.3.325 changed git command auto-approval - verify no impact on agent behavior |
+| Q20 | What are SDK "deny rules" and how do they affect herdctl's MCP tool usage? | Low | Open | - | 2026-11-16 | SDK 0.3.325 feature - understand implications for tool availability |
 
 ### Question Guidelines
 
@@ -287,3 +293,4 @@ logger.info({ token })  // Definitely bad
 | 2026-02-06 | Q2 answered: All user-controlled file paths verified safe |
 | 2026-02-06 | Audit review: Added Q9-Q11 for deeper investigation of path safety edge cases |
 | 2026-02-20 | Audit review: Added Q12-Q14 for OAuth credential security verification (Finding #011) |
+| 2026-11-16 | Audit review: Added Q15-Q20 for OAuth exposure, SDK settings validation, session adoption, and SDK 0.3.325 behavior changes |

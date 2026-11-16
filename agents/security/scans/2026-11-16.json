@@ -1,0 +1,62 @@
+{
+  "date": "2026-11-16",
+  "commit": "e3ce201",
+  "branch": "security-audits",
+  "status": "FAIL",
+  "summary": {
+    "total_checks": 6,
+    "passed": 2,
+    "warned": 3,
+    "failed": 1
+  },
+  "checks": {
+    "npm-audit": {
+      "status": "WARN",
+      "duration_ms": 38201,
+      "findings": 1,
+      "details": "Could not parse pnpm audit output - manual review recommended"
+    },
+    "docker-config": {
+      "status": "FAIL",
+      "duration_ms": 334,
+      "findings": 3,
+      "details": "hostConfigOverride can bypass Docker security hardening (Finding #002 - ACCEPTED RISK)"
+    },
+    "permission-modes": {
+      "status": "WARN",
+      "duration_ms": 77,
+      "findings": 2,
+      "details": "bypassPermissions in example configs and code references (Findings #005, #010)"
+    },
+    "subprocess-patterns": {
+      "status": "WARN",
+      "duration_ms": 53,
+      "findings": 7,
+      "details": "shell:true and direct child_process usage detected (Finding #006 - ACCEPTED RISK)"
+    },
+    "path-safety": {
+      "status": "PASS",
+      "duration_ms": 3,
+      "findings": 0,
+      "details": "No unsafe path construction patterns detected"
+    },
+    "env-handling": {
+      "status": "PASS",
+      "duration_ms": 141,
+      "findings": 0,
+      "details": "No unsafe environment variable handling detected"
+    }
+  },
+  "npm_audit": {
+    "critical": 4,
+    "high": "100+",
+    "moderate": "140+",
+    "low": "30+",
+    "critical_cves": [
+      "GHSA-26w7-cxv4-gfx2 (Astro AVIF RCE)",
+      "GHSA-jqcg-44mw-7w3h (proxy-addr IP spoofing)",
+      "GHSA-xq3m-2v4x-88gg (protobufjs code exec)"
+    ],
+    "assessment": "LOW - Build-time deps and low exploitability in herdctl usage"
+  }
+}
