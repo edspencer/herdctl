@@ -7,6 +7,13 @@ A summary of notable changes across the herdctl packages. For the full technical
 
 ---
 
+### Claude Agent SDK 0.3.325 with Fable 5.2 Support
+**November 14, 2026** · `@herdctl/core@5.34.2`
+
+The Claude Agent SDK has been updated to version 0.3.325, bringing support for Claude Fable 5.2 and newer models. This update includes important upstream fixes for subagent task tracking, MCP tool schema conversion, session forking, and message streaming. Users can now access the full current model lineup without version errors. Fork subagents are enabled by default in SDK sessions (set `CLAUDE_CODE_FORK_SUBAGENT=0` to opt out). The update also changes permission handling for git commands and sandboxed Bash in custom permission configurations.
+
+---
+
 ### Interrupted Sessions No Longer Leak Processes
 **October 25, 2026** · `@herdctl/core@5.34.1`
 
