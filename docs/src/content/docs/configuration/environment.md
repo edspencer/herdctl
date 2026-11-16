@@ -320,6 +320,35 @@ While herdctl doesn't require specific environment variables, these are commonly
 
 ---
 
+## Claude Code Runtime Variables
+
+These environment variables control the behavior of Claude Code when running agents. They are inherited from the parent process and affect all agent sessions:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CLAUDE_CODE_FORK_SUBAGENT` | Enable fork subagents (spawn subagents in a separate process) | `1` (enabled) |
+| `HERDCTL_LOG_LEVEL` | Log level for herdctl runtime (`debug`, `info`, `warn`, `error`) | `info` |
+
+### Fork Subagents
+
+As of Claude Agent SDK 0.3.302, fork subagents are enabled by default. When enabled, subagents launched via the Task tool run in a separate process, providing better isolation and resource management.
+
+**Enable fork subagents (default):**
+
+```bash
+export CLAUDE_CODE_FORK_SUBAGENT=1
+```
+
+**Disable fork subagents:**
+
+```bash
+export CLAUDE_CODE_FORK_SUBAGENT=0
+```
+
+When fork subagents are disabled, subagents run in the same process as the parent agent. This can be useful for debugging or when resource isolation is not needed.
+
+---
+
 ## Complete Example
 
 Here's a full configuration demonstrating environment variable usage:
